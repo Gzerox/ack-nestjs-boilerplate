@@ -16,12 +16,15 @@ import { SettingModule } from 'src/modules/setting/setting.module';
 import { UserModule } from 'src/modules/user/user.module';
 import { VerificationModule } from 'src/modules/verification/verification.module';
 import { ENUM_WORKER_QUEUES } from 'src/worker/enums/worker.enum';
+import { TermsPolicyModule } from '@modules/terms-policy/terms-policy.module';
+import { TermsPolicyPublicController } from '@modules/terms-policy/controllers/terms-policy.public.controller';
 
 @Module({
     controllers: [
         HelloPublicController,
         AuthPublicController,
         ResetPasswordPublicController,
+        TermsPolicyPublicController
     ],
     providers: [],
     exports: [],
@@ -41,6 +44,7 @@ import { ENUM_WORKER_QUEUES } from 'src/worker/enums/worker.enum';
         BullModule.registerQueueAsync({
             name: ENUM_WORKER_QUEUES.EMAIL_QUEUE,
         }),
+        TermsPolicyModule
     ],
 })
 export class RoutesPublicModule {}

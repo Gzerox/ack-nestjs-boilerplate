@@ -19,6 +19,8 @@ import { UserAdminController } from 'src/modules/user/controllers/user.admin.con
 import { UserModule } from 'src/modules/user/user.module';
 import { VerificationModule } from 'src/modules/verification/verification.module';
 import { ENUM_WORKER_QUEUES } from 'src/worker/enums/worker.enum';
+import { TermsPolicyModule } from '@modules/terms-policy/terms-policy.module';
+import { TermsPolicyAdminController } from '@modules/terms-policy/controllers/terms-policy.admin.controller';
 
 @Module({
     controllers: [
@@ -29,6 +31,7 @@ import { ENUM_WORKER_QUEUES } from 'src/worker/enums/worker.enum';
         SessionAdminController,
         PasswordHistoryAdminController,
         ActivityAdminController,
+        TermsPolicyAdminController
     ],
     providers: [],
     exports: [],
@@ -44,6 +47,7 @@ import { ENUM_WORKER_QUEUES } from 'src/worker/enums/worker.enum';
         PasswordHistoryModule,
         ActivityModule,
         VerificationModule,
+        TermsPolicyModule,
         BullModule.registerQueueAsync({
             name: ENUM_WORKER_QUEUES.EMAIL_QUEUE,
         }),

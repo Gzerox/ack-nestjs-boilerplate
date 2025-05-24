@@ -1,8 +1,9 @@
-import { applyDecorators, SetMetadata } from '@nestjs/common';
+import { applyDecorators, createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
 import {
     REQUEST_CUSTOM_TIMEOUT_META_KEY,
     REQUEST_CUSTOM_TIMEOUT_VALUE_META_KEY,
 } from 'src/common/request/constants/request.constant';
+import { IRequestApp } from '@common/request/interfaces/request.interface';
 
 export function RequestTimeout(seconds: string): MethodDecorator {
     return applyDecorators(
@@ -10,3 +11,10 @@ export function RequestTimeout(seconds: string): MethodDecorator {
         SetMetadata(REQUEST_CUSTOM_TIMEOUT_VALUE_META_KEY, seconds)
     );
 }
+
+export const RequestLanguage: () => ParameterDecorator = createParamDecorator(
+    (_: unknown, ctx: ExecutionContext): string => {
+        const { __language } = ctx.switchToHttp().getRequest<IRequestApp>();
+        return __language;
+    },
+);

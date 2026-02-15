@@ -15,9 +15,10 @@ It supports:
 - Project create/list/get in user context
 - Project CRUD within tenant context
 - Project member management
+- Project member invitation lifecycle (create pending member, send invite, activation status)
 - Shared user project listing
 - Project-scoped permission validation using role abilities
-- Soft delete behavior for projects and memberships
+- Soft delete behavior for projects
 
 This module builds on top of existing tenant, authentication, authorization, response, and pagination infrastructure.
 
@@ -41,6 +42,7 @@ This module builds on top of existing tenant, authentication, authorization, res
 - [REST API Endpoints](#rest-api-endpoints)
   - [Shared Endpoints](#shared-endpoints)
   - [Tenant Shared Endpoints](#tenant-shared-endpoints)
+  - [Public Invitation Endpoints](#public-invitation-endpoints)
 - [Decorators and Guards](#decorators-and-guards)
   - [ProjectPermissionProtected](#projectpermissionprotected)
   - [ProjectMemberCurrent](#projectmembercurrent)
@@ -52,6 +54,7 @@ This module builds on top of existing tenant, authentication, authorization, res
   - [Response DTOs](#response-dtos)
   - [Access Type](#access-type)
 - [Business Rules](#business-rules)
+  - [Invitation Rules](#invitation-rules)
 - [Usage Examples](#usage-examples)
   - [Project Read Endpoint with Project Permissions](#project-read-endpoint-with-project-permissions)
   - [Project Member Access](#project-member-access)
@@ -129,13 +132,26 @@ Controller: `ProjectTenantSharedController` (`/tenants/projects`)
 | `GET` | `/tenants/projects/:projectId` | Get project detail | `TenantMember` + `ProjectPermission(project:read)` |
 | `PATCH` | `/tenants/projects/:projectId` | Update name/status | `TenantMember` + `ProjectPermission(project:update)` |
 | `DELETE` | `/tenants/projects/:projectId` | Soft-delete project | `TenantMember` + `ProjectPermission(project:delete)` |
-| `POST` | `/tenants/projects/:projectId/members` | Add member (role provided in request) | `TenantMember` + `ProjectPermission(project:update)` |
-| `PATCH` | `/tenants/projects/:projectId/members/:memberId` | Update member role and/or status | `TenantMember` + `ProjectPermission(project:update)` |
-| `GET` | `/tenants/projects/:projectId/members` | List active members | `TenantMember` + `ProjectPermission(project:read)` |
+| `POST` | `/tenants/projects/:projectId/members` | Add member by existing `userId` | `TenantMember` + `ProjectPermission(projectMember:create)` |
+| `POST` | `/tenants/projects/:projectId/members/invitations` | Add member by email (creates pending user when needed) | `TenantMember` + `ProjectPermission(projectMember:create)` |
+| `POST` | `/tenants/projects/:projectId/members/:memberId/invitations/send` | Send invitation email to pending member | `TenantMember` + `ProjectPermission(projectMember:create)` |
+| `PATCH` | `/tenants/projects/:projectId/members/:memberId` | Update member role and/or status | `TenantMember` + `ProjectPermission(projectMember:update)` |
+| `GET` | `/tenants/projects/:projectId/members` | List active members + invitation status | `TenantMember` + `ProjectPermission(projectMember:read)` |
 
 All endpoints also include `ApiKey`, `@AuthJwtAccessProtected`, and `@UserProtected`.
 
 `/tenants/projects` routes are only available when tenancy is enabled.
+
+### Public Invitation Endpoints
+
+Controller: `UserPublicController` (`/user`)
+
+| Method | Path | Description | Protection |
+|-------|------|-------------|------------|
+| `GET` | `/user/invitation/:token` | Resolve invitation status and prefilled email for activation form | `ApiKey` |
+| `PUT` | `/user/invitation/complete` | Complete invitation by setting first/last name + password | `ApiKey` |
+
+These endpoints are consumed by the invitation activation page linked from invitation email.
 
 ## Decorators and Guards
 
@@ -180,9 +196,8 @@ getMembership(
 Primary validations (implemented in `ProjectService.validateProjectMemberGuard`):
 
 1. `request.user` must exist.
-2. `request.params.projectId` must be a valid database id.
-3. User must have active membership in that project.
-4. Membership role must exist and have scope `project`.
+2. User must have active membership in that project.
+3. Membership role must exist and have scope `project`.
 
 On success, stores member context in `request.__projectMember`.
 
@@ -221,9 +236,17 @@ Used by:
 - `ProjectMemberCreateRequestDto`
   - `userId: string` (required)
   - `roleName: string` (required)
+- `ProjectMemberInviteCreateRequestDto`
+  - `email: string` (required, normalized lowercase)
+  - `roleName: string` (required)
 - `ProjectMemberUpdateRequestDto`
   - `roleName?: string`
   - `status?: EnumProjectMemberStatus`
+- `UserInvitationCompleteRequestDto`
+  - `token: string` (required)
+  - `firstName: string` (required)
+  - `lastName: string` (required)
+  - `password: string` (required)
 
 For validation mechanics and error shape, see [Request Validation Documentation][ref-doc-request-validation].
 
@@ -232,9 +255,16 @@ For validation mechanics and error shape, see [Request Validation Documentation]
 - `ProjectResponseDto`
   - `id`, `tenantId?`, `name`, `status`, `createdAt`, `updatedAt`
 - `ProjectMemberResponseDto`
-  - `id`, `projectId`, `userId`, `roleName`, `status`, `createdAt`
+  - `id`, `projectId`, `userId`, `email`, `roleName`, `status`, `createdAt`
+  - `invitation: { status, expiresAt?, remainingSeconds?, sentAt?, completedAt? }`
+- `ProjectMemberInviteCreateResponseDto`
+  - `memberId`, `userId`, `email`, `invitation`
+- `ProjectMemberInviteSendResponseDto`
+  - `invitation`, `resendAvailableAt`
 - `ProjectAccessResponseDto`
   - `accessType`, `project`
+- `UserInvitationResponseDto`
+  - `email`, `status`, `expiresAt?`, `remainingSeconds?`
 
 For response envelope format (`statusCode`, `message`, `data`), see [Response Documentation][ref-doc-response].
 
@@ -264,7 +294,27 @@ Current implementation returns `'member'` from shared listing APIs.
   - Update can include `roleName`, `status`, or both
   - Empty patch payload is treated as no-op success
 - Listing project members only returns active memberships.
+- Member list response includes invitation lifecycle status per member.
 - User project listing only returns active memberships and active projects.
+
+### Invitation Rules
+
+- Invitation create endpoint (`POST /shared/tenants/projects/:projectId/members/invitations`) requires `projectMember:create`.
+- Invitation send endpoint (`POST /shared/tenants/projects/:projectId/members/:memberId/invitations/send`) requires `projectMember:create`.
+- Invitation create behavior by email:
+  - If email does not exist, system creates a **pending** user (`isVerified=false`, no password set) using default platform role and default country.
+  - If email exists and user is unverified, system reuses that user and creates project membership.
+  - If email exists and user is already verified, system reuses that user and creates project membership.
+  - If project membership already exists, request fails with conflict.
+- Invitation send behavior:
+  - Sends activation email with dedicated invitation token.
+  - Resend is rate-limited (same resend window pattern used in verification flows).
+  - Sending invitation for already-verified user is rejected (`invitationAlreadyCompleted`).
+- Public invitation completion:
+  - `GET /public/user/invitation/:token` returns token status and prefilled email.
+  - `PUT /public/user/invitation/complete` accepts only `token`, `firstName`, `lastName`, `password`.
+  - Email is not mutable at completion; user identity is resolved from token.
+  - Completion marks invitation used, verifies user, stores password, and updates user name.
 
 ## Usage Examples
 
@@ -315,7 +365,7 @@ async membership(
 - User-scoped project endpoints (`/shared/projects`) do not require tenant context.
 - Tenant-scoped project endpoints (`/shared/tenants/projects`) are mounted via `TenantRoutesSharedModule` only when `TENANCY_ENABLED=true`.
 - For tenant-scoped project resource routes, both tenant membership and project permission guards are applied.
-- Role abilities are evaluated via policy ability factory; role scope must be `project`.
+- Role abilities are evaluated via policy ability factory; project routes use `project` subject, while member routes use `projectMember` subject.
 
 ## Future Improvements
 

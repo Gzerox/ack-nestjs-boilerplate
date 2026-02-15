@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { EnumProjectMemberStatus } from '@prisma/client';
+import { ProjectMemberInvitationStatusResponseDto } from '@modules/project/dtos/response/project-member-invitation.response.dto';
 
 export class ProjectMemberResponseDto {
     @ApiProperty({
@@ -22,6 +23,12 @@ export class ProjectMemberResponseDto {
 
     @ApiProperty({
         required: true,
+        description: 'User email',
+    })
+    email: string;
+
+    @ApiProperty({
+        required: true,
         description: 'Role name',
     })
     roleName: string;
@@ -38,4 +45,10 @@ export class ProjectMemberResponseDto {
         description: 'Date created',
     })
     createdAt: Date;
+
+    @ApiProperty({
+        required: true,
+        type: ProjectMemberInvitationStatusResponseDto,
+    })
+    invitation: ProjectMemberInvitationStatusResponseDto;
 }

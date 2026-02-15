@@ -1,18 +1,24 @@
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
+import { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { RoleRepository } from '@modules/role/repositories/role.repository';
 import { ProjectMemberCreateRequestDto } from '@modules/project/dtos/request/project-member.create.request.dto';
+import { ProjectMemberInviteCreateRequestDto } from '@modules/project/dtos/request/project-member-invite.create.request.dto';
 import { ProjectMemberUpdateRequestDto } from '@modules/project/dtos/request/project-member.update.request.dto';
 import { ProjectAccessResponseDto } from '@modules/project/dtos/response/project.access.response.dto';
+import { ProjectMemberInvitationStatusResponseDto } from '@modules/project/dtos/response/project-member-invitation.response.dto';
+import { ProjectMemberInviteCreateResponseDto } from '@modules/project/dtos/response/project-member-invite-create.response.dto';
+import { ProjectMemberInviteSendResponseDto } from '@modules/project/dtos/response/project-member-invite-send.response.dto';
 import { ProjectMemberResponseDto } from '@modules/project/dtos/response/project-member.response.dto';
 import { ProjectResponseDto } from '@modules/project/dtos/response/project.response.dto';
 import { ProjectRepository } from '@modules/project/repositories/project.repository';
 import { ProjectUtil } from '@modules/project/utils/project.util';
 import { UserRepository } from '@modules/user/repositories/user.repository';
+import { UserService } from '@modules/user/services/user.service';
 import {
     ConflictException,
     ForbiddenException,
@@ -32,6 +38,7 @@ export class ProjectMemberService {
         private readonly projectRepository: ProjectRepository,
         private readonly roleRepository: RoleRepository,
         private readonly userRepository: UserRepository,
+        private readonly userService: UserService,
         private readonly projectUtil: ProjectUtil
     ) {}
 
@@ -135,6 +142,106 @@ export class ProjectMemberService {
         return {};
     }
 
+    async createInvitation(
+        projectId: string,
+        dto: ProjectMemberInviteCreateRequestDto,
+        createdBy: string
+    ): Promise<IResponseReturn<ProjectMemberInviteCreateResponseDto>> {
+        const role = await this.roleRepository.existByNameAndScope(
+            dto.roleName.trim(),
+            EnumRoleScope.project
+        );
+        if (!role) {
+            throw new NotFoundException({
+                statusCode: HttpStatus.NOT_FOUND,
+                message: 'projectRole.error.notFound',
+            });
+        }
+
+        const user = await this.userService.resolveOrCreateInvitationUser(
+            dto.email,
+            createdBy
+        );
+
+        const member = await this.projectRepository.findMemberByProjectAndUser(
+            projectId,
+            user.id
+        );
+        if (member) {
+            throw new ConflictException({
+                statusCode: HttpStatus.CONFLICT,
+                message: 'projectMember.error.exist',
+            });
+        }
+
+        const projectMember = await this.projectRepository.addMember({
+            projectId,
+            userId: user.id,
+            roleId: role.id,
+            status: EnumProjectMemberStatus.active,
+            createdBy,
+            updatedBy: createdBy,
+        });
+
+        const latestInvitation =
+            await this.userRepository.findOneLatestByInvitation(user.id);
+
+        return {
+            data: {
+                memberId: projectMember.id,
+                userId: user.id,
+                email: user.email,
+                invitation: this.mapInvitationStatus(
+                    user.isVerified,
+                    user.verifiedAt,
+                    latestInvitation
+                ),
+            },
+        };
+    }
+
+    async sendInvitation(
+        projectId: string,
+        memberId: string,
+        requestedBy: string,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<ProjectMemberInviteSendResponseDto>> {
+        const member = await this.projectRepository.findOneMemberByIdAndProject(
+            memberId,
+            projectId
+        );
+        if (!member?.user) {
+            throw new NotFoundException({
+                statusCode: HttpStatus.NOT_FOUND,
+                message: 'projectMember.error.userNotFound',
+            });
+        }
+
+        const invitation = await this.userService.sendInvitationByUserId(
+            member.user.id,
+            requestedBy,
+            requestLog
+        );
+
+        const now = Date.now();
+        return {
+            data: {
+                invitation: {
+                    status: 'pending',
+                    expiresAt: invitation.expiresAt,
+                    remainingSeconds: Math.max(
+                        0,
+                        Math.floor(
+                            (invitation.expiresAt.getTime() - now) / 1000
+                        )
+                    ),
+                    sentAt: new Date(),
+                },
+                resendAvailableAt: invitation.resendAvailableAt,
+            },
+        };
+    }
+
     async listMembers(
         projectId: string,
         pagination: IPaginationQueryOffsetParams
@@ -147,7 +254,25 @@ export class ProjectMemberService {
 
         return {
             ...others,
-            data: data.map(member => this.projectUtil.mapMember(member)),
+            data: data.map(member => {
+                const user = member.user as typeof member.user & {
+                    verifications?: Array<{
+                        createdAt?: Date;
+                        expiredAt?: Date;
+                        isUsed?: boolean;
+                        verifiedAt?: Date;
+                    }>;
+                };
+
+                return this.projectUtil.mapMember(
+                    member,
+                    this.mapInvitationStatus(
+                        member.user?.isVerified ?? false,
+                        member.user?.verifiedAt,
+                        user?.verifications?.[0]
+                    )
+                );
+            }),
         };
     }
 
@@ -196,6 +321,56 @@ export class ProjectMemberService {
 
         return {
             data: this.projectUtil.mapProject(member.project),
+        };
+    }
+
+    private mapInvitationStatus(
+        isVerified: boolean,
+        verifiedAt?: Date,
+        invitation?: {
+            createdAt?: Date;
+            expiredAt?: Date;
+            isUsed?: boolean;
+            verifiedAt?: Date;
+        }
+    ): ProjectMemberInvitationStatusResponseDto {
+        if (isVerified) {
+            return {
+                status: 'completed',
+                completedAt: verifiedAt,
+            };
+        }
+
+        if (!invitation?.expiredAt) {
+            return {
+                status: 'not_sent',
+            };
+        }
+
+        if (invitation.isUsed) {
+            return {
+                status: 'completed',
+                completedAt: invitation.verifiedAt ?? verifiedAt,
+            };
+        }
+
+        const now = Date.now();
+        if (invitation.expiredAt.getTime() <= now) {
+            return {
+                status: 'expired',
+                expiresAt: invitation.expiredAt,
+                sentAt: invitation.createdAt,
+            };
+        }
+
+        return {
+            status: 'pending',
+            expiresAt: invitation.expiredAt,
+            sentAt: invitation.createdAt,
+            remainingSeconds: Math.max(
+                0,
+                Math.floor((invitation.expiredAt.getTime() - now) / 1000)
+            ),
         };
     }
 }

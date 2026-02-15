@@ -1,6 +1,11 @@
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import { PaginationOffsetQuery } from '@common/pagination/decorators/pagination.decorator';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
+import {
+    RequestIPAddress,
+    RequestUserAgent,
+} from '@common/request/decorators/request.decorator';
+import { RequestUserAgentDto } from '@common/request/dtos/request.user-agent.dto';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { Response, ResponsePaging } from '@common/response/decorators/response.decorator';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
@@ -17,8 +22,11 @@ import {
 } from '@modules/project/constants/project.policy.constant';
 import { ProjectCreateRequestDto } from '@modules/project/dtos/request/project.create.request.dto';
 import { ProjectMemberCreateRequestDto } from '@modules/project/dtos/request/project-member.create.request.dto';
+import { ProjectMemberInviteCreateRequestDto } from '@modules/project/dtos/request/project-member-invite.create.request.dto';
 import { ProjectMemberUpdateRequestDto } from '@modules/project/dtos/request/project-member.update.request.dto';
 import { ProjectUpdateRequestDto } from '@modules/project/dtos/request/project.update.request.dto';
+import { ProjectMemberInviteCreateResponseDto } from '@modules/project/dtos/response/project-member-invite-create.response.dto';
+import { ProjectMemberInviteSendResponseDto } from '@modules/project/dtos/response/project-member-invite-send.response.dto';
 import { ProjectMemberResponseDto } from '@modules/project/dtos/response/project-member.response.dto';
 import { ProjectResponseDto } from '@modules/project/dtos/response/project.response.dto';
 import { ProjectPermissionProtected } from '@modules/project/decorators/project.decorator';
@@ -124,6 +132,50 @@ export class ProjectTenantSharedController {
         @AuthJwtPayload('userId') createdBy: string
     ): Promise<IResponseReturn<DatabaseIdDto>> {
         return this.projectMemberService.create(projectId, body, createdBy);
+    }
+
+    @Response('project.member.invitation.create')
+    @TenantMemberProtected()
+    @ProjectPermissionProtected(ProjectMemberPolicyCreate)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Post('/:projectId/members/invitations')
+    async createMemberInvitation(
+        @Param('projectId', RequestRequiredPipe) projectId: string,
+        @Body() body: ProjectMemberInviteCreateRequestDto,
+        @AuthJwtPayload('userId') createdBy: string
+    ): Promise<IResponseReturn<ProjectMemberInviteCreateResponseDto>> {
+        return this.projectMemberService.createInvitation(
+            projectId,
+            body,
+            createdBy
+        );
+    }
+
+    @Response('project.member.invitation.send')
+    @TenantMemberProtected()
+    @ProjectPermissionProtected(ProjectMemberPolicyCreate)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Post('/:projectId/members/:memberId/invitations/send')
+    async sendMemberInvitation(
+        @Param('projectId', RequestRequiredPipe) projectId: string,
+        @Param('memberId', RequestRequiredPipe) memberId: string,
+        @AuthJwtPayload('userId') requestedBy: string,
+        @RequestIPAddress() ipAddress: string,
+        @RequestUserAgent() userAgent: RequestUserAgentDto
+    ): Promise<IResponseReturn<ProjectMemberInviteSendResponseDto>> {
+        return this.projectMemberService.sendInvitation(
+            projectId,
+            memberId,
+            requestedBy,
+            {
+                ipAddress,
+                userAgent,
+            }
+        );
     }
 
     @Response('project.member.update')

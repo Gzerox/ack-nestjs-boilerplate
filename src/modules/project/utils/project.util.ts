@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ProjectRoleViewer } from '@modules/project/constants/project.constant';
 import { ProjectAccessResponseDto } from '@modules/project/dtos/response/project.access.response.dto';
+import { ProjectMemberInvitationStatusResponseDto } from '@modules/project/dtos/response/project-member-invitation.response.dto';
 import { ProjectMemberResponseDto } from '@modules/project/dtos/response/project-member.response.dto';
 import { ProjectResponseDto } from '@modules/project/dtos/response/project.response.dto';
 import { IProject, IProjectMember } from '@modules/project/interfaces/project.interface';
@@ -18,14 +19,19 @@ export class ProjectUtil {
         };
     }
 
-    mapMember(member: IProjectMember): ProjectMemberResponseDto {
+    mapMember(
+        member: IProjectMember,
+        invitation: ProjectMemberInvitationStatusResponseDto
+    ): ProjectMemberResponseDto {
         return {
             id: member.id,
             projectId: member.projectId,
             userId: member.userId,
+            email: member.user?.email ?? '',
             roleName: member.role?.name ?? ProjectRoleViewer,
             status: member.status,
             createdAt: member.createdAt,
+            invitation,
         };
     }
 

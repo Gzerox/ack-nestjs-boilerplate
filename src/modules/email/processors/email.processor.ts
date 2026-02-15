@@ -67,6 +67,13 @@ export class EmailProcessor
                     );
 
                     break;
+                case EnumSendEmailProcess.invitation:
+                    await this.processInvitation(
+                        job.data.send,
+                        job.data.data as EmailVerificationDto
+                    );
+
+                    break;
                 case EnumSendEmailProcess.emailVerified:
                     await this.processEmailVerified(
                         job.data.send,
@@ -125,6 +132,13 @@ export class EmailProcessor
         verification: EmailVerificationDto
     ): Promise<boolean> {
         return this.emailUtil.sendVerification(data, verification);
+    }
+
+    async processInvitation(
+        data: EmailSendDto,
+        invitation: EmailVerificationDto
+    ): Promise<boolean> {
+        return this.emailUtil.sendInvitation(data, invitation);
     }
 
     async processEmailVerified(

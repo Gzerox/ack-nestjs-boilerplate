@@ -24,6 +24,11 @@ export interface IEmailService {
         { email, username }: EmailSendDto,
         { expiredAt, expiredInMinutes, link, reference }: EmailVerificationDto
     ): Promise<void>;
+    sendInvitation(
+        userId: string,
+        { email, username }: EmailSendDto,
+        { expiredAt, expiredInMinutes, link, reference }: EmailVerificationDto
+    ): Promise<void>;
     sendTemporaryPassword(
         userId: string,
         { email, username }: EmailSendDto,

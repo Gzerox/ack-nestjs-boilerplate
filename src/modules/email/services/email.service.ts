@@ -86,6 +86,27 @@ export class EmailService implements IEmailService {
         );
     }
 
+    async sendInvitation(
+        userId: string,
+        { email, username }: EmailSendDto,
+        { expiredAt, expiredInMinutes, link, reference }: EmailVerificationDto
+    ): Promise<void> {
+        await this.emailQueue.add(
+            EnumSendEmailProcess.invitation,
+            {
+                send: {
+                    email,
+                    username,
+                },
+                data: { expiredAt, expiredInMinutes, link, reference },
+            },
+            {
+                jobId: `${EnumSendEmailProcess.invitation}-${userId}`,
+                priority: EnumQueuePriority.HIGH,
+            }
+        );
+    }
+
     async sendTemporaryPassword(
         userId: string,
         { email, username }: EmailSendDto,

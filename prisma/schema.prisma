@@ -617,6 +617,7 @@ enum EnumTermPolicyStatus {
 enum EnumVerificationType {
   mobileNumber
   email
+  invitation
 }
 
 enum EnumPasswordHistoryType {
@@ -645,7 +646,9 @@ enum EnumActivityLogAction {
   userRefreshToken
   userVerifiedEmail
   userSendVerificationEmail
+  userSendInvitationEmail
   userSignedUp
+  userCompleteInvitation
   userResetPassword
   userRevokeSession
   userRevokeSessionByAdmin

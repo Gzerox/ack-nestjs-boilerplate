@@ -25,6 +25,10 @@ export interface IEmailProcessor {
         data: EmailSendDto,
         verification: EmailVerificationDto
     ): Promise<boolean>;
+    processInvitation(
+        data: EmailSendDto,
+        invitation: EmailVerificationDto
+    ): Promise<boolean>;
     processEmailVerified(
         data: EmailSendDto,
         emailVerified: EmailVerifiedDto

@@ -94,6 +94,7 @@ import {
     EnumUserLoginWith,
     EnumUserStatus,
     EnumVerificationType,
+    User,
 } from '@prisma/client';
 import { Duration } from 'luxon';
 import { AuthTwoFactorUtil } from '@modules/auth/utils/auth.two-factor.util';
@@ -106,8 +107,10 @@ import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { RequestTooManyException } from '@common/request/exceptions/request.too-many.exception';
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
+import { UserInvitationCompleteRequestDto } from '@modules/user/dtos/request/user.invitation-complete.request.dto';
 import { ConfigService } from '@nestjs/config';
 import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.response.dto';
+import { UserInvitationResponseDto } from '@modules/user/dtos/response/user.invitation.response.dto';
 
 @Injectable()
 export class UserService implements IUserService {
@@ -1317,6 +1320,231 @@ export class UserService implements IUserService {
                 _error: err,
             });
         }
+    }
+
+    async resolveOrCreateInvitationUser(
+        email: string,
+        createdBy: string
+    ): Promise<User> {
+        const normalizedEmail = email.toLowerCase().trim();
+        const existingUser = await this.userRepository.findOneByEmail(
+            normalizedEmail
+        );
+        if (existingUser) {
+            return existingUser;
+        }
+
+        const emailExist = await this.userRepository.existByEmail(
+            normalizedEmail
+        );
+        if (emailExist) {
+            throw new ConflictException({
+                statusCode: EnumUserStatus_CODE_ERROR.emailExist,
+                message: 'user.error.emailExist',
+            });
+        }
+
+        const [role, country] = await Promise.all([
+            this.roleRepository.existByNameAndScope(
+                this.userRoleName,
+                EnumRoleScope.platform
+            ),
+            this.countryRepository.existByAlpha2Code(this.userCountryName),
+        ]);
+        if (!role) {
+            throw new NotFoundException({
+                statusCode: EnumRoleStatusCodeError.notFound,
+                message: 'role.error.notFound',
+            });
+        } else if (!country) {
+            throw new NotFoundException({
+                statusCode: EnumCountryStatusCodeError.notFound,
+                message: 'country.error.notFound',
+            });
+        }
+
+        const randomUsername = this.userUtil.createRandomUsername();
+        return this.userRepository.createPendingByInvitation(
+            randomUsername,
+            normalizedEmail,
+            role.id,
+            country.id,
+            createdBy
+        );
+    }
+
+    async sendInvitationByUserId(
+        userId: string,
+        requestedBy: string,
+        requestLog: IRequestLog
+    ): Promise<{
+        expiresAt: Date;
+        expiresInMinutes: number;
+        resendAvailableAt: Date;
+    }> {
+        const user = await this.userRepository.findOneById(userId);
+        if (!user) {
+            throw new NotFoundException({
+                statusCode: EnumUserStatus_CODE_ERROR.notFound,
+                message: 'user.error.notFound',
+            });
+        } else if (user.status !== EnumUserStatus.active) {
+            throw new ForbiddenException({
+                statusCode: EnumUserStatus_CODE_ERROR.inactiveForbidden,
+                message: 'user.error.inactive',
+            });
+        } else if (user.isVerified) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatus_CODE_ERROR.emailAlreadyVerified,
+                message: 'projectMember.error.invitationAlreadyCompleted',
+            });
+        }
+
+        const lastInvitation =
+            await this.userRepository.findOneLatestByInvitation(user.id);
+        const today = this.helperService.dateCreate();
+        if (lastInvitation) {
+            const canResendAt = this.helperService.dateForward(
+                lastInvitation.createdAt,
+                Duration.fromObject({
+                    minutes: this.userUtil.invitationResendInMinutes,
+                })
+            );
+
+            if (today < canResendAt) {
+                throw new BadRequestException({
+                    statusCode:
+                        EnumUserStatus_CODE_ERROR.verificationEmailResendLimitExceeded,
+                    message: 'projectMember.error.invitationResendLimitExceeded',
+                    messageProperties: {
+                        resendIn: this.helperService.dateDiff(
+                            today,
+                            canResendAt
+                        ).minutes,
+                    },
+                });
+            }
+        }
+
+        const invitation = this.userUtil.invitationCreateVerification();
+
+        await this.userRepository.requestInvitationEmail(
+            user.id,
+            user.email,
+            invitation,
+            requestLog,
+            requestedBy
+        );
+
+        await this.emailService.sendInvitation(
+            user.id,
+            {
+                email: user.email,
+                username: user.username,
+            },
+            {
+                expiredAt: invitation.expiredAt.toISOString(),
+                reference: invitation.reference,
+                link: invitation.link,
+                expiredInMinutes: invitation.expiredInMinutes,
+            }
+        );
+
+        return {
+            expiresAt: invitation.expiredAt,
+            expiresInMinutes: invitation.expiredInMinutes,
+            resendAvailableAt: this.helperService.dateForward(
+                today,
+                Duration.fromObject({
+                    minutes: invitation.resendInMinutes,
+                })
+            ),
+        };
+    }
+
+    async getInvitation(
+        token: string
+    ): Promise<IResponseReturn<UserInvitationResponseDto>> {
+        const invitation = await this.userRepository.findOneByInvitationToken(
+            token
+        );
+        if (!invitation) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatus_CODE_ERROR.tokenInvalid,
+                message: 'user.error.invitationTokenInvalid',
+            });
+        }
+
+        const today = this.helperService.dateCreate();
+        let status: 'pending' | 'expired' | 'completed' = 'pending';
+        if (invitation.user.isVerified || invitation.isUsed) {
+            status = 'completed';
+        } else if (invitation.expiredAt <= today) {
+            status = 'expired';
+        }
+
+        return {
+            data: {
+                email: invitation.user.email,
+                status,
+                expiresAt: invitation.expiredAt,
+                remainingSeconds:
+                    status === 'pending'
+                        ? Math.max(
+                              0,
+                              Math.floor(
+                                  (invitation.expiredAt.getTime() -
+                                      today.getTime()) /
+                                      1000
+                              )
+                          )
+                        : undefined,
+            },
+        };
+    }
+
+    async completeInvitation(
+        { token, firstName, lastName, password }: UserInvitationCompleteRequestDto,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<void>> {
+        const invitation =
+            await this.userRepository.findOneActiveByInvitationToken(token);
+        if (!invitation) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatus_CODE_ERROR.tokenInvalid,
+                message: 'user.error.invitationTokenInvalid',
+            });
+        }
+        if (invitation.user.isVerified) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatus_CODE_ERROR.emailAlreadyVerified,
+                message: 'projectMember.error.invitationAlreadyCompleted',
+            });
+        }
+
+        const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+        const passwordPayload = this.authUtil.createPassword(password);
+
+        await this.userRepository.completeInvitation(
+            invitation.id,
+            invitation.userId,
+            name,
+            passwordPayload,
+            requestLog
+        );
+
+        await this.emailService.sendVerified(
+            invitation.user.id,
+            {
+                email: invitation.user.email,
+                username: invitation.user.username,
+            },
+            {
+                reference: invitation.reference,
+            }
+        );
+
+        return {};
     }
 
     async forgotPassword(

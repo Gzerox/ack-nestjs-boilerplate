@@ -17,6 +17,7 @@ import { Injectable } from '@nestjs/common';
 import {
     EnumProjectMemberStatus,
     EnumProjectStatus,
+    EnumVerificationType,
     Project,
     ProjectMember,
 } from '@prisma/client';
@@ -162,6 +163,7 @@ export class ProjectRepository {
             include: {
                 role: true,
                 project: true,
+                user: true,
             },
         });
     }
@@ -196,6 +198,30 @@ export class ProjectRepository {
                 include: {
                     project: true,
                     role: true,
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            isVerified: true,
+                            verifiedAt: true,
+                            verifications: {
+                                where: {
+                                    type: 'invitation' as EnumVerificationType,
+                                },
+                                orderBy: {
+                                    createdAt: 'desc',
+                                },
+                                take: 1,
+                                select: {
+                                    id: true,
+                                    createdAt: true,
+                                    expiredAt: true,
+                                    isUsed: true,
+                                    verifiedAt: true,
+                                },
+                            },
+                        },
+                    },
                 },
             }
         );

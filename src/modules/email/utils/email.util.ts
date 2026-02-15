@@ -256,6 +256,43 @@ export class EmailUtil {
     }
 
     /**
+     * Send invitation email message
+     * @param {EmailSendDto} emailData - Email and username data
+     * @param {EmailVerificationDto} invitationData - Invitation token, link, reference and expiration data
+     * @returns {Promise<boolean>} True if email sent successfully, false otherwise
+     */
+    async sendInvitation(
+        { username, email }: EmailSendDto,
+        { expiredAt, reference, link, expiredInMinutes }: EmailVerificationDto
+    ): Promise<boolean> {
+        try {
+            await this.awsSESService.send({
+                templateName: EnumSendEmailProcess.invitation,
+                recipients: [email],
+                sender: this.noreplyEmail,
+                templateData: {
+                    homeName: this.homeName,
+                    supportEmail: title(this.supportEmail),
+                    homeUrl: this.homeUrl,
+                    username,
+                    link,
+                    reference,
+                    expiredAt: this.helperService.dateFormatToRFC2822(
+                        this.helperService.dateCreateFromIso(expiredAt)
+                    ),
+                    expiredInMinutes,
+                },
+            });
+
+            return true;
+        } catch (err: unknown) {
+            this.logger.error(err);
+
+            return false;
+        }
+    }
+
+    /**
      * Send email verified confirmation
      * @param {EmailSendDto} emailData - Email and username data
      * @param {EmailVerifiedDto} verifiedData - Verification reference data

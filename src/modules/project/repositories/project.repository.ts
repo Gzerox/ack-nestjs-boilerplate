@@ -11,6 +11,8 @@ import {
     IProjectMember,
     IProjectMemberCreate,
     IProjectMemberUpdate,
+    IProjectMemberWithUser,
+    IProjectMemberWithVerification,
     IProjectUpdate,
 } from '@modules/project/interfaces/project.interface';
 import { Injectable } from '@nestjs/common';
@@ -150,7 +152,7 @@ export class ProjectRepository {
     async findOneMemberByIdAndProject(
         memberId: string,
         projectId: string
-    ): Promise<IProjectMember | null> {
+    ): Promise<IProjectMemberWithUser | null> {
         return this.databaseService.projectMember.findFirst({
             where: {
                 id: memberId,
@@ -181,8 +183,8 @@ export class ProjectRepository {
     async findMembersWithPaginationOffsetByProject(
         projectId: string,
         { where, ...params }: IPaginationQueryOffsetParams
-    ): Promise<IResponsePagingReturn<IProjectMember>> {
-        return this.paginationService.offset<IProjectMember>(
+    ): Promise<IResponsePagingReturn<IProjectMemberWithVerification>> {
+        return this.paginationService.offset<IProjectMemberWithVerification>(
             this.databaseService.projectMember,
             {
                 ...params,
@@ -206,7 +208,7 @@ export class ProjectRepository {
                             verifiedAt: true,
                             verifications: {
                                 where: {
-                                    type: 'invitation' as EnumVerificationType,
+                                    type: EnumVerificationType.invitation,
                                 },
                                 orderBy: {
                                     createdAt: 'desc',

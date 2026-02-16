@@ -346,7 +346,7 @@ export class UserUtil {
         return {
             reference: this.invitationCreateReference(),
             expiredAt: this.invitationSetExpiredDate(),
-            type: 'invitation' as EnumVerificationType,
+            type: EnumVerificationType.invitation,
             token,
             expiredInMinutes: this.invitationExpiredInMinutes,
             link: `${this.homeUrl}/${this.invitationLinkBaseUrl}/${token}`,

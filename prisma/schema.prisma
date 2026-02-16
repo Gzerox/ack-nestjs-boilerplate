@@ -546,6 +546,7 @@ enum EnumUserSignUpFrom {
   admin
   website
   mobile
+  tenant
 }
 
 enum EnumUserSignUpWith {

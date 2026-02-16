@@ -144,12 +144,15 @@ export class ProjectTenantSharedController {
     async createMemberInvitation(
         @Param('projectId', RequestRequiredPipe) projectId: string,
         @Body() body: ProjectMemberInviteCreateRequestDto,
-        @AuthJwtPayload('userId') createdBy: string
+        @AuthJwtPayload('userId') createdBy: string,
+        @RequestIPAddress() ipAddress: string,
+        @RequestUserAgent() userAgent: RequestUserAgentDto
     ): Promise<IResponseReturn<ProjectMemberInviteCreateResponseDto>> {
         return this.projectMemberService.createInvitation(
             projectId,
             body,
-            createdBy
+            createdBy,
+            { ipAddress, userAgent }
         );
     }
 

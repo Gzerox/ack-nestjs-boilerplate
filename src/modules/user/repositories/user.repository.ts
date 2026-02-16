@@ -509,12 +509,14 @@ export class UserRepository {
         return user;
     }
 
-    async createPendingByInvitation(
+    async createByInvitation(
         username: string,
         email: string,
         roleId: string,
         countryId: string,
-        createdBy: string
+        createdBy: string,
+        signUpFrom: EnumUserSignUpFrom,
+        { ipAddress, userAgent }: IRequestLog
     ): Promise<User> {
         const termPolicies = await this.databaseService.termPolicy.findMany({
             where: {
@@ -539,7 +541,7 @@ export class UserRepository {
                     email,
                     countryId,
                     roleId,
-                    signUpFrom: EnumUserSignUpFrom.admin,
+                    signUpFrom,
                     signUpWith: EnumUserSignUpWith.credential,
                     username,
                     isVerified: false,
@@ -556,8 +558,8 @@ export class UserRepository {
                     activityLogs: {
                         create: {
                             action: EnumActivityLogAction.userCreated,
-                            ipAddress: '0.0.0.0',
-                            userAgent: {},
+                            ipAddress,
+                            userAgent: this.databaseUtil.toPlainObject(userAgent),
                             createdBy,
                         },
                     },

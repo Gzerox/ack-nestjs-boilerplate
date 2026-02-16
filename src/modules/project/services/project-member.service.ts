@@ -1,3 +1,4 @@
+import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { IRequestLog } from '@common/request/interfaces/request.interface';
@@ -24,6 +25,7 @@ import {
     ForbiddenException,
     HttpStatus,
     Injectable,
+    InternalServerErrorException,
     NotFoundException,
 } from '@nestjs/common';
 import {
@@ -80,20 +82,28 @@ export class ProjectMemberService {
             });
         }
 
-        const projectMember = await this.projectRepository.addMember({
-            projectId,
-            userId: dto.userId,
-            roleId: role.id,
-            status: EnumProjectMemberStatus.active,
-            createdBy,
-            updatedBy: createdBy,
-        });
+        try {
+            const projectMember = await this.projectRepository.addMember({
+                projectId,
+                userId: dto.userId,
+                roleId: role.id,
+                status: EnumProjectMemberStatus.active,
+                createdBy,
+                updatedBy: createdBy,
+            });
 
-        return {
-            data: {
-                id: projectMember.id,
-            },
-        };
+            return {
+                data: {
+                    id: projectMember.id,
+                },
+            };
+        } catch (err: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async update(
@@ -115,7 +125,7 @@ export class ProjectMemberService {
         }
 
         let roleId: string | undefined;
-        if (dto.roleName !== undefined) {
+        if (dto.roleName.trim() !== undefined) {
             const role = await this.roleRepository.existByNameAndScope(
                 dto.roleName.trim(),
                 EnumRoleScope.project
@@ -133,19 +143,28 @@ export class ProjectMemberService {
             return {};
         }
 
-        await this.projectRepository.updateMember(member.id, {
-            roleId,
-            status: dto.status,
-            updatedBy,
-        });
+        try {
+            await this.projectRepository.updateMember(member.id, {
+                roleId,
+                status: dto.status,
+                updatedBy,
+            });
 
-        return {};
+            return {};
+        } catch (err: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async createInvitation(
         projectId: string,
         dto: ProjectMemberInviteCreateRequestDto,
-        createdBy: string
+        createdBy: string,
+        requestLog: IRequestLog
     ): Promise<IResponseReturn<ProjectMemberInviteCreateResponseDto>> {
         const role = await this.roleRepository.existByNameAndScope(
             dto.roleName.trim(),
@@ -158,10 +177,17 @@ export class ProjectMemberService {
             });
         }
 
-        const user = await this.userService.resolveOrCreateInvitationUser(
-            dto.email,
-            createdBy
-        );
+        const normalizedEmail = dto.email.toLowerCase().trim();
+        let user = await this.userRepository.findOneByEmail(normalizedEmail);
+        if (!user) {
+            // createForInvitation throws NotFoundException for missing role/country
+            // — those are intentional HTTP exceptions and bubble up before the try block
+            user = await this.userService.createForInvitation(
+                normalizedEmail,
+                requestLog,
+                createdBy
+            );
+        }
 
         const member = await this.projectRepository.findMemberByProjectAndUser(
             projectId,
@@ -174,30 +200,38 @@ export class ProjectMemberService {
             });
         }
 
-        const projectMember = await this.projectRepository.addMember({
-            projectId,
-            userId: user.id,
-            roleId: role.id,
-            status: EnumProjectMemberStatus.active,
-            createdBy,
-            updatedBy: createdBy,
-        });
-
-        const latestInvitation =
-            await this.userRepository.findOneLatestByInvitation(user.id);
-
-        return {
-            data: {
-                memberId: projectMember.id,
+        try {
+            const projectMember = await this.projectRepository.addMember({
+                projectId,
                 userId: user.id,
-                email: user.email,
-                invitation: this.mapInvitationStatus(
-                    user.isVerified,
-                    user.verifiedAt,
-                    latestInvitation
-                ),
-            },
-        };
+                roleId: role.id,
+                status: EnumProjectMemberStatus.active,
+                createdBy,
+                updatedBy: createdBy,
+            });
+
+            const latestInvitation =
+                await this.userRepository.findOneLatestByInvitation(user.id);
+
+            return {
+                data: {
+                    memberId: projectMember.id,
+                    userId: user.id,
+                    email: user.email,
+                    invitation: this.mapInvitationStatus(
+                        user.isVerified,
+                        user.verifiedAt,
+                        latestInvitation
+                    ),
+                },
+            };
+        } catch (err: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async sendInvitation(
@@ -210,36 +244,44 @@ export class ProjectMemberService {
             memberId,
             projectId
         );
-        if (!member?.user) {
+        if (!member) {
             throw new NotFoundException({
                 statusCode: HttpStatus.NOT_FOUND,
                 message: 'projectMember.error.userNotFound',
             });
         }
 
-        const invitation = await this.userService.sendInvitationByUserId(
-            member.user.id,
-            requestedBy,
-            requestLog
-        );
+        try {
+            const invitation = await this.userService.sendInvitationByUserId(
+                member.user.id,
+                requestedBy,
+                requestLog
+            );
 
-        const now = Date.now();
-        return {
-            data: {
-                invitation: {
-                    status: 'pending',
-                    expiresAt: invitation.expiresAt,
-                    remainingSeconds: Math.max(
-                        0,
-                        Math.floor(
-                            (invitation.expiresAt.getTime() - now) / 1000
-                        )
-                    ),
-                    sentAt: new Date(),
+            const now = Date.now();
+            return {
+                data: {
+                    invitation: {
+                        status: 'pending',
+                        expiresAt: invitation.expiresAt,
+                        remainingSeconds: Math.max(
+                            0,
+                            Math.floor(
+                                (invitation.expiresAt.getTime() - now) / 1000
+                            )
+                        ),
+                        sentAt: new Date(),
+                    },
+                    resendAvailableAt: invitation.resendAvailableAt,
                 },
-                resendAvailableAt: invitation.resendAvailableAt,
-            },
-        };
+            };
+        } catch (err: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async listMembers(
@@ -254,25 +296,16 @@ export class ProjectMemberService {
 
         return {
             ...others,
-            data: data.map(member => {
-                const user = member.user as typeof member.user & {
-                    verifications?: Array<{
-                        createdAt?: Date;
-                        expiredAt?: Date;
-                        isUsed?: boolean;
-                        verifiedAt?: Date;
-                    }>;
-                };
-
-                return this.projectUtil.mapMember(
+            data: data.map(member =>
+                this.projectUtil.mapMember(
                     member,
                     this.mapInvitationStatus(
-                        member.user?.isVerified ?? false,
-                        member.user?.verifiedAt,
-                        user?.verifications?.[0]
+                        member.user.isVerified,
+                        member.user.verifiedAt,
+                        member.user.verifications[0]
                     )
-                );
-            }),
+                )
+            ),
         };
     }
 
@@ -305,7 +338,7 @@ export class ProjectMemberService {
             EnumProjectMemberStatus.active
         );
 
-        if (!member?.project) {
+        if (!member) {
             throw new ForbiddenException({
                 statusCode: HttpStatus.FORBIDDEN,
                 message: 'projectMember.error.forbidden',

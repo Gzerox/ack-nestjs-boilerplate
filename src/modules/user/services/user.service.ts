@@ -92,6 +92,7 @@ import {
     EnumRoleScope,
     EnumUserLoginFrom,
     EnumUserLoginWith,
+    EnumUserSignUpFrom,
     EnumUserStatus,
     EnumVerificationType,
     User,
@@ -1322,28 +1323,11 @@ export class UserService implements IUserService {
         }
     }
 
-    async resolveOrCreateInvitationUser(
+    async createForInvitation(
         email: string,
+        requestLog: IRequestLog,
         createdBy: string
     ): Promise<User> {
-        const normalizedEmail = email.toLowerCase().trim();
-        const existingUser = await this.userRepository.findOneByEmail(
-            normalizedEmail
-        );
-        if (existingUser) {
-            return existingUser;
-        }
-
-        const emailExist = await this.userRepository.existByEmail(
-            normalizedEmail
-        );
-        if (emailExist) {
-            throw new ConflictException({
-                statusCode: EnumUserStatus_CODE_ERROR.emailExist,
-                message: 'user.error.emailExist',
-            });
-        }
-
         const [role, country] = await Promise.all([
             this.roleRepository.existByNameAndScope(
                 this.userRoleName,
@@ -1364,12 +1348,14 @@ export class UserService implements IUserService {
         }
 
         const randomUsername = this.userUtil.createRandomUsername();
-        return this.userRepository.createPendingByInvitation(
+        return this.userRepository.createByInvitation(
             randomUsername,
-            normalizedEmail,
+            email,
             role.id,
             country.id,
-            createdBy
+            createdBy,
+            EnumUserSignUpFrom.tenant,
+            requestLog
         );
     }
 

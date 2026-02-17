@@ -272,6 +272,7 @@ model Verification {
   verifiedAt     DateTime?
   isUsed         Boolean              @default(false)
   reference      String
+  metadata       Json?
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -547,6 +548,7 @@ enum EnumUserSignUpFrom {
   website
   mobile
   tenant
+  project
 }
 
 enum EnumUserSignUpWith {

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { EnumProjectMemberStatus } from '@prisma/client';
-import { ProjectMemberInvitationStatusResponseDto } from '@modules/project/dtos/response/project-member-invitation.response.dto';
+import { InvitationStatusResponseDto } from '@modules/invitation/dtos/response/invitation-status.response.dto';
 
 export class ProjectMemberResponseDto {
     @ApiProperty({
@@ -48,7 +48,7 @@ export class ProjectMemberResponseDto {
 
     @ApiProperty({
         required: true,
-        type: ProjectMemberInvitationStatusResponseDto,
+        type: InvitationStatusResponseDto,
     })
-    invitation: ProjectMemberInvitationStatusResponseDto;
+    invitation: InvitationStatusResponseDto;
 }

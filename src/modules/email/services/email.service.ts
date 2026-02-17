@@ -1,5 +1,6 @@
 import { EmailCreateByAdminDto } from '@modules/email/dtos/email.create-by-admin.dto';
 import { EmailForgotPasswordDto } from '@modules/email/dtos/email.forgot-password.dto';
+import { EmailInvitationDto } from '@modules/email/dtos/email.invitation.dto';
 import { EmailSendDto } from '@modules/email/dtos/email.send.dto';
 import { EmailTempPasswordDto } from '@modules/email/dtos/email.temp-password.dto';
 import { EmailVerificationDto } from '@modules/email/dtos/email.verification.dto';
@@ -89,7 +90,15 @@ export class EmailService implements IEmailService {
     async sendInvitation(
         userId: string,
         { email, username }: EmailSendDto,
-        { expiredAt, expiredInMinutes, link, reference }: EmailVerificationDto
+        {
+            expiredAt,
+            expiredInMinutes,
+            link,
+            reference,
+            invitationType,
+            scopeLabel,
+            contextName,
+        }: EmailInvitationDto
     ): Promise<void> {
         await this.emailQueue.add(
             EnumSendEmailProcess.invitation,
@@ -98,7 +107,15 @@ export class EmailService implements IEmailService {
                     email,
                     username,
                 },
-                data: { expiredAt, expiredInMinutes, link, reference },
+                data: {
+                    expiredAt,
+                    expiredInMinutes,
+                    link,
+                    reference,
+                    invitationType,
+                    scopeLabel,
+                    contextName,
+                },
             },
             {
                 jobId: `${EnumSendEmailProcess.invitation}-${userId}`,

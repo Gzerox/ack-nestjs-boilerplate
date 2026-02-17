@@ -1,5 +1,6 @@
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import { HelperService } from '@common/helper/services/helper.service';
+import { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -7,6 +8,10 @@ import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
+import { InvitationCreateRequestDto } from '@modules/invitation/dtos/request/invitation.create.request.dto';
+import { InvitationCreateResponseDto } from '@modules/invitation/dtos/response/invitation-create.response.dto';
+import { InvitationSendResponseDto } from '@modules/invitation/dtos/response/invitation-send.response.dto';
+import { InvitationService } from '@modules/invitation/services/invitation.service';
 import { RoleRepository } from '@modules/role/repositories/role.repository';
 import { TenantMemberCreateRequestDto } from '@modules/tenant/dtos/request/tenant.member.create.request.dto';
 import { TenantMemberUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.member.update.request.dto';
@@ -17,6 +22,7 @@ import { EnumTenantStatusCodeError } from '@modules/tenant/enums/tenant.status-c
 import { TenantRolePlatformSupport } from '@modules/tenant/constants/tenant.constant';
 import { ITenantMember } from '@modules/tenant/interfaces/tenant.interface';
 import { TenantRepository } from '@modules/tenant/repositories/tenant.repository';
+import { TenantInvitationProvider } from '@modules/tenant/services/tenant-invitation.provider';
 import { UserRepository } from '@modules/user/repositories/user.repository';
 import {
     BadRequestException,
@@ -36,7 +42,9 @@ export class TenantMemberService {
         private readonly tenantRepository: TenantRepository,
         private readonly roleRepository: RoleRepository,
         private readonly userRepository: UserRepository,
-        private readonly helperService: HelperService
+        private readonly helperService: HelperService,
+        private readonly invitationService: InvitationService,
+        private readonly tenantInvitationProvider: TenantInvitationProvider
     ) {}
 
     async addMember(
@@ -44,7 +52,6 @@ export class TenantMemberService {
         dto: TenantMemberCreateRequestDto,
         createdBy: string
     ): Promise<IResponseReturn<DatabaseIdDto>> {
-
         const [user, role, memberExist] = await Promise.all([
             this.userRepository.findOneById(dto.userId),
             this.resolveTenantRoleByName(dto.roleName),
@@ -144,6 +151,36 @@ export class TenantMemberService {
         await this.tenantRepository.deleteMember(member.id);
 
         return {};
+    }
+
+    async createInvitation(
+        tenantId: string,
+        dto: InvitationCreateRequestDto,
+        createdBy: string,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<InvitationCreateResponseDto>> {
+        return this.invitationService.createInvitation(
+            tenantId,
+            dto,
+            createdBy,
+            requestLog,
+            this.tenantInvitationProvider
+        );
+    }
+
+    async sendInvitation(
+        tenantId: string,
+        memberId: string,
+        requestedBy: string,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<InvitationSendResponseDto>> {
+        return this.invitationService.sendInvitation(
+            tenantId,
+            memberId,
+            requestedBy,
+            requestLog,
+            this.tenantInvitationProvider
+        );
     }
 
     async getMembersOffset(
@@ -271,7 +308,9 @@ export class TenantMemberService {
         };
     }
 
-    private async resolveTenantRoleByName(roleName: string) {
+    private async resolveTenantRoleByName(
+        roleName: string
+    ): Promise<{ id: string; name: string; scope: EnumRoleScope }> {
         const roleInTenantScope = await this.roleRepository.existByNameAndScope(
             roleName,
             EnumRoleScope.tenant

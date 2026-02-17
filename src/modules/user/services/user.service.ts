@@ -36,6 +36,7 @@ import { AuthService } from '@modules/auth/services/auth.service';
 import { AuthUtil } from '@modules/auth/utils/auth.util';
 import { EnumCountryStatusCodeError } from '@modules/country/enums/country.status-code.enum';
 import { CountryRepository } from '@modules/country/repositories/country.repository';
+import { InvitationContext } from '@modules/invitation/interfaces/invitation.interface';
 import { EmailService } from '@modules/email/services/email.service';
 import { FeatureFlagService } from '@modules/feature-flag/services/feature-flag.service';
 import { PasswordHistoryRepository } from '@modules/password-history/repositories/password-history.repository';
@@ -83,6 +84,7 @@ import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    HttpException,
     Injectable,
     InternalServerErrorException,
     NotFoundException,
@@ -1326,8 +1328,10 @@ export class UserService implements IUserService {
     async createForInvitation(
         email: string,
         requestLog: IRequestLog,
-        createdBy: string
+        createdBy: string,
+        signUpFrom: EnumUserSignUpFrom
     ): Promise<User> {
+
         const [role, country] = await Promise.all([
             this.roleRepository.existByNameAndScope(
                 this.userRoleName,
@@ -1346,23 +1350,35 @@ export class UserService implements IUserService {
                 message: 'country.error.notFound',
             });
         }
+        try {
+            const randomUsername = this.userUtil.createRandomUsername();
+            return this.userRepository.createByInvitation(
+                randomUsername,
+                email,
+                role.id,
+                country.id,
+                createdBy,
+                signUpFrom,
+                requestLog
+            );
+        } catch (err: unknown) {
+            if (err instanceof HttpException) {
+                throw err;
+            }
 
-        const randomUsername = this.userUtil.createRandomUsername();
-        return this.userRepository.createByInvitation(
-            randomUsername,
-            email,
-            role.id,
-            country.id,
-            createdBy,
-            EnumUserSignUpFrom.tenant,
-            requestLog
-        );
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async sendInvitationByUserId(
         userId: string,
         requestedBy: string,
-        requestLog: IRequestLog
+        requestLog: IRequestLog,
+        invitationContext: InvitationContext
     ): Promise<{
         expiresAt: Date;
         expiresInMinutes: number;
@@ -1401,7 +1417,8 @@ export class UserService implements IUserService {
                 throw new BadRequestException({
                     statusCode:
                         EnumUserStatus_CODE_ERROR.verificationEmailResendLimitExceeded,
-                    message: 'projectMember.error.invitationResendLimitExceeded',
+                    message:
+                        'projectMember.error.invitationResendLimitExceeded',
                     messageProperties: {
                         resendIn: this.helperService.dateDiff(
                             today,
@@ -1412,40 +1429,60 @@ export class UserService implements IUserService {
             }
         }
 
-        const invitation = this.userUtil.invitationCreateVerification();
+        try {
+            const invitation = this.userUtil.invitationCreateVerification();
+            const invitationMetadata = {
+                invitationType: invitationContext.invitationType,
+                roleScope: invitationContext.roleScope,
+                scopeLabel: invitationContext.scopeLabel,
+                contextId: invitationContext.contextId,
+                contextName: invitationContext.contextName,
+            };
 
-        await this.userRepository.requestInvitationEmail(
-            user.id,
-            user.email,
-            invitation,
-            requestLog,
-            requestedBy
-        );
+            await this.userRepository.requestInvitationEmail(
+                user.id,
+                user.email,
+                invitation,
+                requestLog,
+                requestedBy,
+                invitationMetadata
+            );
 
-        await this.emailService.sendInvitation(
-            user.id,
-            {
-                email: user.email,
-                username: user.username,
-            },
-            {
-                expiredAt: invitation.expiredAt.toISOString(),
-                reference: invitation.reference,
-                link: invitation.link,
-                expiredInMinutes: invitation.expiredInMinutes,
-            }
-        );
+            await this.emailService.sendInvitation(
+                user.id,
+                {
+                    email: user.email,
+                    username: user.username,
+                },
+                {
+                    expiredAt: invitation.expiredAt.toISOString(),
+                    reference: invitation.reference,
+                    link: invitation.link,
+                    expiredInMinutes: invitation.expiredInMinutes,
+                    invitationType: invitationContext.invitationType,
+                    scopeLabel: invitationContext.scopeLabel,
+                    contextName: invitationContext.contextName,
+                }
+            );
 
-        return {
-            expiresAt: invitation.expiredAt,
-            expiresInMinutes: invitation.expiredInMinutes,
-            resendAvailableAt: this.helperService.dateForward(
-                today,
-                Duration.fromObject({
-                    minutes: invitation.resendInMinutes,
-                })
-            ),
-        };
+            return {
+                expiresAt: invitation.expiredAt,
+                expiresInMinutes: invitation.expiredInMinutes,
+                resendAvailableAt: this.helperService.dateForward(
+                    today,
+                    Duration.fromObject({
+                        minutes: invitation.resendInMinutes,
+                    })
+                ),
+            };
+        } catch (err: unknown) {
+
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async getInvitation(
@@ -1508,29 +1545,37 @@ export class UserService implements IUserService {
             });
         }
 
-        const name = `${firstName.trim()} ${lastName.trim()}`.trim();
-        const passwordPayload = this.authUtil.createPassword(password);
+        try {
+            const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+            const passwordPayload = this.authUtil.createPassword(password);
 
-        await this.userRepository.completeInvitation(
-            invitation.id,
-            invitation.userId,
-            name,
-            passwordPayload,
-            requestLog
-        );
+            await this.userRepository.completeInvitation(
+                invitation.id,
+                invitation.userId,
+                name,
+                passwordPayload,
+                requestLog
+            );
 
-        await this.emailService.sendVerified(
-            invitation.user.id,
-            {
-                email: invitation.user.email,
-                username: invitation.user.username,
-            },
-            {
-                reference: invitation.reference,
-            }
-        );
+            await this.emailService.sendVerified(
+                invitation.user.id,
+                {
+                    email: invitation.user.email,
+                    username: invitation.user.username,
+                },
+                {
+                    reference: invitation.reference,
+                }
+            );
 
-        return {};
+            return {};
+        } catch (err: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
     }
 
     async forgotPassword(

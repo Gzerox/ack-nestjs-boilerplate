@@ -7,6 +7,11 @@ import {
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
+import {
+    RequestIPAddress,
+    RequestUserAgent,
+} from '@common/request/decorators/request.decorator';
+import { RequestUserAgentDto } from '@common/request/dtos/request.user-agent.dto';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -21,6 +26,9 @@ import {
     AuthJwtAccessProtected,
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
+import { InvitationCreateRequestDto } from '@modules/invitation/dtos/request/invitation.create.request.dto';
+import { InvitationCreateResponseDto } from '@modules/invitation/dtos/response/invitation-create.response.dto';
+import { InvitationSendResponseDto } from '@modules/invitation/dtos/response/invitation-send.response.dto';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -36,9 +44,11 @@ import { TenantMemberResponseDto } from '@modules/tenant/dtos/response/tenant.me
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
 import {
     TenantSharedCreateMemberDoc,
+    TenantSharedCreateMemberInvitationDoc,
     TenantSharedDeleteMemberDoc,
     TenantSharedGetCurrentTenantDoc,
     TenantSharedListMembersDoc,
+    TenantSharedSendMemberInvitationDoc,
     TenantSharedUpdateCurrentTenantDoc,
     TenantSharedUpdateMemberDoc,
 } from '@modules/tenant/docs/tenant.shared.doc';
@@ -136,6 +146,56 @@ export class TenantSharedController {
         @AuthJwtPayload('userId') createdBy: string
     ): Promise<IResponseReturn<DatabaseIdDto>> {
         return this.tenantMemberService.addMember(tenant.id, body, createdBy);
+    }
+
+    @TenantSharedCreateMemberInvitationDoc()
+    @Response('tenant.member.invitation.create')
+    @TenantPermissionProtected({
+        subject: EnumPolicySubject.tenantMember,
+        action: [EnumPolicyAction.create],
+    })
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Post('/current/members/invitations')
+    async createMemberInvitation(
+        @TenantCurrent() tenant: ITenant,
+        @Body() body: InvitationCreateRequestDto,
+        @AuthJwtPayload('userId') createdBy: string,
+        @RequestIPAddress() ipAddress: string,
+        @RequestUserAgent() userAgent: RequestUserAgentDto
+    ): Promise<IResponseReturn<InvitationCreateResponseDto>> {
+        return this.tenantMemberService.createInvitation(
+            tenant.id,
+            body,
+            createdBy,
+            { ipAddress, userAgent }
+        );
+    }
+
+    @TenantSharedSendMemberInvitationDoc()
+    @Response('tenant.member.invitation.send')
+    @TenantPermissionProtected({
+        subject: EnumPolicySubject.tenantMember,
+        action: [EnumPolicyAction.create],
+    })
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Post('/current/members/:memberId/invitations/send')
+    async sendMemberInvitation(
+        @TenantCurrent() tenant: ITenant,
+        @Param('memberId', RequestRequiredPipe) memberId: string,
+        @AuthJwtPayload('userId') requestedBy: string,
+        @RequestIPAddress() ipAddress: string,
+        @RequestUserAgent() userAgent: RequestUserAgentDto
+    ): Promise<IResponseReturn<InvitationSendResponseDto>> {
+        return this.tenantMemberService.sendInvitation(
+            tenant.id,
+            memberId,
+            requestedBy,
+            { ipAddress, userAgent }
+        );
     }
 
     @TenantSharedUpdateMemberDoc()

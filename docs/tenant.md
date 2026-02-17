@@ -22,6 +22,7 @@ The tenant system provides multi-tenancy support for SaaS applications where mul
 - [Authorization Documentation][ref-doc-authorization] - For understanding the permission system
 - [Authentication Documentation][ref-doc-authentication] - For understanding the authentication system
 - [Database Documentation][ref-doc-database] - For understanding the data model
+- [Invitation Documentation][ref-doc-invitation] - For tenant/project member invitation lifecycle and activation flow
 
 ## Table of Contents
 
@@ -506,7 +507,7 @@ Use `@TenantPermissionProtected({ subject: EnumPolicySubject.tenant, action: [En
 @UserProtected()
 @AuthJwtAccessProtected()
 @Post('members')
-invite(@TenantCurrent() tenant: ITenant) {
+createMember(@TenantCurrent() tenant: ITenant) {
     // Handler assumes the member has the tenantMember:create ability in this tenant
 }
 ```
@@ -1007,6 +1008,8 @@ Authorization: Bearer <access_token>
 x-tenant-id: <tenant_id>
 ```
 
+Invitation routes under `/shared/tenants/current/members/invitations` are documented in [Invitation Documentation][ref-doc-invitation].
+
 ## Setup and Migration
 
 ### 1. Database Schema
@@ -1168,3 +1171,4 @@ getProjects(@TenantCurrent() tenant: ITenant) {
 [ref-doc-authorization]: authorization.md
 [ref-doc-authentication]: authentication.md
 [ref-doc-database]: database.md
+[ref-doc-invitation]: invitation.md

@@ -3,7 +3,7 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { IsCustomEmail } from '@common/request/validations/request.custom-email.validation';
 import { Transform } from 'class-transformer';
 
-export class ProjectMemberInviteCreateRequestDto {
+export class InvitationCreateRequestDto {
     @ApiProperty({
         required: true,
         description: 'Email address to invite',
@@ -12,12 +12,12 @@ export class ProjectMemberInviteCreateRequestDto {
     @IsNotEmpty()
     @MaxLength(100)
     @Transform(({ value }) => value.toLowerCase().trim())
-    email: string;
+    email: Lowercase<string>;
 
     @ApiProperty({
         required: true,
-        description: 'Role name for project member',
-        example: 'project-viewer',
+        description: 'Role name for the member',
+        example: 'viewer',
     })
     @IsString()
     @IsNotEmpty()

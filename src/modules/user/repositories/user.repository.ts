@@ -349,7 +349,7 @@ export class UserRepository {
         return this.databaseService.verification.findFirst({
             where: {
                 userId,
-                type: 'invitation' as EnumVerificationType,
+                type: EnumVerificationType.invitation,
                 user: {
                     deletedAt: null,
                 },
@@ -1508,7 +1508,8 @@ export class UserRepository {
         userEmail: string,
         { expiredAt, reference, token, type }: IUserVerificationCreate,
         requestLog: IRequestLog,
-        requestedBy: string
+        requestedBy: string,
+        metadata?: Prisma.InputJsonValue
     ): Promise<User> {
         const today = this.helperService.dateCreate();
 
@@ -1540,6 +1541,7 @@ export class UserRepository {
                                     token,
                                     type,
                                     to: userEmail,
+                                    metadata,
                                     createdBy: requestedBy,
                                     createdAt: today,
                                 },
@@ -1547,7 +1549,7 @@ export class UserRepository {
                             activityLogs: {
                                 create: {
                                     action:
-                                        'userSendInvitationEmail' as EnumActivityLogAction,
+                                    EnumActivityLogAction.userSendInvitationEmail,
                                     ipAddress: requestLog.ipAddress,
                                     userAgent: this.databaseUtil.toPlainObject(
                                         requestLog.userAgent

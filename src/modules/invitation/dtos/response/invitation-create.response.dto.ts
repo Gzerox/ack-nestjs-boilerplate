@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ProjectMemberInvitationStatusResponseDto } from '@modules/project/dtos/response/project-member-invitation.response.dto';
+import { InvitationStatusResponseDto } from '@modules/invitation/dtos/response/invitation-status.response.dto';
 
-export class ProjectMemberInviteCreateResponseDto {
+export class InvitationCreateResponseDto {
     @ApiProperty({
         required: true,
     })
@@ -19,7 +19,7 @@ export class ProjectMemberInviteCreateResponseDto {
 
     @ApiProperty({
         required: true,
-        type: ProjectMemberInvitationStatusResponseDto,
+        type: InvitationStatusResponseDto,
     })
-    invitation: ProjectMemberInvitationStatusResponseDto;
+    invitation: InvitationStatusResponseDto;
 }

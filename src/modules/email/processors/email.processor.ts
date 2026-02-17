@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailMobileNumberVerifiedDto } from '@modules/email/dtos/email.mobile-number-verified.dto';
+import { EmailInvitationDto } from '@modules/email/dtos/email.invitation.dto';
 import { EmailSendDto } from '@modules/email/dtos/email.send.dto';
 import { EmailTempPasswordDto } from '@modules/email/dtos/email.temp-password.dto';
 import { EmailVerificationDto } from '@modules/email/dtos/email.verification.dto';
@@ -70,7 +71,7 @@ export class EmailProcessor
                 case EnumSendEmailProcess.invitation:
                     await this.processInvitation(
                         job.data.send,
-                        job.data.data as EmailVerificationDto
+                        job.data.data as EmailInvitationDto
                     );
 
                     break;
@@ -136,7 +137,7 @@ export class EmailProcessor
 
     async processInvitation(
         data: EmailSendDto,
-        invitation: EmailVerificationDto
+        invitation: EmailInvitationDto
     ): Promise<boolean> {
         return this.emailUtil.sendInvitation(data, invitation);
     }

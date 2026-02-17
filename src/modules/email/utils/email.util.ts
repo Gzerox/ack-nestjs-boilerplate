@@ -270,7 +270,7 @@ export class EmailUtil {
             link,
             expiredInMinutes,
             invitationType,
-            scopeLabel,
+            roleScope,
             contextName,
         }: EmailInvitationDto
     ): Promise<boolean> {
@@ -287,7 +287,7 @@ export class EmailUtil {
                     link,
                     reference,
                     invitationType,
-                    scopeLabel,
+                    roleScope,
                     contextName,
                     expiredAt: this.helperService.dateFormatToRFC2822(
                         this.helperService.dateCreateFromIso(expiredAt)

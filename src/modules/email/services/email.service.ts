@@ -96,7 +96,7 @@ export class EmailService implements IEmailService {
             link,
             reference,
             invitationType,
-            scopeLabel,
+            roleScope,
             contextName,
         }: EmailInvitationDto
     ): Promise<void> {
@@ -113,7 +113,7 @@ export class EmailService implements IEmailService {
                     link,
                     reference,
                     invitationType,
-                    scopeLabel,
+                    roleScope,
                     contextName,
                 },
             },

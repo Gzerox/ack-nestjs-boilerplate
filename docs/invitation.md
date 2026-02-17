@@ -62,7 +62,7 @@ Invitation context is injected via providers implementing `InvitationProvider`:
 
 Each provider supplies:
 - Membership operations (`existsMember`, `addMember`, `findMemberUserId`)
-- Invitation context (`invitationType`, `scopeLabel`, `getContextName`)
+- Invitation context (`invitationType`, `roleScope`, `getContextName`)
 
 This keeps `InvitationService` reusable across multiple invitation origins.
 
@@ -71,7 +71,6 @@ This keeps `InvitationService` reusable across multiple invitation origins.
 `InvitationContext` is propagated from provider to user/email layers and includes:
 - `invitationType` (`tenant_member` or `project_member`)
 - `roleScope`
-- `scopeLabel`
 - `contextId`
 - `contextName`
 
@@ -153,7 +152,7 @@ For envelope format (`statusCode`, `message`, `data`), see [Response Documentati
 - Sending is blocked if invited user is already verified.
 - Resend is rate-limited by configured invitation resend window.
 - New verification token invalidates prior active invitation tokens for that user.
-- Email template receives context (`scopeLabel`, `contextName`) from provider.
+- Email template receives context (`roleScope`, `contextName`) from provider.
 
 ### Complete Invitation
 

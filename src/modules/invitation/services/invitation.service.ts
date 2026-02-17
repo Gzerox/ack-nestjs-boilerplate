@@ -4,7 +4,6 @@ import { IResponseReturn } from '@common/response/interfaces/response.interface'
 import {
     InvitationContext,
     InvitationProvider,
-    InvitationType,
 } from '@modules/invitation/interfaces/invitation.interface';
 import { InvitationCreateRequestDto } from '@modules/invitation/dtos/request/invitation.create.request.dto';
 import { InvitationCreateResponseDto } from '@modules/invitation/dtos/response/invitation-create.response.dto';
@@ -21,7 +20,6 @@ import {
     InternalServerErrorException,
     NotFoundException,
 } from '@nestjs/common';
-import { EnumUserSignUpFrom } from '@prisma/client';
 
 @Injectable()
 export class InvitationService {
@@ -49,14 +47,14 @@ export class InvitationService {
             });
         }
 
-        const normalizedEmail = dto.email
+        const normalizedEmail = dto.email.toLowerCase().trim();
         let user = await this.userRepository.findOneByEmail(normalizedEmail);
         if (!user) {
             user = await this.userService.createForInvitation(
                 normalizedEmail,
                 requestLog,
                 createdBy,
-                this.mapSignUpFrom(provider.invitationType)
+                provider.signUpFrom
             );
         }
 
@@ -123,14 +121,13 @@ export class InvitationService {
         if (!contextName) {
             throw new NotFoundException({
                 statusCode: HttpStatus.NOT_FOUND,
-                message: 'invitation.error.memberNotFound',
+                message: 'invitation.error.contextNotFound',
             });
         }
 
         const invitationContext: InvitationContext = {
             invitationType: provider.invitationType,
             roleScope: provider.roleScope,
-            scopeLabel: provider.scopeLabel,
             contextId,
             contextName,
         };
@@ -138,9 +135,9 @@ export class InvitationService {
         try {
             const invitation = await this.userService.sendInvitationByUserId(
                 userId,
+                invitationContext,
                 requestedBy,
-                requestLog,
-                invitationContext
+                requestLog
             );
 
             const now = Date.now();
@@ -170,16 +167,6 @@ export class InvitationService {
                 message: 'http.serverError.internalServerError',
                 _error: err,
             });
-        }
-    }
-
-    private mapSignUpFrom(invitationType: InvitationType): EnumUserSignUpFrom {
-        switch (invitationType) {
-            case 'project_member':
-                return EnumUserSignUpFrom.project;
-            case 'tenant_member':
-            default:
-                return EnumUserSignUpFrom.tenant;
         }
     }
 

@@ -1331,7 +1331,6 @@ export class UserService implements IUserService {
         createdBy: string,
         signUpFrom: EnumUserSignUpFrom
     ): Promise<User> {
-
         const [role, country] = await Promise.all([
             this.roleRepository.existByNameAndScope(
                 this.userRoleName,
@@ -1376,9 +1375,9 @@ export class UserService implements IUserService {
 
     async sendInvitationByUserId(
         userId: string,
+        invitationContext: InvitationContext,
         requestedBy: string,
-        requestLog: IRequestLog,
-        invitationContext: InvitationContext
+        requestLog: IRequestLog
     ): Promise<{
         expiresAt: Date;
         expiresInMinutes: number;
@@ -1431,21 +1430,19 @@ export class UserService implements IUserService {
 
         try {
             const invitation = this.userUtil.invitationCreateVerification();
-            const invitationMetadata = {
-                invitationType: invitationContext.invitationType,
-                roleScope: invitationContext.roleScope,
-                scopeLabel: invitationContext.scopeLabel,
-                contextId: invitationContext.contextId,
-                contextName: invitationContext.contextName,
-            };
 
             await this.userRepository.requestInvitationEmail(
                 user.id,
                 user.email,
                 invitation,
-                requestLog,
+                {
+                    invitationType: invitationContext.invitationType,
+                    roleScope: invitationContext.roleScope,
+                    contextId: invitationContext.contextId,
+                    contextName: invitationContext.contextName,
+                },
                 requestedBy,
-                invitationMetadata
+                requestLog
             );
 
             await this.emailService.sendInvitation(
@@ -1460,7 +1457,7 @@ export class UserService implements IUserService {
                     link: invitation.link,
                     expiredInMinutes: invitation.expiredInMinutes,
                     invitationType: invitationContext.invitationType,
-                    scopeLabel: invitationContext.scopeLabel,
+                    roleScope: invitationContext.roleScope,
                     contextName: invitationContext.contextName,
                 }
             );
@@ -1476,7 +1473,6 @@ export class UserService implements IUserService {
                 ),
             };
         } catch (err: unknown) {
-
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
                 message: 'http.serverError.internalServerError',
@@ -1488,9 +1484,8 @@ export class UserService implements IUserService {
     async getInvitation(
         token: string
     ): Promise<IResponseReturn<UserInvitationResponseDto>> {
-        const invitation = await this.userRepository.findOneByInvitationToken(
-            token
-        );
+        const invitation =
+            await this.userRepository.findOneByInvitationToken(token);
         if (!invitation) {
             throw new BadRequestException({
                 statusCode: EnumUserStatus_CODE_ERROR.tokenInvalid,
@@ -1527,7 +1522,12 @@ export class UserService implements IUserService {
     }
 
     async completeInvitation(
-        { token, firstName, lastName, password }: UserInvitationCompleteRequestDto,
+        {
+            token,
+            firstName,
+            lastName,
+            password,
+        }: UserInvitationCompleteRequestDto,
         requestLog: IRequestLog
     ): Promise<IResponseReturn<void>> {
         const invitation =

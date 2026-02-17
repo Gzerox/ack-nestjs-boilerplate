@@ -54,6 +54,7 @@ import {
     UserMobileNumber,
     Verification,
 } from '@prisma/client';
+import InputJsonValue = Prisma.InputJsonValue;
 
 @Injectable()
 export class UserRepository {
@@ -1507,9 +1508,9 @@ export class UserRepository {
         userId: string,
         userEmail: string,
         { expiredAt, reference, token, type }: IUserVerificationCreate,
-        requestLog: IRequestLog,
+        metadata: InputJsonValue,
         requestedBy: string,
-        metadata?: Prisma.InputJsonValue
+        requestLog: IRequestLog
     ): Promise<User> {
         const today = this.helperService.dateCreate();
 
@@ -1596,7 +1597,7 @@ export class UserRepository {
                 await tx.verification.updateMany({
                     where: {
                         userId,
-                        type: 'invitation' as EnumVerificationType,
+                        type: EnumVerificationType.invitation,
                         isUsed: false,
                         expiredAt: {
                             gt: today,

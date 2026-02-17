@@ -34,7 +34,7 @@ export interface IEmailService {
             link,
             reference,
             invitationType,
-            scopeLabel,
+            roleScope,
             contextName,
         }: EmailInvitationDto
     ): Promise<void>;

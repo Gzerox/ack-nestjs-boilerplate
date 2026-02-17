@@ -1,13 +1,17 @@
 import { InvitationProvider } from '@modules/invitation/interfaces/invitation.interface';
 import { ProjectRepository } from '@modules/project/repositories/project.repository';
 import { Injectable } from '@nestjs/common';
-import { EnumProjectMemberStatus, EnumRoleScope } from '@prisma/client';
+import {
+    EnumProjectMemberStatus,
+    EnumRoleScope,
+    EnumUserSignUpFrom,
+} from '@prisma/client';
 
 @Injectable()
 export class ProjectInvitationProvider implements InvitationProvider {
     readonly roleScope = EnumRoleScope.project;
     readonly invitationType = 'project_member' as const;
-    readonly scopeLabel = 'project';
+    readonly signUpFrom = EnumUserSignUpFrom.project;
 
     constructor(private readonly projectRepository: ProjectRepository) {}
 

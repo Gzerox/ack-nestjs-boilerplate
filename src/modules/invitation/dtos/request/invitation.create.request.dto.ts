@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { IsCustomEmail } from '@common/request/validations/request.custom-email.validation';
 import { Transform } from 'class-transformer';
 
@@ -16,10 +16,11 @@ export class InvitationCreateRequestDto {
 
     @ApiProperty({
         required: true,
-        description: 'Role name for the member',
-        example: 'viewer',
+        description: 'Role id for the member',
+        example: '65f3d2e44b9a7e1bd2c9a8f1',
     })
     @IsString()
     @IsNotEmpty()
-    roleName: string;
+    @IsMongoId()
+    roleId: string;
 }

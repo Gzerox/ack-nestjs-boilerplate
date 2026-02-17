@@ -12,7 +12,9 @@ import { InvitationCreateRequestDto } from '@modules/invitation/dtos/request/inv
 import { InvitationCreateResponseDto } from '@modules/invitation/dtos/response/invitation-create.response.dto';
 import { InvitationSendResponseDto } from '@modules/invitation/dtos/response/invitation-send.response.dto';
 import { InvitationService } from '@modules/invitation/services/invitation.service';
+import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import { RoleRepository } from '@modules/role/repositories/role.repository';
+import { RoleService } from '@modules/role/services/role.service';
 import { TenantMemberCreateRequestDto } from '@modules/tenant/dtos/request/tenant.member.create.request.dto';
 import { TenantMemberUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.member.update.request.dto';
 import { TenantJitAccessRequestDto } from '@modules/tenant/dtos/request/tenant.jit-access.request.dto';
@@ -33,6 +35,7 @@ import {
 } from '@nestjs/common';
 import {
     EnumRoleScope,
+    EnumRoleType,
     EnumTenantMemberStatus,
 } from '@prisma/client';
 
@@ -41,6 +44,7 @@ export class TenantMemberService {
     constructor(
         private readonly tenantRepository: TenantRepository,
         private readonly roleRepository: RoleRepository,
+        private readonly roleService: RoleService,
         private readonly userRepository: UserRepository,
         private readonly helperService: HelperService,
         private readonly invitationService: InvitationService,
@@ -111,8 +115,8 @@ export class TenantMemberService {
         }
 
         let roleId: string | undefined;
-        if (dto.roleName) {
-            const role = await this.resolveTenantRoleByName(dto.roleName);
+        if (dto.roleId) {
+            const role = await this.resolveTenantRoleById(dto.roleId);
 
             roleId = role.id;
         }
@@ -162,9 +166,9 @@ export class TenantMemberService {
         return this.invitationService.createInvitation(
             tenantId,
             dto,
-            createdBy,
+            this.tenantInvitationProvider,
             requestLog,
-            this.tenantInvitationProvider
+            createdBy
         );
     }
 
@@ -177,9 +181,18 @@ export class TenantMemberService {
         return this.invitationService.sendInvitation(
             tenantId,
             memberId,
-            requestedBy,
+            this.tenantInvitationProvider,
             requestLog,
-            this.tenantInvitationProvider
+            requestedBy
+        );
+    }
+
+    async getMemberRoles(): Promise<
+        IResponseReturn<RoleListResponseDto[]>
+    > {
+        return this.roleService.getListRolesByScopeAndType(
+            EnumRoleScope.tenant,
+            EnumRoleType.user
         );
     }
 
@@ -321,6 +334,27 @@ export class TenantMemberService {
         }
 
         const role = await this.roleRepository.existByName(roleName);
+        if (role && role.scope !== EnumRoleScope.tenant) {
+            throw new BadRequestException({
+                statusCode: EnumTenantStatusCodeError.roleScopeMismatch,
+                message: 'tenantRole.error.scopeMismatch',
+            });
+        }
+
+        if (!role) {
+            throw new NotFoundException({
+                statusCode: EnumTenantStatusCodeError.roleNotFound,
+                message: 'tenantRole.error.notFound',
+            });
+        }
+
+        return role;
+    }
+
+    private async resolveTenantRoleById(
+        roleId: string
+    ): Promise<{ id: string; name: string; scope: EnumRoleScope }> {
+        const role = await this.roleRepository.existById(roleId);
         if (role && role.scope !== EnumRoleScope.tenant) {
             throw new BadRequestException({
                 statusCode: EnumTenantStatusCodeError.roleScopeMismatch,

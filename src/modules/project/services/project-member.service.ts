@@ -7,6 +7,8 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { InvitationService } from '@modules/invitation/services/invitation.service';
+import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
+import { RoleService } from '@modules/role/services/role.service';
 import { RoleRepository } from '@modules/role/repositories/role.repository';
 import { ProjectMemberCreateRequestDto } from '@modules/project/dtos/request/project-member.create.request.dto';
 import { InvitationCreateRequestDto } from '@modules/invitation/dtos/request/invitation.create.request.dto';
@@ -31,6 +33,8 @@ import {
 import {
     EnumProjectMemberStatus,
     EnumProjectStatus,
+    EnumRoleScope,
+    EnumRoleType,
 } from '@prisma/client';
 
 @Injectable()
@@ -38,6 +42,7 @@ export class ProjectMemberService {
     constructor(
         private readonly projectRepository: ProjectRepository,
         private readonly roleRepository: RoleRepository,
+        private readonly roleService: RoleService,
         private readonly userRepository: UserRepository,
         private readonly invitationService: InvitationService,
         private readonly projectUtil: ProjectUtil,
@@ -125,17 +130,22 @@ export class ProjectMemberService {
         }
 
         let roleId: string | undefined;
-        if (dto.roleName.trim() !== undefined) {
-            const role = await this.roleRepository.existByNameAndScope(
-                dto.roleName.trim(),
-                this.projectInvitationProvider.roleScope
-            );
+        if (dto.roleId) {
+            const role = await this.roleRepository.existById(dto.roleId);
             if (!role) {
                 throw new NotFoundException({
                     statusCode: HttpStatus.NOT_FOUND,
                     message: 'projectRole.error.notFound',
                 });
             }
+
+            if (role.scope !== this.projectInvitationProvider.roleScope) {
+                throw new NotFoundException({
+                    statusCode: HttpStatus.NOT_FOUND,
+                    message: 'projectRole.error.notFound',
+                });
+            }
+
             roleId = role.id;
         }
 
@@ -169,9 +179,9 @@ export class ProjectMemberService {
         return this.invitationService.createInvitation(
             projectId,
             dto,
-            createdBy,
+            this.projectInvitationProvider,
             requestLog,
-            this.projectInvitationProvider
+            createdBy
         );
     }
 
@@ -184,9 +194,20 @@ export class ProjectMemberService {
         return this.invitationService.sendInvitation(
             projectId,
             memberId,
-            requestedBy,
+            this.projectInvitationProvider,
             requestLog,
-            this.projectInvitationProvider
+            requestedBy
+        );
+    }
+
+    async getMemberRoles(projectId: string): Promise<
+        IResponseReturn<RoleListResponseDto[]>
+    > {
+        void projectId;
+
+        return this.roleService.getListRolesByScopeAndType(
+            EnumRoleScope.project,
+            EnumRoleType.user
         );
     }
 

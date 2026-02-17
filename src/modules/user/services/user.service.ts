@@ -1327,9 +1327,9 @@ export class UserService implements IUserService {
 
     async createForInvitation(
         email: string,
+        signUpFrom: EnumUserSignUpFrom,
         requestLog: IRequestLog,
-        createdBy: string,
-        signUpFrom: EnumUserSignUpFrom
+        createdBy: string
     ): Promise<User> {
         const [role, country] = await Promise.all([
             this.roleRepository.existByNameAndScope(
@@ -1376,8 +1376,8 @@ export class UserService implements IUserService {
     async sendInvitationByUserId(
         userId: string,
         invitationContext: InvitationContext,
-        requestedBy: string,
-        requestLog: IRequestLog
+        requestLog: IRequestLog,
+        requestedBy: string
     ): Promise<{
         expiresAt: Date;
         expiresInMinutes: number;

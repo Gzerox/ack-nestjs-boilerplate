@@ -32,15 +32,12 @@ export class InvitationService {
     async createInvitation(
         contextId: string,
         dto: InvitationCreateRequestDto,
-        createdBy: string,
+        provider: InvitationProvider,
         requestLog: IRequestLog,
-        provider: InvitationProvider
+        createdBy: string
     ): Promise<IResponseReturn<InvitationCreateResponseDto>> {
-        const role = await this.roleRepository.existByNameAndScope(
-            dto.roleName.trim(),
-            provider.roleScope
-        );
-        if (!role) {
+        const role = await this.roleRepository.existById(dto.roleId);
+        if (!role || role.scope !== provider.roleScope) {
             throw new NotFoundException({
                 statusCode: HttpStatus.NOT_FOUND,
                 message: 'role.error.notFound',
@@ -52,9 +49,9 @@ export class InvitationService {
         if (!user) {
             user = await this.userService.createForInvitation(
                 normalizedEmail,
+                provider.signUpFrom,
                 requestLog,
-                createdBy,
-                provider.signUpFrom
+                createdBy
             );
         }
 
@@ -104,9 +101,9 @@ export class InvitationService {
     async sendInvitation(
         contextId: string,
         memberId: string,
-        requestedBy: string,
+        provider: InvitationProvider,
         requestLog: IRequestLog,
-        provider: InvitationProvider
+        requestedBy: string
     ): Promise<IResponseReturn<InvitationSendResponseDto>> {
         const [userId, contextName] = await Promise.all([
             provider.findMemberUserId(contextId, memberId),
@@ -136,8 +133,8 @@ export class InvitationService {
             const invitation = await this.userService.sendInvitationByUserId(
                 userId,
                 invitationContext,
-                requestedBy,
-                requestLog
+                requestLog,
+                requestedBy
             );
 
             const now = Date.now();

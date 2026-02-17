@@ -113,7 +113,7 @@ Controller: `UserPublicController` (`/public/user`)
 
 - `InvitationCreateRequestDto`
   - `email: string` (required, normalized lowercase)
-  - `roleName: string` (required)
+  - `roleId: string` (required)
 - `UserInvitationCompleteRequestDto`
   - `token: string` (required)
   - `firstName: string` (required)

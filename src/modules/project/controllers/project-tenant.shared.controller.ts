@@ -29,6 +29,7 @@ import { ProjectMemberUpdateRequestDto } from '@modules/project/dtos/request/pro
 import { ProjectUpdateRequestDto } from '@modules/project/dtos/request/project.update.request.dto';
 import { ProjectMemberResponseDto } from '@modules/project/dtos/response/project-member.response.dto';
 import { ProjectResponseDto } from '@modules/project/dtos/response/project.response.dto';
+import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import { ProjectPermissionProtected } from '@modules/project/decorators/project.decorator';
 import { ProjectMemberService } from '@modules/project/services/project-member.service';
 import { ProjectService } from '@modules/project/services/project.service';
@@ -214,5 +215,18 @@ export class ProjectTenantSharedController {
         @PaginationOffsetQuery() pagination: IPaginationQueryOffsetParams
     ): Promise<IResponsePagingReturn<ProjectMemberResponseDto>> {
         return this.projectMemberService.listMembers(projectId, pagination);
+    }
+
+    @Response('project.member.roles')
+    @TenantMemberProtected()
+    @ProjectPermissionProtected(ProjectMemberPolicyCreate)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Get('/:projectId/members/roles')
+    async listMemberRoles(
+        @Param('projectId', RequestRequiredPipe) projectId: string
+    ): Promise<IResponseReturn<RoleListResponseDto[]>> {
+        return this.projectMemberService.getMemberRoles(projectId);
     }
 }

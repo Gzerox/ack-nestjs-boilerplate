@@ -1,10 +1,6 @@
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
+import { PaginationOffsetQuery } from '@common/pagination/decorators/pagination.decorator';
 import {
-    PaginationCursorQuery,
-    PaginationOffsetQuery,
-} from '@common/pagination/decorators/pagination.decorator';
-import {
-    IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import {
@@ -42,11 +38,13 @@ import { TenantMemberUpdateRequestDto } from '@modules/tenant/dtos/request/tenan
 import { TenantUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.update.request.dto';
 import { TenantMemberResponseDto } from '@modules/tenant/dtos/response/tenant.member.response.dto';
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
+import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import {
     TenantSharedCreateMemberDoc,
     TenantSharedCreateMemberInvitationDoc,
     TenantSharedDeleteMemberDoc,
     TenantSharedGetCurrentTenantDoc,
+    TenantSharedListMemberRolesDoc,
     TenantSharedListMembersDoc,
     TenantSharedSendMemberInvitationDoc,
     TenantSharedUpdateCurrentTenantDoc,
@@ -128,6 +126,22 @@ export class TenantSharedController {
         pagination: IPaginationQueryOffsetParams
     ): Promise<IResponsePagingReturn<TenantMemberResponseDto>> {
         return this.tenantMemberService.getMembersOffset(tenant.id, pagination);
+    }
+
+    @TenantSharedListMemberRolesDoc()
+    @Response('tenant.member.roles')
+    @TenantPermissionProtected({
+        subject: EnumPolicySubject.tenantMember,
+        action: [EnumPolicyAction.create],
+    })
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Get('/current/members/roles')
+    async listMemberRoles(): Promise<
+        IResponseReturn<RoleListResponseDto[]>
+    > {
+        return this.tenantMemberService.getMemberRoles();
     }
 
     @TenantSharedCreateMemberDoc()

@@ -1,4 +1,7 @@
-import { InvitationProvider } from '@modules/invitation/interfaces/invitation.interface';
+import {
+    InvitationProvider,
+    InvitationType,
+} from '@modules/invitation/interfaces/invitation.interface';
 import { ProjectRepository } from '@modules/project/repositories/project.repository';
 import { Injectable } from '@nestjs/common';
 import {
@@ -9,9 +12,9 @@ import {
 
 @Injectable()
 export class ProjectInvitationProvider implements InvitationProvider {
-    readonly roleScope = EnumRoleScope.project;
-    readonly invitationType = 'project_member' as const;
-    readonly signUpFrom = EnumUserSignUpFrom.project;
+    readonly roleScope: EnumRoleScope = EnumRoleScope.project;
+    readonly invitationType: InvitationType = 'project_member';
+    readonly signUpFrom: EnumUserSignUpFrom = EnumUserSignUpFrom.project;
 
     constructor(private readonly projectRepository: ProjectRepository) {}
 

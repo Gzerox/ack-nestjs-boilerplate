@@ -131,6 +131,19 @@ export function TenantSharedSendMemberInvitationDoc(): MethodDecorator {
     );
 }
 
+export function TenantSharedListMemberRolesDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({
+            summary: 'list tenant member roles',
+        }),
+        DocAuth({
+            xApiKey: true,
+            jwtAccessToken: true,
+        }),
+        DocResponse('tenant.member.roles')
+    );
+}
+
 export function TenantSharedUpdateMemberDoc(): MethodDecorator {
     return applyDecorators(
         Doc({

@@ -133,11 +133,13 @@ Controller: `ProjectTenantSharedController` (`/tenants/projects`)
 | `POST` | `/tenants/projects/:projectId/members` | Add member by existing `userId` | `TenantMember` + `ProjectPermission(projectMember:create)` |
 | `PATCH` | `/tenants/projects/:projectId/members/:memberId` | Update member role and/or status | `TenantMember` + `ProjectPermission(projectMember:update)` |
 | `GET` | `/tenants/projects/:projectId/members` | List active members | `TenantMember` + `ProjectPermission(projectMember:read)` |
+| `GET` | `/tenants/projects/:projectId/members/roles` | List assignable member roles (used by update/invitation flows) | `TenantMember` + `ProjectPermission(projectMember:create)` |
 
 All endpoints also include `ApiKey`, `@AuthJwtAccessProtected`, and `@UserProtected`.
 
 `/tenants/projects` routes are only available when tenancy is enabled.
 Invitation routes under `/tenants/projects/:projectId/members/invitations` are documented in [Invitation Documentation][ref-doc-invitation].
+Use `/tenants/projects/:projectId/members/roles` to resolve `roleId` values for member updates and invitation requests.
 
 ## Decorators and Guards
 
@@ -223,7 +225,7 @@ Used by:
   - `userId: string` (required)
   - `roleName: string` (required)
 - `ProjectMemberUpdateRequestDto`
-  - `roleName?: string`
+  - `roleId?: string`
   - `status?: EnumProjectMemberStatus`
 
 For validation mechanics and error shape, see [Request Validation Documentation][ref-doc-request-validation].
@@ -264,9 +266,10 @@ Current implementation returns `'member'` from shared listing APIs.
   - Role is required in request (`roleName`) and must exist in `project` scope
 - Updating a project member:
   - Member must belong to the project
-  - Update can include `roleName`, `status`, or both
+  - Update can include `roleId`, `status`, or both
   - Empty patch payload is treated as no-op success
 - Listing project members only returns active memberships.
+- Listing project member roles (`GET /tenants/projects/:projectId/members/roles`) only returns roles in `project` scope with `user` type.
 - User project listing only returns active memberships and active projects.
 
 ## Usage Examples

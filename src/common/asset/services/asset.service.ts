@@ -11,6 +11,7 @@ import {
 } from '@common/asset/interfaces/asset.interface';
 import { IAssetService } from '@common/asset/interfaces/asset.service.interface';
 import { AssetRepository } from '@common/asset/repositories/asset.repository';
+import { AssetUtil } from '@common/asset/utils/asset.util';
 import {
     IPaginationCursorReturn,
     IPaginationQueryCursorParams,
@@ -37,7 +38,8 @@ export class AssetService implements IAssetService {
         private readonly assetRepository: AssetRepository,
         private readonly awsS3Service: AwsS3Service,
         private readonly fileService: FileService,
-        private readonly helperService: HelperService
+        private readonly helperService: HelperService,
+        private readonly assetUtil: AssetUtil
     ) {}
 
     async upload(
@@ -88,7 +90,9 @@ export class AssetService implements IAssetService {
                     mime: uploaded.mime,
                     extension: uploaded.extension,
                     size: uploaded.size,
-                    checksum: options?.checksum?.trim(),
+                    checksum:
+                        options?.checksum?.trim() ??
+                        this.assetUtil.generateChecksum(input.buffer),
                     status: EnumAssetStatus.active,
                 },
                 createdBy

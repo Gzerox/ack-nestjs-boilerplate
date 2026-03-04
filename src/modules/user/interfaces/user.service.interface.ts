@@ -5,7 +5,6 @@ import {
     IPaginationEqual,
     IPaginationIn,
     IPaginationQueryCursorParams,
-    IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import {
     IRequestApp,
@@ -45,7 +44,11 @@ import { UserListResponseDto } from '@modules/user/dtos/response/user.list.respo
 import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile.response.dto';
 import { UserLoginResponseDto } from '@modules/user/dtos/response/user.login.response.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
-import { IUser } from '@modules/user/interfaces/user.interface';
+import {
+    IUser,
+    IUserAssetPaginationOffsetParams,
+    IUserPaginationOffsetParams,
+} from '@modules/user/interfaces/user.interface';
 import { EnumUserLoginWith, Prisma } from '@prisma/client';
 import { UserTwoFactorStatusResponseDto } from '@modules/user/dtos/response/user.two-factor-status.response.dto';
 import { UserTwoFactorEnableRequestDto } from '@modules/user/dtos/request/user.two-factor-enable.request.dto';
@@ -54,6 +57,8 @@ import { UserTwoFactorDisableRequestDto } from '@modules/user/dtos/request/user.
 import { UserLoginVerifyTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-verify-two-factor.request.dto';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+
 import { UserLoginSetupTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-setup-two-factor.request.dto';
 
 export interface IUserService {
@@ -62,10 +67,7 @@ export interface IUserService {
         requiredVerified: boolean
     ): Promise<IUser>;
     getListOffsetByAdmin(
-        pagination: IPaginationQueryOffsetParams<
-            Prisma.UserSelect,
-            Prisma.UserWhereInput
-        >,
+        pagination: IUserPaginationOffsetParams,
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
@@ -238,4 +240,16 @@ export interface IUserService {
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
     ): Promise<IResponseFileReturn>;
+    uploadAsset(
+        userId: string,
+        file: IFile
+    ): Promise<IResponseReturn<AssetResponseDto>>;
+    getListAssets(
+        userId: string,
+        pagination: IUserAssetPaginationOffsetParams
+    ): Promise<IResponsePagingReturn<AssetResponseDto>>;
+    deleteAsset(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<void>>;
 }

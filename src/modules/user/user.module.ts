@@ -6,9 +6,20 @@ import { UserRepository } from '@modules/user/repositories/user.repository';
 import { UserUtil } from '@modules/user/utils/user.util';
 import { CountryModule } from '@modules/country/country.module';
 import { DeviceModule } from '@modules/device/device.module';
+import { AssetModule } from '@common/asset/asset.module';
+import { RoleModule } from '@modules/role/role.module';
+import { SessionModule } from '@modules/session/session.module';
 
 @Module({
-    imports: [PasswordHistoryModule, AwsModule, CountryModule, DeviceModule],
+    imports: [
+        PasswordHistoryModule,
+        CountryModule,
+        RoleModule,
+        AwsModule,
+        SessionModule,
+        AssetModule,
+        DeviceModule,
+    ],
     exports: [UserService, UserRepository, UserUtil],
     providers: [UserService, UserRepository, UserUtil],
     controllers: [],

@@ -29,8 +29,6 @@ export interface IAssetCreate {
     size: number;
     checksum?: string;
     status: EnumAssetStatus;
-    createdBy: string;
-    updatedBy?: string;
 }
 
 export interface IAssetUpdateMetadata {
@@ -43,10 +41,4 @@ export interface IAssetUpdate {
     checksum?: string;
     updatedBy?: string;
     status?: EnumAssetStatus;
-    deletedAt?: Date | null;
-    deletedBy?: string;
-}
-
-export interface IAssetListOptions {
-    includeDeleted?: boolean;
 }

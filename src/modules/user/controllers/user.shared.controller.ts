@@ -10,9 +10,17 @@ import {
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
-import { Response } from '@common/response/decorators/response.decorator';
-import { IResponseReturn } from '@common/response/interfaces/response.interface';
 import { GeoLocation, UserAgent } from '@generated/prisma-client';
+import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import {
+    Response,
+    ResponsePaging,
+} from '@common/response/decorators/response.decorator';
+import {
+    IResponsePagingReturn,
+    IResponseReturn,
+} from '@common/response/interfaces/response.interface';
+import { PaginationOffsetQuery } from '@common/pagination/decorators/pagination.decorator';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import {
     AuthJwtAccessProtected,
@@ -31,8 +39,10 @@ import {
     UserSharedAddMobileNumberDoc,
     UserSharedChangePasswordDoc,
     UserSharedClaimUsernameDoc,
+    UserSharedDeleteAssetDoc,
     UserSharedDeleteMobileNumberDoc,
     UserSharedGeneratePhotoProfilePresignDoc,
+    UserSharedListAssetDoc,
     UserSharedProfileDoc,
     UserSharedRefreshDoc,
     UserSharedTwoFactorDisableDoc,
@@ -43,8 +53,10 @@ import {
     UserSharedUpdateMobileNumberDoc,
     UserSharedUpdatePhotoProfileDoc,
     UserSharedUpdateProfileDoc,
+    UserSharedUploadAssetDoc,
     UserSharedUploadPhotoProfileDoc,
 } from '@modules/user/docs/user.shared.doc';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
 import { UserChangePasswordRequestDto } from '@modules/user/dtos/request/user.change-password.request.dto';
 import { UserClaimUsernameRequestDto } from '@modules/user/dtos/request/user.claim-username.request.dto';
 import { UserGeneratePhotoProfileRequestDto } from '@modules/user/dtos/request/user.generate-photo-profile.request.dto';
@@ -63,7 +75,10 @@ import { UserTwoFactorEnableResponseDto } from '@modules/user/dtos/response/user
 import { UserTwoFactorSetupResponseDto } from '@modules/user/dtos/response/user.two-factor-setup.response.dto';
 import { UserTwoFactorStatusResponseDto } from '@modules/user/dtos/response/user.two-factor-status.response.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
-import { IUser } from '@modules/user/interfaces/user.interface';
+import {
+    IUser,
+    IUserAssetPaginationOffsetParams,
+} from '@modules/user/interfaces/user.interface';
 import { UserService } from '@modules/user/services/user.service';
 import {
     Body,
@@ -435,4 +450,48 @@ export class UserSharedController {
     // TODO: LAST - Implement logout api
 
     // TODO: Verify number implementation, but which provider?
+
+    @UserSharedUploadAssetDoc()
+    @Response('asset.upload')
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @FileUploadSingle()
+    @RequestTimeout('1m')
+    @HttpCode(HttpStatus.OK)
+    @Post('/assets/upload')
+    async uploadAsset(
+        @AuthJwtPayload('userId') userId: string,
+        @UploadedFile(RequestRequiredPipe) file: IFile
+    ): Promise<IResponseReturn<AssetResponseDto>> {
+        return this.userService.uploadAsset(userId, file);
+    }
+
+    @UserSharedListAssetDoc()
+    @ResponsePaging('asset.list')
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Get('/assets')
+    async listAsset(
+        @AuthJwtPayload('userId') userId: string,
+        @PaginationOffsetQuery() pagination: IUserAssetPaginationOffsetParams
+    ): Promise<IResponsePagingReturn<AssetResponseDto>> {
+        return this.userService.getListAssets(userId, pagination);
+    }
+
+    @UserSharedDeleteAssetDoc()
+    @Response('asset.delete')
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @HttpCode(HttpStatus.OK)
+    @Delete('/assets/:assetId')
+    async deleteAsset(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('assetId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        assetId: string
+    ): Promise<IResponseReturn<void>> {
+        return this.userService.deleteAsset(userId, assetId);
+    }
 }

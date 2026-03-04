@@ -1,8 +1,10 @@
+import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import {
     Country,
     EnumUserLoginFrom,
     EnumUserLoginWith,
     EnumVerificationType,
+    Prisma,
     Role,
     TwoFactor,
     User,
@@ -49,3 +51,13 @@ export interface IUserVerificationCreate {
     token: string;
     link?: string;
 }
+
+export type IUserPaginationOffsetParams = IPaginationQueryOffsetParams<
+    Prisma.UserSelect,
+    Prisma.UserWhereInput
+>;
+
+export type IUserAssetPaginationOffsetParams = IPaginationQueryOffsetParams<
+    Prisma.AssetSelect,
+    Prisma.AssetWhereInput
+>;

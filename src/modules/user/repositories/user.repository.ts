@@ -32,6 +32,7 @@ import {
     IUser,
     IUserForgotPasswordCreate,
     IUserLogin,
+    IUserPaginationOffsetParams,
     IUserProfile,
     IUserVerificationCreate,
 } from '@modules/user/interfaces/user.interface';
@@ -73,10 +74,7 @@ export class UserRepository {
         {
             where,
             ...params
-        }: IPaginationQueryOffsetParams<
-            Prisma.UserSelect,
-            Prisma.UserWhereInput
-        >,
+        }: IUserPaginationOffsetParams,
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>

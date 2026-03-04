@@ -1,25 +1,31 @@
 import { DatabaseService } from '@common/database/services/database.service';
-import { HelperService } from '@common/helper/services/helper.service';
 import {
     IAsset,
     IAssetCreate,
     IAssetUpdate,
 } from '@common/asset/interfaces/asset.interface';
+import {
+    IPaginationCursorReturn,
+    IPaginationQueryCursorParams,
+    IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import { PaginationService } from '@common/pagination/services/pagination.service';
+import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
-import { EnumAssetStatus } from '@prisma/client';
+import { EnumAssetStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class AssetRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly helperService: HelperService
+        private readonly paginationService: PaginationService
     ) {}
 
-    async create(data: IAssetCreate): Promise<IAsset> {
+    async create(data: IAssetCreate, createdBy: string): Promise<IAsset> {
         return this.databaseService.asset.create({
             data: {
                 ...data,
-                deletedAt: null,
+                createdBy: createdBy,
             },
         });
     }
@@ -32,55 +38,95 @@ export class AssetRepository {
         });
     }
 
-    async findOneActiveById(assetId: string): Promise<IAsset | null> {
+    async findOneByUploaderId(
+        assetId: string,
+        uploaderId: string
+    ): Promise<IAsset | null> {
         return this.databaseService.asset.findFirst({
             where: {
                 id: assetId,
-                status: EnumAssetStatus.active,
-                deletedAt: null,
+                createdBy: uploaderId,
             },
         });
     }
 
-    async findManyByUploader(
-        createdBy: string,
-        includeDeleted: boolean = false
-    ): Promise<IAsset[]> {
-        return this.databaseService.asset.findMany({
-            where: {
-                createdBy,
-                ...(includeDeleted
-                    ? {}
-                    : {
-                          status: EnumAssetStatus.active,
-                          deletedAt: null,
-                      }),
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
+    async findWithPaginationOffset({
+        where,
+        ...params
+    }: IPaginationQueryOffsetParams<
+        Prisma.AssetSelect,
+        Prisma.AssetWhereInput
+    >): Promise<IResponsePagingReturn<IAsset>> {
+        return this.paginationService.offset<
+            IAsset,
+            Prisma.AssetSelect,
+            Prisma.AssetWhereInput
+        >(
+            this.databaseService.asset,
+            {
+                ...params,
+                where: where
+                    ? {
+                          AND: [
+                              where,
+                              { status: { not: EnumAssetStatus.deleted } },
+                          ],
+                      }
+                    : { status: { not: EnumAssetStatus.deleted } },
+            }
+        );
     }
 
-    async update(assetId: string, data: IAssetUpdate): Promise<IAsset> {
+    async findWithPaginationCursor({
+        where,
+        ...params
+    }: IPaginationQueryCursorParams<
+        Prisma.AssetSelect,
+        Prisma.AssetWhereInput
+    >): Promise<IPaginationCursorReturn<IAsset>> {
+        return this.paginationService.cursor<
+            IAsset,
+            Prisma.AssetSelect,
+            Prisma.AssetWhereInput
+        >(
+            this.databaseService.asset,
+            {
+                ...params,
+                where: where
+                    ? {
+                          AND: [
+                              where,
+                              { status: { not: EnumAssetStatus.deleted } },
+                          ],
+                      }
+                    : { status: { not: EnumAssetStatus.deleted } },
+            }
+        );
+    }
+
+    async update(
+        assetId: string,
+        data: IAssetUpdate,
+        updatedBy: string
+    ): Promise<IAsset> {
         return this.databaseService.asset.update({
             where: {
                 id: assetId,
             },
-            data,
+            data: {
+                ...data,
+                updatedBy,
+            },
         });
     }
 
     async softDelete(assetId: string, deletedBy: string): Promise<IAsset> {
-        const deletedAt = this.helperService.dateCreate();
         return this.databaseService.asset.update({
             where: {
                 id: assetId,
             },
             data: {
                 status: EnumAssetStatus.deleted,
-                deletedAt,
-                deletedBy,
                 updatedBy: deletedBy,
             },
         });

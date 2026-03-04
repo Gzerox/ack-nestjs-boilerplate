@@ -14,7 +14,6 @@ import {
     IPaginationEqual,
     IPaginationIn,
     IPaginationQueryCursorParams,
-    IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import {
     IRequestApp,
@@ -72,7 +71,11 @@ import { UserTwoFactorSetupResponseDto } from '@modules/user/dtos/response/user.
 import { UserTwoFactorStatusResponseDto } from '@modules/user/dtos/response/user.two-factor-status.response.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
 import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
-import { IUser } from '@modules/user/interfaces/user.interface';
+import {
+    IUser,
+    IUserAssetPaginationOffsetParams,
+    IUserPaginationOffsetParams,
+} from '@modules/user/interfaces/user.interface';
 import { IUserService } from '@modules/user/interfaces/user.service.interface';
 import { UserRepository } from '@modules/user/repositories/user.repository';
 import { UserUtil } from '@modules/user/utils/user.util';
@@ -88,6 +91,7 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import {
+    EnumAssetAccess,
     EnumUserLoginFrom,
     EnumUserLoginWith,
     EnumUserStatus,
@@ -106,6 +110,10 @@ import { RequestTooManyException } from '@common/request/exceptions/request.too-
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
 import { ConfigService } from '@nestjs/config';
 import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.response.dto';
+import { AssetService } from '@common/asset/services/asset.service';
+import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { plainToInstance } from 'class-transformer';
 import { UserLoginSetupTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-setup-two-factor.request.dto';
 import { FeatureFlagUtil } from '@modules/feature-flag/utils/feature-flag.util';
 import { DeviceDto } from '@modules/device/dtos/device.dto';
@@ -137,7 +145,8 @@ export class UserService implements IUserService {
         private readonly sessionRepository: SessionRepository,
         private readonly featureFlagUtil: FeatureFlagUtil,
         private readonly authTwoFactorUtil: AuthTwoFactorUtil,
-        private readonly configService: ConfigService
+        private readonly configService: ConfigService,
+        private readonly assetService: AssetService
     ) {
         this.userRoleName = this.configService.get<string>('user.default.role');
         this.userCountryName = this.configService.get<string>(
@@ -188,10 +197,7 @@ export class UserService implements IUserService {
     }
 
     async getListOffsetByAdmin(
-        pagination: IPaginationQueryOffsetParams<
-            Prisma.UserSelect,
-            Prisma.UserWhereInput
-        >,
+        pagination: IUserPaginationOffsetParams,
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
@@ -2122,5 +2128,54 @@ export class UserService implements IUserService {
             data: csvString,
             extension: EnumFileExtensionDocument.csv,
         };
+    }
+
+    async uploadAsset(
+        userId: string,
+        file: IFile
+    ): Promise<IResponseReturn<AssetResponseDto>> {
+        const asset = await this.assetService.upload(
+            {
+                buffer: file.buffer,
+                size: file.size,
+                originalName: file.originalname,
+                mime: file.mimetype,
+            },
+            userId,
+            { path: `users/${userId}/assets`, access: EnumAssetAccess.public }
+        );
+        return { data: plainToInstance(AssetResponseDto, asset) };
+    }
+
+    async getListAssets(
+        userId: string,
+        pagination: IUserAssetPaginationOffsetParams
+    ): Promise<IResponsePagingReturn<AssetResponseDto>> {
+        const result = await this.assetService.findWithPaginationOffset({
+            ...pagination,
+            where: { ...pagination.where, createdBy: userId },
+        });
+        return {
+            ...result,
+            data: plainToInstance(AssetResponseDto, result.data),
+        };
+    }
+
+    async deleteAsset(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<void>> {
+        const asset = await this.assetService.findOneByUploaderId(
+            assetId,
+            userId
+        );
+        if (!asset) {
+            throw new NotFoundException({
+                statusCode: EnumAssetStatusCodeError.notFound,
+                message: 'asset.error.notFound',
+            });
+        }
+        await this.assetService.delete(assetId, userId);
+        return;
     }
 }

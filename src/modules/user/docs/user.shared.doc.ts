@@ -6,7 +6,9 @@ import {
     DocRequest,
     DocRequestFile,
     DocResponse,
+    DocResponsePaging,
 } from '@common/doc/decorators/doc.decorator';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
 import { EnumDocRequestBodyType } from '@common/doc/enums/doc.enum';
 import { FileSingleDto } from '@common/file/dtos/file.single.dto';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
@@ -348,5 +350,37 @@ export function UserSharedTwoFactorRegenerateBackupDoc(): MethodDecorator {
         DocResponse('user.twoFactor.regenerate', {
             dto: UserTwoFactorEnableResponseDto,
         })
+    );
+}
+
+export function UserSharedUploadAssetDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'upload asset' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequestFile({ dto: FileSingleDto }),
+        DocResponse<AssetResponseDto>('asset.upload', {
+            dto: AssetResponseDto,
+        })
+    );
+}
+
+export function UserSharedListAssetDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'list my assets' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocResponsePaging<AssetResponseDto>('asset.list', {
+            dto: AssetResponseDto,
+        })
+    );
+}
+
+export function UserSharedDeleteAssetDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'delete my asset' }),
+        DocRequest({
+            params: [{ name: 'assetId', required: true, type: String }],
+        }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocResponse('asset.delete')
     );
 }

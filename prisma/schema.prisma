@@ -51,6 +51,33 @@ model Role {
   @@map("Roles")
 }
 
+model Asset {
+  id           String          @id @default(auto()) @map("_id") @db.ObjectId
+  storageKey   String
+  bucket       String
+  access       EnumAssetAccess @default(private)
+  filename     String
+  completedUrl String
+  cdnUrl       String?
+  mime         String
+  extension    String
+  size         Int
+  checksum     String?
+  status       EnumAssetStatus @default(active)
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String   @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
+
+  @@unique(fields: [storageKey])
+  @@index(fields: [createdBy, status, createdAt])
+  @@index(fields: [status, createdAt])
+  @@index(fields: [createdAt])
+  @@map("Assets")
+}
+
 model Country {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   name       String
@@ -563,6 +590,16 @@ enum EnumRoleType {
 enum EnumApiKeyType {
   system
   default
+}
+
+enum EnumAssetStatus {
+  active
+  deleted
+}
+
+enum EnumAssetAccess {
+  public
+  private
 }
 
 enum EnumTermPolicyType {

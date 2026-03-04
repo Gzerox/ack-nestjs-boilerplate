@@ -54,6 +54,8 @@ import { UserTwoFactorDisableRequestDto } from '@modules/user/dtos/request/user.
 import { UserLoginVerifyTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-verify-two-factor.request.dto';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+
 export interface IUserService {
     validateUserGuard(
         request: IRequestApp,
@@ -226,4 +228,16 @@ export interface IUserService {
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
     ): Promise<IResponseFileReturn>;
+    uploadAsset(
+        userId: string,
+        file: IFile
+    ): Promise<IResponseReturn<AssetResponseDto>>;
+    getListAssets(
+        userId: string,
+        pagination: IPaginationQueryOffsetParams
+    ): Promise<IResponsePagingReturn<AssetResponseDto>>;
+    deleteAsset(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<void>>;
 }

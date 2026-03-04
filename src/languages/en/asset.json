@@ -1,4 +1,7 @@
 {
+    "upload": "Asset uploaded successfully.",
+    "list": "Assets retrieved successfully.",
+    "delete": "Asset deleted successfully.",
     "error": {
         "notFound": "Asset not found."
     }

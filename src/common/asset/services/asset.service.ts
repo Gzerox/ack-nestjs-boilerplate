@@ -7,15 +7,20 @@ import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.
 import {
     IAsset,
     IAssetCreateOptions,
-    IAssetListOptions,
-    IAssetUpdateMetadata,
     IAssetUploadInput,
 } from '@common/asset/interfaces/asset.interface';
 import { IAssetService } from '@common/asset/interfaces/asset.service.interface';
 import { AssetRepository } from '@common/asset/repositories/asset.repository';
 import {
+    IPaginationCursorReturn,
+    IPaginationQueryCursorParams,
+    IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import {
     Injectable,
     InternalServerErrorException,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
 import { EnumAssetAccess, EnumAssetStatus } from '@prisma/client';
@@ -26,6 +31,8 @@ import {
 
 @Injectable()
 export class AssetService implements IAssetService {
+    private readonly logger = new Logger(AssetService.name);
+
     constructor(
         private readonly assetRepository: AssetRepository,
         private readonly awsS3Service: AwsS3Service,
@@ -45,24 +52,33 @@ export class AssetService implements IAssetService {
                 ? EnumAwsS3Accessibility.private
                 : EnumAwsS3Accessibility.public;
 
+        //TODO: Shall we develop a whitelist/blacklist mechanism for extensions?
         const extension = this.resolveExtension(input.originalName);
         const filename = options?.filename?.trim() || input.originalName;
         const storageKey = this.createStorageKey(extension, options);
 
+        let uploaded: Awaited<ReturnType<typeof this.awsS3Service.putItem>>;
         try {
-            const uploaded = await this.awsS3Service.putItem(
-                {
-                    key: storageKey,
-                    size: input.size,
-                    file: input.buffer,
-                },
-                {
-                    access: mappedAccess,
-                }
+            uploaded = await this.awsS3Service.putItem(
+                { key: storageKey, size: input.size, file: input.buffer },
+                { access: mappedAccess }
             );
+        } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to upload asset to S3. StorageKey: ${storageKey}`
+            );
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
 
-            try {
-                return await this.assetRepository.create({
+        // Persist asset — rollback S3 upload on failure
+        try {
+            return await this.assetRepository.create(
+                {
                     storageKey: uploaded.key,
                     bucket: uploaded.bucket,
                     access,
@@ -74,42 +90,43 @@ export class AssetService implements IAssetService {
                     size: uploaded.size,
                     checksum: options?.checksum?.trim(),
                     status: EnumAssetStatus.active,
-                    createdBy,
-                });
-            } catch (createError: unknown) {
-                try {
-                    await this.awsS3Service.deleteItem(uploaded.key, {
-                        access: mappedAccess,
-                    });
-                } catch (cleanupError: unknown) {
+                },
+                createdBy
+            );
+        } catch (createError: unknown) {
+            this.logger.error(
+                createError,
+                `Failed to persist asset to database. S3Key: ${uploaded.key}. Rolling back S3 upload.`
+            );
+            await this.awsS3Service
+                .deleteItem(uploaded.key, { access: mappedAccess })
+                .catch((cleanupError: unknown) => {
+                    this.logger.error(
+                        cleanupError,
+                        `Failed to rollback S3 upload during asset creation failure. S3Key: ${uploaded.key}`
+                    );
                     throw new InternalServerErrorException({
                         statusCode: EnumAppStatusCodeError.unknown,
                         message: 'http.serverError.internalServerError',
                         _error: { createError, cleanupError },
                     });
-                }
-
-                throw new InternalServerErrorException({
-                    statusCode: EnumAppStatusCodeError.unknown,
-                    message: 'http.serverError.internalServerError',
-                    _error: { createError },
                 });
-            }
-        } catch (err: unknown) {
-            if (err instanceof InternalServerErrorException) {
-                throw err;
-            }
-
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
                 message: 'http.serverError.internalServerError',
-                _error: err,
+                _error: createError,
             });
         }
     }
 
-    async getOne(assetId: string): Promise<IAsset> {
-        const asset = await this.assetRepository.findOneById(assetId);
+    async findOneByUploaderId(
+        assetId: string,
+        uploaderId: string
+    ): Promise<IAsset> {
+        const asset = await this.assetRepository.findOneByUploaderId(
+            assetId,
+            uploaderId
+        );
         if (!asset) {
             throw new NotFoundException({
                 statusCode: EnumAssetStatusCodeError.notFound,
@@ -120,45 +137,23 @@ export class AssetService implements IAssetService {
         return asset;
     }
 
-    async listByUploader(
-        createdBy: string,
-        options?: IAssetListOptions
-    ): Promise<IAsset[]> {
-        return this.assetRepository.findManyByUploader(
-            createdBy,
-            options?.includeDeleted ?? false
-        );
+    async findWithPaginationOffset(
+        params: IPaginationQueryOffsetParams
+    ): Promise<IResponsePagingReturn<IAsset>> {
+        return this.assetRepository.findWithPaginationOffset(params);
     }
 
-    async updateMetadata(
-        assetId: string,
-        metadata: IAssetUpdateMetadata,
-        updatedBy: string
-    ): Promise<IAsset> {
-        const asset = await this.assetRepository.findOneActiveById(assetId);
-        if (!asset) {
-            throw new NotFoundException({
-                statusCode: EnumAssetStatusCodeError.notFound,
-                message: 'asset.error.notFound',
-            });
-        }
-
-        const filename = metadata.filename?.trim();
-        const checksum = metadata.checksum?.trim();
-
-        if (filename === undefined && checksum === undefined) {
-            return asset;
-        }
-
-        return this.assetRepository.update(asset.id, {
-            filename,
-            checksum,
-            updatedBy,
-        });
+    async findWithPaginationCursor(
+        params: IPaginationQueryCursorParams
+    ): Promise<IPaginationCursorReturn<IAsset>> {
+        return this.assetRepository.findWithPaginationCursor(params);
     }
 
     async delete(assetId: string, deletedBy: string): Promise<void> {
-        const asset = await this.assetRepository.findOneById(assetId);
+        const asset = await this.assetRepository.findOneByUploaderId(
+            assetId,
+            deletedBy
+        );
         if (!asset) {
             throw new NotFoundException({
                 statusCode: EnumAssetStatusCodeError.notFound,
@@ -180,6 +175,10 @@ export class AssetService implements IAssetService {
 
             await this.assetRepository.softDelete(asset.id, deletedBy);
         } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to delete asset. AssetId: ${asset.id}, S3Key: ${asset.storageKey}`
+            );
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
                 message: 'http.serverError.internalServerError',

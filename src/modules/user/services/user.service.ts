@@ -90,6 +90,7 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import {
+    EnumAssetAccess,
     EnumRoleScope,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -111,6 +112,10 @@ import { RequestTooManyException } from '@common/request/exceptions/request.too-
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
 import { ConfigService } from '@nestjs/config';
 import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.response.dto';
+import { AssetService } from '@common/asset/services/asset.service';
+import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
+import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class UserService implements IUserService {
@@ -133,7 +138,8 @@ export class UserService implements IUserService {
         private readonly featureFlagService: FeatureFlagService,
         private readonly emailService: EmailService,
         private readonly authTwoFactorUtil: AuthTwoFactorUtil,
-        private readonly configService: ConfigService
+        private readonly configService: ConfigService,
+        private readonly assetService: AssetService
     ) {
         this.userRoleName = this.configService.get<string>('user.default.role');
         this.userCountryName = this.configService.get<string>(
@@ -2180,5 +2186,54 @@ export class UserService implements IUserService {
             data: csvString,
             extension: EnumFileExtensionDocument.csv,
         };
+    }
+
+    async uploadAsset(
+        userId: string,
+        file: IFile
+    ): Promise<IResponseReturn<AssetResponseDto>> {
+        const asset = await this.assetService.upload(
+            {
+                buffer: file.buffer,
+                size: file.size,
+                originalName: file.originalname,
+                mime: file.mimetype,
+            },
+            userId,
+            { path: `users/${userId}/assets`, access: EnumAssetAccess.public }
+        );
+        return { data: plainToInstance(AssetResponseDto, asset) };
+    }
+
+    async getListAssets(
+        userId: string,
+        pagination: IPaginationQueryOffsetParams
+    ): Promise<IResponsePagingReturn<AssetResponseDto>> {
+        const result = await this.assetService.findWithPaginationOffset({
+            ...pagination,
+            where: { ...pagination.where, createdBy: userId },
+        });
+        return {
+            ...result,
+            data: plainToInstance(AssetResponseDto, result.data),
+        };
+    }
+
+    async deleteAsset(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<void>> {
+        const asset = await this.assetService.findOneByUploaderId(
+            assetId,
+            userId
+        );
+        if (!asset) {
+            throw new NotFoundException({
+                statusCode: EnumAssetStatusCodeError.notFound,
+                message: 'asset.error.notFound',
+            });
+        }
+        await this.assetService.delete(assetId, userId);
+        return;
     }
 }

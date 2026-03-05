@@ -432,7 +432,15 @@ export class UserSharedController {
     @Post('/assets/upload')
     async uploadAsset(
         @AuthJwtPayload('userId') userId: string,
-        @UploadedFile(RequestRequiredPipe) file: IFile,
+        @UploadedFile(
+            RequestRequiredPipe,
+            FileExtensionPipe([
+                EnumFileExtensionImage.jpeg,
+                EnumFileExtensionImage.png,
+                EnumFileExtensionImage.jpg,
+            ])
+        )
+        file: IFile,
         @Body() body: AssetUploadRequestDto
     ): Promise<IResponseReturn<AssetResponseDto>> {
         return this.userService.uploadAsset(userId, file, body);

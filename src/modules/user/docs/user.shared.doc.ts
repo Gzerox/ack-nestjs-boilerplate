@@ -32,6 +32,7 @@ import { UserTwoFactorSetupResponseDto } from '@modules/user/dtos/response/user.
 import { UserTwoFactorStatusResponseDto } from '@modules/user/dtos/response/user.two-factor-status.response.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
 import { HttpStatus, applyDecorators } from '@nestjs/common';
+import { AssetUploadRequestDto } from '@common/asset/dtos/request/asset.upload.request.dto';
 
 export function UserSharedRefreshDoc(): MethodDecorator {
     return applyDecorators(
@@ -357,7 +358,7 @@ export function UserSharedUploadAssetDoc(): MethodDecorator {
     return applyDecorators(
         Doc({ summary: 'upload asset' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
-        DocRequestFile({ dto: FileSingleDto }),
+        DocRequestFile({ dto: AssetUploadRequestDto }),
         DocResponse<AssetResponseDto>('asset.upload', {
             dto: AssetResponseDto,
         })

@@ -113,7 +113,6 @@ import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.req
 import { ConfigService } from '@nestjs/config';
 import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.response.dto';
 import { AssetService } from '@common/asset/services/asset.service';
-import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
 import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
 import { AssetUploadRequestDto } from '@common/asset/dtos/request/asset.upload.request.dto';
 import { plainToInstance } from 'class-transformer';
@@ -2225,16 +2224,6 @@ export class UserService implements IUserService {
         userId: string,
         assetId: string
     ): Promise<IResponseReturn<void>> {
-        const asset = await this.assetService.findOneByUploaderId(
-            assetId,
-            userId
-        );
-        if (!asset) {
-            throw new NotFoundException({
-                statusCode: EnumAssetStatusCodeError.notFound,
-                message: 'asset.error.notFound',
-            });
-        }
         await this.assetService.delete(assetId, userId);
         return;
     }

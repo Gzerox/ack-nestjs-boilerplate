@@ -55,6 +55,7 @@ import { UserLoginVerifyTwoFactorRequestDto } from '@modules/user/dtos/request/u
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
 import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { AssetUploadRequestDto } from '@common/asset/dtos/request/asset.upload.request.dto';
 
 export interface IUserService {
     validateUserGuard(
@@ -230,7 +231,8 @@ export interface IUserService {
     ): Promise<IResponseFileReturn>;
     uploadAsset(
         userId: string,
-        file: IFile
+        file: IFile,
+        body: AssetUploadRequestDto
     ): Promise<IResponseReturn<AssetResponseDto>>;
     getListAssets(
         userId: string,

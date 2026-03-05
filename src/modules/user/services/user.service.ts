@@ -115,6 +115,7 @@ import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.r
 import { AssetService } from '@common/asset/services/asset.service';
 import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
 import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { AssetUploadRequestDto } from '@common/asset/dtos/request/asset.upload.request.dto';
 import { plainToInstance } from 'class-transformer';
 
 @Injectable()
@@ -2190,7 +2191,8 @@ export class UserService implements IUserService {
 
     async uploadAsset(
         userId: string,
-        file: IFile
+        file: IFile,
+        { access }: AssetUploadRequestDto = {}
     ): Promise<IResponseReturn<AssetResponseDto>> {
         const asset = await this.assetService.upload(
             {
@@ -2200,7 +2202,7 @@ export class UserService implements IUserService {
                 mime: file.mimetype,
             },
             userId,
-            { path: `users/${userId}/assets`, access: EnumAssetAccess.public }
+            { path: `users/${userId}/assets`, access }
         );
         return { data: plainToInstance(AssetResponseDto, asset) };
     }

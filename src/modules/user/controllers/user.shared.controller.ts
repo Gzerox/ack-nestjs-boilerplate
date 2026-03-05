@@ -57,6 +57,7 @@ import {
     UserSharedUploadPhotoProfileDoc,
 } from '@modules/user/docs/user.shared.doc';
 import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { AssetUploadRequestDto } from '@common/asset/dtos/request/asset.upload.request.dto';
 import { UserChangePasswordRequestDto } from '@modules/user/dtos/request/user.change-password.request.dto';
 import { UserClaimUsernameRequestDto } from '@modules/user/dtos/request/user.claim-username.request.dto';
 import { UserGeneratePhotoProfileRequestDto } from '@modules/user/dtos/request/user.generate-photo-profile.request.dto';
@@ -431,9 +432,10 @@ export class UserSharedController {
     @Post('/assets/upload')
     async uploadAsset(
         @AuthJwtPayload('userId') userId: string,
-        @UploadedFile(RequestRequiredPipe) file: IFile
+        @UploadedFile(RequestRequiredPipe) file: IFile,
+        @Body() body: AssetUploadRequestDto
     ): Promise<IResponseReturn<AssetResponseDto>> {
-        return this.userService.uploadAsset(userId, file);
+        return this.userService.uploadAsset(userId, file, body);
     }
 
     @UserSharedListAssetDoc()

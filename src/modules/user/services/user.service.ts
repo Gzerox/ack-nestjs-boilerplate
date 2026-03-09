@@ -2224,7 +2224,11 @@ export class UserService implements IUserService {
         userId: string,
         assetId: string
     ): Promise<IResponseReturn<void>> {
-        await this.assetService.delete(assetId, userId);
+        const asset = await this.assetService.findOneByUploaderId(
+            assetId,
+            userId
+        );
+        await this.assetService.delete(asset.id);
         return;
     }
 }

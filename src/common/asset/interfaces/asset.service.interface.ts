@@ -23,5 +23,5 @@ export interface IAssetService {
     findWithPaginationCursor(
         params: IPaginationQueryCursorParams
     ): Promise<IPaginationCursorReturn<IAsset>>;
-    delete(assetId: string, deletedBy: string): Promise<void>;
+    delete(assetId: string): Promise<void>;
 }

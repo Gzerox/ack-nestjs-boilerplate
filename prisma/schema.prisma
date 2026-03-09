@@ -170,16 +170,14 @@ model Asset {
   status       EnumAssetStatus @default(active)
 
   // timestamps fields
-  createdAt DateTime  @default(now())
-  createdBy String    @db.ObjectId
-  updatedAt DateTime  @updatedAt
-  updatedBy String?   @db.ObjectId
-  deletedAt DateTime?
-  deletedBy String?   @db.ObjectId
+  createdAt DateTime @default(now())
+  createdBy String   @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   @@unique(fields: [storageKey])
   @@index(fields: [createdBy, status, createdAt])
-  @@index(fields: [status, deletedAt, createdAt])
+  @@index(fields: [status, createdAt])
   @@index(fields: [createdAt])
   @@map("Assets")
 }

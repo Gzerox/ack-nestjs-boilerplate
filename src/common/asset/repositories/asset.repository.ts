@@ -1,5 +1,4 @@
 import { DatabaseService } from '@common/database/services/database.service';
-import { HelperService } from '@common/helper/services/helper.service';
 import {
     IAsset,
     IAssetCreate,
@@ -19,7 +18,6 @@ import { EnumAssetStatus } from '@prisma/client';
 export class AssetRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly helperService: HelperService,
         private readonly paginationService: PaginationService
     ) {}
 
@@ -27,7 +25,6 @@ export class AssetRepository {
         return this.databaseService.asset.create({
             data: {
                 ...data,
-                deletedAt: null,
                 createdBy: createdBy,
             },
         });
@@ -63,7 +60,6 @@ export class AssetRepository {
                 ...params,
                 where: {
                     ...where,
-                    deletedAt: null,
                 },
             }
         );
@@ -79,7 +75,6 @@ export class AssetRepository {
                 ...params,
                 where: {
                     ...where,
-                    deletedAt: null,
                 },
             }
         );
@@ -101,17 +96,10 @@ export class AssetRepository {
         });
     }
 
-    async softDelete(assetId: string, deletedBy: string): Promise<IAsset> {
-        const deletedAt = this.helperService.dateCreate();
-        return this.databaseService.asset.update({
+    async delete(assetId: string): Promise<IAsset> {
+        return this.databaseService.asset.delete({
             where: {
                 id: assetId,
-            },
-            data: {
-                status: EnumAssetStatus.deleted,
-                deletedAt,
-                deletedBy,
-                updatedBy: deletedBy,
             },
         });
     }

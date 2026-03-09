@@ -1,8 +1,6 @@
 import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
-import { FileService } from '@common/file/services/file.service';
-import { HelperService } from '@common/helper/services/helper.service';
 import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
 import {
     IAsset,
@@ -25,10 +23,6 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { EnumAssetAccess, EnumAssetStatus } from '@prisma/client';
-import {
-    AssetDefaultPath,
-    AssetRandomLength,
-} from '@common/asset/constants/asset.constant';
 
 @Injectable()
 export class AssetService implements IAssetService {
@@ -37,8 +31,6 @@ export class AssetService implements IAssetService {
     constructor(
         private readonly assetRepository: AssetRepository,
         private readonly awsS3Service: AwsS3Service,
-        private readonly fileService: FileService,
-        private readonly helperService: HelperService,
         private readonly assetUtil: AssetUtil
     ) {}
 
@@ -55,9 +47,11 @@ export class AssetService implements IAssetService {
                 : EnumAwsS3Accessibility.public;
 
         //TODO: Shall we develop a whitelist/blacklist mechanism for extensions?
-        const extension = this.resolveExtension(input.originalName);
         const filename = options?.filename?.trim() || input.originalName;
-        const storageKey = this.createStorageKey(extension, options);
+        const storageKey = this.assetUtil.createStorageKey(
+            input.originalName,
+            options
+        );
 
         let uploaded: Awaited<ReturnType<typeof this.awsS3Service.putItem>>;
         try {
@@ -153,20 +147,13 @@ export class AssetService implements IAssetService {
         return this.assetRepository.findWithPaginationCursor(params);
     }
 
-    async delete(assetId: string, deletedBy: string): Promise<void> {
-        const asset = await this.assetRepository.findOneByUploaderId(
-            assetId,
-            deletedBy
-        );
+    async delete(assetId: string): Promise<void> {
+        const asset = await this.assetRepository.findOneById(assetId);
         if (!asset) {
             throw new NotFoundException({
                 statusCode: EnumAssetStatusCodeError.notFound,
                 message: 'asset.error.notFound',
             });
-        }
-
-        if (asset.status === EnumAssetStatus.deleted || asset.deletedAt) {
-            return;
         }
 
         try {
@@ -177,7 +164,7 @@ export class AssetService implements IAssetService {
                         : EnumAwsS3Accessibility.public,
             });
 
-            await this.assetRepository.softDelete(asset.id, deletedBy);
+            await this.assetRepository.delete(asset.id);
         } catch (err: unknown) {
             this.logger.error(
                 err,
@@ -189,32 +176,5 @@ export class AssetService implements IAssetService {
                 _error: err,
             });
         }
-    }
-
-    private resolveExtension(filename: string): string {
-        const extension =
-            this.fileService.extractExtensionFromFilename(filename);
-
-        return extension && extension !== filename ? extension : 'bin';
-    }
-
-    private createStorageKey(
-        extension: string,
-        options?: Pick<IAssetCreateOptions, 'path' | 'prefix'>
-    ): string {
-        const normalizedPath = (options?.path?.trim() || AssetDefaultPath)
-            .replaceAll(/\/+/g, '/')
-            .replaceAll(/^\/+|\/+$/g, '');
-        const normalizedPrefix = (options?.prefix?.trim() || '').replaceAll(
-            /\s+/g,
-            '-'
-        );
-
-        const token = this.helperService.randomString(AssetRandomLength);
-        const filename = normalizedPrefix
-            ? `${normalizedPrefix}-${token}.${extension}`
-            : `${token}.${extension}`;
-
-        return `${normalizedPath}/${filename}`;
     }
 }

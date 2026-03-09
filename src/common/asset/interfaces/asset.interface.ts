@@ -1,4 +1,4 @@
-import { Asset, EnumAssetAccess, EnumAssetStatus } from '@prisma/client';
+import { Asset, EnumAssetAccess } from '@prisma/client';
 
 export type IAsset = Asset;
 
@@ -28,7 +28,6 @@ export interface IAssetCreate {
     extension: string;
     size: number;
     checksum?: string;
-    status: EnumAssetStatus;
 }
 
 export interface IAssetUpdateMetadata {
@@ -40,5 +39,4 @@ export interface IAssetUpdate {
     filename?: string;
     checksum?: string;
     updatedBy?: string;
-    status?: EnumAssetStatus;
 }

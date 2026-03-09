@@ -12,7 +12,7 @@ import {
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
-import { EnumAssetStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AssetRepository {
@@ -51,7 +51,6 @@ export class AssetRepository {
     }
 
     async findWithPaginationOffset({
-        where,
         ...params
     }: IPaginationQueryOffsetParams<
         Prisma.AssetSelect,
@@ -63,22 +62,11 @@ export class AssetRepository {
             Prisma.AssetWhereInput
         >(
             this.databaseService.asset,
-            {
-                ...params,
-                where: where
-                    ? {
-                          AND: [
-                              where,
-                              { status: { not: EnumAssetStatus.deleted } },
-                          ],
-                      }
-                    : { status: { not: EnumAssetStatus.deleted } },
-            }
+            params
         );
     }
 
     async findWithPaginationCursor({
-        where,
         ...params
     }: IPaginationQueryCursorParams<
         Prisma.AssetSelect,
@@ -90,17 +78,7 @@ export class AssetRepository {
             Prisma.AssetWhereInput
         >(
             this.databaseService.asset,
-            {
-                ...params,
-                where: where
-                    ? {
-                          AND: [
-                              where,
-                              { status: { not: EnumAssetStatus.deleted } },
-                          ],
-                      }
-                    : { status: { not: EnumAssetStatus.deleted } },
-            }
+            params
         );
     }
 
@@ -120,14 +98,10 @@ export class AssetRepository {
         });
     }
 
-    async softDelete(assetId: string, deletedBy: string): Promise<IAsset> {
-        return this.databaseService.asset.update({
+    async delete(assetId: string): Promise<IAsset> {
+        return this.databaseService.asset.delete({
             where: {
                 id: assetId,
-            },
-            data: {
-                status: EnumAssetStatus.deleted,
-                updatedBy: deletedBy,
             },
         });
     }

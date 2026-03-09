@@ -63,7 +63,6 @@ model Asset {
   extension    String
   size         Int
   checksum     String?
-  status       EnumAssetStatus @default(active)
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -72,8 +71,7 @@ model Asset {
   updatedBy String?  @db.ObjectId
 
   @@unique(fields: [storageKey])
-  @@index(fields: [createdBy, status, createdAt])
-  @@index(fields: [status, createdAt])
+  @@index(fields: [createdBy, createdAt])
   @@index(fields: [createdAt])
   @@map("Assets")
 }
@@ -590,11 +588,6 @@ enum EnumRoleType {
 enum EnumApiKeyType {
   system
   default
-}
-
-enum EnumAssetStatus {
-  active
-  deleted
 }
 
 enum EnumAssetAccess {

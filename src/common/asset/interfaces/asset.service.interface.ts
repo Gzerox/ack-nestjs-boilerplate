@@ -17,6 +17,7 @@ export interface IAssetService {
         createdBy: string,
         options?: IAssetCreateOptions
     ): Promise<IAsset>;
+    findOneById(assetId: string): Promise<IAsset>;
     findOneByUploaderId(assetId: string, uploaderId: string): Promise<IAsset>;
     findWithPaginationOffset(
         params: IPaginationQueryOffsetParams<

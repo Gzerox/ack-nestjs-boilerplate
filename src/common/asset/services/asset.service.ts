@@ -23,7 +23,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { EnumAssetAccess, EnumAssetStatus, Prisma } from '@prisma/client';
+import { EnumAssetAccess, Prisma } from '@prisma/client';
 import {
     AssetDefaultPath,
     AssetRandomLength,
@@ -89,7 +89,6 @@ export class AssetService implements IAssetService {
                     extension: uploaded.extension,
                     size: uploaded.size,
                     checksum: options?.checksum?.trim(),
-                    status: EnumAssetStatus.active,
                 },
                 createdBy
             );
@@ -117,6 +116,18 @@ export class AssetService implements IAssetService {
                 _error: createError,
             });
         }
+    }
+
+    async findOneById(assetId: string): Promise<IAsset> {
+        const asset = await this.assetRepository.findOneById(assetId);
+        if (!asset) {
+            throw new NotFoundException({
+                statusCode: EnumAssetStatusCodeError.notFound,
+                message: 'asset.error.notFound',
+            });
+        }
+
+        return asset;
     }
 
     async findOneByUploaderId(
@@ -156,20 +167,7 @@ export class AssetService implements IAssetService {
     }
 
     async delete(assetId: string, deletedBy: string): Promise<void> {
-        const asset = await this.assetRepository.findOneByUploaderId(
-            assetId,
-            deletedBy
-        );
-        if (!asset) {
-            throw new NotFoundException({
-                statusCode: EnumAssetStatusCodeError.notFound,
-                message: 'asset.error.notFound',
-            });
-        }
-
-        if (asset.status === EnumAssetStatus.deleted) {
-            return;
-        }
+        const asset = await this.findOneByUploaderId(assetId, deletedBy);
 
         try {
             await this.awsS3Service.deleteItem(asset.storageKey, {
@@ -179,7 +177,7 @@ export class AssetService implements IAssetService {
                         : EnumAwsS3Accessibility.public,
             });
 
-            await this.assetRepository.softDelete(asset.id, deletedBy);
+            await this.assetRepository.delete(asset.id);
         } catch (err: unknown) {
             this.logger.error(
                 err,

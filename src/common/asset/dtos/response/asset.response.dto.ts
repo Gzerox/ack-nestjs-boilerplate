@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { EnumAssetAccess, EnumAssetStatus } from '@prisma/client';
+import { EnumAssetAccess } from '@prisma/client';
 
 export class AssetResponseDto {
     @ApiProperty({
@@ -50,12 +50,6 @@ export class AssetResponseDto {
         example: 'https://cdn.example.com/assets/file.pdf',
     })
     cdnUrl?: string;
-
-    @ApiProperty({
-        enum: EnumAssetStatus,
-        description: 'Current status of the asset (active or deleted)',
-    })
-    status: EnumAssetStatus;
 
     @ApiProperty({
         description: 'Timestamp when the asset was created',

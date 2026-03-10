@@ -20,12 +20,14 @@ import {
     UserAddMobileNumberRequestDto,
     UserUpdateMobileNumberRequestDto,
 } from '@modules/user/dtos/request/user.mobile-number.request.dto';
+import { UserUploadAssetRequestDto } from '@modules/user/dtos/request/user.upload-asset.request.dto';
 import {
     UserUpdateProfilePhotoRequestDto,
     UserUpdateProfileRequestDto,
 } from '@modules/user/dtos/request/user.profile.request.dto';
 import { UserTwoFactorDisableRequestDto } from '@modules/user/dtos/request/user.two-factor-disable.request.dto';
 import { UserTwoFactorEnableRequestDto } from '@modules/user/dtos/request/user.two-factor-enable.request.dto';
+import { UserAssetAccessLinkResponseDto } from '@modules/user/dtos/response/user.asset-access-link.response.dto';
 import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile.response.dto';
 import { UserTwoFactorEnableResponseDto } from '@modules/user/dtos/response/user.two-factor-enable.response.dto';
 import { UserTwoFactorSetupResponseDto } from '@modules/user/dtos/response/user.two-factor-setup.response.dto';
@@ -357,7 +359,7 @@ export function UserSharedUploadAssetDoc(): MethodDecorator {
     return applyDecorators(
         Doc({ summary: 'upload asset' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
-        DocRequestFile({ dto: FileSingleDto }),
+        DocRequestFile({ dto: UserUploadAssetRequestDto }),
         DocResponse<AssetResponseDto>('asset.upload', {
             dto: AssetResponseDto,
         })
@@ -370,6 +372,19 @@ export function UserSharedListAssetDoc(): MethodDecorator {
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponsePaging<AssetResponseDto>('asset.list', {
             dto: AssetResponseDto,
+        })
+    );
+}
+
+export function UserSharedGetAssetAccessLinkDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'get private asset access link' }),
+        DocRequest({
+            params: [{ name: 'assetId', required: true, type: String }],
+        }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocResponse<UserAssetAccessLinkResponseDto>('asset.accessLink', {
+            dto: UserAssetAccessLinkResponseDto,
         })
     );
 }

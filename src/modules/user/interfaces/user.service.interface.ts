@@ -35,6 +35,7 @@ import {
 import { UserSendEmailVerificationRequestDto } from '@modules/user/dtos/request/user.send-email-verification.request.dto';
 import { UserSignUpRequestDto } from '@modules/user/dtos/request/user.sign-up.request.dto';
 import { UserUpdateStatusRequestDto } from '@modules/user/dtos/request/user.update-status.request.dto';
+import { UserUploadAssetRequestDto } from '@modules/user/dtos/request/user.upload-asset.request.dto';
 import { UserVerifyEmailRequestDto } from '@modules/user/dtos/request/user.verify-email.request.dto';
 import {
     UserCheckEmailResponseDto,
@@ -43,6 +44,7 @@ import {
 import { UserListResponseDto } from '@modules/user/dtos/response/user.list.response.dto';
 import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile.response.dto';
 import { UserLoginResponseDto } from '@modules/user/dtos/response/user.login.response.dto';
+import { UserAssetAccessLinkResponseDto } from '@modules/user/dtos/response/user.asset-access-link.response.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
 import {
     IUser,
@@ -242,14 +244,19 @@ export interface IUserService {
     ): Promise<IResponseFileReturn>;
     uploadAsset(
         userId: string,
-        file: IFile
+        file: IFile,
+        payload?: UserUploadAssetRequestDto
     ): Promise<IResponseReturn<AssetResponseDto>>;
+    getAssetAccessLink(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<UserAssetAccessLinkResponseDto>>;
     getListAssets(
         userId: string,
         pagination: IUserAssetPaginationOffsetParams
     ): Promise<IResponsePagingReturn<AssetResponseDto>>;
     deleteAsset(
-        userId: string,
-        assetId: string
+        assetId: string,
+        userId: string
     ): Promise<IResponseReturn<void>>;
 }

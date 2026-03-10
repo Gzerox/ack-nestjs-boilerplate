@@ -42,6 +42,7 @@ import {
     UserSharedDeleteAssetDoc,
     UserSharedDeleteMobileNumberDoc,
     UserSharedGeneratePhotoProfilePresignDoc,
+    UserSharedGetAssetAccessLinkDoc,
     UserSharedListAssetDoc,
     UserSharedProfileDoc,
     UserSharedRefreshDoc,
@@ -68,8 +69,10 @@ import {
     UserUpdateProfilePhotoRequestDto,
     UserUpdateProfileRequestDto,
 } from '@modules/user/dtos/request/user.profile.request.dto';
+import { UserUploadAssetRequestDto } from '@modules/user/dtos/request/user.upload-asset.request.dto';
 import { UserTwoFactorDisableRequestDto } from '@modules/user/dtos/request/user.two-factor-disable.request.dto';
 import { UserTwoFactorEnableRequestDto } from '@modules/user/dtos/request/user.two-factor-enable.request.dto';
+import { UserAssetAccessLinkResponseDto } from '@modules/user/dtos/response/user.asset-access-link.response.dto';
 import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile.response.dto';
 import { UserTwoFactorEnableResponseDto } from '@modules/user/dtos/response/user.two-factor-enable.response.dto';
 import { UserTwoFactorSetupResponseDto } from '@modules/user/dtos/response/user.two-factor-setup.response.dto';
@@ -462,9 +465,24 @@ export class UserSharedController {
     @Post('/assets/upload')
     async uploadAsset(
         @AuthJwtPayload('userId') userId: string,
+        @Body() body: UserUploadAssetRequestDto,
         @UploadedFile(RequestRequiredPipe) file: IFile
     ): Promise<IResponseReturn<AssetResponseDto>> {
-        return this.userService.uploadAsset(userId, file);
+        return this.userService.uploadAsset(userId, file, body);
+    }
+
+    @UserSharedGetAssetAccessLinkDoc()
+    @Response('asset.accessLink')
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Get('/assets/:assetId/access-link')
+    async getAssetAccessLink(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('assetId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        assetId: string
+    ): Promise<IResponseReturn<UserAssetAccessLinkResponseDto>> {
+        return this.userService.getAssetAccessLink(userId, assetId);
     }
 
     @UserSharedListAssetDoc()
@@ -492,6 +510,6 @@ export class UserSharedController {
         @Param('assetId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
         assetId: string
     ): Promise<IResponseReturn<void>> {
-        return this.userService.deleteAsset(userId, assetId);
+        return this.userService.deleteAsset(assetId, userId);
     }
 }

@@ -1,6 +1,7 @@
 import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
 import { AwsS3PresignDto } from '@common/aws/dtos/aws.s3-presign.dto';
 import { AwsS3Dto } from '@common/aws/dtos/aws.s3.dto';
+import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import {
@@ -59,7 +60,9 @@ import {
 import { UserSendEmailVerificationRequestDto } from '@modules/user/dtos/request/user.send-email-verification.request.dto';
 import { UserSignUpRequestDto } from '@modules/user/dtos/request/user.sign-up.request.dto';
 import { UserUpdateStatusRequestDto } from '@modules/user/dtos/request/user.update-status.request.dto';
+import { UserUploadAssetRequestDto } from '@modules/user/dtos/request/user.upload-asset.request.dto';
 import { UserVerifyEmailRequestDto } from '@modules/user/dtos/request/user.verify-email.request.dto';
+import { UserAssetAccessLinkResponseDto } from '@modules/user/dtos/response/user.asset-access-link.response.dto';
 import {
     UserCheckEmailResponseDto,
     UserCheckUsernameResponseDto,
@@ -112,6 +115,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserExportResponseDto } from '@modules/user/dtos/response/user.export.response.dto';
 import { AssetService } from '@common/asset/services/asset.service';
 import { AssetResponseDto } from '@common/asset/dtos/response/asset.response.dto';
+import { EnumAssetStatusCodeError } from '@common/asset/enums/asset.status-code.enum';
 import { plainToInstance } from 'class-transformer';
 import { UserLoginSetupTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-setup-two-factor.request.dto';
 import { FeatureFlagUtil } from '@modules/feature-flag/utils/feature-flag.util';
@@ -2131,8 +2135,10 @@ export class UserService implements IUserService {
 
     async uploadAsset(
         userId: string,
-        file: IFile
+        file: IFile,
+        payload?: UserUploadAssetRequestDto
     ): Promise<IResponseReturn<AssetResponseDto>> {
+        const access = payload?.access ?? EnumAssetAccess.private;
         const asset = await this.assetService.upload(
             {
                 buffer: file.buffer,
@@ -2141,9 +2147,49 @@ export class UserService implements IUserService {
                 mime: file.mimetype,
             },
             userId,
-            { path: `users/${userId}/assets`, access: EnumAssetAccess.public }
+            { path: `users/${userId}/assets`, access }
         );
         return { data: plainToInstance(AssetResponseDto, asset) };
+    }
+
+    async getAssetAccessLink(
+        userId: string,
+        assetId: string
+    ): Promise<IResponseReturn<UserAssetAccessLinkResponseDto>> {
+        const asset = await this.assetService.findOneByUploaderId(
+            assetId,
+            userId
+        );
+
+        if (asset.access !== EnumAssetAccess.private) {
+            throw new BadRequestException({
+                statusCode: EnumAssetStatusCodeError.accessLinkOnlyForPrivate,
+                message: 'asset.error.accessLinkOnlyForPrivate',
+            });
+        }
+
+        const presign = await this.awsS3Service.presignGetItem(
+            asset.storageKey,
+            {
+                access: EnumAwsS3Accessibility.private,
+            }
+        );
+
+        if (!presign) {
+            throw new ServiceUnavailableException({
+                statusCode: EnumAwsStatusCodeError.serviceUnavailable,
+                message: 'aws.error.serviceUnavailable',
+            });
+        }
+
+        return {
+            data: plainToInstance(UserAssetAccessLinkResponseDto, {
+                assetId: asset.id,
+                access: asset.access,
+                accessibleUrl: presign.presignUrl,
+                expiredIn: presign.expiredIn,
+            }),
+        };
     }
 
     async getListAssets(
@@ -2161,8 +2207,8 @@ export class UserService implements IUserService {
     }
 
     async deleteAsset(
-        userId: string,
-        assetId: string
+        assetId: string,
+        userId: string
     ): Promise<IResponseReturn<void>> {
         await this.assetService.delete(assetId, userId);
         return;

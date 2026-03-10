@@ -1,8 +1,10 @@
 {
     "upload": "Asset uploaded successfully.",
     "list": "Assets retrieved successfully.",
+    "accessLink": "Asset access link generated successfully.",
     "delete": "Asset deleted successfully.",
     "error": {
-        "notFound": "Asset not found."
+        "notFound": "Asset not found.",
+        "accessLinkOnlyForPrivate": "Access link endpoint is available only for private assets."
     }
 }

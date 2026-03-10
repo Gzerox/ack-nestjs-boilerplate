@@ -28,6 +28,7 @@ import {
     AssetDefaultPath,
     AssetRandomLength,
 } from '@common/asset/constants/asset.constant';
+import { AssetUtil } from '@common/asset/utils/asset.util';
 
 @Injectable()
 export class AssetService implements IAssetService {
@@ -37,7 +38,8 @@ export class AssetService implements IAssetService {
         private readonly assetRepository: AssetRepository,
         private readonly awsS3Service: AwsS3Service,
         private readonly fileService: FileService,
-        private readonly helperService: HelperService
+        private readonly helperService: HelperService,
+        private readonly assetUtil: AssetUtil
     ) {}
 
     async upload(
@@ -88,7 +90,9 @@ export class AssetService implements IAssetService {
                     mime: uploaded.mime,
                     extension: uploaded.extension,
                     size: uploaded.size,
-                    checksum: options?.checksum?.trim(),
+                    checksum:
+                        options?.checksum?.trim() ??
+                        this.assetUtil.generateChecksum(input.buffer)
                 },
                 createdBy
             );

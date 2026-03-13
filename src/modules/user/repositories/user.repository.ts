@@ -34,6 +34,7 @@ import {
     IUserLogin,
     IUserLoginResult,
     IUserProfile,
+    IUserRefresh,
     IUserVerificationCreate,
 } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
@@ -615,7 +616,7 @@ export class UserRepository {
                     updateMany: {
                         where: {
                             isRevoked: false,
-                            expiredAt: { gte: deletedAt },
+                            expiresAt: { gte: deletedAt },
                         },
                         data: {
                             isRevoked: true,
@@ -862,7 +863,7 @@ export class UserRepository {
                     updateMany: {
                         where: {
                             isRevoked: false,
-                            expiredAt: { gte: passwordCreated },
+                            expiresAt: { gte: passwordCreated },
                         },
                         data: {
                             isRevoked: true,
@@ -936,7 +937,7 @@ export class UserRepository {
                     updateMany: {
                         where: {
                             isRevoked: false,
-                            expiredAt: {
+                            expiresAt: {
                                 gte: passwordCreated,
                             },
                         },
@@ -954,7 +955,7 @@ export class UserRepository {
     async login(
         userId: string,
         { fingerprint, name, notificationToken, platform }: DeviceRequestDto,
-        { loginFrom, loginWith, sessionId, expiredAt, jti }: IUserLogin,
+        { loginFrom, loginWith }: IUserLogin,
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<IUserLoginResult> {
         const today = this.helperService.dateCreate();
@@ -1037,7 +1038,7 @@ export class UserRepository {
                         where: {
                             deviceOwnershipId: deviceOwnership.id,
                             isRevoked: false,
-                            expiredAt: { gte: today },
+                            expiresAt: { gte: today },
                         },
                     });
 
@@ -1072,26 +1073,11 @@ export class UserRepository {
                         lastIPAddress: ipAddress,
                         lastLoginFrom: loginFrom,
                         lastLoginWith: loginWith,
+                        passwordAttempt: 0,
                         updatedBy: userId,
                         activityLogs: {
                             create: {
                                 action,
-                                ipAddress,
-                                userAgent:
-                                    this.databaseUtil.toPlainObject(userAgent),
-                                geoLocation:
-                                    this.databaseUtil.toPlainObject(
-                                        geoLocation
-                                    ),
-                                createdBy: userId,
-                            },
-                        },
-                        sessions: {
-                            create: {
-                                id: sessionId,
-                                jti,
-                                expiredAt,
-                                isRevoked: false,
                                 ipAddress,
                                 userAgent:
                                     this.databaseUtil.toPlainObject(userAgent),
@@ -1503,7 +1489,7 @@ export class UserRepository {
                     updateMany: {
                         where: {
                             isRevoked: false,
-                            expiredAt: {
+                            expiresAt: {
                                 gte: passwordCreated,
                             },
                         },
@@ -1621,7 +1607,7 @@ export class UserRepository {
 
     async refresh(
         userId: string,
-        { loginFrom, loginWith, sessionId, jti }: IUserLogin,
+        { loginFrom, loginWith, sessionId, jti }: IUserRefresh,
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<User> {
         const today = this.helperService.dateCreate();
@@ -1840,7 +1826,7 @@ export class UserRepository {
                     updateMany: {
                         where: {
                             isRevoked: false,
-                            expiredAt: { gte: now },
+                            expiresAt: { gte: now },
                         },
                         data: {
                             isRevoked: true,
@@ -1926,7 +1912,7 @@ export class UserRepository {
                 },
                 sessions: {
                     updateMany: {
-                        where: { isRevoked: false, expiredAt: { gte: now } },
+                        where: { isRevoked: false, expiresAt: { gte: now } },
                         data: {
                             isRevoked: true,
                             revokedAt: now,

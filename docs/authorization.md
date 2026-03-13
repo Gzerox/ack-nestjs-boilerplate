@@ -120,7 +120,7 @@ The guard implementation that performs the actual validation.
 
 The `UserProtected` decorator follows this validation sequence:
 
-1. **Authentication Check**: Verifies that `request.user` exists (populated by JWT strategy)
+1. **Authentication Check**: Verifies that `request.user` exists (populated by `AuthJwtAccessGuard`, backed by Better Auth token verification)
 2. **User Lookup**: Retrieves user from database with role information
 3. **User Existence**: Ensures user record exists
 4. **Status Validation**: Confirms user status is `active`
@@ -161,7 +161,7 @@ flowchart TD
 ### Important Notes
 
 - `@UserProtected()` **requires** `@AuthJwtAccessProtected()` to be applied first (above in code)
-- `@AuthJwtAccessProtected()` populates `request.user` from JWT token. See [Authentication Documentation][ref-doc-authentication] for details
+- `@AuthJwtAccessProtected()` populates `request.user` from a Better Auth-verified access token. See [Authentication Documentation][ref-doc-authentication] for details
 - This decorator populates `request.__user` which is required by downstream guards
 
 ## Role Protected

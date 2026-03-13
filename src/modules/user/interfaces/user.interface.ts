@@ -28,9 +28,13 @@ export interface IUserProfile extends IUser {
 export interface IUserLogin {
     loginFrom: EnumUserLoginFrom;
     loginWith: EnumUserLoginWith;
-    expiredAt: Date;
-    jti: string;
+}
+
+export interface IUserRefresh {
     sessionId: string;
+    jti: string;
+    loginFrom: EnumUserLoginFrom;
+    loginWith: EnumUserLoginWith;
 }
 
 export interface IUserLoginResult {

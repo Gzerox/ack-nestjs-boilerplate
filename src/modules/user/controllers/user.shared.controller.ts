@@ -22,6 +22,7 @@ import {
     AuthJwtToken,
 } from '@modules/auth/decorators/auth.jwt.decorator';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
+import { IAuthJwtRefreshTokenPayload } from '@modules/auth/interfaces/auth.interface';
 import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import {
@@ -99,12 +100,14 @@ export class UserSharedController {
     @Post('/refresh')
     async refresh(
         @UserCurrent() user: IUser,
+        @AuthJwtPayload<IAuthJwtRefreshTokenPayload>()
+        payload: IAuthJwtRefreshTokenPayload,
         @AuthJwtToken() refreshToken: string,
         @RequestIPAddress() ipAddress: string,
         @RequestUserAgent() userAgent: UserAgent,
         @RequestGeoLocation() geoLocation: GeoLocation | null
     ): Promise<IResponseReturn<AuthTokenResponseDto>> {
-        return this.userService.refresh(user, refreshToken, {
+        return this.userService.refresh(user, payload, refreshToken, {
             ipAddress,
             userAgent,
             geoLocation,

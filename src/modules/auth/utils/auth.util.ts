@@ -1,17 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LoginTicket, OAuth2Client, TokenPayload } from 'google-auth-library';
-import { Algorithm } from 'jsonwebtoken';
 import {
     IAuthAccessTokenGenerate,
     IAuthJwtAccessTokenPayload,
-    IAuthJwtRefreshTokenPayload,
     IAuthPassword,
     IAuthPasswordOptions,
     IAuthRefreshTokenGenerate,
     IAuthSocialPayload,
 } from '@modules/auth/interfaces/auth.interface';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { HelperService } from '@common/helper/services/helper.service';
 import {
     EnumUserLoginFrom,
@@ -19,14 +16,14 @@ import {
     PasswordHistory,
     User,
 } from '@generated/prisma-client';
-import { createPrivateKey, createPublicKey } from 'crypto';
 import verifyAppleToken, {
     VerifyAppleIdTokenResponse,
 } from 'verify-apple-id-token';
 import { IRequestApp } from '@common/request/interfaces/request.interface';
 import { IUser } from '@modules/user/interfaces/user.interface';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
+import { AuthService as BetterAuthService } from '@thallesp/nestjs-better-auth';
+import { BetterAuthInstance } from '@modules/auth/services/auth.better.factory';
 
 /**
  * Authentication Utility Service.
@@ -35,22 +32,10 @@ import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.res
  */
 @Injectable()
 export class AuthUtil {
-    // jwt
-    private readonly jwtAccessTokenKid: string;
-    private readonly jwtAccessTokenPrivateKey: string;
-    private readonly jwtAccessTokenPublicKey: string;
-    private readonly jwtAccessTokenExpirationTimeInSeconds: number;
-    private readonly jwtAccessTokenAlgorithm: Algorithm;
-
-    private readonly jwtRefreshTokenKid: string;
-    private readonly jwtRefreshTokenPrivateKey: string;
-    private readonly jwtRefreshTokenPublicKey: string;
+    readonly jwtAccessTokenExpirationTimeInSeconds: number;
     readonly jwtRefreshTokenExpirationTimeInSeconds: number;
-    private readonly jwtRefreshTokenAlgorithm: Algorithm;
 
     private readonly jwtPrefix: string;
-    private readonly jwtAudience: string;
-    private readonly jwtIssuer: string;
     private readonly jwtHeader: string;
 
     // apple
@@ -76,80 +61,27 @@ export class AuthUtil {
     // google
     private readonly googleClient: OAuth2Client;
 
+    private readonly jwtAudience: string;
+    private readonly jwtIssuer: string;
+
     constructor(
-        private readonly databaseUtil: DatabaseUtil,
         private readonly helperService: HelperService,
-        private readonly jwtService: JwtService,
+        private readonly betterAuthService: BetterAuthService<BetterAuthInstance>,
         private readonly configService: ConfigService
     ) {
-        this.jwtAccessTokenKid = this.configService.get<string>(
-            'auth.jwt.accessToken.kid'
-        );
         this.jwtAccessTokenExpirationTimeInSeconds =
             this.configService.get<number>(
                 'auth.jwt.accessToken.expirationTimeInSeconds'
             );
-        this.jwtRefreshTokenKid = this.configService.get<string>(
-            'auth.jwt.refreshToken.kid'
-        );
         this.jwtRefreshTokenExpirationTimeInSeconds =
             this.configService.get<number>(
                 'auth.jwt.refreshToken.expirationTimeInSeconds'
             );
 
-        const jwtAccessTokenPrivateKeyBuffer = Buffer.from(
-            this.configService.get<string>('auth.jwt.accessToken.privateKey'),
-            'base64'
-        );
-        this.jwtAccessTokenPrivateKey = createPrivateKey({
-            key: jwtAccessTokenPrivateKeyBuffer,
-            format: 'der',
-            type: 'pkcs8',
-        }).export({ type: 'pkcs8', format: 'pem' }) as string;
-        const jwtAccessTokenPublicKeyBuffer = Buffer.from(
-            this.configService.get<string>('auth.jwt.accessToken.publicKey'),
-            'base64'
-        );
-        this.jwtAccessTokenPublicKey = createPublicKey({
-            key: jwtAccessTokenPublicKeyBuffer,
-            format: 'der',
-            type: 'spki',
-        }).export({
-            type: 'spki',
-            format: 'pem',
-        }) as string;
-        this.jwtAccessTokenAlgorithm = this.configService.get<Algorithm>(
-            'auth.jwt.accessToken.algorithm'
-        );
-
-        const jwtRefreshTokenPrivateKeyBuffer = Buffer.from(
-            this.configService.get<string>('auth.jwt.refreshToken.privateKey'),
-            'base64'
-        );
-        this.jwtRefreshTokenPrivateKey = createPrivateKey({
-            key: jwtRefreshTokenPrivateKeyBuffer,
-            format: 'der',
-            type: 'pkcs8',
-        }).export({ type: 'pkcs8', format: 'pem' }) as string;
-        const jwtRefreshTokenPublicKeyBuffer = Buffer.from(
-            this.configService.get<string>('auth.jwt.refreshToken.publicKey'),
-            'base64'
-        );
-        this.jwtRefreshTokenPublicKey = createPublicKey({
-            key: jwtRefreshTokenPublicKeyBuffer,
-            format: 'der',
-            type: 'spki',
-        }).export({
-            type: 'spki',
-            format: 'pem',
-        }) as string;
-        this.jwtRefreshTokenAlgorithm = this.configService.get<Algorithm>(
-            'auth.jwt.refreshToken.algorithm'
-        );
-
-        this.jwtPrefix = this.configService.get<string>('auth.jwt.prefix');
         this.jwtAudience = this.configService.get<string>('auth.jwt.audience');
         this.jwtIssuer = this.configService.get<string>('auth.jwt.issuer');
+
+        this.jwtPrefix = this.configService.get<string>('auth.jwt.prefix');
         this.jwtHeader = this.configService.get<string>('auth.jwt.header');
 
         this.appleHeader = this.configService.get<string>('auth.apple.header');
@@ -196,113 +128,6 @@ export class AuthUtil {
     }
 
     /**
-     * Creates a JWT access token with the given subject and payload.
-     * @param subject - The subject identifier (user ID)
-     * @param jti - The unique token identifier
-     * @param payload - The token payload data
-     * @returns The signed JWT access token
-     */
-    createAccessToken(
-        subject: string,
-        jti: string,
-        payload: IAuthJwtAccessTokenPayload
-    ): string {
-        return this.jwtService.sign(payload, {
-            privateKey: this.jwtAccessTokenPrivateKey,
-            expiresIn: this.jwtAccessTokenExpirationTimeInSeconds,
-            audience: this.jwtAudience,
-            issuer: this.jwtIssuer,
-            subject,
-            algorithm: this.jwtAccessTokenAlgorithm,
-            keyid: this.jwtAccessTokenKid,
-            jwtid: jti,
-        } as JwtSignOptions);
-    }
-
-    /**
-     * Creates a JWT refresh token with the given subject and payload.
-     * @param subject - The subject identifier (user ID)
-     * @param jti - The unique token identifier
-     * @param payload - The refresh token payload
-     * @param expiresIn - Optional custom expiration time in seconds
-     * @returns The signed JWT refresh token
-     */
-    createRefreshToken(
-        subject: string,
-        jti: string,
-        payload: IAuthJwtRefreshTokenPayload,
-        expiresIn?: number
-    ): string {
-        return this.jwtService.sign(payload, {
-            privateKey: this.jwtRefreshTokenPrivateKey,
-            expiresIn: expiresIn ?? this.jwtRefreshTokenExpirationTimeInSeconds,
-            audience: this.jwtAudience,
-            issuer: this.jwtIssuer,
-            subject,
-            algorithm: this.jwtRefreshTokenAlgorithm,
-            keyid: this.jwtRefreshTokenKid,
-            jwtid: jti,
-        } as JwtSignOptions);
-    }
-
-    /**
-     * Validates an access token signature and claims for the given subject.
-     * @param subject - The subject identifier to validate
-     * @param jti - The unique token identifier
-     * @param token - The JWT access token
-     * @returns True if token is valid
-     */
-    validateAccessToken(subject: string, jti: string, token: string): boolean {
-        try {
-            this.jwtService.verify(token, {
-                publicKey: this.jwtAccessTokenPublicKey,
-                algorithms: [this.jwtAccessTokenAlgorithm],
-                audience: this.jwtAudience,
-                issuer: this.jwtIssuer,
-                subject,
-                jwtid: jti,
-            });
-
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Validates a refresh token signature and claims for the given subject.
-     * @param subject - The subject identifier to validate
-     * @param jti - The unique token identifier
-     * @param token - The JWT refresh token
-     * @returns True if token is valid
-     */
-    validateRefreshToken(subject: string, jti: string, token: string): boolean {
-        try {
-            this.jwtService.verify(token, {
-                publicKey: this.jwtRefreshTokenPublicKey,
-                algorithms: [this.jwtRefreshTokenAlgorithm],
-                audience: this.jwtAudience,
-                issuer: this.jwtIssuer,
-                subject,
-                jwtid: jti,
-            });
-
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Decodes JWT payload without signature verification. WARNING: Use only on verified tokens.
-     * @param token - The JWT token
-     * @returns The decoded payload
-     */
-    payloadToken<T>(token: string): T {
-        return this.jwtService.decode<T>(token);
-    }
-
-    /**
      * Creates access token payload from user and login data.
      * @param data - User entity
      * @param sessionId - Session identifier
@@ -329,29 +154,6 @@ export class AuthUtil {
             loginAt,
             loginFrom,
             loginWith,
-        };
-    }
-
-    /**
-     * Creates refresh token payload from access token payload.
-     * @param payload - Access token payload with sessionId, userId, loginFrom, loginAt, loginWith
-     * @returns Minimal refresh token payload
-     */
-    createPayloadRefreshToken({
-        sessionId,
-        userId,
-        deviceOwnershipId,
-        loginFrom,
-        loginAt,
-        loginWith,
-    }: IAuthJwtAccessTokenPayload): IAuthJwtRefreshTokenPayload {
-        return {
-            loginAt,
-            loginFrom,
-            loginWith,
-            sessionId,
-            deviceOwnershipId,
-            userId,
         };
     }
 
@@ -530,7 +332,7 @@ export class AuthUtil {
      * @param request - HTTP request with JWT headers
      * @returns Header split by prefix or empty array
      */
-    extractHeaderJwt(request: IRequestApp): string[] {
+    extractHeaderJwt(request: IRequestApp<unknown>): string[] {
         return (
             (
                 request.headers[`${this.jwtHeader?.toLowerCase()}`] as string
@@ -545,38 +347,38 @@ export class AuthUtil {
      * @param loginWith - Authentication method
      * @returns Token response with access/refresh tokens, jti, and sessionId
      */
-    createTokens(
+    async createTokens(
         user: IUser,
-        loginFrom: EnumUserLoginFrom,
-        loginWith: EnumUserLoginWith
-    ): IAuthAccessTokenGenerate {
-        const loginDate = this.helperService.dateCreate();
-
-        const sessionId = this.databaseUtil.createId();
-        const deviceOwnershipId = this.databaseUtil.createId();
-        const jti = this.generateJti();
-        const payloadAccessToken: IAuthJwtAccessTokenPayload =
-            this.createPayloadAccessToken(
+        {
+            sessionId,
+            deviceOwnershipId,
+            refreshToken,
+            jti,
+            loginAt,
+            loginFrom,
+            loginWith,
+        }: {
+            sessionId: string;
+            deviceOwnershipId: string;
+            refreshToken: string;
+            jti: string;
+            loginAt: Date;
+            loginFrom: EnumUserLoginFrom;
+            loginWith: EnumUserLoginWith;
+        }
+    ): Promise<IAuthAccessTokenGenerate> {
+        const payloadAccessToken: IAuthJwtAccessTokenPayload = {
+            ...this.createPayloadAccessToken(
                 user,
                 sessionId,
                 deviceOwnershipId,
-                loginDate,
+                loginAt,
                 loginFrom,
                 loginWith
-            );
-        const accessToken: string = this.createAccessToken(
-            user.id,
+            ),
             jti,
-            payloadAccessToken
-        );
-
-        const payloadRefreshToken: IAuthJwtRefreshTokenPayload =
-            this.createPayloadRefreshToken(payloadAccessToken);
-        const refreshToken: string = this.createRefreshToken(
-            user.id,
-            jti,
-            payloadRefreshToken
-        );
+        };
+        const accessToken = await this.signAccessToken(payloadAccessToken);
 
         const tokens: AuthTokenResponseDto = {
             tokenType: this.jwtPrefix,
@@ -601,73 +403,50 @@ export class AuthUtil {
      * @param refreshTokenFromRequest - Valid refresh token from client
      * @returns New tokens with new JTI, adjusted expiry time, and session metadata
      */
-    refreshToken(
+    async refreshToken(
         user: IUser,
-        refreshTokenFromRequest: string
-    ): IAuthRefreshTokenGenerate {
-        const {
+        {
             deviceOwnershipId,
             sessionId,
             loginAt,
             loginFrom,
             loginWith,
-            exp: oldExp,
-        } = this.payloadToken<IAuthJwtRefreshTokenPayload>(
-            refreshTokenFromRequest
-        );
-
+            refreshToken,
+        }: {
+            sessionId: string;
+            deviceOwnershipId: string;
+            loginAt: Date;
+            loginFrom: EnumUserLoginFrom;
+            loginWith: EnumUserLoginWith;
+            refreshToken: string;
+        }
+    ): Promise<IAuthRefreshTokenGenerate> {
         const jti = this.generateJti();
-        const payloadAccessToken: IAuthJwtAccessTokenPayload =
-            this.createPayloadAccessToken(
+        const payloadAccessToken: IAuthJwtAccessTokenPayload = {
+            ...this.createPayloadAccessToken(
                 user,
                 sessionId,
                 deviceOwnershipId,
                 loginAt,
                 loginFrom,
                 loginWith
-            );
-        const accessToken: string = this.createAccessToken(
-            user.id,
+            ),
             jti,
-            payloadAccessToken
-        );
-
-        const newPayloadRefreshToken: IAuthJwtRefreshTokenPayload =
-            this.createPayloadRefreshToken(payloadAccessToken);
-
-        const today = this.helperService.dateCreate();
-        const expiredAt = this.helperService.dateCreateFromTimestamp(
-            oldExp * 1000
-        );
-
-        const newRefreshTokenExpire = this.helperService.dateDiff(
-            expiredAt,
-            today
-        );
-        const newRefreshTokenExpireInSeconds = newRefreshTokenExpire.seconds
-            ? newRefreshTokenExpire.seconds
-            : Math.floor(newRefreshTokenExpire.milliseconds / 1000);
-
-        const newRefreshToken: string = this.createRefreshToken(
-            user.id,
-            jti,
-            newPayloadRefreshToken,
-            newRefreshTokenExpireInSeconds
-        );
+        };
+        const accessToken = await this.signAccessToken(payloadAccessToken);
 
         const tokens: AuthTokenResponseDto = {
             tokenType: this.jwtPrefix,
             roleType: user.role.type,
             expiresIn: this.jwtAccessTokenExpirationTimeInSeconds,
             accessToken,
-            refreshToken: newRefreshToken,
+            refreshToken,
         };
 
         return {
             tokens,
             jti,
             sessionId,
-            expiredInMs: newRefreshTokenExpire.milliseconds,
         };
     }
 
@@ -698,5 +477,45 @@ export class AuthUtil {
      */
     getPasswordPeriodInDays(): number {
         return Math.floor(this.passwordPeriodInSeconds / (60 * 60 * 24));
+    }
+
+    async signAccessToken(
+        payload: IAuthJwtAccessTokenPayload
+    ): Promise<string> {
+        const iat = Math.floor(Date.now() / 1000);
+        const response = await this.betterAuthService.api.signJWT({
+            body: {
+                payload: {
+                    ...payload,
+                    iat,
+                    sub: payload.userId,
+                },
+                overrideOptions: {
+                    jwt: {
+                        audience: this.jwtAudience,
+                        issuer: this.jwtIssuer,
+                    },
+                },
+            },
+        });
+
+        return response.token;
+    }
+
+    async verifyAccessToken(
+        token: string
+    ): Promise<IAuthJwtAccessTokenPayload | null> {
+        const response = await this.betterAuthService.api.verifyJWT({
+            body: {
+                token,
+                issuer: this.jwtIssuer,
+            },
+        });
+
+        if (!response.payload) {
+            return null;
+        }
+
+        return response.payload as unknown as IAuthJwtAccessTokenPayload;
     }
 }

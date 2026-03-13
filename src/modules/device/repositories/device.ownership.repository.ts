@@ -64,7 +64,7 @@ export class DeviceOwnershipRepository {
                         sessions: {
                             where: {
                                 isRevoked: false,
-                                expiredAt: {
+                                expiresAt: {
                                     gt: today,
                                 },
                             },
@@ -107,7 +107,7 @@ export class DeviceOwnershipRepository {
                         sessions: {
                             where: {
                                 isRevoked: false,
-                                expiredAt: {
+                                expiresAt: {
                                     gt: today,
                                 },
                             },
@@ -224,7 +224,7 @@ export class DeviceOwnershipRepository {
                                 sessions: {
                                     where: {
                                         isRevoked: false,
-                                        expiredAt: {
+                                        expiresAt: {
                                             gt: today,
                                         },
                                     },
@@ -274,7 +274,7 @@ export class DeviceOwnershipRepository {
                             updateMany: {
                                 where: {
                                     isRevoked: false,
-                                    expiredAt: {
+                                    expiresAt: {
                                         gt: today,
                                     },
                                     deviceOwnershipId: deviceOwnershipId,
@@ -315,7 +315,7 @@ export class DeviceOwnershipRepository {
                                 sessions: {
                                     where: {
                                         isRevoked: false,
-                                        expiredAt: {
+                                        expiresAt: {
                                             gt: today,
                                         },
                                     },

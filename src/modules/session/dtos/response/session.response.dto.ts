@@ -4,7 +4,7 @@ import { RequestUserAgentResponseDto } from '@common/request/dtos/response/reque
 import { faker } from '@faker-js/faker';
 import { UserListResponseDto } from '@modules/user/dtos/response/user.list.response.dto';
 import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
-import { Exclude, Type } from 'class-transformer';
+import { Exclude, Transform, Type } from 'class-transformer';
 
 export class SessionResponseDto extends DatabaseDto {
     @ApiProperty({
@@ -40,6 +40,9 @@ export class SessionResponseDto extends DatabaseDto {
         required: true,
         type: RequestUserAgentResponseDto,
     })
+    @Transform(({ value }) =>
+        typeof value === 'string' ? JSON.parse(value) : value
+    )
     @Type(() => RequestUserAgentResponseDto)
     userAgent: RequestUserAgentResponseDto;
 
@@ -54,7 +57,7 @@ export class SessionResponseDto extends DatabaseDto {
         required: true,
         example: faker.date.future(),
     })
-    expiredAt: Date;
+    expiresAt: Date;
 
     @ApiProperty({
         required: false,

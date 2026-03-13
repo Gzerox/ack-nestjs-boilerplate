@@ -124,6 +124,7 @@ model User {
   lastLoginWith   EnumUserLoginWith?
   termPolicy      UserTermPolicy
   photo           UserPhoto?
+  image           String?
 
   // timestamps fields
   createdAt DateTime  @default(now())
@@ -225,10 +226,14 @@ model Session {
   userId            String       @db.ObjectId
   deviceOwnershipId String       @db.ObjectId
   jti               String
+  token             String
   ipAddress         String
-  userAgent         UserAgent
+  userAgent         String
   geoLocation       GeoLocation?
-  expiredAt         DateTime
+  expiresAt         DateTime
+  loginAt           DateTime?
+  loginFrom         String?
+  loginWith         String?
   revokedAt         DateTime?
   isRevoked         Boolean      @default(false)
   revokedById       String?      @db.ObjectId
@@ -243,9 +248,10 @@ model Session {
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
+  @@unique(fields: [token])
   @@unique(fields: [userId, jti])
-  @@index(fields: [userId, expiredAt(sort: Desc), isRevoked])
-  @@index(fields: [isRevoked, expiredAt(sort: Asc)])
+  @@index(fields: [userId, expiresAt(sort: Desc), isRevoked])
+  @@index(fields: [isRevoked, expiresAt(sort: Asc)])
   @@index(fields: [userId, deviceOwnershipId, isRevoked])
   @@index(fields: [deviceOwnershipId])
   @@index(fields: [createdAt])
@@ -465,6 +471,17 @@ model NotificationUserSetting {
   @@unique(fields: [userId, channel, type])
   @@index(fields: [userId, isActive])
   @@map("NotificationUserSettings")
+}
+
+model Jwk {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  publicKey  String
+  privateKey String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+
+  @@index(fields: [createdAt])
+  @@map("Jwks")
 }
 
 type UserTermPolicy {

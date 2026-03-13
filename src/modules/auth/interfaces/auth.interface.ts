@@ -1,7 +1,34 @@
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
 import { DeviceRequestDto } from '@modules/device/dtos/requests/device.request.dto';
-import { EnumUserLoginFrom, EnumUserLoginWith } from '@generated/prisma-client';
+import {
+    EnumUserLoginFrom,
+    EnumUserLoginWith,
+    UserAgent,
+} from '@generated/prisma-client';
+
+export interface IAuthBetterCreateSession {
+    expiresAt: Date;
+    ipAddress: string;
+    userAgent: UserAgent;
+    jti: string;
+    deviceOwnershipId: string;
+    loginAt: Date;
+    loginFrom: EnumUserLoginFrom;
+    loginWith: EnumUserLoginWith;
+}
+
+export interface IAuthBetterSessionData {
+    id: string;
+    userId: string;
+    expiresAt: Date;
+    token: string;
+    jti?: string;
+    loginAt?: Date;
+    loginFrom?: EnumUserLoginFrom;
+    loginWith?: EnumUserLoginWith;
+    deviceOwnershipId?: string;
+}
 
 export interface IAuthPassword {
     passwordHash: string;
@@ -54,9 +81,7 @@ export interface IAuthAccessTokenGenerate {
     sessionId: string;
 }
 
-export interface IAuthRefreshTokenGenerate extends IAuthAccessTokenGenerate {
-    expiredInMs: number;
-}
+export interface IAuthRefreshTokenGenerate extends IAuthAccessTokenGenerate {}
 
 export interface IAuthTwoFactorBackupCodes {
     codes: string[];

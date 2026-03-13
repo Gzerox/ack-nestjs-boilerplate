@@ -1,26 +1,19 @@
 import { IRequestApp } from '@common/request/interfaces/request.interface';
 import {
+    IAuthBetterCreateSession,
+    IAuthBetterSessionData,
     IAuthJwtAccessTokenPayload,
     IAuthJwtRefreshTokenPayload,
     IAuthSocialPayload,
 } from '@modules/auth/interfaces/auth.interface';
+import { IUser } from '@modules/user/interfaces/user.interface';
 
 export interface IAuthService {
-    validateJwtAccessStrategy(
-        payload: IAuthJwtAccessTokenPayload
+    validateJwtAccessRequest(
+        request: IRequestApp<IAuthJwtAccessTokenPayload>
     ): Promise<IAuthJwtAccessTokenPayload>;
-    validateJwtAccessGuard(
-        err: Error,
-        user: IAuthJwtAccessTokenPayload,
-        info: Error
-    ): Promise<IAuthJwtAccessTokenPayload>;
-    validateJwtRefreshStrategy(
-        payload: IAuthJwtRefreshTokenPayload
-    ): Promise<IAuthJwtRefreshTokenPayload>;
-    validateJwtRefreshGuard(
-        err: Error,
-        user: IAuthJwtRefreshTokenPayload,
-        info: Error
+    validateJwtRefreshRequest(
+        request: IRequestApp<IAuthJwtRefreshTokenPayload>
     ): Promise<IAuthJwtRefreshTokenPayload>;
     validateOAuthAppleGuard(
         request: IRequestApp<IAuthSocialPayload>
@@ -28,4 +21,13 @@ export interface IAuthService {
     validateOAuthGoogleGuard(
         request: IRequestApp<IAuthSocialPayload>
     ): Promise<boolean>;
+    createSession(
+        user: IUser,
+        options: IAuthBetterCreateSession
+    ): Promise<{ id: string; token: string; expiresAt: Date }>;
+    deleteSessionByToken(token: string): Promise<void>;
+    findSessionByToken(token: string): Promise<{
+        session: Record<string, unknown> & IAuthBetterSessionData;
+        user: Record<string, unknown> & { id: string };
+    } | null>;
 }

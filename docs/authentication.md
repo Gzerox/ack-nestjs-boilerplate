@@ -11,12 +11,14 @@ This document provides a comprehensive overview of authentication and session ma
 
 It covers:
 - **Password**: Passwords are securely hashed (bcrypt), have configurable expiration and rotation, login attempt limits, history tracking, and support for reset/change/temporary password with session invalidation.
-- **JWT Authentication**: Stateless authentication using access and refresh tokens with ES256/ES512 algorithms, configurable expiration, and security mechanisms such as JWT ID (jti) validation for session tracking.
-- **Session Management**: Dual storage strategy using Redis for high-performance validation and automatic expiration, and database for session listing, management, and audit trail. Sessions are validated on every API request via jti matching and can be revoked instantly.
+- **JWT Authentication**: Access tokens are signed and verified by Better Auth (`jwt` plugin). Refresh tokens are Better Auth session tokens, and access tokens still carry `jti` for domain session consistency checks.
+- **Session Management**: Prisma (MongoDB) remains the source of truth for app-level sessions, while Better Auth manages auth sessions/tokens. Redis cache is still used for session cache invalidation helpers.
 - **Social Authentication**: Integration with Google OAuth 2.0 and Apple Sign In, allowing users to authenticate using third-party providers. The backend validates OAuth tokens and manages sessions similarly to credential-based authentication.
 - **API Key Authentication**: Stateless authentication for machine-to-machine and system integrations, supporting both default and system API keys with caching for performance.
 
 Configuration for tokens, sessions, password, social providers, and API keys is managed in `src/configs/auth.config.ts`.
+
+> Migration note (March 12, 2026): JWT Passport strategies were replaced by Better Auth-backed guards (`AuthJwtAccessGuard` and `AuthJwtRefreshGuard`) without changing existing public login/refresh endpoints.
 
 ## Related Documents
 

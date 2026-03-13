@@ -54,6 +54,7 @@ import { UserTwoFactorEnableResponseDto } from '@modules/user/dtos/response/user
 import { UserTwoFactorDisableRequestDto } from '@modules/user/dtos/request/user.two-factor-disable.request.dto';
 import { UserLoginVerifyTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-verify-two-factor.request.dto';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
+import { IAuthJwtRefreshTokenPayload } from '@modules/auth/interfaces/auth.interface';
 import { UserImportRequestDto } from '@modules/user/dtos/request/user.import.request.dto';
 import { UserLoginSetupTwoFactorRequestDto } from '@modules/user/dtos/request/user.login-setup-two-factor.request.dto';
 
@@ -171,6 +172,7 @@ export interface IUserService {
     ): Promise<IResponseReturn<UserLoginResponseDto>>;
     refresh(
         user: IUser,
+        payload: IAuthJwtRefreshTokenPayload,
         refreshToken: string,
         requestLog: IRequestLog
     ): Promise<IResponseReturn<AuthTokenResponseDto>>;

@@ -7,6 +7,6 @@ export interface ISession extends Session {
 export interface ISessionCache {
     userId: string;
     sessionId: string;
-    expiredAt: Date;
+    expiresAt: Date;
     jti: string;
 }

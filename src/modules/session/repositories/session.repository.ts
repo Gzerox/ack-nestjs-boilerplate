@@ -90,7 +90,7 @@ export class SessionRepository {
             where: {
                 userId,
                 isRevoked: false,
-                expiredAt: {
+                expiresAt: {
                     gte: this.helperService.dateCreate(),
                 },
             },
@@ -112,7 +112,7 @@ export class SessionRepository {
             where: {
                 userId,
                 isRevoked: false,
-                expiredAt: {
+                expiresAt: {
                     gte: this.helperService.dateCreate(),
                 },
                 deviceOwnershipId,
@@ -130,7 +130,7 @@ export class SessionRepository {
             where: {
                 id: sessionId,
                 userId,
-                expiredAt: {
+                expiresAt: {
                     gte: today,
                 },
                 isRevoked: false,

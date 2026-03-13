@@ -33,6 +33,7 @@ import {
     IAuthTwoFactorVerifyResult,
 } from '@modules/auth/interfaces/auth.interface';
 import { AuthUtil } from '@modules/auth/utils/auth.util';
+import { AuthService } from '@modules/auth/services/auth.service';
 import { EnumCountryStatusCodeError } from '@modules/country/enums/country.status-code.enum';
 import { CountryRepository } from '@modules/country/repositories/country.repository';
 import { PasswordHistoryRepository } from '@modules/password-history/repositories/password-history.repository';
@@ -131,6 +132,7 @@ export class UserService implements IUserService {
         private readonly fileService: FileService,
         private readonly notificationUtil: NotificationUtil,
         private readonly authUtil: AuthUtil,
+        private readonly authService: AuthService,
         private readonly sessionUtil: SessionUtil,
         private readonly sessionRepository: SessionRepository,
         private readonly featureFlagUtil: FeatureFlagUtil,
@@ -1008,8 +1010,6 @@ export class UserService implements IUserService {
             });
         }
 
-        await this.userRepository.resetPasswordAttempt(user.id);
-
         const checkPasswordExpired: boolean =
             this.authUtil.checkPasswordExpired(user.passwordExpired);
         if (checkPasswordExpired) {
@@ -1097,21 +1097,25 @@ export class UserService implements IUserService {
 
     async refresh(
         user: IUser,
+        payload: IAuthJwtRefreshTokenPayload,
         refreshToken: string,
         requestLog: IRequestLog
     ): Promise<IResponseReturn<AuthTokenResponseDto>> {
         const {
             sessionId,
             userId,
-            jti: oldJti,
+            jti,
             loginFrom,
             loginWith,
-        } = this.authUtil.payloadToken<IAuthJwtRefreshTokenPayload>(
-            refreshToken
-        );
+            loginAt,
+            deviceOwnershipId,
+        } = payload;
 
-        const session = await this.sessionUtil.getLogin(userId, sessionId);
-        if (session.jti !== oldJti) {
+        const session = await this.sessionRepository.findOneActive(
+            userId,
+            sessionId
+        );
+        if (!session || (jti && session.jti !== jti)) {
             throw new UnauthorizedException({
                 statusCode: EnumAuthStatusCodeError.jwtRefreshTokenInvalid,
                 message: 'auth.error.refreshTokenInvalid',
@@ -1119,32 +1123,28 @@ export class UserService implements IUserService {
         }
 
         try {
-            const {
-                jti: newJti,
-                tokens,
-                expiredInMs,
-            } = this.authUtil.refreshToken(user, refreshToken);
-
-            await Promise.all([
-                this.sessionUtil.updateLogin(
-                    userId,
+            const { jti: newJti, tokens } = await this.authUtil.refreshToken(
+                user,
+                {
                     sessionId,
-                    session,
-                    newJti,
-                    expiredInMs
-                ),
-                this.userRepository.refresh(
-                    userId,
-                    {
-                        sessionId,
-                        jti: newJti,
-                        expiredAt: session.expiredAt,
-                        loginFrom: loginFrom,
-                        loginWith: loginWith,
-                    },
-                    requestLog
-                ),
-            ]);
+                    deviceOwnershipId,
+                    loginAt,
+                    loginFrom,
+                    loginWith,
+                    refreshToken,
+                }
+            );
+
+            await this.userRepository.refresh(
+                userId,
+                {
+                    sessionId,
+                    jti: newJti,
+                    loginFrom,
+                    loginWith,
+                },
+                requestLog
+            );
 
             return {
                 data: tokens,
@@ -1520,11 +1520,7 @@ export class UserService implements IUserService {
         loginAt: Date,
         requestLog: IRequestLog
     ): Promise<AuthTokenResponseDto> {
-        const { tokens, sessionId, jti } = this.authUtil.createTokens(
-            user,
-            loginFrom,
-            loginWith
-        );
+        const jti = this.authUtil.generateJti();
         const expiredAt = this.helperService.dateForward(
             loginAt,
             Duration.fromObject({
@@ -1532,47 +1528,78 @@ export class UserService implements IUserService {
             })
         );
 
-        const { isNewDevice, sessionShouldBeInactive } =
+        const { isNewDevice, sessionShouldBeInactive, deviceOwnership } =
             await this.userRepository.login(
                 user.id,
                 device,
-                {
-                    loginFrom,
-                    loginWith,
-                    jti,
-                    sessionId,
-                    expiredAt,
-                },
+                { loginFrom, loginWith },
                 requestLog
             );
 
-        const promises = [
-            this.sessionUtil.setLogin(user.id, sessionId, jti, expiredAt),
-        ];
+        const betterAuthSession = await this.authService.createSession(
+            user,
+            {
+                expiresAt: expiredAt,
+                ipAddress: requestLog.ipAddress,
+                userAgent: requestLog.userAgent,
+                jti,
+                deviceOwnershipId: deviceOwnership.id,
+                loginAt,
+                loginFrom,
+                loginWith,
+            }
+        );
 
-        if (sessionShouldBeInactive.length > 0) {
-            promises.push(
-                this.sessionUtil.deleteAllLogins(
-                    user.id,
-                    sessionShouldBeInactive
-                )
-            );
+        await this.sessionUtil.setLogin(
+            user.id,
+            betterAuthSession.id,
+            jti,
+            expiredAt
+        );
+
+        try {
+
+            const { tokens } = await this.authUtil.createTokens(user, {
+                sessionId: betterAuthSession.id,
+                deviceOwnershipId: deviceOwnership.id,
+                refreshToken: betterAuthSession.token,
+                jti,
+                loginAt,
+                loginFrom,
+                loginWith,
+            });
+
+            const promises: Promise<unknown>[] = [];
+            if (sessionShouldBeInactive.length > 0) {
+                promises.push(
+                    this.sessionUtil.deleteAllLogins(
+                        user.id,
+                        sessionShouldBeInactive
+                    )
+                );
+            }
+
+            if (isNewDevice) {
+                promises.push(
+                    this.notificationUtil.sendNewDeviceLogin(user.id, {
+                        requestLog,
+                        loginFrom,
+                        loginWith,
+                        loginAt: this.helperService.dateFormatToIso(loginAt),
+                    })
+                );
+            }
+
+            await Promise.all(promises);
+
+            return tokens;
+        } catch (err: unknown) {
+            await this.authService
+                .deleteSessionByToken(betterAuthSession.token)
+                .catch(() => null);
+
+            throw err;
         }
-
-        if (isNewDevice) {
-            promises.push(
-                this.notificationUtil.sendNewDeviceLogin(user.id, {
-                    requestLog,
-                    loginFrom,
-                    loginWith,
-                    loginAt: this.helperService.dateFormatToIso(loginAt),
-                })
-            );
-        }
-
-        await Promise.all(promises);
-
-        return tokens;
     }
 
     private async handleLogin(

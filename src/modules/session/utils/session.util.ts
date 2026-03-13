@@ -62,20 +62,20 @@ export class SessionUtil {
      * @param userId - The unique identifier of the user
      * @param sessionId - The unique identifier of the session
      * @param jti - The unique JWT token identifier for security validation
-     * @param expiredAt - The date and time when the session expires
+     * @param expiresAt - The date and time when the session expires
      * @returns Promise resolving when the session has been stored
      */
     async setLogin(
         userId: string,
         sessionId: string,
         jti: string,
-        expiredAt: Date
+        expiresAt: Date
     ): Promise<void> {
         const key = this.keyPattern
             .replace('{userId}', userId)
             .replace('{sessionId}', sessionId);
         const ttl = Math.floor(
-            expiredAt.getTime() - this.helperService.dateCreate().getTime()
+            expiresAt.getTime() - this.helperService.dateCreate().getTime()
         );
 
         await this.cacheManager.set<ISessionCache>(
@@ -83,7 +83,7 @@ export class SessionUtil {
             {
                 userId,
                 sessionId,
-                expiredAt,
+                expiresAt,
                 jti,
             },
             ttl

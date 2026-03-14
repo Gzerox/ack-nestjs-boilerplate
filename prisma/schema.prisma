@@ -149,6 +149,7 @@ model User {
   deviceOwnerships        DeviceOwnership[]          @relation("DeviceOwnershipUser")
   revokedSessions         Session[]                  @relation("SessionRevokedByUser")
   revokedDeviceOwnerships DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
+  authAccounts            AuthAccount[]              @relation("UserAuthAccounts")
 
   @@unique(fields: [username])
   @@unique(fields: [email])
@@ -224,8 +225,8 @@ model ActivityLog {
 model Session {
   id                String       @id @default(auto()) @map("_id") @db.ObjectId
   userId            String       @db.ObjectId
-  deviceOwnershipId String       @db.ObjectId
-  jti               String
+  deviceOwnershipId String?      @db.ObjectId
+  jti               String?
   token             String
   ipAddress         String
   userAgent         String
@@ -257,6 +258,40 @@ model Session {
   @@index(fields: [createdAt])
   @@index(fields: [updatedAt])
   @@map("Sessions")
+}
+
+model AuthAccount {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  accountId             String
+  providerId            String
+  userId                String    @db.ObjectId
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation("UserAuthAccounts", fields: [userId], references: [id])
+
+  @@unique(fields: [accountId, providerId])
+  @@index(fields: [userId])
+  @@map("AuthAccounts")
+}
+
+model AuthVerification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique(fields: [identifier, value])
+  @@map("AuthVerifications")
 }
 
 model Device {

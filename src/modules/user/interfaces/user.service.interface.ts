@@ -164,6 +164,10 @@ export interface IUserService {
         { email, password, from }: UserLoginRequestDto,
         requestLog: IRequestLog
     ): Promise<IResponseReturn<UserLoginResponseDto>>;
+    loginWithCredential(
+        dto: UserLoginRequestDto,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<UserLoginResponseDto>>;
     loginWithSocial(
         email: string,
         loginWith: EnumUserLoginWith,

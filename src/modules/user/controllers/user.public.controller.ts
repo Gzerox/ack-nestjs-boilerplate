@@ -73,7 +73,7 @@ export class UserPublicController {
         @RequestUserAgent() userAgent: UserAgent,
         @RequestGeoLocation() geoLocation: GeoLocation | null
     ): Promise<IResponseReturn<UserLoginResponseDto>> {
-        return this.userService.loginCredential(body, {
+        return this.userService.loginWithCredential(body, {
             ipAddress,
             userAgent,
             geoLocation,

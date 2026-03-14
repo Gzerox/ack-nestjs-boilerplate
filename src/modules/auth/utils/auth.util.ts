@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { compareSync, genSaltSync, hashSync } from 'bcryptjs';
 import { ConfigService } from '@nestjs/config';
 import { LoginTicket, OAuth2Client, TokenPayload } from 'google-auth-library';
 import {
     IAuthAccessTokenGenerate,
     IAuthJwtAccessTokenPayload,
+    IAuthJwtOptions,
     IAuthPassword,
     IAuthPasswordOptions,
     IAuthRefreshTokenGenerate,
@@ -24,6 +26,15 @@ import { IUser } from '@modules/user/interfaces/user.interface';
 import { AuthTokenResponseDto } from '@modules/auth/dtos/response/auth.token.response.dto';
 import { AuthService as BetterAuthService } from '@thallesp/nestjs-better-auth';
 import { BetterAuthInstance } from '@modules/auth/services/auth.better.factory';
+
+export function validatePassword(password: string, hash: string): boolean {
+    return compareSync(password, hash);
+}
+
+export function hashPassword(password: string, saltLength: number): string {
+    const salt = genSaltSync(saltLength);
+    return hashSync(password, salt);
+}
 
 /**
  * Authentication Utility Service.
@@ -164,7 +175,7 @@ export class AuthUtil {
      * @returns True if password matches
      */
     validatePassword(passwordString: string, passwordHash: string): boolean {
-        return this.helperService.bcryptCompare(passwordString, passwordHash);
+        return validatePassword(passwordString, passwordHash);
     }
 
     /**
@@ -480,7 +491,8 @@ export class AuthUtil {
     }
 
     async signAccessToken(
-        payload: IAuthJwtAccessTokenPayload
+        payload: IAuthJwtAccessTokenPayload,
+        options?: IAuthJwtOptions
     ): Promise<string> {
         const iat = Math.floor(Date.now() / 1000);
         const response = await this.betterAuthService.api.signJWT({
@@ -492,8 +504,11 @@ export class AuthUtil {
                 },
                 overrideOptions: {
                     jwt: {
-                        audience: this.jwtAudience,
-                        issuer: this.jwtIssuer,
+                        audience: options?.audience ?? this.jwtAudience,
+                        issuer: options?.issuer ?? this.jwtIssuer,
+                        ...(options?.expirationTime !== undefined && {
+                            expirationTime: options.expirationTime,
+                        }),
                     },
                 },
             },
@@ -503,12 +518,13 @@ export class AuthUtil {
     }
 
     async verifyAccessToken(
-        token: string
+        token: string,
+        issuer?: string
     ): Promise<IAuthJwtAccessTokenPayload | null> {
         const response = await this.betterAuthService.api.verifyJWT({
             body: {
                 token,
-                issuer: this.jwtIssuer,
+                issuer: issuer ?? this.jwtIssuer,
             },
         });
 

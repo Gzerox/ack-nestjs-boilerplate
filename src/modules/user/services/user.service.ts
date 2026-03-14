@@ -81,6 +81,7 @@ import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    Inject,
     Injectable,
     InternalServerErrorException,
     Logger,
@@ -88,11 +89,12 @@ import {
     ServiceUnavailableException,
     UnauthorizedException,
 } from '@nestjs/common';
+import { Cache } from '@nestjs/cache-manager';
+import { CacheMainProvider } from '@common/cache/constants/cache.constant';
 import {
     EnumUserLoginFrom,
     EnumUserLoginWith,
     EnumUserStatus,
-    EnumVerificationType,
     Prisma,
 } from '@generated/prisma-client';
 import { Duration } from 'luxon';
@@ -138,7 +140,8 @@ export class UserService implements IUserService {
         private readonly featureFlagUtil: FeatureFlagUtil,
         private readonly authTwoFactorUtil: AuthTwoFactorUtil,
         private readonly configService: ConfigService,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly databaseUtil: DatabaseUtil,
+        @Inject(CacheMainProvider) private readonly cacheManager: Cache
     ) {
         this.userRoleName = this.configService.get<string>('user.default.role');
         this.userCountryName = this.configService.get<string>(
@@ -1029,6 +1032,150 @@ export class UserService implements IUserService {
         );
     }
 
+    async loginWithCredential(
+        { email, password, from, device }: UserLoginRequestDto,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<UserLoginResponseDto>> {
+        const user = await this.userRepository.findOneWithRoleByEmail(email);
+        if (!user) {
+            throw new NotFoundException({
+                statusCode: EnumUserStatusCodeError.notFound,
+                message: 'user.error.notFound',
+            });
+        } else if (user.status !== EnumUserStatus.active) {
+            throw new ForbiddenException({
+                statusCode: EnumUserStatusCodeError.inactiveForbidden,
+                message: 'user.error.inactive',
+            });
+        } else if (!user.password) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatusCodeError.passwordNotSet,
+                message: 'auth.error.passwordNotSet',
+            });
+        } else if (this.authUtil.checkPasswordExpired(user.passwordExpired)) {
+            throw new ForbiddenException({
+                statusCode: EnumUserStatusCodeError.passwordExpired,
+                message: 'auth.error.passwordExpired',
+            });
+        }
+
+        if (!user.isVerified) {
+            await this.userRepository.logSendVerificationEmail(
+                user.id,
+                requestLog
+            );
+            const verificationUrl =
+                await this.authService.createVerificationUrl(user.email);
+            const verificationExpiredAt = this.helperService.dateFormatToIso(
+                this.helperService.dateForward(
+                    this.helperService.dateCreate(),
+                    Duration.fromObject({
+                        minutes: this.userUtil.verificationExpiredInMinutes,
+                    })
+                )
+            );
+            await this.notificationUtil.sendVerificationEmail(user.id, {
+                link: verificationUrl,
+                expiredAt: verificationExpiredAt,
+                reference: this.userUtil.verificationCreateReference(),
+                expiredInMinutes: this.userUtil.verificationExpiredInMinutes,
+            });
+            throw new ForbiddenException({
+                statusCode: EnumUserStatusCodeError.emailNotVerified,
+                message: 'user.error.emailNotVerified',
+            });
+        }
+
+        // Lazily sync the BA credential account for pre-existing users
+        await this.authService.ensureCredentialAccount(
+            user.id,
+            email,
+            user.password
+        );
+
+        // BA verifies credentials and creates the session
+        let baToken: string;
+        try {
+            baToken = await this.authService.signInEmail(email, password);
+        } catch (ex) {
+            throw new UnauthorizedException({
+                statusCode: EnumUserStatusCodeError.passwordNotMatch,
+                message: 'auth.error.passwordNotMatch',
+            });
+        }
+
+        // Resolve session details from the BA token
+        const baSessionData =
+            await this.authService.findSessionByToken(baToken);
+        const baSessionId = baSessionData.session.id as string;
+        const baExpiresAt = baSessionData.session.expiresAt as Date;
+
+        const loginAt = this.helperService.dateCreate();
+        const jti = this.authUtil.generateJti();
+
+        // Device tracking
+        const { isNewDevice, sessionShouldBeInactive, deviceOwnership } =
+            await this.userRepository.login(
+                user.id,
+                device,
+                { loginFrom: from, loginWith: EnumUserLoginWith.credential },
+                requestLog
+            );
+
+        // Enrich the BA session with our custom fields
+        await this.sessionRepository.enrichByToken(baToken, {
+            jti,
+            deviceOwnershipId: deviceOwnership.id,
+            loginAt,
+            loginFrom: from,
+            loginWith: EnumUserLoginWith.credential,
+            ipAddress: requestLog.ipAddress,
+            userAgent: JSON.stringify(requestLog.userAgent),
+        });
+
+        // Cache session in Redis
+        await this.sessionUtil.setLogin(user.id, baSessionId, jti, baExpiresAt);
+
+        // Create JWT access token using the BA session
+        const { tokens } = await this.authUtil.createTokens(user, {
+            sessionId: baSessionId,
+            deviceOwnershipId: deviceOwnership.id,
+            refreshToken: baToken,
+            jti,
+            loginAt,
+            loginFrom: from,
+            loginWith: EnumUserLoginWith.credential,
+        });
+
+        const promises: Promise<unknown>[] = [];
+        if (sessionShouldBeInactive.length > 0) {
+            promises.push(
+                this.sessionUtil.deleteAllLogins(
+                    user.id,
+                    sessionShouldBeInactive
+                )
+            );
+        }
+        if (isNewDevice) {
+            promises.push(
+                this.notificationUtil.sendNewDeviceLogin(user.id, {
+                    requestLog,
+                    loginFrom: from,
+                    loginWith: EnumUserLoginWith.credential,
+                    loginAt: this.helperService.dateFormatToIso(loginAt),
+                })
+            );
+        }
+        await Promise.all(promises);
+
+        return {
+            data: {
+                isTwoFactorEnable: false,
+                tokens,
+            },
+        };
+    }
+
     async loginWithSocial(
         email: string,
         loginWith: EnumUserLoginWith,
@@ -1196,13 +1343,8 @@ export class UserService implements IUserService {
                 passwordString
             );
             const randomUsername = this.userUtil.createRandomUsername();
-            const emailVerification =
-                this.userUtil.verificationCreateVerification(
-                    userId,
-                    EnumVerificationType.email
-                );
 
-            const created = await this.userRepository.signUp(
+            await this.userRepository.signUp(
                 userId,
                 randomUsername,
                 role.id,
@@ -1213,18 +1355,24 @@ export class UserService implements IUserService {
                     ...others,
                 },
                 password,
-                emailVerification,
                 requestLog
             );
 
-            // @note: send email after all creation
-            await this.notificationUtil.sendWelcome(created.id, {
-                expiredAt: this.helperService.dateFormatToIso(
-                    emailVerification.expiredAt
-                ),
-                reference: emailVerification.reference,
-                link: emailVerification.encryptedLink,
-                expiredInMinutes: emailVerification.expiredInMinutes,
+            const verificationUrl =
+                await this.authService.createVerificationUrl(email);
+            const verificationExpiredAt = this.helperService.dateFormatToIso(
+                this.helperService.dateForward(
+                    this.helperService.dateCreate(),
+                    Duration.fromObject({
+                        minutes: this.userUtil.verificationExpiredInMinutes,
+                    })
+                )
+            );
+            await this.notificationUtil.sendWelcome(userId, {
+                link: verificationUrl,
+                expiredAt: verificationExpiredAt,
+                reference: this.userUtil.verificationCreateReference(),
+                expiredInMinutes: this.userUtil.verificationExpiredInMinutes,
             });
             return;
         } catch (err: unknown) {
@@ -1240,38 +1388,50 @@ export class UserService implements IUserService {
         { token }: UserVerifyEmailRequestDto,
         requestLog: IRequestLog
     ): Promise<IResponseReturn<void>> {
-        const hashedToken = this.userUtil.hashedToken(token);
-        const verification =
-            await this.userRepository.findOneActiveByVerificationEmailToken(
-                hashedToken
-            );
-        if (!verification) {
+        // Decode the JWT payload to get the email — BA will do full verification next
+        let email: string;
+        try {
+            const [, payloadB64] = token.split('.');
+            const payload = JSON.parse(
+                Buffer.from(payloadB64, 'base64url').toString()
+            ) as { email: string };
+            email = payload.email;
+        } catch {
             throw new BadRequestException({
                 statusCode: EnumUserStatusCodeError.tokenInvalid,
                 message: 'user.error.verificationTokenInvalid',
             });
         }
 
-        try {
-            await this.userRepository.verifyEmail(
-                verification.id,
-                verification.userId,
-                requestLog
-            );
-
-            // @note: send email after all creation
-            await this.notificationUtil.sendVerifiedEmail(verification.userId, {
-                reference: verification.reference,
+        const user = await this.userRepository.findOneActiveByEmail(email);
+        if (!user) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatusCodeError.tokenInvalid,
+                message: 'user.error.verificationTokenInvalid',
             });
-
-            return;
-        } catch (err: unknown) {
-            throw new InternalServerErrorException({
-                statusCode: EnumAppStatusCodeError.unknown,
-                message: 'http.serverError.internalServerError',
-                _error: err,
+        } else if (user.isVerified) {
+            throw new BadRequestException({
+                statusCode: EnumUserStatusCodeError.emailAlreadyVerified,
+                message: 'user.error.emailAlreadyVerified',
             });
         }
+
+        // BA verifies JWT signature + expiry, sets isVerified = true and verifiedAt (via afterEmailVerification hook)
+        try {
+            await this.authService.verifyEmail(token);
+        } catch {
+            throw new BadRequestException({
+                statusCode: EnumUserStatusCodeError.tokenInvalid,
+                message: 'user.error.verificationTokenInvalid',
+            });
+        }
+
+        await this.userRepository.logEmailVerified(user.id, requestLog);
+        await this.notificationUtil.sendVerifiedEmail(user.id, {
+            reference: this.userUtil.verificationCreateReference(),
+        });
+
+        return;
     }
 
     async sendVerificationEmail(
@@ -1291,53 +1451,47 @@ export class UserService implements IUserService {
             });
         }
 
-        const lastVerification =
-            await this.userRepository.findOneLatestByVerificationEmail(user.id);
-        if (lastVerification) {
-            const today = this.helperService.dateCreate();
-            const canResendAt = this.helperService.dateForward(
-                lastVerification.createdAt,
-                Duration.fromObject({
-                    minutes: this.userUtil.verificationExpiredInMinutes,
-                })
-            );
-
-            if (today < canResendAt) {
-                throw new BadRequestException({
-                    statusCode:
-                        EnumUserStatusCodeError.verificationEmailResendLimitExceeded,
-                    message: 'user.error.verificationEmailResendLimitExceeded',
-                    messageProperties: {
-                        resendIn: this.helperService.dateDiff(
-                            today,
-                            canResendAt
-                        ).minutes,
-                    },
-                });
-            }
+        // Redis-based resend throttle: one send per verificationExpiredInMinutes window
+        const throttleKey = `UserVerification:${user.id}:resend`;
+        const throttled = await this.cacheManager.get(throttleKey);
+        if (throttled) {
+            throw new BadRequestException({
+                statusCode:
+                    EnumUserStatusCodeError.verificationEmailResendLimitExceeded,
+                message: 'user.error.verificationEmailResendLimitExceeded',
+                messageProperties: {
+                    resendIn: this.userUtil.verificationExpiredInMinutes,
+                },
+            });
         }
 
         try {
-            const emailVerification =
-                this.userUtil.verificationCreateVerification(
-                    user.id,
-                    EnumVerificationType.email
-                );
+            await this.cacheManager.set(
+                throttleKey,
+                true,
+                this.userUtil.verificationExpiredInMinutes * 60 * 1000
+            );
 
-            await this.userRepository.requestVerificationEmail(
+            await this.userRepository.logSendVerificationEmail(
                 user.id,
-                user.email,
-                emailVerification,
                 requestLog
             );
 
+            const verificationUrl =
+                await this.authService.createVerificationUrl(email);
+            const verificationExpiredAt = this.helperService.dateFormatToIso(
+                this.helperService.dateForward(
+                    this.helperService.dateCreate(),
+                    Duration.fromObject({
+                        minutes: this.userUtil.verificationExpiredInMinutes,
+                    })
+                )
+            );
             await this.notificationUtil.sendVerificationEmail(user.id, {
-                expiredAt: this.helperService.dateFormatToIso(
-                    emailVerification.expiredAt
-                ),
-                reference: emailVerification.reference,
-                link: emailVerification.encryptedLink,
-                expiredInMinutes: emailVerification.expiredInMinutes,
+                link: verificationUrl,
+                expiredAt: verificationExpiredAt,
+                reference: this.userUtil.verificationCreateReference(),
+                expiredInMinutes: this.userUtil.verificationExpiredInMinutes,
             });
 
             return;
@@ -1536,19 +1690,16 @@ export class UserService implements IUserService {
                 requestLog
             );
 
-        const betterAuthSession = await this.authService.createSession(
-            user,
-            {
-                expiresAt: expiredAt,
-                ipAddress: requestLog.ipAddress,
-                userAgent: requestLog.userAgent,
-                jti,
-                deviceOwnershipId: deviceOwnership.id,
-                loginAt,
-                loginFrom,
-                loginWith,
-            }
-        );
+        const betterAuthSession = await this.authService.createSession(user, {
+            expiresAt: expiredAt,
+            ipAddress: requestLog.ipAddress,
+            userAgent: requestLog.userAgent,
+            jti,
+            deviceOwnershipId: deviceOwnership.id,
+            loginAt,
+            loginFrom,
+            loginWith,
+        });
 
         await this.sessionUtil.setLogin(
             user.id,
@@ -1558,7 +1709,6 @@ export class UserService implements IUserService {
         );
 
         try {
-
             const { tokens } = await this.authUtil.createTokens(user, {
                 sessionId: betterAuthSession.id,
                 deviceOwnershipId: deviceOwnership.id,
@@ -1611,27 +1761,25 @@ export class UserService implements IUserService {
         requestLog: IRequestLog
     ): Promise<IResponseReturn<UserLoginResponseDto>> {
         if (!user.isVerified) {
-            const emailVerification =
-                this.userUtil.verificationCreateVerification(
-                    user.id,
-                    EnumVerificationType.email
-                );
-
-            await this.userRepository.requestVerificationEmail(
+            await this.userRepository.logSendVerificationEmail(
                 user.id,
-                user.email,
-                emailVerification,
                 requestLog
             );
-
-            // send notification after all creation
+            const verificationUrl =
+                await this.authService.createVerificationUrl(user.email);
+            const verificationExpiredAt = this.helperService.dateFormatToIso(
+                this.helperService.dateForward(
+                    this.helperService.dateCreate(),
+                    Duration.fromObject({
+                        minutes: this.userUtil.verificationExpiredInMinutes,
+                    })
+                )
+            );
             await this.notificationUtil.sendVerificationEmail(user.id, {
-                expiredAt: this.helperService.dateFormatToIso(
-                    emailVerification.expiredAt
-                ),
-                reference: emailVerification.reference,
-                link: emailVerification.encryptedLink,
-                expiredInMinutes: emailVerification.expiredInMinutes,
+                link: verificationUrl,
+                expiredAt: verificationExpiredAt,
+                reference: this.userUtil.verificationCreateReference(),
+                expiredInMinutes: this.userUtil.verificationExpiredInMinutes,
             });
 
             throw new ForbiddenException({

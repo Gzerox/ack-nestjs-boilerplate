@@ -123,6 +123,24 @@ export class SessionRepository {
         });
     }
 
+    async enrichByToken(
+        token: string,
+        data: {
+            jti: string;
+            deviceOwnershipId: string;
+            loginAt: Date;
+            loginFrom: string;
+            loginWith: string;
+            ipAddress: string;
+            userAgent: string;
+        }
+    ): Promise<void> {
+        await this.databaseService.session.update({
+            where: { token },
+            data,
+        });
+    }
+
     async findOneActive(userId: string, sessionId: string): Promise<Session> {
         const today = this.helperService.dateCreate();
 

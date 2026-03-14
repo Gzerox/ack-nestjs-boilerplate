@@ -35,7 +35,6 @@ import {
     IUserLoginResult,
     IUserProfile,
     IUserRefresh,
-    IUserVerificationCreate,
 } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import {
@@ -53,13 +52,11 @@ import {
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
     EnumUserStatus,
-    EnumVerificationType,
     ForgotPassword,
     Prisma,
     TermPolicyUserAcceptance,
     User,
     UserMobileNumber,
-    Verification,
 } from '@generated/prisma-client';
 
 @Injectable()
@@ -290,45 +287,6 @@ export class UserRepository {
         return this.databaseService.forgotPassword.findFirst({
             where: {
                 userId,
-                user: {
-                    deletedAt: null,
-                    status: EnumUserStatus.active,
-                },
-            },
-            orderBy: {
-                createdAt: EnumPaginationOrderDirectionType.desc,
-            },
-        });
-    }
-
-    async findOneActiveByVerificationEmailToken(
-        token: string
-    ): Promise<Verification | null> {
-        const today = this.helperService.dateCreate();
-
-        return this.databaseService.verification.findFirst({
-            where: {
-                token,
-                isUsed: false,
-                type: EnumVerificationType.email,
-                expiredAt: {
-                    gt: today,
-                },
-                user: {
-                    deletedAt: null,
-                    status: EnumUserStatus.active,
-                },
-            },
-        });
-    }
-
-    async findOneLatestByVerificationEmail(
-        userId: string
-    ): Promise<Verification | null> {
-        return this.databaseService.verification.findFirst({
-            where: {
-                userId,
-                type: EnumVerificationType.email,
                 user: {
                     deletedAt: null,
                     status: EnumUserStatus.active,
@@ -1256,7 +1214,6 @@ export class UserRepository {
             passwordHash,
             passwordPeriodExpired,
         }: IAuthPassword,
-        { expiredAt, reference, hashedToken, type }: IUserVerificationCreate,
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<User> {
         const termPolicies = await this.databaseService.termPolicy.findMany({
@@ -1355,16 +1312,6 @@ export class UserRepository {
                                     )
                                 )
                                 .flat(),
-                        },
-                    },
-                    verifications: {
-                        create: {
-                            expiredAt,
-                            reference,
-                            token: hashedToken,
-                            type,
-                            to: email,
-                            createdBy: userId,
                         },
                     },
                     twoFactor: {
@@ -1504,105 +1451,46 @@ export class UserRepository {
         });
     }
 
-    async verifyEmail(
-        id: string,
+    async logEmailVerified(
         userId: string,
         { ipAddress, userAgent, geoLocation }: IRequestLog
-    ): Promise<Verification> {
-        const today = this.helperService.dateCreate();
-
-        return this.databaseService.verification.update({
-            where: {
-                id,
-            },
+    ): Promise<void> {
+        await this.databaseService.user.update({
+            where: { id: userId },
             data: {
-                isUsed: true,
-                verifiedAt: today,
-                user: {
-                    update: {
-                        verifiedAt: today,
-                        isVerified: true,
-                        activityLogs: {
-                            create: {
-                                action: EnumActivityLogAction.userVerifiedEmail,
-                                ipAddress,
-                                userAgent:
-                                    this.databaseUtil.toPlainObject(userAgent),
-                                geoLocation:
-                                    this.databaseUtil.toPlainObject(
-                                        geoLocation
-                                    ),
-                                createdBy: userId,
-                            },
-                        },
+                activityLogs: {
+                    create: {
+                        action: EnumActivityLogAction.userVerifiedEmail,
+                        ipAddress,
+                        userAgent: this.databaseUtil.toPlainObject(userAgent),
+                        geoLocation:
+                            this.databaseUtil.toPlainObject(geoLocation),
+                        createdBy: userId,
                     },
                 },
             },
         });
     }
 
-    async requestVerificationEmail(
+    async logSendVerificationEmail(
         userId: string,
-        userEmail: string,
-        { expiredAt, reference, hashedToken, type }: IUserVerificationCreate,
         { ipAddress, userAgent, geoLocation }: IRequestLog
-    ): Promise<User> {
-        const today = this.helperService.dateCreate();
-
-        return this.databaseService.$transaction(
-            async (tx: Prisma.TransactionClient) => {
-                const [_, newVerification] = await Promise.all([
-                    tx.verification.updateMany({
-                        where: {
-                            userId,
-                            type,
-                            isUsed: false,
-                            expiredAt: {
-                                gt: today,
-                            },
-                        },
-                        data: {
-                            expiredAt: today,
-                        },
-                    }),
-                    tx.user.update({
-                        where: {
-                            id: userId,
-                        },
-                        data: {
-                            verifications: {
-                                create: {
-                                    expiredAt,
-                                    reference,
-                                    token: hashedToken,
-                                    type,
-                                    to: userEmail,
-                                    createdBy: userId,
-                                    createdAt: today,
-                                },
-                            },
-                            activityLogs: {
-                                create: {
-                                    action: EnumActivityLogAction.userSendVerificationEmail,
-                                    ipAddress,
-                                    userAgent:
-                                        this.databaseUtil.toPlainObject(
-                                            userAgent
-                                        ),
-                                    geoLocation:
-                                        this.databaseUtil.toPlainObject(
-                                            geoLocation
-                                        ),
-                                    createdBy: userId,
-                                },
-                            },
-                        },
-                    }),
-                ]);
-
-                return newVerification;
-            }
-        );
+    ): Promise<void> {
+        await this.databaseService.user.update({
+            where: { id: userId },
+            data: {
+                activityLogs: {
+                    create: {
+                        action: EnumActivityLogAction.userSendVerificationEmail,
+                        ipAddress,
+                        userAgent: this.databaseUtil.toPlainObject(userAgent),
+                        geoLocation:
+                            this.databaseUtil.toPlainObject(geoLocation),
+                        createdBy: userId,
+                    },
+                },
+            },
+        });
     }
 
     async refresh(

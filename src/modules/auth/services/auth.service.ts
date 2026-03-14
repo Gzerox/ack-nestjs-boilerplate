@@ -1,3 +1,4 @@
+import { createEmailVerificationToken } from 'better-auth/api';
 import { IRequestApp } from '@common/request/interfaces/request.interface';
 import { EnumAuthStatusCodeError } from '@modules/auth/enums/auth.status-code.enum';
 import {
@@ -251,5 +252,54 @@ export class AuthService implements IAuthService {
     } | null> {
         const context = await this.betterAuthService.instance.$context;
         return context.internalAdapter.findSession(token);
+    }
+
+    async createVerificationUrl(email: string): Promise<string> {
+        const context = await this.betterAuthService.instance.$context;
+        const expiresIn =
+            (context.options as Record<string, any>).emailVerification
+                ?.expiresIn ?? 300;
+        const token = await createEmailVerificationToken(
+            context.secret,
+            email,
+            undefined,
+            expiresIn
+        );
+        return `${context.baseURL}/verify-email?token=${token}`;
+    }
+
+    async verifyEmail(token: string): Promise<void> {
+        await this.betterAuthService.api.verifyEmail({
+            query: { token },
+        });
+    }
+
+    async signInEmail(email: string, password: string): Promise<string> {
+        const result = await this.betterAuthService.api.signInEmail({
+            body: { email, password, rememberMe: false },
+        });
+        return result.token;
+    }
+
+    async ensureCredentialAccount(
+        userId: string,
+        email: string,
+        passwordHash: string
+    ): Promise<void> {
+        const context = await this.betterAuthService.instance.$context;
+        try {
+            await (
+                context.internalAdapter as Record<string, any>
+            ).createAccount({
+                userId,
+                providerId: 'credential',
+                accountId: email,
+                password: passwordHash,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+        } catch {
+            // Account already exists — nothing to do
+        }
     }
 }

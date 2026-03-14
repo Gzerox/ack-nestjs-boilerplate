@@ -30,6 +30,12 @@ export interface IAuthBetterSessionData {
     deviceOwnershipId?: string;
 }
 
+export interface IAuthJwtOptions {
+    issuer?: string;
+    audience?: string;
+    expirationTime?: number; // in seconds
+}
+
 export interface IAuthPassword {
     passwordHash: string;
     passwordExpired: Date;

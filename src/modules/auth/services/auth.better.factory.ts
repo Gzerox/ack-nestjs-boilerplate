@@ -5,6 +5,7 @@ import { jwt } from 'better-auth/plugins/jwt';
 import { PrismaClient } from '@prisma/client';
 import ms from 'ms';
 import ObjectID from 'bson-objectid';
+import { hashPassword, validatePassword } from '@modules/auth/utils/auth.util';
 
 function createBetterAuthInstance() {
     const host = process.env.HTTP_HOST ?? 'localhost';
@@ -15,6 +16,8 @@ function createBetterAuthInstance() {
     const refreshExpiry =
         ms(process.env.AUTH_JWT_REFRESH_TOKEN_EXPIRED as ms.StringValue) / 1000;
     const alg = 'ES256' as const;
+    // verification.expiredInMinutes is 5 by default (verification.config.ts)
+    const verificationExpiryInSeconds = 5 * 60;
 
     const prisma = new PrismaClient();
 
@@ -43,6 +46,23 @@ function createBetterAuthInstance() {
         },
         account: { modelName: 'AuthAccount' },
         verification: { modelName: 'AuthVerification' },
+        emailVerification: {
+            expiresIn: verificationExpiryInSeconds,
+            afterEmailVerification: async user => {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { verifiedAt: new Date() },
+                });
+            },
+        },
+        emailAndPassword: {
+            enabled: true,
+            password: {
+                hash: password => Promise.resolve(hashPassword(password, 8)),
+                verify: ({ password, hash }) =>
+                    Promise.resolve(validatePassword(password, hash)),
+            },
+        },
         rateLimit: { enabled: false },
         plugins: [
             bearer(),

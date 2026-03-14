@@ -30,4 +30,12 @@ export interface IAuthService {
         session: Record<string, unknown> & IAuthBetterSessionData;
         user: Record<string, unknown> & { id: string };
     } | null>;
+    createVerificationUrl(email: string): Promise<string>;
+    verifyEmail(token: string): Promise<void>;
+    signInEmail(email: string, password: string): Promise<string>;
+    ensureCredentialAccount(
+        userId: string,
+        email: string,
+        passwordHash: string
+    ): Promise<void>;
 }

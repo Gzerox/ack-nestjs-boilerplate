@@ -1,5 +1,7 @@
 import { UserUserController } from '@modules/user/controllers/user.user.controller';
 import { UserModule } from '@modules/user/user.module';
+import { SurveyUserController } from '@modules/survey/controllers/survey.user.controller';
+import { SurveyModule } from '@modules/survey/survey.module';
 import { Module } from '@nestjs/common';
 
 /**
@@ -7,9 +9,9 @@ import { Module } from '@nestjs/common';
  * Contains controllers for user operations that require user-level authentication and authorization.
  */
 @Module({
-    controllers: [UserUserController],
+    controllers: [UserUserController, SurveyUserController],
     providers: [],
     exports: [],
-    imports: [UserModule],
+    imports: [UserModule, SurveyModule],
 })
 export class RoutesUserModule {}

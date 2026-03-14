@@ -545,6 +545,52 @@ type GeoLocation {
   city      String
 }
 
+type SurveySchemaOption {
+  value String
+  label String
+}
+
+type SurveySchemaValidation {
+  // For rating: min and max
+  min       Int?
+  max       Int?
+  // For text: multiline flag and maxLength
+  multiline Boolean?
+  maxLength Int?
+}
+
+type SurveySchemaQuestion {
+  id          String
+  name        String
+  type        String // any HTML input type: text, email, number, checkbox, radio, select, etc.
+  label       String
+  required    Boolean
+  placeholder String?
+  options     SurveySchemaOption[] // available options for select-type inputs
+  validation  SurveySchemaValidation
+}
+
+type SurveySchemaSection {
+  id        String
+  name      String
+  label     String
+  questions SurveySchemaQuestion[]
+}
+
+type SurveySchema {
+  title       String
+  description String?
+  sections    SurveySchemaSection[]
+}
+
+type SurveyAnswer {
+  questionId String
+  sectionId  String
+  type       String // any HTML input type: text, email, number, date, checkbox, radio, select, etc.
+  value      String? // for single-value inputs (stored as string, can be number/boolean)
+  values     String[] // for multi-value inputs (checkbox, multi-select)
+}
+
 enum EnumUserGender {
   male
   female
@@ -674,6 +720,12 @@ enum EnumActivityLogAction {
   adminUserResetTwoFactor
   adminUserImport
   adminDeviceRemove
+
+  adminSurveyTemplateCreate
+  adminSurveyTemplateUpdate
+  adminSurveyTemplateDeactivate
+  adminSurveyCreate
+  adminSurveyClosed
 }
 
 enum EnumDevicePlatform {
@@ -706,4 +758,66 @@ enum EnumNotificationPriority {
   normal
   high
   critical
+}
+
+enum SurveyRecipientStatus {
+  notStarted
+  inProgress
+  submitted
+}
+
+model SurveyTemplate {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy String       @db.ObjectId
+  name      String
+  schema    SurveySchema
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique(fields: [createdBy, name])
+  @@index(fields: [createdBy])
+  @@map("SurveyTemplates")
+}
+
+model Survey {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy      String       @db.ObjectId
+  title          String
+  description    String?
+  schemaSnapshot SurveySchema
+  closesAt       DateTime
+  isActive       Boolean      @default(true)
+  publishedAt    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  recipients SurveyRecipient[]
+
+  @@index(fields: [createdBy])
+  @@index(fields: [closesAt])
+  @@index(fields: [isActive])
+  @@map("Surveys")
+}
+
+model SurveyRecipient {
+  id          String                @id @default(auto()) @map("_id") @db.ObjectId
+  surveyId    String                @db.ObjectId
+  userId      String                @db.ObjectId
+  status      SurveyRecipientStatus @default(notStarted)
+  answers     Json?
+  submittedAt DateTime?
+  sourceType  String?
+  sourceId    String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [surveyId, userId])
+  @@index(fields: [userId])
+  @@index(fields: [status])
+  @@index(fields: [submittedAt])
+  @@index(fields: [sourceType, sourceId])
+  @@map("SurveyRecipients")
 }

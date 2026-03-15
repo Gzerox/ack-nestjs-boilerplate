@@ -6,9 +6,9 @@ import {
     DocResponse,
     DocResponsePaging,
 } from '@common/doc/decorators/doc.decorator';
-import { SurveyTemplateResponseDto } from '../dtos/response/survey-template.response.dto';
-import { SurveyResponseDto } from '../dtos/response/survey.response.dto';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
+import { SurveyTemplateResponseDto } from '@modules/survey/dtos/response/survey-template.response.dto';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
 
 export function SurveyAdminTemplateListDoc(): MethodDecorator {
     return applyDecorators(
@@ -72,6 +72,20 @@ export function SurveyAdminTemplateUpdateDoc(): MethodDecorator {
         DocResponse<SurveyTemplateResponseDto>('survey.template.update', {
             dto: SurveyTemplateResponseDto,
         })
+    );
+}
+
+export function SurveyAdminTemplateDeactivateDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({
+            summary: 'deactivate survey template',
+        }),
+        DocAuth({
+            xApiKey: true,
+            jwtAccessToken: true,
+        }),
+        DocGuard({ role: true, policy: true }),
+        DocResponse('survey.template.deactivate', { statusCode: HttpStatus.NO_CONTENT })
     );
 }
 

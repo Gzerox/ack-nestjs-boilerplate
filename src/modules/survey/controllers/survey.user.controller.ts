@@ -23,9 +23,11 @@ import {
 } from '@common/response/interfaces/response.interface';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { Prisma } from '@generated/prisma-client';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
-import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '../dtos/request/survey-recipient.update.request.dto';
-import { SURVEY_TAG } from '../constants/survey.doc.constant';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
+import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '@modules/survey/dtos/request/survey-recipient.update.request.dto';
+import { SURVEY_TAG } from '@modules/survey/constants/survey.doc.constant';
+import { ISurveyWithRecipientData } from '@modules/survey/interfaces/survey.interface';
 
 @ApiTags(SURVEY_TAG)
 @Controller({
@@ -60,7 +62,7 @@ export class SurveyUserController {
         @AuthJwtPayload() { sub }: Record<string, any>,
         @Param('surveyId', RequestRequiredPipe)
         surveyId: string
-    ): Promise<IResponseReturn<any>> {
+    ): Promise<IResponseReturn<ISurveyWithRecipientData>> {
         return this.surveyService.getMySurvey(surveyId, sub);
     }
 

@@ -3,13 +3,14 @@ import {
 } from '@common/pagination/interfaces/pagination.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
-import { SurveyTemplateCreateRequestDto, SurveyTemplateUpdateRequestDto } from '../dtos/request/survey-template.create.request.dto';
-import { SurveyCreateRequestDto } from '../dtos/request/survey.create.request.dto';
-import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '../dtos/request/survey-recipient.update.request.dto';
-import { SurveyTemplateResponseDto } from '../dtos/response/survey-template.response.dto';
-import { SurveyResponseDto } from '../dtos/response/survey.response.dto';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
-import { Survey } from '@generated/prisma-client';
+import { SurveyTemplateCreateRequestDto } from '@modules/survey/dtos/request/survey-template.create.request.dto';
+import { SurveyTemplateUpdateRequestDto } from '@modules/survey/dtos/request/survey-template.update.request.dto';
+import { SurveyCreateRequestDto } from '@modules/survey/dtos/request/survey.create.request.dto';
+import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '@modules/survey/dtos/request/survey-recipient.update.request.dto';
+import { SurveyTemplateResponseDto } from '@modules/survey/dtos/response/survey-template.response.dto';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
+import { ISurveyCreateData, ISurveyWithRecipientData } from '@modules/survey/interfaces/survey.interface';
 
 export interface ISurveyService {
     // Templates (admin)
@@ -34,7 +35,7 @@ export interface ISurveyService {
     createSurvey(
         dto: SurveyCreateRequestDto,
         createdBy: string,
-    ): Promise<IResponseReturn<{ survey: SurveyResponseDto; recipientCount: number }>>;
+    ): Promise<IResponseReturn<ISurveyCreateData>>;
     getSurveyListByAdmin(
         pagination: IPaginationQueryOffsetParams<
             Prisma.SurveySelect,
@@ -68,7 +69,7 @@ export interface ISurveyService {
     getMySurvey(
         surveyId: string,
         userId: string,
-    ): Promise<IResponseReturn<{ survey: SurveyResponseDto; recipient: SurveyRecipientResponseDto }>>;
+    ): Promise<IResponseReturn<ISurveyWithRecipientData>>;
     updatePartial(
         surveyId: string,
         userId: string,

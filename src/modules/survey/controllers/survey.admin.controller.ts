@@ -30,12 +30,14 @@ import {
 } from '@common/response/interfaces/response.interface';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { ActivityLog } from '@modules/activity-log/decorators/activity-log.decorator';
-import { SurveyTemplateResponseDto } from '../dtos/response/survey-template.response.dto';
-import { SurveyResponseDto } from '../dtos/response/survey.response.dto';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
-import { SurveyTemplateCreateRequestDto, SurveyTemplateUpdateRequestDto } from '../dtos/request/survey-template.create.request.dto';
-import { SurveyCreateRequestDto } from '../dtos/request/survey.create.request.dto';
-import { SURVEY_TAG } from '../constants/survey.doc.constant';
+import { SurveyTemplateResponseDto } from '@modules/survey/dtos/response/survey-template.response.dto';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
+import { SurveyTemplateCreateRequestDto } from '@modules/survey/dtos/request/survey-template.create.request.dto';
+import { SurveyTemplateUpdateRequestDto } from '@modules/survey/dtos/request/survey-template.update.request.dto';
+import { SurveyCreateRequestDto } from '@modules/survey/dtos/request/survey.create.request.dto';
+import { SURVEY_TAG } from '@modules/survey/constants/survey.doc.constant';
+import { ISurveyCreateData } from '@modules/survey/interfaces/survey.interface';
 
 @ApiTags(SURVEY_TAG)
 @Controller({
@@ -153,7 +155,7 @@ export class SurveyAdminController {
     async createSurvey(
         @Body() dto: SurveyCreateRequestDto,
         @AuthJwtPayload() { sub }: Record<string, any>
-    ): Promise<IResponseReturn<any>> {
+    ): Promise<IResponseReturn<ISurveyCreateData>> {
         return this.surveyService.createSurvey(dto, sub);
     }
 

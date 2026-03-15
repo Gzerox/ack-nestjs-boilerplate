@@ -1,5 +1,5 @@
 import { IsArray, IsNotEmpty } from 'class-validator';
-import { SurveyAnswer } from '../../interfaces/survey.interface';
+import { SurveyAnswer } from '@modules/survey/interfaces/survey.interface';
 
 export class SurveyRecipientUpdateRequestDto {
     @IsArray()

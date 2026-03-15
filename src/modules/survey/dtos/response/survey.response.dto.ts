@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { SurveySchema } from '@generated/prisma-client';
 
 export class SurveyResponseDto {
@@ -6,6 +7,7 @@ export class SurveyResponseDto {
     title: string;
     description: string | null;
     schemaSnapshot: SurveySchema;
+    @Type(() => Date)
     closesAt: Date;
     isActive: boolean;
     publishedAt: Date;

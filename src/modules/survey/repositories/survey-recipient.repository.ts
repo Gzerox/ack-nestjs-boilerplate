@@ -41,13 +41,8 @@ export class SurveyRecipientRepository {
         id: string,
         surveyId: string
     ): Promise<SurveyRecipient | null> {
-        return this.databaseService.surveyRecipient.findUnique({
-            where: { id },
-        }).then(recipient => {
-            if (recipient && recipient.surveyId === surveyId) {
-                return recipient;
-            }
-            return null;
+        return this.databaseService.surveyRecipient.findFirst({
+            where: { id, surveyId },
         });
     }
 

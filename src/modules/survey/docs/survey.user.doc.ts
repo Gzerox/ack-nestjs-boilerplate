@@ -5,7 +5,7 @@ import {
     DocResponse,
     DocResponsePaging,
 } from '@common/doc/decorators/doc.decorator';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
 
 export function SurveyUserListDoc(): MethodDecorator {
     return applyDecorators(

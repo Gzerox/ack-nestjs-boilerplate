@@ -1,24 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '@common/database/services/database.service';
-import {
-    IPaginationQueryOffsetParams,
-} from '@common/pagination/interfaces/pagination.interface';
+import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { ISurveyService } from '../interfaces/survey.service.interface';
-import { SurveyTemplateRepository } from '../repositories/survey-template.repository';
-import { SurveyRepository } from '../repositories/survey.repository';
-import { SurveyRecipientRepository } from '../repositories/survey-recipient.repository';
-import { SurveyTemplateCreateRequestDto, SurveyTemplateUpdateRequestDto } from '../dtos/request/survey-template.create.request.dto';
-import { SurveyCreateRequestDto } from '../dtos/request/survey.create.request.dto';
-import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '../dtos/request/survey-recipient.update.request.dto';
-import { EnumSurveyStatusCodeError } from '../enums/survey.status-code.enum';
-import { EnumSurveyRecipientStatus } from '../enums/survey-recipient.status.enum';
-import { Prisma, SurveyRecipientStatus } from '@generated/prisma-client';
-import { SurveyUtil } from '../utils/survey.util';
-import { SurveyTemplateResponseDto } from '../dtos/response/survey-template.response.dto';
-import { SurveyResponseDto } from '../dtos/response/survey.response.dto';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
+import { ISurveyService } from '@modules/survey/interfaces/survey.service.interface';
+import { ISurveyCreateData, ISurveyWithRecipientData } from '@modules/survey/interfaces/survey.interface';
+import { SurveyTemplateRepository } from '@modules/survey/repositories/survey-template.repository';
+import { SurveyRepository } from '@modules/survey/repositories/survey.repository';
+import { SurveyRecipientRepository } from '@modules/survey/repositories/survey-recipient.repository';
+import { SurveyTemplateCreateRequestDto } from '@modules/survey/dtos/request/survey-template.create.request.dto';
+import { SurveyTemplateUpdateRequestDto } from '@modules/survey/dtos/request/survey-template.update.request.dto';
+import { SurveyCreateRequestDto } from '@modules/survey/dtos/request/survey.create.request.dto';
+import { SurveyRecipientSubmitRequestDto, SurveyRecipientUpdateRequestDto } from '@modules/survey/dtos/request/survey-recipient.update.request.dto';
+import { EnumSurveyStatusCodeError } from '@modules/survey/enums/survey.status-code.enum';
+import { Prisma, Survey, SurveyRecipient, SurveyRecipientStatus } from '@generated/prisma-client';
+import { SurveyUtil } from '@modules/survey/utils/survey.util';
+import { SurveyTemplateResponseDto } from '@modules/survey/dtos/response/survey-template.response.dto';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
+
+type SurveyWithRecipient = { survey: Survey; recipient: SurveyRecipient };
 
 @Injectable()
 export class SurveyService implements ISurveyService {
@@ -117,7 +117,7 @@ export class SurveyService implements ISurveyService {
     async createSurvey(
         dto: SurveyCreateRequestDto,
         createdBy: string
-    ): Promise<IResponseReturn<{ survey: SurveyResponseDto; recipientCount: number }>> {
+    ): Promise<IResponseReturn<ISurveyCreateData>> {
         const survey = await this.databaseService.$transaction(async (tx) => {
             const createdSurvey = await tx.survey.create({
                 data: {
@@ -240,10 +240,10 @@ export class SurveyService implements ISurveyService {
             Prisma.SurveyRecipientWhereInput
         >
     ): Promise<IResponsePagingReturn<SurveyRecipientResponseDto>> {
-        // Merge where conditions to exclude submitted surveys
+        // Intentionally overrides any caller-supplied status filter to exclude submitted surveys
         const mergedWhere = {
             ...pagination.where,
-            status: { not: EnumSurveyRecipientStatus.submitted },
+            status: { not: SurveyRecipientStatus.submitted },
         };
 
         const params = { ...pagination, where: mergedWhere };
@@ -257,26 +257,8 @@ export class SurveyService implements ISurveyService {
     async getMySurvey(
         surveyId: string,
         userId: string
-    ): Promise<IResponseReturn<{ survey: SurveyResponseDto; recipient: SurveyRecipientResponseDto }>> {
-        const survey = await this.surveyRepository.findById(surveyId);
-        if (!survey) {
-            throw new NotFoundException({
-                statusCode: EnumSurveyStatusCodeError.surveyNotFound,
-                message: 'survey.error.surveyNotFound',
-            });
-        }
-
-        const recipient = await this.surveyRecipientRepository.findBySurveyAndUser(
-            surveyId,
-            userId
-        );
-        if (!recipient) {
-            throw new NotFoundException({
-                statusCode: EnumSurveyStatusCodeError.recipientNotFound,
-                message: 'survey.error.recipientNotFound',
-            });
-        }
-
+    ): Promise<IResponseReturn<ISurveyWithRecipientData>> {
+        const { survey, recipient } = await this.findSurveyAndRecipient(surveyId, userId);
         return {
             data: {
                 survey: this.surveyUtil.mapSurveyOne(survey),
@@ -290,11 +272,10 @@ export class SurveyService implements ISurveyService {
         userId: string,
         dto: SurveyRecipientUpdateRequestDto
     ): Promise<IResponseReturn<SurveyRecipientResponseDto>> {
-        const result = await this.getMySurvey(surveyId, userId);
-        const { survey, recipient } = result.data;
+        const { survey, recipient } = await this.findSurveyAndRecipient(surveyId, userId);
 
         // Guard: cannot save if already submitted
-        if (recipient.status === EnumSurveyRecipientStatus.submitted) {
+        if (recipient.status === SurveyRecipientStatus.submitted) {
             throw new BadRequestException({
                 statusCode: EnumSurveyStatusCodeError.recipientAlreadySubmitted,
                 message: 'survey.error.recipientAlreadySubmitted',
@@ -309,11 +290,7 @@ export class SurveyService implements ISurveyService {
             });
         }
 
-        // Transition status: notStarted -> inProgress
-        const newStatus =
-            recipient.status === EnumSurveyRecipientStatus.notStarted
-                ? EnumSurveyRecipientStatus.inProgress
-                : recipient.status;
+        const newStatus = SurveyRecipientStatus.inProgress;
 
         const updated = await this.surveyRecipientRepository.updateAnswers(
             recipient.id,
@@ -329,11 +306,10 @@ export class SurveyService implements ISurveyService {
         userId: string,
         dto: SurveyRecipientSubmitRequestDto
     ): Promise<IResponseReturn<SurveyRecipientResponseDto>> {
-        const result = await this.getMySurvey(surveyId, userId);
-        const { survey, recipient } = result.data;
+        const { survey, recipient } = await this.findSurveyAndRecipient(surveyId, userId);
 
         // Guard: cannot resubmit
-        if (recipient.status === EnumSurveyRecipientStatus.submitted) {
+        if (recipient.status === SurveyRecipientStatus.submitted) {
             throw new BadRequestException({
                 statusCode: EnumSurveyStatusCodeError.recipientAlreadySubmitted,
                 message: 'survey.error.recipientAlreadySubmitted',
@@ -359,5 +335,29 @@ export class SurveyService implements ISurveyService {
         );
 
         return { data: this.surveyUtil.mapRecipientOne(updated) };
+    }
+
+    // Private helper: fetches raw Prisma entities to avoid consuming response-envelope methods internally
+    private async findSurveyAndRecipient(
+        surveyId: string,
+        userId: string
+    ): Promise<SurveyWithRecipient> {
+        const survey = await this.surveyRepository.findById(surveyId);
+        if (!survey) {
+            throw new NotFoundException({
+                statusCode: EnumSurveyStatusCodeError.surveyNotFound,
+                message: 'survey.error.surveyNotFound',
+            });
+        }
+
+        const recipient = await this.surveyRecipientRepository.findBySurveyAndUser(surveyId, userId);
+        if (!recipient) {
+            throw new NotFoundException({
+                statusCode: EnumSurveyStatusCodeError.recipientNotFound,
+                message: 'survey.error.recipientNotFound',
+            });
+        }
+
+        return { survey, recipient };
     }
 }

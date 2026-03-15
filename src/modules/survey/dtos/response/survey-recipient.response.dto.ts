@@ -1,5 +1,5 @@
 import { SurveyRecipientStatus } from '@generated/prisma-client';
-import { SurveyAnswer } from '../../interfaces/survey.interface';
+import { SurveyAnswer } from '@modules/survey/interfaces/survey.interface';
 
 export class SurveyRecipientResponseDto {
     id: string;

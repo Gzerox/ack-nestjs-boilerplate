@@ -1,0 +1,230 @@
+@api_key = local_fyFGb7ywyM37TqDY8nuhAmGW5:qbp7LmCxYUTHFwKvHnxGW1aTyjSNU6ytN21etK89MaP2Dj2KZP
+
+### SignUp
+POST localhost:3000/api/v1/public/auth/sign-up
+Content-Type: application/json
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+{
+  "email" : "admin8@mail.com",
+  "name" : "Gzerox",
+  "country" : "7ea97f85-9fef-420f-8f6b-9bd0c96f187c",
+  "password" : "aaAA@123",
+  "termPolicies": {
+    "marketing": false,
+    "term": true,
+    "privacy": false,
+    "cookies": false
+  }
+}
+
+### GET request to example server
+POST localhost:3000/api/v1/public/user/login/credential
+Content-Type: application/json
+X-Api-Key: local_fyFGb7ywyM37TqDY8nuhAmGW5:qbp7LmCxYUTHFwKvHnxGW1aTyjSNU6ytN21etK89MaP2Dj2KZP
+
+{
+  "email" : "invited-user@example.com",
+  "password" : "aaAA@123",
+  "from": "website"
+}
+> {%
+  client.global.set("jwt_token", response.body.data.tokens.accessToken);
+  client.global.set("refresh_token", response.body.data.tokens.refreshToken);
+%}
+
+
+### Refresh
+POST localhost:3000/api/v1/shared/auth/refresh
+Authorization: Bearer {{refresh_token}}
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+### Get Roles
+GET localhost:3000/api/v1/system/role/list
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: OgXYkQyOtP7Zl5uCbKd8:3kh0hW7pIAH3wW9DwUGrP8Y5RW9Ywv
+
+### Get User Profile
+GET localhost:3000/api/v1/shared/user/profile
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: {{api_key}}
+
+### Get Feature List
+GET localhost:3000/api/v1/admin/setting
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYjg5ZjUwMzktMjhjOC00N2Q4LTlmZGUtZDFiNjJiOTJjODM5IiwibG9naW5EYXRlIjoiMjAyNS0wNi0xM1QxMDoyMToxOC4yOTVaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTgxMDA3OCwiZXhwIjoxNzQ5ODEzNjc4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.Aet5agxJEu3-79AerAJHzRdvLhre1Ujo01lbE6uImN-8KiXV02Hiaw4TpI6R_S0tjwyRz5HNNw9lbWJUkQff_Pp-AWHAINZovEVknFpSiqLWSjQjqsQVmlj7kNPCXTbf_wpoZ_AWVSe8d5yNOSROH0_e0JPzYscImmUjlJvUYnrNMxME
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+### Create Feature
+POST localhost:3000/api/v1/admin/setting
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYmM3OTUyNDUtNjVmNC00MTZmLTlmZjAtMDg1NDdjZjczYmEzIiwibG9naW5EYXRlIjoiMjAyNS0wNi0xMlQxOTo1NzoxOC4zNjZaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTc1ODIzOCwiZXhwIjoxNzQ5NzYxODM4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.AP2bloqYmSUAMY0yRblpVeTBeGj2iAD-SP0NzpqsleztyTS334MNjsCvi3ICgXn6C-WhhwaTRQTV1cwjMu62nBXeAHeZLWxYDleDDY5Gelg4v3rMqZEpaNExPOBD1piAcv1GZErjqXle2G-eZWQRpBSBWZAmktbscn7gSqkqfOsqzGi_
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+{
+  "key": "example.creaftionfffdf",
+
+  "value": { "simple":  "stupid"}
+}
+
+### Update Feature
+PUT localhost:3000/api/v1/admin/setting/example.creaftionfffdf
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYmM3OTUyNDUtNjVmNC00MTZmLTlmZjAtMDg1NDdjZjczYmEzIiwibG9naW5EYXRlIjoiMjAyNS0wNi0xMlQxOTo1NzoxOC4zNjZaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTc1ODIzOCwiZXhwIjoxNzQ5NzYxODM4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.AP2bloqYmSUAMY0yRblpVeTBeGj2iAD-SP0NzpqsleztyTS334MNjsCvi3ICgXn6C-WhhwaTRQTV1cwjMu62nBXeAHeZLWxYDleDDY5Gelg4v3rMqZEpaNExPOBD1piAcv1GZErjqXle2G-eZWQRpBSBWZAmktbscn7gSqkqfOsqzGi_
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+{
+  "description": "test ggdffesc",
+  "value": { "simple":  "stupid"}
+}
+### DELETE Feature
+DELETE localhost:3000/api/v1/admin/setting/example.creaftionfffdf
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYmM3OTUyNDUtNjVmNC00MTZmLTlmZjAtMDg1NDdjZjczYmEzIiwibG9naW5EYXRlIjoiMjAyNS0wNi0xMlQxOTo1NzoxOC4zNjZaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTc1ODIzOCwiZXhwIjoxNzQ5NzYxODM4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.AP2bloqYmSUAMY0yRblpVeTBeGj2iAD-SP0NzpqsleztyTS334MNjsCvi3ICgXn6C-WhhwaTRQTV1cwjMu62nBXeAHeZLWxYDleDDY5Gelg4v3rMqZEpaNExPOBD1piAcv1GZErjqXle2G-eZWQRpBSBWZAmktbscn7gSqkqfOsqzGi_
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+### Reload Cache from db
+POST localhost:3000/api/v1/admin/setting/reload
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYmM3OTUyNDUtNjVmNC00MTZmLTlmZjAtMDg1NDdjZjczYmEzIiwibG9naW5EYXRlIjoiMjAyNS0wNi0xMlQxOTo1NzoxOC4zNjZaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTc1ODIzOCwiZXhwIjoxNzQ5NzYxODM4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.AP2bloqYmSUAMY0yRblpVeTBeGj2iAD-SP0NzpqsleztyTS334MNjsCvi3ICgXn6C-WhhwaTRQTV1cwjMu62nBXeAHeZLWxYDleDDY5Gelg4v3rMqZEpaNExPOBD1piAcv1GZErjqXle2G-eZWQRpBSBWZAmktbscn7gSqkqfOsqzGi_
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+### Test Setting Guard
+GET localhost:3000/api/v1/public/setting/simple
+
+### Test SettingAdvancedGuard
+GET localhost:3000/api/v1/public/setting/advanced
+
+###
+POST localhost:3000/api/v1/admin/role/create
+Authorization: Bearer eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjQ4OTY4M2VkNjZiOGExZDUwMGUwNDUzMjY1NTk3MDZlIn0.eyJ1c2VyIjoiNGNhMDEwM2ItYzY3MC00NjZmLWJlMzAtODYzNmQ0NGFlOWRiIiwidHlwZSI6IkFETUlOIiwicm9sZSI6Ijg5MTUyZjRhLTMzNGItNGZmMS1iNjAzLWExZWU3MDY1OGY0MSIsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJzZXNzaW9uIjoiYmM3OTUyNDUtNjVmNC00MTZmLTlmZjAtMDg1NDdjZjczYmEzIiwibG9naW5EYXRlIjoiMjAyNS0wNi0xMlQxOTo1NzoxOC4zNjZaIiwibG9naW5Gcm9tIjoiQ1JFREVOVElBTCIsImlhdCI6MTc0OTc1ODIzOCwiZXhwIjoxNzQ5NzYxODM4LCJhdWQiOiJOZXN0SnNBQ0siLCJpc3MiOiJodHRwczovL2V4YW1wbGUuaWQiLCJzdWIiOiI0Y2EwMTAzYi1jNjcwLTQ2NmYtYmUzMC04NjM2ZDQ0YWU5ZGIifQ.AP2bloqYmSUAMY0yRblpVeTBeGj2iAD-SP0NzpqsleztyTS334MNjsCvi3ICgXn6C-WhhwaTRQTV1cwjMu62nBXeAHeZLWxYDleDDY5Gelg4v3rMqZEpaNExPOBD1piAcv1GZErjqXle2G-eZWQRpBSBWZAmktbscn7gSqkqfOsqzGi_
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+
+### TERms policy Create
+POST localhost:3000/api/v1/admin/terms-policy
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+{
+  "language": "en",
+  "title": "Terms of use",
+  "description": "Terms of use of the service",
+  "type": "terms",
+  "country": "IF",
+  "content" : "very long markdown or html",
+  "version": 4
+}
+
+### TERms policy Update
+PUT localhost:3000/api/v1/admin/terms-policy/41dcc599-edd1-47dd-b4a2-44abab52bdce
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+Content-Type: application/json
+
+{
+  "title": "Terms of use3",
+  "description": "Terms of use of the service3"
+}
+
+### Accept term
+POST localhost:3000/api/v1/user/term-policy/accept
+Authorization: Bearer {{jwt_token}}
+Content-Type: application/json
+
+{
+  "policy" : "844c89a5-489e-4713-8f51-243d2bf4110f"
+}
+
+### Get public terms for language
+GET localhost:3000/api/v1/public/term-policy/protected
+Authorization: Bearer {{jwt_token}}
+
+### Get public terms for language
+GET localhost:3000/api/v1/public/term-policy/en
+
+### Get public terms for language and type
+GET localhost:3000/api/v1/public/terms-policy/en/fmarketing
+
+### Get Accepted Terms
+GET localhost:3000/api/v1/user/terms-policy/accepted
+Authorization: Bearer {{jwt_token}}
+
+### Get Pending Terms
+GET localhost:3000/api/v1/user/terms-policy/pending
+Authorization: Bearer {{jwt_token}}
+
+### PreSign TermPolicy Update
+POST localhost:3000/api/v1/admin/term-policy/upload-document
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+{
+  "language": "en",
+  "type": "term",
+  "country": "IT",
+  "version": 4,
+  "mime" : "text/html",
+  "size" : 62
+}
+
+### Test Uplaod to Presigned
+PUT https://da-dev-api-assets-xkgy0avgfgdfgdfgdf.s3.eu-central-1.amazonaws.com/term-policy/term_IT_en.html?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIA2S2Y4JSMAQWDBSNB%2F20250627%2Feu-central-1%2Fs3%2Faws4_request&X-Amz-Date=20250627T213020Z&X-Amz-Expires=1800&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEIb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaDGV1LWNlbnRyYWwtMSJIMEYCIQCK6epQQbxWYVfaAJ%2BzxL%2FRbWvAcG4ixIySCLR9udbHGQIhAO8PH%2B7zJKQG5V62GMPiS7Tw32bvQqfCaKp5LMURjjZFKvkCCH8QABoMNzI3NjQ2NDg5NzUyIgzXAi0BTqYW2CeIp%2BYq1gL%2BrBTUlkU6wHhPDBhgXoRqRdqlW6oh%2FOzTukJs8d0ZOB%2B0oyjIgnJxp9T%2Bcow%2F4C0Aac7DTzm2mogTrwQ7wczDtXN2bufohjqltz1XUzlcmPFQTe08tytXqoF3HUONhxOqCUnSkwOAiBUan8CpYfBimNhpXzj33EAqaOGy78ZgJBjbAhoI2mlGfMEnQJyhPXEYm3PYIksWeYhBqGD64zBrOuick9meUD6D6dUHT5mSFGBPPyYXe8gz2joEIaOqLB9mXXX5%2FOp52xg5qVCSe35XYR2zy%2FZyrbTecB7XbMjjz8WkCOiP1wpUlOHYKU4eJAg8G6bfieHxYSb1A9IRnqcoTEke9ToxKmm4A%2BavJlYa9SrtFioXOm5JBKWRMYH4cAHm7yjZccAp2x4dbVFlK3shtalj0Xp397J01WqNJN7arBOnt1K1ATWBEYoNtPq6gpB0aijpe1Ew7Jr8wgY6pgFUaqVYzRG6u50Kp9v%2BJRmL44x1HVredfeQf1Q1joodrZxN12k50oD8j5fG0b%2FGoVZp9nGwBqN%2BbUlTr0cP684fOydkChiP6xet0V%2F4bjY%2FIwkdFmznk5%2FRCya1aRGss2IVnD%2BxEaRA7BCiieb%2F6oVBNh2Oolf0Z6SfKZ7D%2F6RVqBvmzTvJKOSD0446BzSE6vVvbbrojGmNf5S25sF9wg6xj%2B2xqYK9&X-Amz-Signature=5532fe6231aeb93ea91801e117a6f6a6856e0a5f161d311fd344566bc1c1dea3&X-Amz-SignedHeaders=content-length%3Bhost&x-amz-checksum-sha256=47DEQpj8HBSa%2B%2FTImW%2B5JCeuQeRkm5NMpJWZG3hSuFU%3D&x-amz-sdk-checksum-algorithm=SHA256&x-id=PutObject
+Content-Type: text/html
+Content-Length: 62
+
+< ./terms.html
+
+### GET HEALTCHECK
+GET localhost:3000/api/system/health/instance
+
+### PreSign TermPolicy update
+PUT localhost:3000/api/v1/admin/term-policy/update-document
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+X-Api-Key: v8VB0yY887lMpTA2VJMV:zeZbtGTugBTn3Qd5UXtSZBwt7gn3bg
+
+{
+  "title" : "Terms and condition",
+  "description": "Terms and condition + usage of service",
+  "language": "en",
+  "type": "term",
+  "country": "IT",
+  "version": 4,
+  "key" : "term-policy/term_IT_en.html",
+  "size" : 62
+}
+
+
+### Get tenants list
+GET localhost:3000/api/v1/admin/tenants
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+
+### Get tenant
+GET localhost:3000/api/v1/admin/tenants/698b7776aab5ce923d302d69
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+
+
+### Assume Tenant Access
+POST localhost:3000/api/v1/admin/tenants/698b7776aab5ce923d302d69/assume-access
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+
+{
+  "durationInHours": 4,
+  "reason": "testing"
+}
+
+### Revoke Tenant Access
+DELETE localhost:3000/api/v1/admin/tenants/698b7776aab5ce923d302d69/revoke-access
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+
+### Test Tenant Access
+GET localhost:3000/api/v1/shared/tenants/current
+Content-Type: application/json
+Authorization: Bearer {{jwt_token}}
+X-Tenant-Id: 698b7776aab5ce923d302d69

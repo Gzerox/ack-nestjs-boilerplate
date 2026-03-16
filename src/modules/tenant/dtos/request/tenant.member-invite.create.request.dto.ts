@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsMongoId, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { EnumTenantMemberRole } from '@generated/prisma-client';
+import { IsEnum, IsNotEmpty, MaxLength } from 'class-validator';
 import { IsCustomEmail } from '@common/request/validations/request.custom-email.validation';
 import { Transform } from 'class-transformer';
 
@@ -16,11 +17,10 @@ export class TenantMemberInviteCreateRequestDto {
 
     @ApiProperty({
         required: true,
-        description: 'Role id for the member',
-        example: '65f3d2e44b9a7e1bd2c9a8f1',
+        description: 'Tenant role for the member',
+        enum: EnumTenantMemberRole,
     })
-    @IsString()
     @IsNotEmpty()
-    @IsMongoId()
-    roleId: string;
+    @IsEnum(EnumTenantMemberRole)
+    role: EnumTenantMemberRole;
 }

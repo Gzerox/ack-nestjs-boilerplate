@@ -35,9 +35,9 @@ import { TenantMemberCreateRequestDto } from '@modules/tenant/dtos/request/tenan
 import { TenantMemberInviteCreateRequestDto } from '@modules/tenant/dtos/request/tenant.member-invite.create.request.dto';
 import { TenantMemberUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.member.update.request.dto';
 import { TenantUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.update.request.dto';
+import { TenantMemberRoleListResponseDto } from '@modules/tenant/dtos/response/tenant.member-role-list.response.dto';
 import { TenantMemberResponseDto } from '@modules/tenant/dtos/response/tenant.member.response.dto';
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
-import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import {
     TenantSharedCreateMemberDoc,
     TenantSharedCreateMemberInviteDoc,
@@ -140,7 +140,9 @@ export class TenantSharedController {
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
     @Get('/current/members/roles')
-    async listMemberRoles(): Promise<IResponseReturn<RoleListResponseDto[]>> {
+    async listMemberRoles(): Promise<
+        IResponseReturn<TenantMemberRoleListResponseDto[]>
+    > {
         return this.tenantMemberService.getMemberRoles();
     }
 

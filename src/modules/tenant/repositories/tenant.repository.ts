@@ -18,8 +18,8 @@ import {
 } from '@modules/tenant/interfaces/tenant.interface';
 import { Injectable } from '@nestjs/common';
 import {
+    EnumTenantMemberRole,
     EnumTenantMemberStatus,
-    EnumTenantStatus,
     Tenant,
     TenantMember,
 } from '@generated/prisma-client';
@@ -61,9 +61,15 @@ export class TenantRepository {
         return this.databaseService.tenant.findFirst({
             where: {
                 id,
-                status: EnumTenantStatus.active,
                 deletedAt: null,
             },
+        });
+    }
+
+    async findOneBySlug(slug: string): Promise<Pick<Tenant, 'id'> | null> {
+        return this.databaseService.tenant.findFirst({
+            where: { slug },
+            select: { id: true },
         });
     }
 
@@ -89,7 +95,6 @@ export class TenantRepository {
         return this.databaseService.tenant.update({
             where: { id, deletedAt: null },
             data: {
-                status: EnumTenantStatus.inactive,
                 updatedBy: deletedBy,
                 deletedAt,
                 deletedBy,
@@ -149,9 +154,6 @@ export class TenantRepository {
                     deletedAt: null,
                 },
             },
-            include: {
-                role: true,
-            },
         });
     }
 
@@ -168,7 +170,6 @@ export class TenantRepository {
                 },
             },
             include: {
-                role: true,
                 tenant: true,
             },
         });
@@ -241,9 +242,6 @@ export class TenantRepository {
                     deletedAt: null,
                 },
             },
-            include: {
-                role: true,
-            },
         });
     }
 
@@ -267,12 +265,10 @@ export class TenantRepository {
                 userId,
                 status: EnumTenantMemberStatus.active,
                 tenant: {
-                    status: EnumTenantStatus.active,
                     deletedAt: null,
                 },
             },
             include: {
-                role: true,
                 tenant: true,
             },
         });
@@ -297,15 +293,30 @@ export class TenantRepository {
                     userId,
                     status: EnumTenantMemberStatus.active,
                     tenant: {
-                        status: EnumTenantStatus.active,
                         deletedAt: null,
                     },
                 },
                 include: {
-                    role: true,
                     tenant: true,
                 },
             }
         );
+    }
+
+    async countActiveOwnersByTenant(
+        tenantId: string,
+        excludeMemberId?: string
+    ): Promise<number> {
+        return this.databaseService.tenantMember.count({
+            where: {
+                tenantId,
+                role: EnumTenantMemberRole.owner,
+                status: EnumTenantMemberStatus.active,
+                ...(excludeMemberId ? { id: { not: excludeMemberId } } : {}),
+                tenant: {
+                    deletedAt: null,
+                },
+            },
+        });
     }
 }

@@ -409,16 +409,8 @@ const DocTenantBaseErrors: MethodDecorator[] = [
 ];
 
 const DocTenantForbiddenByDecorator = {
-    tenant: DocOneOf(HttpStatus.FORBIDDEN, {
-        statusCode: EnumTenantStatusCodeError.inactive,
-        messagePath: 'tenant.error.inactive',
-    }),
     member: DocOneOf(
         HttpStatus.FORBIDDEN,
-        {
-            statusCode: EnumTenantStatusCodeError.inactive,
-            messagePath: 'tenant.error.inactive',
-        },
         {
             statusCode: EnumTenantStatusCodeError.memberForbidden,
             messagePath: 'tenant.member.error.forbidden',
@@ -430,10 +422,6 @@ const DocTenantForbiddenByDecorator = {
     ),
     permissionOrRole: DocOneOf(
         HttpStatus.FORBIDDEN,
-        {
-            statusCode: EnumTenantStatusCodeError.inactive,
-            messagePath: 'tenant.error.inactive',
-        },
         {
             statusCode: EnumTenantStatusCodeError.memberForbidden,
             messagePath: 'tenant.member.error.forbidden',
@@ -464,11 +452,7 @@ const DocProjectMemberForbidden = DocOneOf(HttpStatus.FORBIDDEN, {
  * Documents `TenantProtected` requirements and possible failures.
  */
 export function DocTenantProtected(): MethodDecorator {
-    return applyDecorators(
-        DocTenantHeader,
-        ...DocTenantBaseErrors,
-        DocTenantForbiddenByDecorator.tenant
-    );
+    return applyDecorators(DocTenantHeader, ...DocTenantBaseErrors);
 }
 
 /**

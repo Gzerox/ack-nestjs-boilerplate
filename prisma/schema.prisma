@@ -46,7 +46,6 @@ model Role {
   updatedBy String?  @db.ObjectId
 
   users          User[]          @relation("UserRole")
-  tenantMembers  TenantMember[]  @relation("TenantMemberRole")
   projectMembers ProjectMember[] @relation("ProjectMemberRole")
 
   @@unique(fields: [name, scope])
@@ -55,9 +54,10 @@ model Role {
 }
 
 model Tenant {
-  id     String           @id @default(auto()) @map("_id") @db.ObjectId
-  name   String
-  status EnumTenantStatus @default(active)
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  slug        String
 
   // timestamps fields
   createdAt DateTime  @default(now())
@@ -70,7 +70,8 @@ model Tenant {
   members  TenantMember[] @relation("TenantMembers")
   projects Project[]      @relation("TenantProjects")
 
-  @@index(fields: [name, status, createdAt])
+  @@unique(fields: [slug])
+  @@index(fields: [name, createdAt])
   @@index(fields: [createdAt])
   @@map("Tenants")
 }
@@ -79,7 +80,7 @@ model TenantMember {
   id        String                 @id @default(auto()) @map("_id") @db.ObjectId
   tenantId  String                 @db.ObjectId
   userId    String                 @db.ObjectId
-  roleId    String                 @db.ObjectId
+  role      EnumTenantMemberRole
   status    EnumTenantMemberStatus @default(active)
   isJit     Boolean                @default(false)
   expiresAt DateTime?
@@ -94,12 +95,10 @@ model TenantMember {
 
   tenant Tenant? @relation("TenantMembers", fields: [tenantId], references: [id])
   user   User?   @relation("UserTenantMembers", fields: [userId], references: [id])
-  role   Role?   @relation("TenantMemberRole", fields: [roleId], references: [id])
 
   @@unique(fields: [tenantId, userId])
   @@index(fields: [tenantId, status, createdAt])
   @@index(fields: [userId, status, createdAt])
-  @@index(fields: [roleId])
   @@index(fields: [createdAt])
   @@map("TenantMembers")
 }
@@ -745,15 +744,16 @@ enum EnumApiKeyType {
   default
 }
 
-enum EnumTenantStatus {
-  active
-  inactive
-}
-
 enum EnumTenantMemberStatus {
   pending
   active
   inactive
+}
+
+enum EnumTenantMemberRole {
+  owner
+  admin
+  member
 }
 
 enum EnumProjectStatus {

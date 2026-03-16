@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { EnumTenantStatus } from '@generated/prisma-client';
+import { Transform } from 'class-transformer';
 import {
-    IsEnum,
     IsNotEmpty,
     IsOptional,
     IsString,
@@ -15,6 +14,7 @@ export class TenantUpdateRequestDto {
         example: 'Acme Travel Group',
     })
     @IsOptional()
+    @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
     @IsString()
     @IsNotEmpty()
     @MaxLength(100)
@@ -22,10 +22,13 @@ export class TenantUpdateRequestDto {
 
     @ApiProperty({
         required: false,
-        description: 'Tenant status',
-        enum: EnumTenantStatus,
+        description: 'Tenant description',
+        example: 'Primary workspace for the Acme travel team',
     })
     @IsOptional()
-    @IsEnum(EnumTenantStatus)
-    status?: EnumTenantStatus;
+    @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(300)
+    description?: string;
 }

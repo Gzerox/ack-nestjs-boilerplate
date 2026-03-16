@@ -4,13 +4,27 @@ import { HelperService } from '@common/helper/services/helper.service';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { Prisma } from '@generated/prisma-client';
 import {
+    EnumTenantMemberRole,
+    EnumTenantMemberStatus,
+} from '@generated/prisma-client';
+import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { EnumAuthStatusCodeError } from '@modules/auth/enums/auth.status-code.enum';
+import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+} from '@modules/policy/enums/policy.enum';
 import { PolicyService } from '@modules/policy/services/policy.service';
 import { RoleAbilityRequestDto } from '@modules/role/dtos/request/role.ability.request.dto';
+import {
+    TenantMemberRoleAdmin,
+    TenantMemberRoleMember,
+    TenantMemberRoleOwner,
+} from '@modules/tenant/constants/tenant.constant';
 import { TenantCreateRequestDto } from '@modules/tenant/dtos/request/tenant.create.request.dto';
+import { TenantUpdateSlugRequestDto } from '@modules/tenant/dtos/request/tenant.update-slug.request.dto';
 import { TenantUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.update.request.dto';
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
 import { EnumTenantStatusCodeError } from '@modules/tenant/enums/tenant.status-code.enum';
@@ -30,7 +44,6 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { EnumRoleScope, EnumTenantStatus } from '@generated/prisma-client';
 
 @Injectable()
 export class TenantService implements ITenantService {
@@ -68,13 +81,6 @@ export class TenantService implements ITenantService {
             throw new NotFoundException({
                 statusCode: EnumTenantStatusCodeError.notFound,
                 message: 'tenant.error.notFound',
-            });
-        }
-
-        if (tenant.status !== EnumTenantStatus.active) {
-            throw new ForbiddenException({
-                statusCode: EnumTenantStatusCodeError.inactive,
-                message: 'tenant.error.inactive',
             });
         }
 
@@ -127,13 +133,6 @@ export class TenantService implements ITenantService {
             });
         }
 
-        if (tenantMember.role.scope !== EnumRoleScope.tenant) {
-            throw new ForbiddenException({
-                statusCode: EnumTenantStatusCodeError.roleScopeMismatch,
-                message: 'tenant.role.error.scopeMismatch',
-            });
-        }
-
         return tenantMember;
     }
 
@@ -156,7 +155,7 @@ export class TenantService implements ITenantService {
             });
         }
 
-        if (!requiredRoleNames.includes(tenantMember.role.name)) {
+        if (!requiredRoleNames.includes(tenantMember.role)) {
             throw new ForbiddenException({
                 statusCode: EnumTenantStatusCodeError.memberForbidden,
                 message: 'tenant.role.error.forbidden',
@@ -177,8 +176,8 @@ export class TenantService implements ITenantService {
             });
         }
 
-        const abilities = (request.__tenantMember?.role?.abilities ??
-            []) as RoleAbilityRequestDto[];
+        const role = request.__tenantMember?.role;
+        const abilities = role ? this.getRoleAbilities(role) : [];
 
         const abilityRule = this.policyService.createAbility(abilities);
         const isAllowed = this.policyService.hasAbilities(
@@ -229,9 +228,21 @@ export class TenantService implements ITenantService {
         dto: TenantCreateRequestDto,
         createdBy: string
     ): Promise<IResponseReturn<DatabaseIdDto>> {
+        const name = dto.name.trim();
+        const slug = await this.generateUniqueSlug(name);
         const tenant = await this.tenantRepository.create({
-            name: dto.name.trim(),
-            status: EnumTenantStatus.active,
+            name,
+            description: dto.description?.trim(),
+            slug,
+            createdBy,
+            updatedBy: createdBy,
+        });
+
+        await this.tenantRepository.createMember({
+            tenantId: tenant.id,
+            userId: createdBy,
+            role: EnumTenantMemberRole.owner,
+            status: EnumTenantMemberStatus.active,
             createdBy,
             updatedBy: createdBy,
         });
@@ -250,23 +261,46 @@ export class TenantService implements ITenantService {
     ): Promise<IResponseReturn<void>> {
         const data: {
             name?: string;
-            status?: EnumTenantStatus;
+            description?: string;
             updatedBy: string;
         } = { updatedBy };
 
         if (dto.name !== undefined) {
-            data.name = dto.name.trim();
+            const name = dto.name.trim();
+            if (name) {
+                data.name = name;
+            }
         }
 
-        if (dto.status !== undefined) {
-            data.status = dto.status;
+        if (dto.description !== undefined) {
+            data.description = dto.description.trim();
         }
 
-        if (dto.name === undefined && dto.status === undefined) {
+        if (dto.name === undefined && dto.description === undefined) {
             return {};
         }
 
         await this.tenantRepository.update(id, data);
+
+        return {};
+    }
+
+    async updateSlug(
+        id: string,
+        dto: TenantUpdateSlugRequestDto,
+        updatedBy: string
+    ): Promise<IResponseReturn<void>> {
+        const slug = this.normalizeSlug(dto.slug);
+        const slugOwner = await this.tenantRepository.findOneBySlug(slug);
+
+        if (slugOwner && slugOwner.id !== id) {
+            throw new BadRequestException({
+                statusCode: EnumTenantStatusCodeError.slugExists,
+                message: 'tenant.error.slugExists',
+            });
+        }
+
+        await this.tenantRepository.update(id, { slug, updatedBy });
 
         return {};
     }
@@ -284,5 +318,86 @@ export class TenantService implements ITenantService {
         }
 
         return {};
+    }
+
+    private normalizeSlug(value: string): string {
+        return value
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .replace(/-{2,}/g, '-');
+    }
+
+    private async generateUniqueSlug(name: string): Promise<string> {
+        const baseSlug = this.normalizeSlug(name) || 'tenant';
+        let slug = baseSlug;
+        let retry = 0;
+
+        while (await this.tenantRepository.findOneBySlug(slug)) {
+            retry += 1;
+            slug = `${baseSlug}-${this.helperService.randomString(6).toLowerCase()}`;
+
+            if (retry >= 20) {
+                throw new InternalServerErrorException({
+                    statusCode: EnumTenantStatusCodeError.slugGenerationFailed,
+                    message: 'tenant.error.slugGenerationFailed',
+                });
+            }
+        }
+
+        return slug;
+    }
+
+    private getRoleAbilities(role: EnumTenantMemberRole): RoleAbilityRequestDto[] {
+        if (role === TenantMemberRoleOwner || role === TenantMemberRoleAdmin) {
+            return [
+                {
+                    subject: EnumPolicySubject.tenant,
+                    action: [EnumPolicyAction.read, EnumPolicyAction.update],
+                },
+                {
+                    subject: EnumPolicySubject.tenantMember,
+                    action: [
+                        EnumPolicyAction.read,
+                        EnumPolicyAction.create,
+                        EnumPolicyAction.update,
+                        EnumPolicyAction.delete,
+                    ],
+                },
+                {
+                    subject: EnumPolicySubject.project,
+                    action: [
+                        EnumPolicyAction.create,
+                        EnumPolicyAction.read,
+                        EnumPolicyAction.update,
+                        EnumPolicyAction.delete,
+                    ],
+                },
+            ];
+        }
+
+        if (role === TenantMemberRoleMember) {
+            return [
+                {
+                    subject: EnumPolicySubject.tenant,
+                    action: [EnumPolicyAction.read],
+                },
+                {
+                    subject: EnumPolicySubject.tenantMember,
+                    action: [EnumPolicyAction.read],
+                },
+                {
+                    subject: EnumPolicySubject.project,
+                    action: [
+                        EnumPolicyAction.create,
+                        EnumPolicyAction.read,
+                        EnumPolicyAction.update,
+                        EnumPolicyAction.delete,
+                    ],
+                },
+            ];
+        }
+
+        return [];
     }
 }

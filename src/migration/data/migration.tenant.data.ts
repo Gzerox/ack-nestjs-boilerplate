@@ -6,6 +6,7 @@ import {
 
 export interface IMigrationTenantData {
     name: string;
+    description?: string;
     members: {
         userEmail: string;
         tenantRole: string;

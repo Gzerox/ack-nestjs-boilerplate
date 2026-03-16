@@ -5,6 +5,7 @@
     "current": "Current tenant fetched successfully.",
     "create": "Tenant created successfully.",
     "update": "Tenant updated successfully.",
+    "updateSlug": "Tenant slug updated successfully.",
     "delete": "Tenant deleted successfully.",
     "member": {
         "list": "Tenant members retrieved successfully.",
@@ -36,7 +37,8 @@
         "xTenantIdRequired": "Tenant header is required.",
         "xTenantIdInvalid": "Tenant header is invalid.",
         "notFound": "Tenant was not found.",
-        "inactive": "Tenant is inactive.",
+        "slugExists": "Tenant slug already exists.",
+        "slugGenerationFailed": "Failed to generate a unique tenant slug.",
         "loginNoMembership": "Your account does not have access to any agencies. Please contact your administrator.",
         "jitAccessAlreadyActive": "JIT access is already active for this tenant.",
         "jitAccessNotFound": "JIT access was not found for this tenant."

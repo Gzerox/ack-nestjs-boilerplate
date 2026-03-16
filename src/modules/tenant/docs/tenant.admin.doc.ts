@@ -11,6 +11,7 @@ import { DatabaseIdDto } from '@common/database/dtos/database.id.dto';
 import { TenantDocParamsId } from '@modules/tenant/constants/tenant.doc.constant';
 import { TenantCreateRequestDto } from '@modules/tenant/dtos/request/tenant.create.request.dto';
 import { TenantJitAccessRequestDto } from '@modules/tenant/dtos/request/tenant.jit-access.request.dto';
+import { TenantUpdateSlugRequestDto } from '@modules/tenant/dtos/request/tenant.update-slug.request.dto';
 import { TenantUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.update.request.dto';
 import { TenantJitAccessResponseDto } from '@modules/tenant/dtos/response/tenant.jit-access.response.dto';
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
@@ -86,6 +87,25 @@ export function TenantAdminUpdateDoc(): MethodDecorator {
         }),
         DocGuard({ policy: true }),
         DocResponse('tenant.update')
+    );
+}
+
+export function TenantAdminUpdateSlugDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({
+            summary: 'update tenant slug',
+        }),
+        DocAuth({
+            xApiKey: true,
+            jwtAccessToken: true,
+        }),
+        DocRequest({
+            params: TenantDocParamsId,
+            bodyType: EnumDocRequestBodyType.json,
+            dto: TenantUpdateSlugRequestDto,
+        }),
+        DocGuard({ policy: true }),
+        DocResponse('tenant.updateSlug')
     );
 }
 

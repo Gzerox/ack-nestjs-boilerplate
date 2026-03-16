@@ -6,7 +6,7 @@ import { TenantService } from '@modules/tenant/services/tenant.service';
  * Validates the tenant context for the request.
  *
  * This guard checks that the `x-tenant-id` header exists, is a valid database
- * id, and resolves to an active tenant. On success, it stores the resolved
+ * id, and resolves to an existing non-deleted tenant. On success, it stores the resolved
  * tenant in `request.__tenant` for downstream handlers.
  */
 @Injectable()
@@ -18,7 +18,6 @@ export class TenantGuard implements CanActivate {
      *
      * @throws BadRequestException if the tenant id is missing or invalid
      * @throws NotFoundException if the tenant does not exist
-     * @throws ForbiddenException if the tenant is inactive
      */
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context

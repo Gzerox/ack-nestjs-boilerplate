@@ -2,7 +2,6 @@ export enum EnumTenantStatusCodeError {
     xTenantIdRequired = 5190,
     xTenantIdInvalid = 5191,
     notFound = 5192,
-    inactive = 5193,
     roleNotFound = 5194,
     memberNotFound = 5195,
     memberForbidden = 5196,
@@ -15,4 +14,6 @@ export enum EnumTenantStatusCodeError {
     jitAccessExpired = 5203,
     jitAccessAlreadyActive = 5204,
     jitAccessNotFound = 5205,
+    slugExists = 5206,
+    slugGenerationFailed = 5207,
 }

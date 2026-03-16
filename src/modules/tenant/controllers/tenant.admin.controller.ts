@@ -25,6 +25,7 @@ import {
 } from '@modules/policy/enums/policy.enum';
 import { TenantCreateRequestDto } from '@modules/tenant/dtos/request/tenant.create.request.dto';
 import { TenantJitAccessRequestDto } from '@modules/tenant/dtos/request/tenant.jit-access.request.dto';
+import { TenantUpdateSlugRequestDto } from '@modules/tenant/dtos/request/tenant.update-slug.request.dto';
 import { TenantUpdateRequestDto } from '@modules/tenant/dtos/request/tenant.update.request.dto';
 import { TenantJitAccessResponseDto } from '@modules/tenant/dtos/response/tenant.jit-access.response.dto';
 import { TenantResponseDto } from '@modules/tenant/dtos/response/tenant.response.dto';
@@ -35,6 +36,7 @@ import {
     TenantAdminGetDoc,
     TenantAdminListDoc,
     TenantAdminRevokeAccessDoc,
+    TenantAdminUpdateSlugDoc,
     TenantAdminUpdateDoc,
 } from '@modules/tenant/docs/tenant.admin.doc';
 import { TenantMemberService } from '@modules/tenant/services/tenant-member.service';
@@ -134,6 +136,24 @@ export class TenantAdminController {
         @AuthJwtPayload('userId') updatedBy: string
     ): Promise<IResponseReturn<void>> {
         return this.tenantService.update(tenantId, body, updatedBy);
+    }
+
+    @TenantAdminUpdateSlugDoc()
+    @Response('tenant.updateSlug')
+    @PolicyAbilityProtected({
+        subject: EnumPolicySubject.tenant,
+        action: [EnumPolicyAction.update],
+    })
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @Patch('/:tenantId/slug')
+    async updateSlug(
+        @Param('tenantId', RequestRequiredPipe) tenantId: string,
+        @Body() body: TenantUpdateSlugRequestDto,
+        @AuthJwtPayload('userId') updatedBy: string
+    ): Promise<IResponseReturn<void>> {
+        return this.tenantService.updateSlug(tenantId, body, updatedBy);
     }
 
     @TenantAdminDeleteDoc()

@@ -1,20 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Survey, SurveyRecipient, SurveyTemplate } from '@generated/prisma-client';
+import { Survey, SurveyAnswer, SurveyRecipient } from '@generated/prisma-client';
 import { plainToInstance } from 'class-transformer';
-import { SurveyTemplateResponseDto } from '../dtos/response/survey-template.response.dto';
-import { SurveyResponseDto } from '../dtos/response/survey.response.dto';
-import { SurveyRecipientResponseDto } from '../dtos/response/survey-recipient.response.dto';
+import { SurveyResponseDto } from '@modules/survey/dtos/response/survey.response.dto';
+import { SurveyUserResponseDto } from '@modules/survey/dtos/response/survey-user.response.dto';
+import { SurveyRecipientResponseDto } from '@modules/survey/dtos/response/survey-recipient.response.dto';
 
 @Injectable()
 export class SurveyUtil {
-    mapTemplateOne(template: SurveyTemplate): SurveyTemplateResponseDto {
-        return plainToInstance(SurveyTemplateResponseDto, template);
-    }
-
-    mapTemplateList(templates: SurveyTemplate[]): SurveyTemplateResponseDto[] {
-        return plainToInstance(SurveyTemplateResponseDto, templates);
-    }
-
     mapSurveyOne(
         survey: Survey & { _count?: { recipients: number } }
     ): SurveyResponseDto {
@@ -27,11 +19,19 @@ export class SurveyUtil {
         return plainToInstance(SurveyResponseDto, surveys);
     }
 
-    mapRecipientOne(recipient: SurveyRecipient): SurveyRecipientResponseDto {
+    mapSurveyUser(survey: Survey): SurveyUserResponseDto {
+        return plainToInstance(SurveyUserResponseDto, survey);
+    }
+
+    mapRecipientOne(
+        recipient: SurveyRecipient & { answers?: SurveyAnswer[] }
+    ): SurveyRecipientResponseDto {
         return plainToInstance(SurveyRecipientResponseDto, recipient);
     }
 
-    mapRecipientList(recipients: SurveyRecipient[]): SurveyRecipientResponseDto[] {
+    mapRecipientList(
+        recipients: (SurveyRecipient & { answers?: SurveyAnswer[] })[]
+    ): SurveyRecipientResponseDto[] {
         return plainToInstance(SurveyRecipientResponseDto, recipients);
     }
 }

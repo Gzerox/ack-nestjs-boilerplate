@@ -1,17 +1,15 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { EnumSurveyStatus } from '@generated/prisma-client';
-import { DatabaseDto } from '@common/database/dtos/database.dto';
-import { SurveySchemaDto } from '@modules/survey/dtos/response/survey-schema.dto';
 
-export class SurveyResponseDto extends DatabaseDto {
+export class SurveyUserResponseDto {
     @ApiProperty({
-        description: 'User ID of the survey creator',
+        description: 'Survey identifier',
         example: faker.database.mongodbObjectId(),
         required: true,
     })
-    createdBy: string;
+    id: string;
 
     @ApiProperty({
         description: 'Survey title',
@@ -29,20 +27,13 @@ export class SurveyResponseDto extends DatabaseDto {
     description: string | null;
 
     @ApiProperty({
-        description: 'Survey schema snapshot at time of publishing',
-        type: SurveySchemaDto,
-        required: true,
-    })
-    @Type(() => SurveySchemaDto)
-    schemaSnapshot: SurveySchemaDto;
-
-    @ApiProperty({
         description: 'Date the survey closes and stops accepting responses',
         example: faker.date.future().toISOString(),
-        required: true,
+        required: false,
+        nullable: true,
     })
     @Type(() => Date)
-    closesAt: Date;
+    closesAt: Date | null;
 
     @ApiProperty({
         description: 'Current survey status',
@@ -60,12 +51,4 @@ export class SurveyResponseDto extends DatabaseDto {
     })
     @Type(() => Date)
     publishedAt: Date | null;
-
-    @ApiProperty({
-        description: 'Total number of recipients assigned to this survey',
-        example: 12,
-        required: false,
-    })
-    @Transform(({ value }) => value?.recipients ?? undefined)
-    recipientCount?: number;
 }

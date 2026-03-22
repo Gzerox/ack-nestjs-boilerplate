@@ -1,13 +1,14 @@
 import {
     IsArray,
     IsDate,
+    IsMongoId,
     IsNotEmpty,
-    IsObject,
     IsOptional,
     IsString,
+    ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SurveySchema } from '@generated/prisma-client';
+import { SurveySchemaSectionRequestDto } from '@modules/survey/dtos/request/survey-schema.request.dto';
 
 export class SurveyCreateRequestDto {
     @IsString()
@@ -18,25 +19,27 @@ export class SurveyCreateRequestDto {
     @IsOptional()
     description?: string;
 
-    @IsObject()
-    @IsNotEmpty()
-    schemaSnapshot: SurveySchema;
-
     @IsDate()
     @Type(() => Date)
     @IsNotEmpty()
     closesAt: Date;
 
     @IsArray()
-    @IsString({ each: true })
+    @ValidateNested({ each: true })
+    @Type(() => SurveySchemaSectionRequestDto)
     @IsNotEmpty()
-    recipientUserIds: string[];
+    sections: SurveySchemaSectionRequestDto[];
 
-    @IsString()
-    @IsOptional()
-    sourceType?: string;
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => SurveyRecipientCreateDto)
+    @IsNotEmpty()
+    recipients: SurveyRecipientCreateDto[];
+}
 
+class SurveyRecipientCreateDto {
     @IsString()
-    @IsOptional()
-    sourceId?: string;
+    @IsMongoId()
+    @IsNotEmpty()
+    userId: string;
 }

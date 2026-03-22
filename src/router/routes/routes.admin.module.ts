@@ -10,8 +10,6 @@ import { SessionAdminController } from '@modules/session/controllers/session.adm
 import { TermPolicyAdminController } from '@modules/term-policy/controllers/term-policy.admin.controller';
 import { UserAdminController } from '@modules/user/controllers/user.admin.controller';
 import { UserModule } from '@modules/user/user.module';
-import { SurveyAdminController } from '@modules/survey/controllers/survey.admin.controller';
-import { SurveyModule } from '@modules/survey/survey.module';
 import { Module } from '@nestjs/common';
 
 /**
@@ -30,10 +28,9 @@ import { Module } from '@nestjs/common';
         TermPolicyAdminController,
         FeatureFlagAdminController,
         DeviceAdminController,
-        SurveyAdminController,
     ],
     providers: [],
     exports: [],
-    imports: [UserModule, PasswordHistoryModule, DeviceModule, SurveyModule],
+    imports: [UserModule, PasswordHistoryModule, DeviceModule],
 })
 export class RoutesAdminModule {}

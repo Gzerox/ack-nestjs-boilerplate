@@ -467,6 +467,106 @@ model NotificationUserSetting {
   @@map("NotificationUserSettings")
 }
 
+model Survey {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy      String           @db.ObjectId
+  title          String
+  description    String?
+  schemaSnapshot SurveySchema
+  closesAt       DateTime?
+  status         EnumSurveyStatus @default(draft)
+  publishedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  recipients SurveyRecipient[] @relation("SurveyRecipients")
+  sections   SurveySection[]   @relation("SurveySections")
+  questions  SurveyQuestion[]  @relation("SurveyQuestions")
+  answers    SurveyAnswer[]    @relation("SurveyAnswers")
+
+  @@index(fields: [createdBy, status])
+  @@index(fields: [closesAt])
+  @@index(fields: [publishedAt])
+  @@map("Surveys")
+}
+
+model SurveyRecipient {
+  id          String                    @id @default(auto()) @map("_id") @db.ObjectId
+  surveyId    String                    @db.ObjectId
+  userId      String                    @db.ObjectId
+  status      EnumSurveyRecipientStatus @default(notStarted)
+  submittedAt DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  survey  Survey         @relation("SurveyRecipients", fields: [surveyId], references: [id], onDelete: Cascade)
+  answers SurveyAnswer[] @relation("SurveyAnswersByRecipient")
+
+  @@unique(fields: [surveyId, userId])
+  @@index(fields: [userId])
+  @@index(fields: [status])
+  @@index(fields: [submittedAt])
+  @@map("SurveyRecipients")
+}
+
+model SurveySection {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  surveyId  String   @db.ObjectId
+  sectionId String
+  label     String?
+  position  Int
+  createdAt DateTime @default(now())
+
+  survey Survey @relation("SurveySections", fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [surveyId, sectionId])
+  @@index(fields: [surveyId, position])
+  @@map("SurveySections")
+}
+
+model SurveyQuestion {
+  id         String                 @id @default(auto()) @map("_id") @db.ObjectId
+  surveyId   String                 @db.ObjectId
+  sectionId  String
+  questionId String
+  type       EnumSurveyQuestionType
+  label      String
+  required   Boolean
+  position   Int
+  validation Json?
+  options    Json?
+  createdAt  DateTime               @default(now())
+
+  survey Survey @relation("SurveyQuestions", fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [surveyId, questionId])
+  @@index(fields: [surveyId, sectionId, position])
+  @@index(fields: [surveyId, type])
+  @@map("SurveyQuestions")
+}
+
+model SurveyAnswer {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  surveyId     String   @db.ObjectId
+  recipientId  String   @db.ObjectId
+  sectionId    String
+  questionId   String
+  numberValue  Float?
+  optionValue  String?
+  optionValues String[]
+  textValue    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  survey    Survey          @relation("SurveyAnswers", fields: [surveyId], references: [id], onDelete: Cascade)
+  recipient SurveyRecipient @relation("SurveyAnswersByRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [recipientId, questionId])
+  @@index(fields: [surveyId, questionId])
+  @@index(fields: [surveyId, sectionId])
+  @@map("SurveyAnswers")
+}
+
 type UserTermPolicy {
   termsOfService Boolean
   privacy        Boolean
@@ -560,18 +660,16 @@ type SurveySchemaValidation {
 }
 
 type SurveySchemaQuestion {
-  id          String
   name        String
-  type        String // any HTML input type: text, email, number, checkbox, radio, select, etc.
+  type        EnumSurveyQuestionType
   label       String
   required    Boolean
   placeholder String?
-  options     SurveySchemaOption[] // available options for select-type inputs
-  validation  SurveySchemaValidation
+  options     SurveySchemaOption[]
+  validation  SurveySchemaValidation?
 }
 
 type SurveySchemaSection {
-  id        String
   name      String
   label     String
   questions SurveySchemaQuestion[]
@@ -583,12 +681,11 @@ type SurveySchema {
   sections    SurveySchemaSection[]
 }
 
-type SurveyAnswer {
-  questionId String
-  sectionId  String
-  type       String // any HTML input type: text, email, number, date, checkbox, radio, select, etc.
-  value      String? // for single-value inputs (stored as string, can be number/boolean)
-  values     String[] // for multi-value inputs (checkbox, multi-select)
+enum EnumSurveyQuestionType {
+  rating
+  singleSelect
+  multiSelect
+  text
 }
 
 enum EnumUserGender {
@@ -721,11 +818,9 @@ enum EnumActivityLogAction {
   adminUserImport
   adminDeviceRemove
 
-  adminSurveyTemplateCreate
-  adminSurveyTemplateUpdate
-  adminSurveyTemplateDeactivate
-  adminSurveyCreate
-  adminSurveyClosed
+  adminSurveyPublish
+  adminSurveyArchive
+  adminSurveyDelete
 }
 
 enum EnumDevicePlatform {
@@ -760,64 +855,13 @@ enum EnumNotificationPriority {
   critical
 }
 
-enum SurveyRecipientStatus {
+enum EnumSurveyRecipientStatus {
   notStarted
-  inProgress
   submitted
 }
 
-model SurveyTemplate {
-  id        String       @id @default(auto()) @map("_id") @db.ObjectId
-  createdBy String       @db.ObjectId
-  name      String
-  schema    SurveySchema
-  isActive  Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  @@unique(fields: [createdBy, name])
-  @@index(fields: [createdBy])
-  @@map("SurveyTemplates")
-}
-
-model Survey {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  createdBy      String       @db.ObjectId
-  title          String
-  description    String?
-  schemaSnapshot SurveySchema
-  closesAt       DateTime
-  isActive       Boolean      @default(true)
-  publishedAt    DateTime     @default(now())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  recipients SurveyRecipient[]
-
-  @@index(fields: [createdBy])
-  @@index(fields: [closesAt])
-  @@index(fields: [isActive])
-  @@map("Surveys")
-}
-
-model SurveyRecipient {
-  id          String                @id @default(auto()) @map("_id") @db.ObjectId
-  surveyId    String                @db.ObjectId
-  userId      String                @db.ObjectId
-  status      SurveyRecipientStatus @default(notStarted)
-  answers     Json?
-  submittedAt DateTime?
-  sourceType  String?
-  sourceId    String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-
-  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-
-  @@unique(fields: [surveyId, userId])
-  @@index(fields: [userId])
-  @@index(fields: [status])
-  @@index(fields: [submittedAt])
-  @@index(fields: [sourceType, sourceId])
-  @@map("SurveyRecipients")
+enum EnumSurveyStatus {
+  draft
+  published
+  archived
 }

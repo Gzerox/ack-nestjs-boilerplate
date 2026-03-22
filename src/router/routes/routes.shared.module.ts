@@ -8,12 +8,14 @@ import { SessionSharedController } from '@modules/session/controllers/session.sh
 import { TermPolicySharedController } from '@modules/term-policy/controllers/term-policy.shared.controller';
 import { UserSharedController } from '@modules/user/controllers/user.shared.controller';
 import { UserModule } from '@modules/user/user.module';
+import { SurveySharedController } from '@modules/survey/controllers/survey.shared.controller';
+import { SurveyModule } from '@modules/survey/survey.module';
 import { Module } from '@nestjs/common';
 
 /**
  * Shared routes module providing endpoints accessible by multiple user types.
  * Includes controllers for user management, notifications, sessions, password history,
- * activity logs, term policies, and device management shared across different access levels.
+ * activity logs, term policies, device management, and surveys shared across different access levels.
  */
 @Module({
     controllers: [
@@ -24,9 +26,10 @@ import { Module } from '@nestjs/common';
         TermPolicySharedController,
         DeviceSharedController,
         NotificationSharedController,
+        SurveySharedController,
     ],
     providers: [],
     exports: [],
-    imports: [UserModule, PasswordHistoryModule, DeviceModule],
+    imports: [UserModule, PasswordHistoryModule, DeviceModule, SurveyModule],
 })
 export class RoutesSharedModule {}

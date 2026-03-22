@@ -1,32 +1,24 @@
 {
-  "template": {
-    "list": "Get survey template list",
-    "get": "Get survey template detail",
-    "create": "Create survey template",
-    "update": "Update survey template",
-    "deactivate": "Deactivate survey template"
-  },
   "survey": {
     "list": "Get survey list",
     "get": "Get survey detail",
-    "create": "Create survey",
-    "close": "Close survey",
-    "save": "Save survey responses",
-    "submit": "Submit survey"
+    "update": "Survey updated",
+    "publish": "Survey published",
+    "archive": "Survey archived",
+    "delete": "Survey deleted",
+    "save": "Survey progress saved",
+    "submit": "Survey submitted"
   },
   "recipient": {
     "list": "Get survey recipients",
-    "get": "Get survey recipient",
-    "start": "Start survey",
-    "save": "Save survey progress",
-    "submit": "Submit survey responses"
+    "get": "Get survey recipient"
   },
   "error": {
-    "templateNotFound": "Survey template not found",
-    "templateNameExist": "A template with this name already exists",
-    "templateInactive": "Survey template is inactive",
     "surveyNotFound": "Survey not found",
+    "surveyNotPublished": "Survey is not published",
+    "surveyNotDraft": "Survey cannot be edited after publishing",
     "surveyClosed": "Survey is closed or expired",
+    "surveyAlreadyArchived": "Survey is already archived",
     "recipientNotFound": "Survey recipient not found",
     "recipientAlreadySubmitted": "Survey already submitted",
     "recipientAlreadyExists": "User already added as recipient"

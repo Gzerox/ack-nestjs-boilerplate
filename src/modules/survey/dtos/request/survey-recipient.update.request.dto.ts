@@ -1,14 +1,19 @@
-import { IsArray, IsNotEmpty } from 'class-validator';
-import { SurveyAnswer } from '@modules/survey/interfaces/survey.interface';
+import { IsArray, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { SurveyAnswerUpsertDto } from '@modules/survey/dtos/request/survey.update.request.dto';
 
-export class SurveyRecipientUpdateRequestDto {
+export class SurveyUserPatchRequestDto {
     @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => SurveyAnswerUpsertDto)
     @IsNotEmpty()
-    answers: SurveyAnswer[];
+    answers: SurveyAnswerUpsertDto[];
 }
 
-export class SurveyRecipientSubmitRequestDto {
+export class SurveyUserSubmitRequestDto {
     @IsArray()
-    @IsNotEmpty()
-    answers: SurveyAnswer[];
+    @ValidateNested({ each: true })
+    @Type(() => SurveyAnswerUpsertDto)
+    @IsOptional()
+    answers?: SurveyAnswerUpsertDto[];
 }

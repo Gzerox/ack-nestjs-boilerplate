@@ -89,12 +89,8 @@ export class LoggerOptionService {
         return {
             assignResponse: true,
             pinoHttp: {
-                genReqId: request => this.getReqId(request as IRequestApp),
-                customProps: (request, response) =>
-                    this.getCustomProps(
-                        request as IRequestApp,
-                        response as Response
-                    ),
+                genReqId: (request: IRequestApp) => this.getReqId(request),
+                customLogLevel: this.createCustomLogLevel(),
                 formatters: {
                     log: this.createLogFormatter(),
                 },
@@ -191,21 +187,6 @@ export class LoggerOptionService {
     }
 
     /**
-     * Adds stable request correlation fields to the request-scoped logger.
-     */
-    private getCustomProps(
-        request: IRequestApp,
-        _response: Response
-    ): Record<string, unknown> {
-        const correlationId = this.getCorrelationId(request);
-
-        return {
-            requestId: request.id,
-            correlationId,
-        };
-    }
-
-    /**
      * Returns a log formatter function that adds timestamp, service info, and
      * stable request metadata to log entries.
      *
@@ -215,8 +196,11 @@ export class LoggerOptionService {
         obj: Record<string, unknown>
     ) => Record<string, unknown> {
         return (obj: Record<string, unknown>) => {
+            const today = this.helperService.dateCreate();
+
             const {
                 time: _time, // ignored
+                responseTime: _responseTime, // ignored
                 level,
                 req,
                 res,
@@ -225,35 +209,17 @@ export class LoggerOptionService {
                 msg,
                 message,
                 context,
-                requestId,
-                correlationId,
                 userId,
                 ...additionalData
             } = obj;
 
             const severity = this.mapLevelToSeverity(level as number);
-            const request = req
-                ? this.createRequestSerializer()(req as IRequestApp)
-                : undefined;
-            const response = res
-                ? this.createResponseSerializer()(res as Response)
-                : undefined;
 
             return {
                 severity,
                 context: context ?? LoggerAutoContext,
-                timestamp: new Date().toISOString(),
-                level,
+                timestamp: today.valueOf(),
                 msg: this.sanitizeMessage(message ?? msg),
-                ...(requestId && {
-                    requestId,
-                }),
-                ...(correlationId && {
-                    correlationId,
-                }),
-                ...(userId && {
-                    userId,
-                }),
                 service: {
                     name: this.name,
                     environment: this.env,
@@ -268,16 +234,16 @@ export class LoggerOptionService {
                         hostname: this.helperService.getHostname(),
                     }),
                 }),
+                ...(userId && {
+                    userId,
+                }),
                 ...(err && {
-                    err: this.createErrorSerializer()(
-                        (error as Error) ?? (err as Error)
-                    ),
+                    err: err,
                 }),
-                ...(request && {
-                    req: request,
-                }),
-                ...(response && {
-                    res: response,
+                // Keep `res` in formatter output: pino-http adds `res` only in auto request-completed/error logs.
+                // If we drop it here, `res` won't be serialized/logged when `LOGGER_AUTO=true`.
+                ...(res && {
+                    res,
                 }),
             };
         };
@@ -415,16 +381,6 @@ export class LoggerOptionService {
     }
 
     /**
-     * Extracts the user ID from the request object if available.
-     *
-     * @param {IRequestApp} request - The HTTP request object
-     * @returns {string | null} User ID if authenticated, otherwise null
-     */
-    private serializeUser(request: IRequestApp): string | null {
-        return (request.user as unknown as { userId: string })?.userId ?? null;
-    }
-
-    /**
      * Adds process-level diagnostics to each log entry in non-production environments.
      */
     private addDebugInfo(
@@ -462,7 +418,10 @@ export class LoggerOptionService {
                 route: request.route?.path,
                 ip: this.extractClientIP(request),
                 userAgent: this.getHeaderValue(request.headers, 'user-agent'),
-                contentType: this.getHeaderValue(request.headers, 'content-type'),
+                contentType: this.getHeaderValue(
+                    request.headers,
+                    'content-type'
+                ),
                 query: this.sanitizeObject(request.query),
                 params: this.sanitizeObject(request.params),
                 headers: this.pickHeaders(
@@ -551,6 +510,28 @@ export class LoggerOptionService {
     }
 
     /**
+     * Sets automatic request log levels from HTTP result status.
+     * This affects pino-http auto logs such as "request completed" / "request errored".
+     */
+    private createCustomLogLevel(): NonNullable<Options['customLogLevel']> {
+        return (
+            _request: IRequestApp,
+            response: Response,
+            error?: Error
+        ): 'info' | 'warn' | 'error' => {
+            if (error || (response as Response & { err?: unknown }).err) {
+                return 'error';
+            }
+
+            if (response.statusCode >= 500) {
+                return 'error';
+            }
+
+            return response.statusCode >= 400 ? 'warn' : 'info';
+        };
+    }
+
+    /**
      * Maps a numeric log level to a string severity for log output.
      *
      * @param {number} level - Numeric log level
@@ -630,19 +611,4 @@ export class LoggerOptionService {
 
         return Object.keys(result).length > 0 ? result : undefined;
     }
-
-    /**
-     * Returns the correlation ID carried by the request lifecycle.
-     */
-    private getCorrelationId(request: IRequestApp): string {
-        return (
-            this.getHeaderValue(request.headers, 'x-correlation-id') ??
-            (typeof request.correlationId === 'string'
-                ? request.correlationId
-                : undefined) ??
-            this.getHeaderValue(request.headers, 'x-request-id') ??
-            String(request.id)
-        );
-    }
-
 }

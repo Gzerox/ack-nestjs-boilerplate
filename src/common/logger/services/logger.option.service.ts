@@ -6,7 +6,8 @@ import { HelperService } from '@common/helper/services/helper.service';
 import {
     LoggerAutoContext,
     LoggerExcludedRoutes,
-    LoggerRequestIdHeaders,
+    LoggerRequestHeadersAllowList,
+    LoggerResponseHeadersAllowList,
     LoggerSensitiveFields,
     LoggerSensitivePaths,
 } from '@common/logger/constants/logger.constant';
@@ -16,13 +17,14 @@ import { LoggerDebugInfo } from '@common/logger/interfaces/logger.interface';
 import stripAnsi from 'strip-ansi';
 import { EnumLoggerSeverity } from '@common/logger/enums/logger.enum';
 import { Options } from 'pino-http';
+import { v7 as uuid } from 'uuid';
 
 /**
  * Service responsible for configuring logger options for the application.
  *
- * Provides Pino logger configuration with file rotation, sensitive data redaction,
- * custom serializers, and auto-logging controls. All logger options are derived from
- * application configuration and environment variables.
+ * Provides Pino logger configuration with file rotation, safe metadata logging,
+ * request correlation, and auto-logging controls. All logger options are derived
+ * from application configuration and environment variables.
  *
  * @remarks
  * - Follows project conventions for sensitive data redaction and request/response serialization.
@@ -85,8 +87,14 @@ export class LoggerOptionService {
      */
     async createOptions(): Promise<Params> {
         return {
+            assignResponse: true,
             pinoHttp: {
-                genReqId: this.getReqId,
+                genReqId: request => this.getReqId(request as IRequestApp),
+                customProps: (request, response) =>
+                    this.getCustomProps(
+                        request as IRequestApp,
+                        response as Response
+                    ),
                 formatters: {
                     log: this.createLogFormatter(),
                 },
@@ -111,19 +119,16 @@ export class LoggerOptionService {
      * @returns {string} Unique request identifier
      */
     private getReqId(request: IRequestApp): string {
-        const headers = request.headers;
-        if (!headers) {
-            return request.id as string;
+        const requestId = this.getHeaderValue(request.headers, 'x-request-id');
+        if (requestId) {
+            return requestId;
         }
 
-        for (const header of LoggerRequestIdHeaders) {
-            const value = headers[header];
-            if (value) {
-                return value as string;
-            }
+        if (typeof request.id === 'string' && request.id) {
+            return request.id;
         }
 
-        return request.id as string;
+        return uuid();
     }
 
     /**
@@ -186,7 +191,26 @@ export class LoggerOptionService {
     }
 
     /**
-     * Returns a log formatter function that adds timestamp, service info, and debug info to log entries.
+     * Adds stable request correlation fields to the request-scoped logger.
+     */
+    private getCustomProps(
+        request: IRequestApp,
+        _response: Response
+    ): Record<string, unknown> {
+        const correlationId = this.getCorrelationId(request);
+        //FIXME: Looks like executing before any guard
+        const userId = this.serializeUser(request);
+
+        return {
+            requestId: request.id,
+            correlationId,
+            ...(userId ? { userId } : {}),
+        };
+    }
+
+    /**
+     * Returns a log formatter function that adds timestamp, service info, and
+     * stable request metadata to log entries.
      *
      * @returns {(obj: Record<string, unknown>) => Record<string, unknown>} Log formatter function for Pino
      */
@@ -194,13 +218,8 @@ export class LoggerOptionService {
         obj: Record<string, unknown>
     ) => Record<string, unknown> {
         return (obj: Record<string, unknown>) => {
-            const pid = process.pid;
-            const hostname = this.helperService.getHostname();
-            const today = this.helperService.dateCreate();
-
             const {
                 time: _time, // ignored
-                responseTime: _responseTime, // ignored
                 level,
                 req,
                 res,
@@ -209,16 +228,35 @@ export class LoggerOptionService {
                 msg,
                 message,
                 context,
+                requestId,
+                correlationId,
+                userId,
                 ...additionalData
             } = obj;
 
             const severity = this.mapLevelToSeverity(level as number);
+            const request = req
+                ? this.createRequestSerializer()(req as IRequestApp)
+                : undefined;
+            const response = res
+                ? this.createResponseSerializer()(res as Response)
+                : undefined;
 
             return {
                 severity,
                 context: context ?? LoggerAutoContext,
-                timestamp: today.valueOf(),
+                timestamp: new Date().toISOString(),
+                level,
                 msg: this.sanitizeMessage(message ?? msg),
+                ...(requestId && {
+                    requestId,
+                }),
+                ...(correlationId && {
+                    correlationId,
+                }),
+                ...(userId && {
+                    userId,
+                }),
                 service: {
                     name: this.name,
                     environment: this.env,
@@ -229,8 +267,8 @@ export class LoggerOptionService {
                 }),
                 ...(this.env !== EnumAppEnvironment.production && {
                     debug: this.addDebugInfo({
-                        pid,
-                        hostname,
+                        pid: process.pid,
+                        hostname: this.helperService.getHostname(),
                     }),
                 }),
                 ...(err && {
@@ -238,11 +276,11 @@ export class LoggerOptionService {
                         (error as Error) ?? (err as Error)
                     ),
                 }),
-                ...(res && {
-                    res,
+                ...(request && {
+                    req: request,
                 }),
-                ...(req && {
-                    req,
+                ...(response && {
+                    res: response,
                 }),
             };
         };
@@ -390,10 +428,7 @@ export class LoggerOptionService {
     }
 
     /**
-     * Adds debug information (memory usage, uptime, etc.) to log entries in non-production environments.
-     *
-     * @param {Record<string, unknown>} additionalParams - Additional debug parameters to include
-     * @returns {LoggerDebugInfo | undefined} Debug information object, or undefined in production
+     * Adds process-level diagnostics to each log entry in non-production environments.
      */
     private addDebugInfo(
         additionalParams: Record<string, unknown>
@@ -428,18 +463,15 @@ export class LoggerOptionService {
                 url: request.url,
                 path: request.path,
                 route: request.route?.path,
-                userAgent: request.headers['user-agent'],
-                contentType: request.headers?.['content-type'],
-                referer: request.headers.referer,
-                remoteAddress: (request as unknown as { remoteAddress: string })
-                    .remoteAddress,
-                remotePort: (request as unknown as { remotePort: number })
-                    .remotePort,
                 ip: this.extractClientIP(request),
-                user: this.serializeUser(request),
+                userAgent: this.getHeaderValue(request.headers, 'user-agent'),
+                contentType: this.getHeaderValue(request.headers, 'content-type'),
                 query: this.sanitizeObject(request.query),
                 params: this.sanitizeObject(request.params),
-                headers: this.sanitizeObject(request.headers),
+                headers: this.pickHeaders(
+                    request.headers as Record<string, unknown>,
+                    LoggerRequestHeadersAllowList
+                ),
             };
         };
     }
@@ -456,9 +488,10 @@ export class LoggerOptionService {
             return {
                 httpCode: response.statusCode,
                 contentLength: response.getHeader('content-length'),
-                responseTime: response.getHeader('X-Response-Time'),
-                headers: this.sanitizeObject(
-                    response.getHeaders() as Record<string, unknown>
+                responseTime: response.getHeader('x-response-time'),
+                headers: this.pickHeaders(
+                    response.getHeaders() as Record<string, unknown>,
+                    LoggerResponseHeadersAllowList
                 ),
             };
         };
@@ -482,9 +515,15 @@ export class LoggerOptionService {
             };
 
             if (error instanceof HttpException) {
-                const response = error.getResponse() as { _error?: unknown };
+                const response = error.getResponse() as {
+                    _error?: unknown;
+                    message?: string;
+                };
                 return {
                     ...defaultError,
+                    message: response.message
+                        ? this.sanitizeMessage(response.message)
+                        : defaultError.message,
                     stack: response._error
                         ? String(response._error)
                         : defaultError.stack,
@@ -553,4 +592,60 @@ export class LoggerOptionService {
             };
         };
     }
+
+    /**
+     * Reads a normalized string header value.
+     */
+    private getHeaderValue(
+        headers: IRequestApp['headers'] | Record<string, unknown> | undefined,
+        name: string
+    ): string | undefined {
+        const value = headers?.[name];
+        if (typeof value === 'string' && value) {
+            return value;
+        }
+
+        if (Array.isArray(value)) {
+            const [firstValue] = value;
+            return typeof firstValue === 'string' ? firstValue : undefined;
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Picks safe headers and sanitizes their values.
+     */
+    private pickHeaders(
+        headers: Record<string, unknown>,
+        allowList: readonly string[]
+    ): Record<string, unknown> | undefined {
+        const result: Record<string, unknown> = {};
+
+        for (const headerName of allowList) {
+            const value = headers?.[headerName];
+            if (typeof value === 'undefined') {
+                continue;
+            }
+
+            result[headerName] = this.sanitizeObject(value);
+        }
+
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    /**
+     * Returns the correlation ID carried by the request lifecycle.
+     */
+    private getCorrelationId(request: IRequestApp): string {
+        return (
+            this.getHeaderValue(request.headers, 'x-correlation-id') ??
+            (typeof request.correlationId === 'string'
+                ? request.correlationId
+                : undefined) ??
+            this.getHeaderValue(request.headers, 'x-request-id') ??
+            String(request.id)
+        );
+    }
+
 }

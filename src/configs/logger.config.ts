@@ -1,7 +1,8 @@
 import { registerAs } from '@nestjs/config';
 import ms from 'ms';
+import { EnumLoggerLevel } from '@common/logger/enums/logger.enum';
 
-export interface IConfigDebug {
+export interface IConfigLogger {
     enable: boolean;
     level: string;
     intoFile: boolean;
@@ -16,9 +17,9 @@ export interface IConfigDebug {
 
 export default registerAs(
     'logger',
-    (): IConfigDebug => ({
+    (): IConfigLogger => ({
         enable: process.env.LOGGER_ENABLE === 'true',
-        level: process.env.LOGGER_LEVEL ?? 'debug',
+        level: process.env.LOGGER_LEVEL ?? EnumLoggerLevel.debug,
         intoFile: process.env.LOGGER_INTO_FILE === 'true',
         filePath: '/logs',
         auto: process.env.LOGGER_AUTO === 'true',

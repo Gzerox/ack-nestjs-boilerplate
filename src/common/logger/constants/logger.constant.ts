@@ -34,17 +34,38 @@ export const LoggerRequestIdHeaders = [
 ] as const;
 
 /**
+ * Request headers that are safe to include in logs.
+ * All other headers are omitted by default to reduce noise and exposure risk.
+ */
+export const LoggerRequestHeadersAllowList = [
+    'x-request-id',
+    'x-correlation-id',
+    'user-agent',
+    'content-type',
+    'accept-language',
+    'referer',
+] as const;
+
+/**
+ * Response headers that are safe to include in logs.
+ * These headers are operationally useful and should not contain secrets.
+ */
+export const LoggerResponseHeadersAllowList = [
+    'x-request-id',
+    'x-correlation-id',
+    'x-response-time',
+    'content-type',
+    'content-length',
+] as const;
+
+/**
  * List of object paths in request/response objects that may contain sensitive data.
  * Used by the logger redaction system to identify where sensitive fields might be located.
  */
 export const LoggerSensitivePaths = [
-    'req.body',
     'req.headers',
-    'res.body',
     'res.headers',
-    'request.body',
     'request.headers',
-    'response.body',
     'response.headers',
 ];
 
@@ -78,4 +99,5 @@ export const LoggerSensitiveFields: string[] = [
     'longitude',
     'cookie',
     'cookies',
+    'set-cookie',
 ];

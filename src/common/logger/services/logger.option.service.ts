@@ -198,13 +198,10 @@ export class LoggerOptionService {
         _response: Response
     ): Record<string, unknown> {
         const correlationId = this.getCorrelationId(request);
-        //FIXME: Looks like executing before any guard
-        const userId = this.serializeUser(request);
 
         return {
             requestId: request.id,
             correlationId,
-            ...(userId ? { userId } : {}),
         };
     }
 

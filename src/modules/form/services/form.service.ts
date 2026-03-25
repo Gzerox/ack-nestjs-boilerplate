@@ -130,6 +130,8 @@ export class FormService implements IFormService {
             });
         }
 
+        // TODO: Check and return error if is already published
+
         if (form.status !== EnumFormStatus.draft) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formNotDraft,
@@ -160,6 +162,7 @@ export class FormService implements IFormService {
                 }))
             );
 
+        //TODO: pass createdBy, and IRequestLog object
         await this.formRepository.publishWithSchema(
             formId,
             this.helperService.dateCreate(),
@@ -182,6 +185,9 @@ export class FormService implements IFormService {
                 message: 'form.error.formNotFound',
             });
         }
+
+        //TODO: Check if the form already has an assignment for dto.audienceId
+        // If it does, raise error. In assignment model: formId-userId should be unique.
 
         if (form.status !== EnumFormStatus.published) {
             throw new ConflictException({

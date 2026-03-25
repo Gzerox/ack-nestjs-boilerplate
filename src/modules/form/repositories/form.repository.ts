@@ -20,10 +20,14 @@ export class FormRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    //TODO: add { ipAddress, userAgent, geoLocation }: IRequestLog and add activityLog creation
+    // add also `createdBy` input parameter
     async create(data: Prisma.FormCreateInput): Promise<Form> {
         return this.databaseService.form.create({ data });
     }
 
+    //TODO: add { ipAddress, userAgent, geoLocation }: IRequestLog and add activityLog creation
+    // add also `updatedBy` input parameter
     async publishWithSchema(
         formId: string,
         publishedAt: Date,
@@ -84,6 +88,7 @@ export class FormRepository {
         }) as Promise<Form | null>;
     }
 
+    //TODO: add `updatedBy` input parameter
     async update(id: string, data: Prisma.FormUpdateInput): Promise<Form> {
         return this.databaseService.form.update({
             where: { id },

@@ -12,8 +12,6 @@ import { MigrationAwsS3ConfigSeed } from '@migration/seeds/migration.aws-s3-conf
 import { AwsModule } from '@common/aws/aws.module';
 import { MigrationTemplateEmailNotificationSeed } from '@migration/seeds/migration.template-notification.seed';
 import { MigrationTemplateTermPolicySeed } from '@migration/seeds/migration.template-term-policy.seed';
-import { SurveyModule } from '@modules/survey/survey.module';
-
 /**
  * Migration module that provides database seeding and removal functionality.
  *
@@ -30,7 +28,7 @@ import { SurveyModule } from '@modules/survey/survey.module';
  * - **AWS S3 Configuration**: S3 bucket and storage configuration
  */
 @Module({
-    imports: [CommonModule, CountryModule, UserModule, AwsModule, SurveyModule],
+    imports: [CommonModule, CountryModule, UserModule, AwsModule],
     providers: [
         MigrationApiKeySeed,
         MigrationCountrySeed,

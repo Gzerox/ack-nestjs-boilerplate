@@ -8,8 +8,8 @@ import { SessionSharedController } from '@modules/session/controllers/session.sh
 import { TermPolicySharedController } from '@modules/term-policy/controllers/term-policy.shared.controller';
 import { UserSharedController } from '@modules/user/controllers/user.shared.controller';
 import { UserModule } from '@modules/user/user.module';
-import { SurveySharedController } from '@modules/survey/controllers/survey.shared.controller';
-import { SurveyModule } from '@modules/survey/survey.module';
+import { FormSharedController } from '@modules/form/controllers/form.shared.controller';
+import { FormModule } from '@modules/form/form.module';
 import { Module } from '@nestjs/common';
 
 /**
@@ -26,10 +26,10 @@ import { Module } from '@nestjs/common';
         TermPolicySharedController,
         DeviceSharedController,
         NotificationSharedController,
-        SurveySharedController,
+        FormSharedController,
     ],
     providers: [],
     exports: [],
-    imports: [UserModule, PasswordHistoryModule, DeviceModule, SurveyModule],
+    imports: [UserModule, PasswordHistoryModule, DeviceModule, FormModule],
 })
 export class RoutesSharedModule {}

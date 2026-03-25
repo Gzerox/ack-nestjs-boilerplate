@@ -17,7 +17,7 @@ export enum EnumPolicySubject {
     termPolicy = 'termPolicy',
     featureFlag = 'featureFlag',
     device = 'device',
-    surveyTemplate = 'surveyTemplate',
-    survey = 'survey',
-    surveyRecipient = 'surveyRecipient',
+    form = 'form',
+    formAssignment = 'formAssignment',
+    formResponse = 'formResponse',
 }

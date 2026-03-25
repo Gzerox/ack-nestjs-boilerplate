@@ -467,104 +467,126 @@ model NotificationUserSetting {
   @@map("NotificationUserSettings")
 }
 
-model Survey {
-  id             String           @id @default(auto()) @map("_id") @db.ObjectId
-  createdBy      String           @db.ObjectId
+model Form {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy      String         @db.ObjectId
+  kind           EnumFormKind
   title          String
   description    String?
-  schemaSnapshot SurveySchema
+  status         EnumFormStatus @default(draft)
+  schemaSnapshot Json
   closesAt       DateTime?
-  status         EnumSurveyStatus @default(draft)
   publishedAt    DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  recipients SurveyRecipient[] @relation("SurveyRecipients")
-  sections   SurveySection[]   @relation("SurveySections")
-  questions  SurveyQuestion[]  @relation("SurveyQuestions")
-  answers    SurveyAnswer[]    @relation("SurveyAnswers")
+  sections    FormSection[]    @relation("FormSections")
+  questions   FormQuestion[]   @relation("FormQuestions")
+  assignments FormAssignment[] @relation("FormAssignments")
 
   @@index(fields: [createdBy, status])
-  @@index(fields: [closesAt])
+  @@index(fields: [kind, status])
   @@index(fields: [publishedAt])
-  @@map("Surveys")
+  @@index(fields: [closesAt])
+  @@map("Forms")
 }
 
-model SurveyRecipient {
-  id          String                    @id @default(auto()) @map("_id") @db.ObjectId
-  surveyId    String                    @db.ObjectId
-  userId      String                    @db.ObjectId
-  status      EnumSurveyRecipientStatus @default(notStarted)
-  submittedAt DateTime?
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-
-  survey  Survey         @relation("SurveyRecipients", fields: [surveyId], references: [id], onDelete: Cascade)
-  answers SurveyAnswer[] @relation("SurveyAnswersByRecipient")
-
-  @@unique(fields: [surveyId, userId])
-  @@index(fields: [userId])
-  @@index(fields: [status])
-  @@index(fields: [submittedAt])
-  @@map("SurveyRecipients")
-}
-
-model SurveySection {
+model FormSection {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  surveyId  String   @db.ObjectId
+  formId    String   @db.ObjectId
   sectionId String
   label     String?
   position  Int
   createdAt DateTime @default(now())
 
-  survey Survey @relation("SurveySections", fields: [surveyId], references: [id], onDelete: Cascade)
+  form Form @relation("FormSections", fields: [formId], references: [id], onDelete: Cascade)
 
-  @@unique(fields: [surveyId, sectionId])
-  @@index(fields: [surveyId, position])
-  @@map("SurveySections")
+  @@unique(fields: [formId, sectionId])
+  @@index(fields: [formId, position])
+  @@map("FormSections")
 }
 
-model SurveyQuestion {
-  id         String                 @id @default(auto()) @map("_id") @db.ObjectId
-  surveyId   String                 @db.ObjectId
+model FormQuestion {
+  id         String               @id @default(auto()) @map("_id") @db.ObjectId
+  formId     String               @db.ObjectId
   sectionId  String
   questionId String
-  type       EnumSurveyQuestionType
+  type       EnumFormQuestionType
   label      String
   required   Boolean
   position   Int
   validation Json?
   options    Json?
-  createdAt  DateTime               @default(now())
+  createdAt  DateTime             @default(now())
 
-  survey Survey @relation("SurveyQuestions", fields: [surveyId], references: [id], onDelete: Cascade)
+  form Form @relation("FormQuestions", fields: [formId], references: [id], onDelete: Cascade)
 
-  @@unique(fields: [surveyId, questionId])
-  @@index(fields: [surveyId, sectionId, position])
-  @@index(fields: [surveyId, type])
-  @@map("SurveyQuestions")
+  @@unique(fields: [formId, questionId])
+  @@index(fields: [formId, sectionId, position])
+  @@index(fields: [formId, type])
+  @@map("FormQuestions")
 }
 
-model SurveyAnswer {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  surveyId     String   @db.ObjectId
-  recipientId  String   @db.ObjectId
+model FormAssignment {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formId       String    @db.ObjectId
+  audienceType String
+  audienceId   String    @db.ObjectId
+  required     Boolean   @default(true)
+  startsAt     DateTime?
+  closesAt     DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  form      Form           @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
+  responses FormResponse[] @relation("FormResponses")
+
+  @@index(fields: [formId, isActive])
+  @@index(fields: [audienceType, audienceId])
+  @@map("FormAssignments")
+}
+
+model FormResponse {
+  id           String                 @id @default(auto()) @map("_id") @db.ObjectId
+  formId       String                 @db.ObjectId
+  assignmentId String                 @db.ObjectId
+  userId       String                 @db.ObjectId
+  status       EnumFormResponseStatus @default(notStarted)
+  submittedAt  DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  assignment FormAssignment @relation("FormResponses", fields: [assignmentId], references: [id], onDelete: Cascade)
+  answers    FormAnswer[]   @relation("FormAnswers")
+
+  @@unique(fields: [assignmentId, userId])
+  @@index(fields: [formId, status])
+  @@index(fields: [userId])
+  @@map("FormResponses")
+}
+
+model FormAnswer {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formId       String    @db.ObjectId
+  responseId   String    @db.ObjectId
   sectionId    String
   questionId   String
   numberValue  Float?
   optionValue  String?
   optionValues String[]
   textValue    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  booleanValue Boolean?
+  dateValue    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  survey    Survey          @relation("SurveyAnswers", fields: [surveyId], references: [id], onDelete: Cascade)
-  recipient SurveyRecipient @relation("SurveyAnswersByRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  response FormResponse @relation("FormAnswers", fields: [responseId], references: [id], onDelete: Cascade)
 
-  @@unique(fields: [recipientId, questionId])
-  @@index(fields: [surveyId, questionId])
-  @@index(fields: [surveyId, sectionId])
-  @@map("SurveyAnswers")
+  @@unique(fields: [responseId, questionId])
+  @@index(fields: [formId, questionId])
+  @@index(fields: [formId, sectionId])
+  @@map("FormAnswers")
 }
 
 type UserTermPolicy {
@@ -645,47 +667,30 @@ type GeoLocation {
   city      String
 }
 
-type SurveySchemaOption {
-  value String
-  label String
+enum EnumFormKind {
+  survey
+  form
+  poll
 }
 
-type SurveySchemaValidation {
-  // For rating: min and max
-  min       Int?
-  max       Int?
-  // For text: multiline flag and maxLength
-  multiline Boolean?
-  maxLength Int?
+enum EnumFormStatus {
+  draft
+  published
+  archived
 }
 
-type SurveySchemaQuestion {
-  name        String
-  type        EnumSurveyQuestionType
-  label       String
-  required    Boolean
-  placeholder String?
-  options     SurveySchemaOption[]
-  validation  SurveySchemaValidation?
+enum EnumFormResponseStatus {
+  notStarted
+  submitted
 }
 
-type SurveySchemaSection {
-  name      String
-  label     String
-  questions SurveySchemaQuestion[]
-}
-
-type SurveySchema {
-  title       String
-  description String?
-  sections    SurveySchemaSection[]
-}
-
-enum EnumSurveyQuestionType {
-  rating
+enum EnumFormQuestionType {
+  text
+  number
   singleSelect
   multiSelect
-  text
+  boolean
+  date
 }
 
 enum EnumUserGender {
@@ -818,9 +823,10 @@ enum EnumActivityLogAction {
   adminUserImport
   adminDeviceRemove
 
-  adminSurveyPublish
-  adminSurveyArchive
-  adminSurveyDelete
+  adminFormCreate
+  adminFormPublish
+  adminFormArchive
+  adminFormDelete
 }
 
 enum EnumDevicePlatform {
@@ -853,15 +859,4 @@ enum EnumNotificationPriority {
   normal
   high
   critical
-}
-
-enum EnumSurveyRecipientStatus {
-  notStarted
-  submitted
-}
-
-enum EnumSurveyStatus {
-  draft
-  published
-  archived
 }

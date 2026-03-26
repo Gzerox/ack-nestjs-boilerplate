@@ -12,35 +12,82 @@ import { FormResponseResponseDto } from '@modules/form/dtos/response/form-respon
 import { FormWithResponseResponseDto } from '@modules/form/dtos/response/form-with-response.response.dto';
 import { FormMetricsResponseDto } from '@modules/form/dtos/response/form-metrics.response.dto';
 import { FormQuestionSummaryResponseDto } from '@modules/form/dtos/response/form-question-summary.response.dto';
+import { IRequestLog } from '@common/request/interfaces/request.interface';
 
 export interface IFormService {
     // Shared (admin)
-    createDraft(dto: FormCreateDraftRequestDto, createdBy: string): Promise<IResponseReturn<FormCreateDraftResponseDto>>;
-    updateDraft(formId: string, dto: FormUpdateDraftRequestDto, createdBy: string): Promise<IResponseReturn<FormResponseDto>>;
-    publishForm(formId: string, createdBy: string): Promise<IResponseReturn<FormCreateDraftResponseDto>>;
-    createAssignment(formId: string, dto: FormAssignmentCreateRequestDto, createdBy: string): Promise<IResponseReturn<FormAssignmentResponseDto>>;
-    archiveForm(formId: string, createdBy: string): Promise<IResponseReturn<void>>;
-    deleteForm(formId: string, createdBy: string): Promise<IResponseReturn<void>>;
+    createDraft(
+        dto: FormCreateDraftRequestDto,
+        createdBy: string,
+    ): Promise<IResponseReturn<FormCreateDraftResponseDto>>;
+    updateDraft(
+        formId: string,
+        dto: FormUpdateDraftRequestDto,
+        createdBy: string
+    ): Promise<IResponseReturn<FormResponseDto>>;
+    publishForm(
+        formId: string,
+        createdBy: string,
+        requestLog: IRequestLog
+    ): Promise<IResponseReturn<FormCreateDraftResponseDto>>;
+    createAssignment(
+        formId: string,
+        dto: FormAssignmentCreateRequestDto,
+        createdBy: string
+    ): Promise<IResponseReturn<FormAssignmentResponseDto>>;
+    archiveForm(
+        formId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<void>>;
+    deleteForm(
+        formId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<void>>;
     getFormList(
-        pagination: IPaginationQueryOffsetParams<Prisma.FormSelect, Prisma.FormWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.FormSelect,
+            Prisma.FormWhereInput
+        >,
         status?: Record<string, IPaginationIn>,
         kind?: Record<string, IPaginationIn>,
-        createdBy?: string,
+        createdBy?: string
     ): Promise<IResponsePagingReturn<FormResponseDto>>;
-    getForm(formId: string, createdBy?: string): Promise<IResponseReturn<FormResponseDto>>;
-    getFormMetrics(formId: string): Promise<IResponseReturn<FormMetricsResponseDto>>;
+    getForm(
+        formId: string,
+        createdBy?: string
+    ): Promise<IResponseReturn<FormResponseDto>>;
+    getFormMetrics(
+        formId: string
+    ): Promise<IResponseReturn<FormMetricsResponseDto>>;
     getFormResponses(
         formId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.FormResponseSelect, Prisma.FormResponseWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.FormResponseSelect,
+            Prisma.FormResponseWhereInput
+        >
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>>;
-    getQuestionSummary(formId: string, questionId: string): Promise<IResponseReturn<FormQuestionSummaryResponseDto>>;
+    getQuestionSummary(
+        formId: string,
+        questionId: string
+    ): Promise<IResponseReturn<FormQuestionSummaryResponseDto>>;
 
     // User-facing
     getMyFormList(
         userId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.FormResponseSelect, Prisma.FormResponseWhereInput>,
-        status?: Record<string, IPaginationIn>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.FormResponseSelect,
+            Prisma.FormResponseWhereInput
+        >,
+        status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>>;
-    getMyForm(formId: string, userId: string, assignmentId: string): Promise<IResponseReturn<FormWithResponseResponseDto>>;
-    submitForm(formId: string, dto: FormSubmitRequestDto, userId: string): Promise<IResponseReturn<FormResponseResponseDto>>;
+    getMyForm(
+        formId: string,
+        userId: string,
+        assignmentId: string
+    ): Promise<IResponseReturn<FormWithResponseResponseDto>>;
+    submitForm(
+        formId: string,
+        dto: FormSubmitRequestDto,
+        userId: string
+    ): Promise<IResponseReturn<FormResponseResponseDto>>;
 }

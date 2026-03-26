@@ -7,6 +7,7 @@ import {
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
+    EnumActivityLogAction,
     EnumFormResponseStatus,
     EnumFormStatus,
     Form,
@@ -18,27 +19,34 @@ import {
     IFormResponseStatusCount,
     IFormWithCounts,
 } from '@modules/form/interfaces/form.interface';
+import { IRequestLog } from '@common/request/interfaces/request.interface';
+import { DatabaseUtil } from '@common/database/utils/database.util';
 
 @Injectable()
 export class FormRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService
+        private readonly paginationService: PaginationService,
+        private readonly databaseUtil: DatabaseUtil
     ) {}
 
-    //TODO: add { ipAddress, userAgent, geoLocation }: IRequestLog and add activityLog creation
-    // add also `createdBy` input parameter
-    async create(data: Prisma.FormCreateInput): Promise<Form> {
-        return this.databaseService.form.create({ data });
+    async create(
+        data: Prisma.FormCreateInput,
+    ): Promise<Form> {
+        return this.databaseService.$transaction(async tx => {
+            const form = await tx.form.create({ data });
+
+            return form;
+        });
     }
 
-    //TODO: add { ipAddress, userAgent, geoLocation }: IRequestLog and add activityLog creation
-    // add also `updatedBy` input parameter
     async publishWithSchema(
         formId: string,
         publishedAt: Date,
         sections: Omit<Prisma.FormSectionCreateManyInput, 'formId'>[],
-        questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[]
+        questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[],
+        updatedBy: string,
+        requestLog: IRequestLog
     ): Promise<Form> {
         return this.databaseService.$transaction(async tx => {
             // Delete any previously materialized sections/questions (idempotent publish)
@@ -56,10 +64,31 @@ export class FormRepository {
                 });
             }
 
-            return tx.form.update({
+            const form = await tx.form.update({
                 where: { id: formId },
                 data: { status: EnumFormStatus.published, publishedAt },
             });
+
+            // Create activity log
+            await tx.activityLog.create({
+                data: {
+                    userId: updatedBy,
+                    action: EnumActivityLogAction.adminFormPublish,
+                    ipAddress: requestLog.ipAddress,
+                    userAgent: this.databaseUtil.toPlainObject(
+                        requestLog.userAgent
+                    ),
+                    geoLocation: this.databaseUtil.toPlainObject(
+                        requestLog.geoLocation
+                    ),
+                    createdBy: updatedBy,
+                    metadata: {
+                        formId: form.id,
+                    },
+                },
+            });
+
+            return form;
         });
     }
 
@@ -141,8 +170,11 @@ export class FormRepository {
         return formWithCounts;
     }
 
-    //TODO: add `updatedBy` input parameter
-    async update(id: string, data: Prisma.FormUpdateInput): Promise<Form> {
+    async update(
+        id: string,
+        data: Prisma.FormUpdateInput,
+        updatedBy?: string
+    ): Promise<Form> {
         return this.databaseService.form.update({
             where: { id },
             data,

@@ -9,6 +9,12 @@ import {
     Patch,
     Post,
 } from '@nestjs/common';
+import {
+    RequestGeoLocation,
+    RequestIPAddress,
+    RequestUserAgent,
+} from '@common/request/decorators/request.decorator';
+import { GeoLocation, UserAgent } from '@generated/prisma-client';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
@@ -165,9 +171,16 @@ export class FormSharedController {
     async publish(
         @AuthJwtPayload('userId') userId: string,
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
-        idForm: string
+        idForm: string,
+        @RequestIPAddress() ipAddress: string,
+        @RequestUserAgent() userAgent: UserAgent,
+        @RequestGeoLocation() geoLocation: GeoLocation | null
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
-        return this.formService.publishForm(idForm, userId);
+        return this.formService.publishForm(idForm, userId, {
+            ipAddress,
+            userAgent,
+            geoLocation
+        });
     }
 
     @FormSharedCreateAssignmentDoc()

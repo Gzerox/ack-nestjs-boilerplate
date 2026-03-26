@@ -4,6 +4,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
@@ -55,7 +56,7 @@ export class FormService implements IFormService {
 
     async createDraft(
         dto: FormCreateDraftRequestDto,
-        createdBy: string
+        createdBy: string,
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
         const snapshot = this.buildSnapshot(
             dto.title,
@@ -63,15 +64,17 @@ export class FormService implements IFormService {
             dto.sections
         );
 
-        const form = await this.formRepository.create({
-            createdBy,
-            kind: dto.kind,
-            title: dto.title,
-            description: dto.description ?? null,
-            closesAt: dto.closesAt ?? null,
-            status: EnumFormStatus.draft,
-            schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-        });
+        const form = await this.formRepository.create(
+            {
+                createdBy,
+                kind: dto.kind,
+                title: dto.title,
+                description: dto.description ?? null,
+                closesAt: dto.closesAt ?? null,
+                status: EnumFormStatus.draft,
+                schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+            },
+        );
 
         return { data: { id: form.id } };
     }
@@ -129,7 +132,8 @@ export class FormService implements IFormService {
 
     async publishForm(
         formId: string,
-        createdBy: string
+        createdBy: string,
+        requestLog: IRequestLog
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
         const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
@@ -176,12 +180,13 @@ export class FormService implements IFormService {
                 }))
             );
 
-        //TODO: pass createdBy, and IRequestLog object
         await this.formRepository.publishWithSchema(
             formId,
             this.helperService.dateCreate(),
             sections,
-            questions
+            questions,
+            createdBy,
+            requestLog
         );
 
         return { data: { id: formId } };
@@ -432,7 +437,7 @@ export class FormService implements IFormService {
             });
         }
 
-        const form = await this.formRepository.findOneByIdAndCounts(formId);
+        const form = await this.formRepository.findOneById(formId);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,

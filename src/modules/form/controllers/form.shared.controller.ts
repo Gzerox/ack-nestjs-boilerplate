@@ -24,13 +24,11 @@ import {
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import { ActivityLog } from '@modules/activity-log/decorators/activity-log.decorator';
 import {
     EnumActivityLogAction,
     EnumFormKind,
     EnumFormStatus,
-    EnumRoleType,
     Prisma,
 } from '@generated/prisma-client';
 import {
@@ -70,6 +68,7 @@ import {
     FormDefaultAvailableSort,
     FormDefaultStatus,
 } from '@modules/form/constants/form.constant';
+import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
 
 @ApiTags(FORM_TAG_SHARED)
 @Controller({ version: '1', path: '/forms' })
@@ -78,10 +77,10 @@ export class FormSharedController {
 
     @FormSharedCreateDraftDoc()
     @Response('form.createDraft')
-    @RoleProtected(EnumRoleType.admin)
     @ActivityLog(EnumActivityLogAction.adminFormCreate)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.CREATED)
     @Post('/')
@@ -94,9 +93,9 @@ export class FormSharedController {
 
     @FormSharedListDoc()
     @ResponsePaging('form.list')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/')
     async list(
@@ -125,9 +124,9 @@ export class FormSharedController {
 
     @FormSharedGetDoc()
     @Response('form.get')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/:idForm')
     async get(
@@ -140,9 +139,9 @@ export class FormSharedController {
 
     @FormSharedUpdateDraftDoc()
     @Response('form.update')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Patch('/:idForm')
     async updateDraft(
@@ -156,10 +155,10 @@ export class FormSharedController {
 
     @FormSharedPublishDoc()
     @Response('form.publish')
-    @RoleProtected(EnumRoleType.admin)
     @ActivityLog(EnumActivityLogAction.adminFormPublish)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/publish')
@@ -173,9 +172,9 @@ export class FormSharedController {
 
     @FormSharedCreateAssignmentDoc()
     @Response('form.assignment.create')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.CREATED)
     @Post('/:idForm/assignments')
@@ -190,10 +189,10 @@ export class FormSharedController {
 
     @FormSharedArchiveDoc()
     @Response('form.archive')
-    @RoleProtected(EnumRoleType.admin)
     @ActivityLog(EnumActivityLogAction.adminFormArchive)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/archive')
@@ -207,10 +206,10 @@ export class FormSharedController {
 
     @FormSharedDeleteDoc()
     @Response('form.delete')
-    @RoleProtected(EnumRoleType.admin)
     @ActivityLog(EnumActivityLogAction.adminFormDelete)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.OK)
     @Delete('/:idForm')
@@ -224,9 +223,9 @@ export class FormSharedController {
 
     @FormSharedMetricsDoc()
     @Response('form.metrics')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/:idForm/metrics')
     async metrics(
@@ -238,9 +237,9 @@ export class FormSharedController {
 
     @FormSharedResponsesDoc()
     @ResponsePaging('form.response.list')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/:idForm/responses')
     async listResponses(
@@ -257,9 +256,9 @@ export class FormSharedController {
 
     @FormSharedQuestionSummaryDoc()
     @Response('form.question.summary')
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/:idForm/questions/:questionId/summary')
     async questionSummary(

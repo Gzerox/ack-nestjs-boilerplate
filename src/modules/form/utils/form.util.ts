@@ -4,7 +4,6 @@ import {
     Form,
     FormAnswer,
     FormAssignment,
-    FormResponse,
 } from '@generated/prisma-client';
 import { plainToInstance } from 'class-transformer';
 import { FormResponseDto } from '@modules/form/dtos/response/form.response.dto';
@@ -15,18 +14,18 @@ import {
     FormQuestionBreakdownItemDto,
     FormQuestionSummaryResponseDto,
 } from '@modules/form/dtos/response/form-question-summary.response.dto';
+import {
+    IFormResponseWithAnswers,
+    IFormWithCounts,
+} from '@modules/form/interfaces/form.interface';
 
 @Injectable()
 export class FormUtil {
-    mapFormOne(
-        form: Form & { _count?: { assignments: number } }
-    ): FormResponseDto {
+    mapFormOne(form: Form | IFormWithCounts): FormResponseDto {
         return plainToInstance(FormResponseDto, form);
     }
 
-    mapFormList(
-        forms: (Form & { _count?: { assignments: number } })[]
-    ): FormResponseDto[] {
+    mapFormList(forms: Array<Form | IFormWithCounts>): FormResponseDto[] {
         return plainToInstance(FormResponseDto, forms);
     }
 
@@ -34,21 +33,19 @@ export class FormUtil {
         return plainToInstance(FormAssignmentResponseDto, assignment);
     }
 
-    mapResponseOne(
-        response: FormResponse & { answers?: FormAnswer[] }
-    ): FormResponseResponseDto {
+    mapResponseOne(response: IFormResponseWithAnswers): FormResponseResponseDto {
         return plainToInstance(FormResponseResponseDto, response);
     }
 
     mapResponseList(
-        responses: (FormResponse & { answers?: FormAnswer[] })[]
+        responses: IFormResponseWithAnswers[]
     ): FormResponseResponseDto[] {
         return plainToInstance(FormResponseResponseDto, responses);
     }
 
     mapFormWithResponse(
-        form: Form & { _count?: { assignments: number } },
-        response: (FormResponse & { answers?: FormAnswer[] }) | null
+        form: Form | IFormWithCounts,
+        response: IFormResponseWithAnswers | null
     ): FormWithResponseResponseDto {
         return plainToInstance(FormWithResponseResponseDto, {
             form,

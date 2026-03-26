@@ -25,6 +25,7 @@ import {
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
+import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import {
     PaginationOffsetQuery,
@@ -59,6 +60,7 @@ export class FormUserController {
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/')
     async list(
@@ -82,6 +84,7 @@ export class FormUserController {
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @Get('/:idForm')
     async get(
@@ -99,6 +102,7 @@ export class FormUserController {
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
+    @FeatureFlagProtected('form')
     @ApiKeyProtected()
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/submit')

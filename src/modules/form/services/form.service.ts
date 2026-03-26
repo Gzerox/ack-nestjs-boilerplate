@@ -36,6 +36,10 @@ import {
     Prisma,
 } from '@generated/prisma-client';
 import { FormSchemaSectionRequestDto } from '@modules/form/dtos/request/form-schema.request.dto';
+import {
+    IFormResponseWithAnswers,
+    IFormSchemaSnapshot,
+} from '@modules/form/interfaces/form.interface';
 
 @Injectable()
 export class FormService implements IFormService {
@@ -66,7 +70,7 @@ export class FormService implements IFormService {
             description: dto.description ?? null,
             closesAt: dto.closesAt ?? null,
             status: EnumFormStatus.draft,
-            schemaSnapshot: snapshot as any,
+            schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
         });
 
         return { data: { id: form.id } };
@@ -77,7 +81,7 @@ export class FormService implements IFormService {
         dto: FormUpdateDraftRequestDto,
         createdBy: string
     ): Promise<IResponseReturn<FormResponseDto>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -96,7 +100,7 @@ export class FormService implements IFormService {
             dto.title !== undefined ||
             dto.description !== undefined ||
             dto.sections !== undefined;
-        const snapshot = form.schemaSnapshot as any;
+        const snapshot = form.schemaSnapshot as unknown as IFormSchemaSnapshot;
 
         const updated = await this.formRepository.update(formId, {
             ...(dto.title !== undefined && { title: dto.title }),
@@ -111,18 +115,23 @@ export class FormService implements IFormService {
                         ? (dto.description ?? null)
                         : snapshot.description,
                     dto.sections ?? snapshot.sections
-                ) as any,
+                ) as unknown as Prisma.InputJsonValue,
             }),
         });
 
-        return { data: this.formUtil.mapFormOne(updated as any) };
+        const updatedWithCounts = await this.formRepository.findOneByIdAndCounts(
+            updated.id,
+            createdBy
+        );
+
+        return { data: this.formUtil.mapFormOne(updatedWithCounts ?? updated) };
     }
 
     async publishForm(
         formId: string,
         createdBy: string
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -139,26 +148,31 @@ export class FormService implements IFormService {
             });
         }
 
-        const snapshot = form.schemaSnapshot as any;
+        const snapshot = form.schemaSnapshot as unknown as IFormSchemaSnapshot;
         const sections: Omit<Prisma.FormSectionCreateManyInput, 'formId'>[] = (
             snapshot.sections ?? []
-        ).map((s: any, i: number) => ({
+        ).map((s, i: number) => ({
             sectionId: s.id,
             label: s.label ?? null,
             position: i,
         }));
 
         const questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[] =
-            (snapshot.sections ?? []).flatMap((s: any) =>
-                (s.questions ?? []).map((q: any, qi: number) => ({
+            (snapshot.sections ?? []).flatMap(s =>
+                (s.questions ?? []).map((q, qi: number) => ({
                     sectionId: s.id,
                     questionId: q.id,
                     type: q.type,
                     label: q.label,
                     required: q.required,
                     position: qi,
-                    validation: q.validation ?? null,
-                    options: q.options?.length ? q.options : null,
+                    validation:
+                        (q.validation as unknown as Prisma.InputJsonValue) ??
+                        null,
+                    options:
+                        q.options?.length
+                            ? (q.options as unknown as Prisma.InputJsonValue)
+                            : null,
                 }))
             );
 
@@ -178,7 +192,7 @@ export class FormService implements IFormService {
         dto: FormAssignmentCreateRequestDto,
         createdBy: string
     ): Promise<IResponseReturn<FormAssignmentResponseDto>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -206,7 +220,7 @@ export class FormService implements IFormService {
         formId: string,
         createdBy: string
     ): Promise<IResponseReturn<void>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -229,7 +243,7 @@ export class FormService implements IFormService {
         formId: string,
         createdBy: string
     ): Promise<IResponseReturn<void>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -250,15 +264,16 @@ export class FormService implements IFormService {
         kind?: Record<string, IPaginationIn>,
         createdBy?: string
     ): Promise<IResponsePagingReturn<FormResponseDto>> {
-        const result = await this.formRepository.findMany(
+        const result = await this.formRepository.findWithPaginationOffsetAndCounts(
             pagination,
             status,
             kind,
             createdBy
         );
+
         return {
             ...result,
-            data: this.formUtil.mapFormList(result.data as any),
+            data: this.formUtil.mapFormList(result.data),
         } as IResponsePagingReturn<FormResponseDto>;
     }
 
@@ -266,14 +281,17 @@ export class FormService implements IFormService {
         formId: string,
         createdBy?: string
     ): Promise<IResponseReturn<FormResponseDto>> {
-        const form = await this.formRepository.findById(formId, createdBy);
+        const form = await this.formRepository.findOneByIdAndCounts(
+            formId,
+            createdBy
+        );
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
                 message: 'form.error.formNotFound',
             });
         }
-        return { data: this.formUtil.mapFormOne(form as any) };
+        return { data: this.formUtil.mapFormOne(form) };
     }
 
     async getFormMetrics(
@@ -332,7 +350,9 @@ export class FormService implements IFormService {
         );
         return {
             ...result,
-            data: this.formUtil.mapResponseList(result.data as any),
+            data: this.formUtil.mapResponseList(
+                result.data as IFormResponseWithAnswers[]
+            ),
         } as IResponsePagingReturn<FormResponseResponseDto>;
     }
 
@@ -389,7 +409,9 @@ export class FormService implements IFormService {
         );
         return {
             ...result,
-            data: this.formUtil.mapResponseList(result.data as any),
+            data: this.formUtil.mapResponseList(
+                result.data as IFormResponseWithAnswers[]
+            ),
         } as IResponsePagingReturn<FormResponseResponseDto>;
     }
 
@@ -410,7 +432,7 @@ export class FormService implements IFormService {
             });
         }
 
-        const form = await this.formRepository.findById(formId);
+        const form = await this.formRepository.findOneByIdAndCounts(formId);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -419,7 +441,7 @@ export class FormService implements IFormService {
         }
 
         return {
-            data: this.formUtil.mapFormWithResponse(form as any, response),
+            data: this.formUtil.mapFormWithResponse(form, response),
         };
     }
 
@@ -460,7 +482,7 @@ export class FormService implements IFormService {
             });
         }
 
-        const form = await this.formRepository.findById(formId);
+        const form = await this.formRepository.findOneById(formId);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -504,11 +526,12 @@ export class FormService implements IFormService {
         title: string,
         description: string | null | undefined,
         sections: FormSchemaSectionRequestDto[]
-    ): Record<string, unknown> {
+    ): IFormSchemaSnapshot {
         return {
             title,
             description: description ?? null,
             sections,
         };
     }
+
 }

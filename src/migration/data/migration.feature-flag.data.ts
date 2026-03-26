@@ -41,6 +41,12 @@ const featureFlagData: Prisma.FeatureFlagCreateInput[] = [
             forgotAllowed: true,
         },
     },
+    {
+        key: 'form',
+        description: 'Enable form feature',
+        rolloutPercent: 100,
+        isEnable: true,
+    },
 ];
 
 export const migrationFeatureFlagData: Record<

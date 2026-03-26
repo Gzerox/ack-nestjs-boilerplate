@@ -7,11 +7,17 @@ import {
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
+    EnumFormResponseStatus,
     EnumFormStatus,
     Form,
     FormQuestion,
     Prisma,
 } from '@generated/prisma-client';
+import {
+    IFormCount,
+    IFormResponseStatusCount,
+    IFormWithCounts,
+} from '@modules/form/interfaces/form.interface';
 
 @Injectable()
 export class FormRepository {
@@ -57,7 +63,7 @@ export class FormRepository {
         });
     }
 
-    async findMany(
+    async findWithPaginationOffset(
         pagination: IPaginationQueryOffsetParams<
             Prisma.FormSelect,
             Prisma.FormWhereInput
@@ -81,11 +87,58 @@ export class FormRepository {
         });
     }
 
-    async findById(id: string, createdBy?: string): Promise<Form | null> {
+    async findWithPaginationOffsetAndCounts(
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.FormSelect,
+            Prisma.FormWhereInput
+        >,
+        status?: Record<string, IPaginationIn>,
+        kind?: Record<string, IPaginationIn>,
+        createdBy?: string
+    ): Promise<IResponsePagingReturn<IFormWithCounts>> {
+        const result = await this.paginationService.offset<
+            Form & { _count: { assignments: number } },
+            Prisma.FormSelect,
+            Prisma.FormWhereInput
+        >(this.databaseService.form, {
+            ...pagination,
+            where: {
+                ...pagination.where,
+                ...status,
+                ...kind,
+                ...(createdBy && { createdBy }),
+            },
+            include: { _count: { select: { assignments: true } } },
+        });
+
+        return {
+            ...result,
+            data: await this.attachCounts(result.data),
+        };
+    }
+
+    async findOneById(id: string, createdBy?: string): Promise<Form | null> {
         return this.databaseService.form.findFirst({
             where: { id, ...(createdBy && { createdBy }) },
+        });
+    }
+
+    async findOneByIdAndCounts(
+        id: string,
+        createdBy?: string
+    ): Promise<IFormWithCounts | null> {
+        const form = await this.databaseService.form.findFirst({
+            where: { id, ...(createdBy && { createdBy }) },
             include: { _count: { select: { assignments: true } } },
-        }) as Promise<Form | null>;
+        });
+
+        if (!form) {
+            return null;
+        }
+
+        const [formWithCounts] = await this.attachCounts([form]);
+
+        return formWithCounts;
     }
 
     //TODO: add `updatedBy` input parameter
@@ -122,5 +175,83 @@ export class FormRepository {
         return this.databaseService.formQuestion.findUnique({
             where: { formId_questionId: { formId, questionId } },
         });
+    }
+
+    private async attachCounts(
+        forms: (Form & { _count: { assignments: number } })[]
+    ): Promise<IFormWithCounts[]> {
+        if (forms.length === 0) {
+            return [];
+        }
+
+        const groupedCounts = await this.databaseService.formResponse.groupBy({
+            by: ['formId', 'status'],
+            where: {
+                formId: {
+                    in: forms.map(form => form.id),
+                },
+            },
+            _count: true,
+        });
+
+        const countsByForm = new Map<string, IFormResponseStatusCount>(
+            forms.map(form => [
+                form.id,
+                {
+                    notStarted: 0,
+                    submitted: 0,
+                },
+            ])
+        );
+
+        for (const count of groupedCounts) {
+            const current = countsByForm.get(count.formId) ?? {
+                notStarted: 0,
+                submitted: 0,
+            };
+
+            if (count.status === EnumFormResponseStatus.notStarted) {
+                current.notStarted = count._count;
+            }
+
+            if (count.status === EnumFormResponseStatus.submitted) {
+                current.submitted = count._count;
+            }
+
+            countsByForm.set(count.formId, current);
+        }
+
+        return forms.map(form => ({
+            id: form.id,
+            createdBy: form.createdBy,
+            kind: form.kind,
+            title: form.title,
+            description: form.description,
+            status: form.status,
+            schemaSnapshot: form.schemaSnapshot,
+            closesAt: form.closesAt,
+            publishedAt: form.publishedAt,
+            createdAt: form.createdAt,
+            updatedAt: form.updatedAt,
+            count: this.buildCount(
+                form._count.assignments,
+                countsByForm.get(form.id)
+            ),
+        }));
+    }
+
+    private buildCount(
+        assignments: number,
+        response?: IFormResponseStatusCount
+    ): IFormCount {
+        return {
+            assignment: {
+                assignments,
+            },
+            response: response ?? {
+                notStarted: 0,
+                submitted: 0,
+            },
+        };
     }
 }

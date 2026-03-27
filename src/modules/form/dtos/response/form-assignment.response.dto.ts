@@ -7,11 +7,8 @@ export class FormAssignmentResponseDto extends DatabaseDto {
     @ApiProperty({ description: 'Form identifier', example: faker.database.mongodbObjectId(), required: true })
     formId: string;
 
-    @ApiProperty({ description: 'Audience type', example: 'user', required: true })
-    audienceType: string;
-
-    @ApiProperty({ description: 'Audience identifier', example: faker.database.mongodbObjectId(), required: true })
-    audienceId: string;
+    @ApiProperty({ description: 'User identifier', example: faker.database.mongodbObjectId(), required: true })
+    userId: string;
 
     @ApiProperty({ description: 'Whether this assignment is required', example: true, required: true })
     required: boolean;

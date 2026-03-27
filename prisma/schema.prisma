@@ -148,6 +148,7 @@ model User {
   deviceOwnerships        DeviceOwnership[]          @relation("DeviceOwnershipUser")
   revokedSessions         Session[]                  @relation("SessionRevokedByUser")
   revokedDeviceOwnerships DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
+  formAssignments         FormAssignment[]           @relation("UserFormAssignments")
 
   @@unique(fields: [username])
   @@unique(fields: [email])
@@ -512,8 +513,10 @@ model FormQuestion {
   sectionId  String
   questionId String
   type       EnumFormQuestionType
-  label      String
-  required   Boolean
+  label       String
+  supportText String?
+  placeholder String?
+  required    Boolean
   position   Int
   validation Json?
   options    Json?
@@ -528,22 +531,23 @@ model FormQuestion {
 }
 
 model FormAssignment {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  formId       String    @db.ObjectId
-  audienceType String
-  audienceId   String    @db.ObjectId
-  required     Boolean   @default(true)
-  startsAt     DateTime?
-  closesAt     DateTime?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  formId    String    @db.ObjectId
+  userId    String    @db.ObjectId
+  required  Boolean   @default(true)
+  startsAt  DateTime?
+  closesAt  DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   form      Form           @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
+  user      User           @relation("UserFormAssignments", fields: [userId], references: [id])
   responses FormResponse[] @relation("FormResponses")
 
+  @@unique(fields: [formId, userId])
   @@index(fields: [formId, isActive])
-  @@index(fields: [audienceType, audienceId])
+  @@index(fields: [userId])
   @@map("FormAssignments")
 }
 
@@ -552,7 +556,7 @@ model FormResponse {
   formId       String                 @db.ObjectId
   assignmentId String                 @db.ObjectId
   userId       String                 @db.ObjectId
-  status       EnumFormResponseStatus @default(notStarted)
+  status       EnumFormResponseStatus @default(pending)
   submittedAt  DateTime?
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
@@ -680,7 +684,7 @@ enum EnumFormStatus {
 }
 
 enum EnumFormResponseStatus {
-  notStarted
+  pending
   submitted
 }
 

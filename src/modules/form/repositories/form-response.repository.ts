@@ -21,10 +21,6 @@ export class FormResponseRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    async create(data: Prisma.FormResponseCreateInput): Promise<FormResponse> {
-        return this.databaseService.formResponse.create({ data });
-    }
-
     async findByAssignmentAndUser(
         assignmentId: string,
         userId: string
@@ -78,38 +74,24 @@ export class FormResponseRepository {
         submittedAt?: Date
     ): Promise<FormResponse & { answers: FormAnswer[] }> {
         return this.databaseService.$transaction(async tx => {
-            await Promise.all(
-                answers.map(answer =>
-                    tx.formAnswer.upsert({
-                        where: {
-                            responseId_questionId: {
-                                responseId,
-                                questionId: answer.questionId,
-                            },
-                        },
-                        create: {
-                            formId,
-                            responseId,
-                            sectionId: answer.sectionId,
-                            questionId: answer.questionId,
-                            numberValue: answer.numberValue ?? null,
-                            optionValue: answer.optionValue ?? null,
-                            optionValues: answer.optionValues ?? [],
-                            textValue: answer.textValue ?? null,
-                            booleanValue: answer.booleanValue ?? null,
-                            dateValue: answer.dateValue ?? null,
-                        },
-                        update: {
-                            numberValue: answer.numberValue ?? null,
-                            optionValue: answer.optionValue ?? null,
-                            optionValues: answer.optionValues ?? [],
-                            textValue: answer.textValue ?? null,
-                            booleanValue: answer.booleanValue ?? null,
-                            dateValue: answer.dateValue ?? null,
-                        },
-                    })
-                )
-            );
+            await tx.formAnswer.deleteMany({ where: { responseId } });
+
+            if (answers.length > 0) {
+                await tx.formAnswer.createMany({
+                    data: answers.map(answer => ({
+                        formId,
+                        responseId,
+                        sectionId: answer.sectionId,
+                        questionId: answer.questionId,
+                        numberValue: answer.numberValue ?? null,
+                        optionValue: answer.optionValue ?? null,
+                        optionValues: answer.optionValues ?? [],
+                        textValue: answer.textValue ?? null,
+                        booleanValue: answer.booleanValue ?? null,
+                        dateValue: answer.dateValue ?? null,
+                    })),
+                });
+            }
 
             return tx.formResponse.update({
                 where: { id: responseId },
@@ -139,6 +121,7 @@ export class FormResponseRepository {
     ): Promise<FormAnswer[]> {
         return this.databaseService.formAnswer.findMany({
             where: { formId, questionId },
+            take: 1000,
         });
     }
 }

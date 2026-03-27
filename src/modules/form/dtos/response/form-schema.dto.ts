@@ -64,6 +64,13 @@ export class FormSchemaQuestionDto {
     label: string;
 
     @ApiProperty({
+        description: 'Supporting helper text shown with the question',
+        example: 'Include details that help us follow up.',
+        required: false,
+    })
+    supportText?: string;
+
+    @ApiProperty({
         description: 'Whether this question must be answered',
         example: true,
         required: true,

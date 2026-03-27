@@ -4,8 +4,8 @@ export class FormMetricsResponseDto {
     @ApiProperty({ description: 'Total number of assigned respondents', example: 100, required: true })
     assignedCount: number;
 
-    @ApiProperty({ description: 'Number of respondents who have not started', example: 40, required: true })
-    notStartedCount: number;
+    @ApiProperty({ description: 'Number of respondents with a pending response', example: 40, required: true })
+    pendingCount: number;
 
     @ApiProperty({ description: 'Number of respondents who submitted', example: 60, required: true })
     submittedCount: number;

@@ -16,11 +16,11 @@ export class FormAssignmentCountResponseDto {
 
 export class FormResponseStatusCountResponseDto {
     @ApiProperty({
-        description: 'Number of responses that have not started this form',
+        description: 'Number of responses pending submission for this form',
         example: 12,
         required: true,
     })
-    notStarted: number;
+    pending: number;
 
     @ApiProperty({
         description: 'Number of submitted responses for this form',

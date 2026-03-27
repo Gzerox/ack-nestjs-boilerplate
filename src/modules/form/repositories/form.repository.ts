@@ -33,11 +33,7 @@ export class FormRepository {
     async create(
         data: Prisma.FormCreateInput,
     ): Promise<Form> {
-        return this.databaseService.$transaction(async tx => {
-            const form = await tx.form.create({ data });
-
-            return form;
-        });
+        return this.databaseService.form.create({ data });
     }
 
     async publishWithSchema(
@@ -89,30 +85,6 @@ export class FormRepository {
             });
 
             return form;
-        });
-    }
-
-    async findWithPaginationOffset(
-        pagination: IPaginationQueryOffsetParams<
-            Prisma.FormSelect,
-            Prisma.FormWhereInput
-        >,
-        status?: Record<string, IPaginationIn>,
-        kind?: Record<string, IPaginationIn>,
-        createdBy?: string
-    ): Promise<IResponsePagingReturn<Form>> {
-        return this.paginationService.offset<
-            Form,
-            Prisma.FormSelect,
-            Prisma.FormWhereInput
-        >(this.databaseService.form, {
-            ...pagination,
-            where: {
-                ...pagination.where,
-                ...status,
-                ...kind,
-                ...(createdBy && { createdBy }),
-            },
         });
     }
 
@@ -172,14 +144,27 @@ export class FormRepository {
 
     async update(
         id: string,
-        data: Prisma.FormUpdateInput,
-        updatedBy?: string
+        data: Prisma.FormUpdateInput
     ): Promise<Form> {
         return this.databaseService.form.update({
             where: { id },
             data,
+        });
+    }
+
+    async updateWithCounts(
+        id: string,
+        data: Prisma.FormUpdateInput
+    ): Promise<IFormWithCounts> {
+        const updated = await this.databaseService.form.update({
+            where: { id },
+            data,
             include: { _count: { select: { assignments: true } } },
-        }) as Promise<Form>;
+        });
+
+        const [formWithCounts] = await this.attachCounts([updated]);
+
+        return formWithCounts;
     }
 
     async archive(id: string): Promise<Form> {
@@ -230,7 +215,7 @@ export class FormRepository {
             forms.map(form => [
                 form.id,
                 {
-                    notStarted: 0,
+                    pending: 0,
                     submitted: 0,
                 },
             ])
@@ -238,12 +223,12 @@ export class FormRepository {
 
         for (const count of groupedCounts) {
             const current = countsByForm.get(count.formId) ?? {
-                notStarted: 0,
+                pending: 0,
                 submitted: 0,
             };
 
-            if (count.status === EnumFormResponseStatus.notStarted) {
-                current.notStarted = count._count;
+            if (count.status === EnumFormResponseStatus.pending) {
+                current.pending = count._count;
             }
 
             if (count.status === EnumFormResponseStatus.submitted) {
@@ -281,7 +266,7 @@ export class FormRepository {
                 assignments,
             },
             response: response ?? {
-                notStarted: 0,
+                pending: 0,
                 submitted: 0,
             },
         };

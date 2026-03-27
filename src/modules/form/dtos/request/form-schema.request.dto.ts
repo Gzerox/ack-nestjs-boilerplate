@@ -52,6 +52,10 @@ export class FormSchemaQuestionRequestDto {
     @IsNotEmpty()
     label: string;
 
+    @IsString()
+    @IsOptional()
+    supportText?: string;
+
     @IsBoolean()
     @IsNotEmpty()
     required: boolean;

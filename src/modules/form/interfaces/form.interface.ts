@@ -33,6 +33,7 @@ export interface IFormSchemaQuestion {
     id: string;
     type: EnumFormQuestionType;
     label: string;
+    supportText?: string;
     required: boolean;
     placeholder?: string;
     options?: IFormSchemaOption[];
@@ -52,7 +53,7 @@ export interface IFormSchemaSnapshot {
 }
 
 export interface IFormResponseStatusCount {
-    notStarted: number;
+    pending: number;
     submitted: number;
 }
 

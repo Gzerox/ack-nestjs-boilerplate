@@ -1,15 +1,10 @@
-import { IsBoolean, IsDate, IsIn, IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsMongoId, IsNotEmpty, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FormAssignmentCreateRequestDto {
-    @IsString()
-    @IsIn(['user'])
-    @IsNotEmpty()
-    audienceType: string;
-
     @IsMongoId()
     @IsNotEmpty()
-    audienceId: string;
+    userId: string;
 
     @IsBoolean()
     @IsOptional()

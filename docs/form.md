@@ -43,11 +43,12 @@ This module is designed so form structure is flexible while being drafted, but i
   - [Admin Flow Diagram](#admin-flow-diagram)
   - [User Flow Diagram](#user-flow-diagram)
 - [Important Rules](#important-rules)
+- [Known Limitations](#known-limitations)
 - [Contribution](#contribution)
 
 ## Form Concept
 
-The form feature is built for cases where the backend team needs to define a structured questionnaire, publish it, assign it to specific users, and collect one final response per assignment.
+The form feature is built for cases where authenticated users need to define a structured questionnaire, publish it, assign it to specific users, and collect one final response per assignment.
 
 A form contains:
 
@@ -78,7 +79,7 @@ During this stage:
 - the form is not yet active for end users
 - assignments are not created yet
 
-This draft stage is where the backend user finalizes:
+This draft stage is where the form creator finalizes:
 
 - kind
 - title
@@ -89,7 +90,7 @@ This draft stage is where the backend user finalizes:
 
 ### Publish Stage
 
-When the backend user decides to publish the form, the draft is finalized.
+When the form creator decides to publish the form, the draft is finalized.
 
 At publish time:
 
@@ -115,12 +116,12 @@ This rule exists to preserve consistency between:
 
 Assignments are created only after the form is published.
 
-When an admin creates an assignment:
+When a form creator creates an assignment:
 
-- a `FormAssignment` record is created for the target user
+- a `FormAssignment` record is created targeting the user identified by `userId`, which must reference a valid `User` record
 - assignment-specific scheduling can be stored through `startsAt` and `closesAt`
 - a linked `FormResponse` record is created immediately
-- the initial response status is `notStarted`
+- the initial response status is `pending`
 
 This means the recipient list is no longer part of the draft schema. It is managed as separate assignment data after publication.
 
@@ -165,6 +166,13 @@ Question definitions currently support:
 - `boolean`
 - `date`
 
+The question summary endpoint (`GET /forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
+
+- `singleSelect` / `multiSelect` — counts occurrences of each option value (frequency breakdown)
+- `boolean` — counts `true` and `false` responses separately
+- `number` — returns `min`, `max`, `avg`, and total response count
+- `text` / `date` — returns only the count of non-null responses; individual values are not surfaced
+
 Conceptually, `schemaSnapshot` is the editable blueprint. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
 
 In short:
@@ -177,7 +185,7 @@ In short:
 
 ### Admin / Shared Routes
 
-Admins manage forms through shared routes under `/forms`.
+Authenticated users manage forms through shared routes under `/forms`. These routes have no role restriction — any user with a valid JWT and API key can create and manage forms.
 
 Available operations:
 
@@ -189,7 +197,7 @@ Available operations:
 - `POST /forms/:idForm/assignments` - assign a published form to a user
 - `POST /forms/:idForm/archive` - archive published form
 - `DELETE /forms/:idForm` - delete form
-- `GET /forms/:idForm/metrics` - get assignment and submission metrics
+- `GET /forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
 - `GET /forms/:idForm/responses` - list responses for a form
 - `GET /forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
 
@@ -211,21 +219,21 @@ User routes require accepted term policies before access.
 
 ```mermaid
 sequenceDiagram
-    participant Admin as Admin User
+    participant Creator as Form Creator
     participant Form as Form Draft
     participant Snapshot as schemaSnapshot
     participant Database
 
-    Admin->>Form: Create draft
+    Creator->>Form: Create draft
     Form->>Snapshot: Store editable title / description / sections / questions
-    Admin->>Form: Update draft while status is draft
-    Admin->>Form: Publish form
+    Creator->>Form: Update draft while status is draft
+    Creator->>Form: Publish form
     Snapshot->>Database: Create FormSection records
     Snapshot->>Database: Create FormQuestion records
-    Database-->>Admin: Form published and locked
-    Admin->>Database: Create FormAssignment for target user
-    Database->>Database: Create linked FormResponse with status notStarted
-    Admin->>Database: Read metrics / responses / question summary
+    Database-->>Creator: Form published and locked
+    Creator->>Database: Create FormAssignment for target user
+    Database->>Database: Create linked FormResponse with status pending
+    Creator->>Database: Read metrics / responses / question summary
 ```
 
 ### User Flow Diagram
@@ -261,6 +269,46 @@ sequenceDiagram
 - Submission is blocked if the assignment or form is closed
 - Once a response is submitted, it cannot be submitted again
 - Forms can be archived only after publication
+
+## Known Limitations
+
+The following are current limitations of the form module as implemented. They are not bugs but deliberate scope decisions or deferred features.
+
+### Assignment targeting is user-only
+
+`FormAssignment` targets a single user via `userId`. Group, team, or role-based targeting is not supported. Every assignment must reference a single `User` record.
+
+### No bulk assignment
+
+There is no API to assign a form to multiple users at once. Assignments must be created one at a time.
+
+### No assignment deactivation
+
+The `isActive` field exists on `FormAssignment` in the schema but there is no endpoint to deactivate or reactivate an assignment after it has been created.
+
+### `startsAt` is stored but not enforced
+
+Assignments accept a `startsAt` date for scheduling purposes. However, `startsAt` is not validated during form submission — a user can submit a form even before `startsAt` is reached. Only `closesAt` (both form-level and assignment-level) is enforced at submission time.
+
+### Text and date question summaries return count only
+
+The `GET /forms/:idForm/questions/:questionId/summary` endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
+
+### Question summary is capped at 1000 answers
+
+The question summary aggregation reads at most 1000 raw answer records per question. Forms with high submission volumes may return incomplete aggregates for that question.
+
+### No form versioning
+
+Updating a draft overwrites the existing `schemaSnapshot` in place. There is no history of previous draft states, and no way to restore a prior version of the schema.
+
+### No role restriction on shared routes
+
+The shared routes (`/forms` management operations) do not enforce any role restriction beyond a valid JWT and API key. Any authenticated user can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
+
+### No form cloning or templating
+
+There is no endpoint to duplicate an existing form or use a published form as a template for a new draft.
 
 ## Contribution
 

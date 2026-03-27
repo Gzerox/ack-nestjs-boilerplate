@@ -105,7 +105,7 @@ export class FormService implements IFormService {
             dto.sections !== undefined;
         const snapshot = form.schemaSnapshot as unknown as IFormSchemaSnapshot;
 
-        const updated = await this.formRepository.update(formId, {
+        const updatedWithCounts = await this.formRepository.updateWithCounts(formId, {
             ...(dto.title !== undefined && { title: dto.title }),
             ...(dto.description !== undefined && {
                 description: dto.description ?? null,
@@ -122,12 +122,7 @@ export class FormService implements IFormService {
             }),
         });
 
-        const updatedWithCounts = await this.formRepository.findOneByIdAndCounts(
-            updated.id,
-            createdBy
-        );
-
-        return { data: this.formUtil.mapFormOne(updatedWithCounts ?? updated) };
+        return { data: this.formUtil.mapFormOne(updatedWithCounts) };
     }
 
     async publishForm(
@@ -168,6 +163,8 @@ export class FormService implements IFormService {
                     questionId: q.id,
                     type: q.type,
                     label: q.label,
+                    supportText: q.supportText ?? null,
+                    placeholder: q.placeholder ?? null,
                     required: q.required,
                     position: qi,
                     validation:
@@ -205,7 +202,7 @@ export class FormService implements IFormService {
             });
         }
 
-        //TODO: Check if the form already has an assignment for dto.audienceId
+        //TODO: Check if the form already has an assignment for dto.userId
         // If it does, raise error. In assignment model: formId-userId should be unique.
 
         if (form.status !== EnumFormStatus.published) {
@@ -318,8 +315,8 @@ export class FormService implements IFormService {
         const submittedCount =
             counts.find(c => c.status === EnumFormResponseStatus.submitted)
                 ?._count ?? 0;
-        const notStartedCount =
-            counts.find(c => c.status === EnumFormResponseStatus.notStarted)
+        const pendingCount =
+            counts.find(c => c.status === EnumFormResponseStatus.pending)
                 ?._count ?? 0;
         const completionRate =
             assignedCount > 0 ? (submittedCount / assignedCount) * 100 : 0;
@@ -327,7 +324,7 @@ export class FormService implements IFormService {
         return {
             data: {
                 assignedCount,
-                notStartedCount,
+                pendingCount,
                 submittedCount,
                 completionRate: Math.round(completionRate * 100) / 100,
             },
@@ -425,11 +422,11 @@ export class FormService implements IFormService {
         userId: string,
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
-        const response =
-            await this.formResponseRepository.findByAssignmentAndUser(
-                assignmentId,
-                userId
-            );
+        const [response, form] = await Promise.all([
+            this.formResponseRepository.findByAssignmentAndUser(assignmentId, userId),
+            this.formRepository.findOneById(formId),
+        ]);
+
         if (!response) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.responseNotFound,
@@ -437,7 +434,6 @@ export class FormService implements IFormService {
             });
         }
 
-        const form = await this.formRepository.findOneById(formId);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -467,9 +463,11 @@ export class FormService implements IFormService {
             });
         }
 
-        const assignment = await this.formAssignmentRepository.findById(
-            dto.assignmentId
-        );
+        const [assignment, form] = await Promise.all([
+            this.formAssignmentRepository.findById(dto.assignmentId),
+            this.formRepository.findOneById(formId),
+        ]);
+
         if (!assignment || !assignment.isActive) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.assignmentNotFound,
@@ -487,7 +485,6 @@ export class FormService implements IFormService {
             });
         }
 
-        const form = await this.formRepository.findOneById(formId);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,

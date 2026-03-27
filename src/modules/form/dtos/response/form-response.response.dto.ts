@@ -30,7 +30,7 @@ export class FormResponseResponseDto extends DatabaseDto {
     @ApiProperty({
         description: 'Current response status',
         enum: EnumFormResponseStatus,
-        example: EnumFormResponseStatus.notStarted,
+        example: EnumFormResponseStatus.pending,
         required: true,
     })
     status: EnumFormResponseStatus;

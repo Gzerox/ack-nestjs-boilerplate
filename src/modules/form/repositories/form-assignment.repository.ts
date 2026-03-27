@@ -17,12 +17,6 @@ export class FormAssignmentRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    async create(
-        data: Prisma.FormAssignmentCreateInput
-    ): Promise<FormAssignment> {
-        return this.databaseService.formAssignment.create({ data });
-    }
-
     async createWithResponse(
         formId: string,
         dto: FormAssignmentCreateRequestDto
@@ -31,8 +25,7 @@ export class FormAssignmentRepository {
             const assignment = await tx.formAssignment.create({
                 data: {
                     formId,
-                    audienceType: dto.audienceType,
-                    audienceId: dto.audienceId,
+                    userId: dto.userId,
                     required: dto.required ?? true,
                     startsAt: dto.startsAt ?? null,
                     closesAt: dto.closesAt ?? null,
@@ -44,8 +37,8 @@ export class FormAssignmentRepository {
                 data: {
                     formId,
                     assignmentId: assignment.id,
-                    userId: dto.audienceId,
-                    status: EnumFormResponseStatus.notStarted,
+                    userId: dto.userId,
+                    status: EnumFormResponseStatus.pending,
                 },
             });
 
@@ -56,15 +49,6 @@ export class FormAssignmentRepository {
     async findById(id: string): Promise<FormAssignment | null> {
         return this.databaseService.formAssignment.findUnique({
             where: { id },
-        });
-    }
-
-    async findByIdAndForm(
-        id: string,
-        formId: string
-    ): Promise<FormAssignment | null> {
-        return this.databaseService.formAssignment.findFirst({
-            where: { id, formId },
         });
     }
 

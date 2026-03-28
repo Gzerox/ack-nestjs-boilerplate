@@ -407,7 +407,8 @@ export class FormService implements IFormService {
         const result = await this.formResponseRepository.findManyByUser(
             userId,
             pagination,
-            status
+            status,
+            this.helperService.dateCreate()
         );
         return {
             ...result,
@@ -422,9 +423,15 @@ export class FormService implements IFormService {
         userId: string,
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
-        const [response, form] = await Promise.all([
-            this.formResponseRepository.findByAssignmentAndUser(assignmentId, userId),
+        // TODO: Instead of running 3 queries, consider refactoring formAssignmentRepository.findById to support "options" which we can pass: include:{form,response}
+        //  This would allow us to load both response and form from a single repository call.
+        const [response, form, assignment] = await Promise.all([
+            this.formResponseRepository.findByAssignmentAndUser(
+                assignmentId,
+                userId
+            ),
             this.formRepository.findOneById(formId),
+            this.formAssignmentRepository.findById(assignmentId),
         ]);
 
         if (!response) {
@@ -438,6 +445,29 @@ export class FormService implements IFormService {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
                 message: 'form.error.formNotFound',
+            });
+        }
+
+        if (form.status !== EnumFormStatus.published) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotPublished,
+                message: 'form.error.formNotPublished',
+            });
+        }
+
+        const now = this.helperService.dateCreate();
+
+        if (assignment?.startsAt && now < assignment.startsAt) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotOpenYet,
+                message: 'form.error.formNotOpenYet',
+            });
+        }
+
+        if (assignment?.closesAt && now > assignment.closesAt) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formClosed,
+                message: 'form.error.formClosed',
             });
         }
 
@@ -475,10 +505,16 @@ export class FormService implements IFormService {
             });
         }
 
-        if (
-            assignment.closesAt &&
-            this.helperService.dateCreate() > assignment.closesAt
-        ) {
+        const now = this.helperService.dateCreate();
+
+        if (assignment.startsAt && now < assignment.startsAt) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotOpenYet,
+                message: 'form.error.formNotOpenYet',
+            });
+        }
+
+        if (assignment.closesAt && now > assignment.closesAt) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formClosed,
                 message: 'form.error.formClosed',
@@ -499,7 +535,7 @@ export class FormService implements IFormService {
             });
         }
 
-        if (form.closesAt && this.helperService.dateCreate() > form.closesAt) {
+        if (form.closesAt && now > form.closesAt) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formClosed,
                 message: 'form.error.formClosed',
@@ -518,7 +554,7 @@ export class FormService implements IFormService {
             formId,
             dto.answers ?? [],
             EnumFormResponseStatus.submitted,
-            this.helperService.dateCreate()
+            now
         );
 
         return { data: this.formUtil.mapResponseOne(submitted) };

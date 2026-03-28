@@ -4,6 +4,7 @@ export enum EnumFormStatusCodeError {
     formNotPublished         = 5302,
     formClosed               = 5303,
     formAlreadyArchived      = 5304,
+    formNotOpenYet           = 5305,
     assignmentNotFound       = 5310,
     responseNotFound         = 5320,
     responseAlreadySubmitted = 5321,

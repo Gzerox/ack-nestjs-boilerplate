@@ -8,6 +8,7 @@ import { PaginationService } from '@common/pagination/services/pagination.servic
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
     EnumFormResponseStatus,
+    EnumFormStatus,
     FormAnswer,
     FormResponse,
     Prisma,
@@ -37,15 +38,44 @@ export class FormResponseRepository {
             Prisma.FormResponseSelect,
             Prisma.FormResponseWhereInput
         >,
-        status?: Record<string, IPaginationIn>
+        status?: Record<string, IPaginationIn>,
+        now?: Date
     ): Promise<IResponsePagingReturn<FormResponse>> {
+        const timeWhere: Prisma.FormResponseWhereInput | undefined = now
+            ? {
+                  assignment: {
+                      isActive: true,
+                      form: { status: EnumFormStatus.published },
+                      AND: [
+                          {
+                              OR: [
+                                  { startsAt: null },
+                                  { startsAt: { lte: now } },
+                              ],
+                          },
+                          {
+                              OR: [
+                                  { closesAt: null },
+                                  { closesAt: { gt: now } },
+                              ],
+                          },
+                      ],
+                  },
+              }
+            : undefined;
+
         return this.paginationService.offset<
             FormResponse,
             Prisma.FormResponseSelect,
             Prisma.FormResponseWhereInput
         >(this.databaseService.formResponse, {
             ...pagination,
-            where: { ...pagination.where, ...status, userId },
+            where: {
+                ...pagination.where,
+                ...status,
+                userId,
+                ...(timeWhere && { AND: [timeWhere] }),
+            },
         });
     }
 

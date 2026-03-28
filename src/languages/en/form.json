@@ -25,6 +25,7 @@
     "formNotPublished": "Form is not published",
     "formNotDraft": "Form cannot be edited after publishing",
     "formClosed": "Form is closed or expired",
+    "formNotOpenYet": "Form is not yet available",
     "formAlreadyArchived": "Form is already archived",
     "assignmentNotFound": "Form assignment not found",
     "responseNotFound": "Form response not found",

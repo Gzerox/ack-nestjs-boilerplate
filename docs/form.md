@@ -266,7 +266,8 @@ sequenceDiagram
 - Assignments are created only after the form is published
 - Each assignment creates one linked `FormResponse`
 - Users can submit only for an active assignment
-- Submission is blocked if the assignment or form is closed
+- Submission is blocked if the assignment has not yet opened (`startsAt`) or is closed (`closesAt`)
+- Form visibility and submission are blocked before assignment `startsAt` is reached
 - Once a response is submitted, it cannot be submitted again
 - Forms can be archived only after publication
 
@@ -286,9 +287,9 @@ There is no API to assign a form to multiple users at once. Assignments must be 
 
 The `isActive` field exists on `FormAssignment` in the schema but there is no endpoint to deactivate or reactivate an assignment after it has been created.
 
-### `startsAt` is stored but not enforced
+### `startsAt` enforcement
 
-Assignments accept a `startsAt` date for scheduling purposes. However, `startsAt` is not validated during form submission — a user can submit a form even before `startsAt` is reached. Only `closesAt` (both form-level and assignment-level) is enforced at submission time.
+Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view (`GET /forms/:idForm?assignmentId=...`) or submit (`POST /forms/:idForm/submit`) a form before `startsAt` is reached. The form list (`GET /forms`) also filters out assignments whose time window is not yet open.
 
 ### Text and date question summaries return count only
 
@@ -309,16 +310,6 @@ The shared routes (`/forms` management operations) do not enforce any role restr
 ### No form cloning or templating
 
 There is no endpoint to duplicate an existing form or use a published form as a template for a new draft.
-
-## Contribution
-
-When extending this module:
-
-1. Keep the draft, publish, assignment, and submission lifecycle explicit in both code and documentation.
-2. Preserve the separation between `schemaSnapshot`, published schema records, assignments, and responses unless the product requirements change deliberately.
-3. Preserve the final-submission rule unless a formal answer revision workflow is introduced.
-4. If the lifecycle changes, update this document first so the feature contract stays clear.
-
 
 <!-- REFERENCES -->
 

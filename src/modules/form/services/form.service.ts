@@ -431,17 +431,20 @@ export class FormService implements IFormService {
         userId: string,
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
-        // TODO: Instead of running 3 queries, consider refactoring formAssignmentRepository.findById to support "options" which we can pass: include:{form,response}
-        //  This would allow us to load both response and form from a single repository call.
-        const [response, form, assignment] = await Promise.all([
-            this.formResponseRepository.findByAssignmentAndUser(
+        const assignmentWithRelations =
+            await this.formAssignmentRepository.findByIdWithFormAndResponse(
                 assignmentId,
                 userId
-            ),
-            this.formRepository.findOneById(formId),
-            this.formAssignmentRepository.findById(assignmentId),
-        ]);
+            );
 
+        if (!assignmentWithRelations || !assignmentWithRelations.isActive) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        const response = assignmentWithRelations.responses[0] ?? null;
         if (!response) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.responseNotFound,
@@ -449,20 +452,17 @@ export class FormService implements IFormService {
             });
         }
 
-        if (!assignment || !assignment.isActive) {
+        if (
+            response.formId !== formId ||
+            assignmentWithRelations.formId !== formId
+        ) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.assignmentNotFound,
                 message: 'form.error.assignmentNotFound',
             });
         }
 
-        if (response.formId !== formId || assignment.formId !== formId) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
+        const form = assignmentWithRelations.form;
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -479,14 +479,14 @@ export class FormService implements IFormService {
 
         const now = this.helperService.dateCreate();
 
-        if (assignment?.startsAt && now < assignment.startsAt) {
+        if (assignmentWithRelations.startsAt && now < assignmentWithRelations.startsAt) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formNotOpenYet,
                 message: 'form.error.formNotOpenYet',
             });
         }
 
-        if (assignment?.closesAt && now > assignment.closesAt) {
+        if (assignmentWithRelations.closesAt && now > assignmentWithRelations.closesAt) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formClosed,
                 message: 'form.error.formClosed',
@@ -504,11 +504,20 @@ export class FormService implements IFormService {
         dto: FormSubmitRequestDto,
         userId: string
     ): Promise<IResponseReturn<FormResponseResponseDto>> {
-        const response =
-            await this.formResponseRepository.findByAssignmentAndUser(
+        const assignmentWithRelations =
+            await this.formAssignmentRepository.findByIdWithFormAndResponse(
                 assignmentId,
                 userId
             );
+
+        if (!assignmentWithRelations || !assignmentWithRelations.isActive) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        const response = assignmentWithRelations.responses[0] ?? null;
         if (!response) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.responseNotFound,
@@ -516,19 +525,10 @@ export class FormService implements IFormService {
             });
         }
 
-        const [assignment, form] = await Promise.all([
-            this.formAssignmentRepository.findById(assignmentId),
-            this.formRepository.findOneById(formId),
-        ]);
-
-        if (!assignment || !assignment.isActive) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
-        if (assignment.formId !== formId || response.formId !== formId) {
+        if (
+            assignmentWithRelations.formId !== formId ||
+            response.formId !== formId
+        ) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.assignmentNotFound,
                 message: 'form.error.assignmentNotFound',
@@ -537,20 +537,27 @@ export class FormService implements IFormService {
 
         const now = this.helperService.dateCreate();
 
-        if (assignment.startsAt && now < assignment.startsAt) {
+        if (
+            assignmentWithRelations.startsAt &&
+            now < assignmentWithRelations.startsAt
+        ) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formNotOpenYet,
                 message: 'form.error.formNotOpenYet',
             });
         }
 
-        if (assignment.closesAt && now > assignment.closesAt) {
+        if (
+            assignmentWithRelations.closesAt &&
+            now > assignmentWithRelations.closesAt
+        ) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.formClosed,
                 message: 'form.error.formClosed',
             });
         }
 
+        const form = assignmentWithRelations.form;
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,

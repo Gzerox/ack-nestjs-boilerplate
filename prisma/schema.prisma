@@ -548,6 +548,7 @@ model FormAssignment {
   @@unique(fields: [formId, userId])
   @@index(fields: [formId, isActive])
   @@index(fields: [userId])
+  @@index(fields: [userId, isActive])
   @@map("FormAssignments")
 }
 
@@ -567,6 +568,7 @@ model FormResponse {
   @@unique(fields: [assignmentId, userId])
   @@index(fields: [formId, status])
   @@index(fields: [userId])
+  @@index(fields: [userId, status])
   @@map("FormResponses")
 }
 

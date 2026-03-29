@@ -73,3 +73,8 @@ export interface IFormCount {
 export interface IFormWithCounts extends Form {
     count: IFormCount;
 }
+
+export interface IFormAssignmentWithRelations extends FormAssignment {
+    form: Form;
+    responses: IFormResponseWithAnswers[];
+}

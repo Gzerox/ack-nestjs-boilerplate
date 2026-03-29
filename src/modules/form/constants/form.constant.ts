@@ -1,4 +1,5 @@
 import {
+    EnumFormKind,
     EnumFormResponseStatus,
     EnumFormStatus,
 } from '@generated/prisma-client';
@@ -15,5 +16,6 @@ export const FormDefaultAvailableSort = [
 ];
 export const FormDefaultSort = 'createdAt';
 export const FormDefaultPerPage = 20;
-export const FormDefaultStatus = Object.values(EnumFormStatus);
-export const FormDefaultResponseStatus = Object.values(EnumFormResponseStatus);
+export const FormAvailableStatus = Object.values(EnumFormStatus);
+export const FormAvailableResponseStatus = Object.values(EnumFormResponseStatus);
+export const FormAvailableKind = Object.values(EnumFormKind);

@@ -64,9 +64,10 @@ import {
 } from '@modules/form/docs/form.shared.doc';
 import {
     FORM_TAG_SHARED,
+    FormAvailableKind,
+    FormAvailableStatus,
     FormDefaultAvailableSearch,
     FormDefaultAvailableSort,
-    FormDefaultStatus,
 } from '@modules/form/constants/form.constant';
 import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
 
@@ -110,12 +111,12 @@ export class FormSharedController {
         >,
         @PaginationQueryFilterInEnum<EnumFormStatus>(
             'status',
-            FormDefaultStatus
+            FormAvailableStatus
         )
         status?: Record<string, IPaginationIn>,
         @PaginationQueryFilterInEnum<EnumFormKind>(
             'kind',
-            Object.values(EnumFormKind)
+            FormAvailableKind
         )
         kind?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseDto>> {

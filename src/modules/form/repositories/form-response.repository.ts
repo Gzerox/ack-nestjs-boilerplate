@@ -151,7 +151,6 @@ export class FormResponseRepository {
     ): Promise<FormAnswer[]> {
         return this.databaseService.formAnswer.findMany({
             where: { formId, questionId },
-            take: 1000,
         });
     }
 }

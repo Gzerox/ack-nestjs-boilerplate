@@ -46,7 +46,7 @@ import {
 } from '@modules/form/docs/form.user.doc';
 import {
     FORM_TAG_USER,
-    FormDefaultResponseStatus,
+    FormAvailableResponseStatus,
 } from '@modules/form/constants/form.constant';
 
 @ApiTags(FORM_TAG_USER)
@@ -71,7 +71,7 @@ export class FormUserController {
         >,
         @PaginationQueryFilterInEnum<EnumFormResponseStatus>(
             'status',
-            FormDefaultResponseStatus
+            FormAvailableResponseStatus
         )
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>> {

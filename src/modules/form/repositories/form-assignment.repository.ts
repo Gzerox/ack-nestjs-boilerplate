@@ -1,21 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '@common/database/services/database.service';
-import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
-import { PaginationService } from '@common/pagination/services/pagination.service';
-import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
     EnumFormResponseStatus,
     FormAssignment,
-    Prisma,
 } from '@generated/prisma-client';
 import { FormAssignmentCreateRequestDto } from '@modules/form/dtos/request/form-assignment-create.request.dto';
+import { IFormAssignmentWithRelations } from '@modules/form/interfaces/form.interface';
 
 @Injectable()
 export class FormAssignmentRepository {
-    constructor(
-        private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService
-    ) {}
+    constructor(private readonly databaseService: DatabaseService) {}
 
     async createWithResponse(
         formId: string,
@@ -46,26 +40,20 @@ export class FormAssignmentRepository {
         });
     }
 
-    async findById(id: string): Promise<FormAssignment | null> {
+    async findByIdWithFormAndResponse(
+        id: string,
+        userId: string
+    ): Promise<IFormAssignmentWithRelations | null> {
         return this.databaseService.formAssignment.findUnique({
             where: { id },
-        });
-    }
-
-    async findManyByForm(
-        formId: string,
-        pagination: IPaginationQueryOffsetParams<
-            Prisma.FormAssignmentSelect,
-            Prisma.FormAssignmentWhereInput
-        >
-    ): Promise<IResponsePagingReturn<FormAssignment>> {
-        return this.paginationService.offset<
-            FormAssignment,
-            Prisma.FormAssignmentSelect,
-            Prisma.FormAssignmentWhereInput
-        >(this.databaseService.formAssignment, {
-            ...pagination,
-            where: { ...pagination.where, formId },
-        });
+            include: {
+                form: true,
+                responses: {
+                    where: { userId },
+                    take: 1,
+                    include: { answers: true },
+                },
+            },
+        }) as Promise<IFormAssignmentWithRelations | null>;
     }
 }

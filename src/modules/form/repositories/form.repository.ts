@@ -7,7 +7,6 @@ import {
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
-    EnumActivityLogAction,
     EnumFormResponseStatus,
     EnumFormStatus,
     Form,
@@ -19,15 +18,12 @@ import {
     IFormResponseStatusCount,
     IFormWithCounts,
 } from '@modules/form/interfaces/form.interface';
-import { IRequestLog } from '@common/request/interfaces/request.interface';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 
 @Injectable()
 export class FormRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly paginationService: PaginationService
     ) {}
 
     async create(
@@ -40,9 +36,7 @@ export class FormRepository {
         formId: string,
         publishedAt: Date,
         sections: Omit<Prisma.FormSectionCreateManyInput, 'formId'>[],
-        questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[],
-        updatedBy: string,
-        requestLog: IRequestLog
+        questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[]
     ): Promise<Form> {
         return this.databaseService.$transaction(async tx => {
             // Delete any previously materialized sections/questions (idempotent publish)
@@ -63,25 +57,6 @@ export class FormRepository {
             const form = await tx.form.update({
                 where: { id: formId },
                 data: { status: EnumFormStatus.published, publishedAt },
-            });
-
-            // Create activity log
-            await tx.activityLog.create({
-                data: {
-                    userId: updatedBy,
-                    action: EnumActivityLogAction.adminFormPublish,
-                    ipAddress: requestLog.ipAddress,
-                    userAgent: this.databaseUtil.toPlainObject(
-                        requestLog.userAgent
-                    ),
-                    geoLocation: this.databaseUtil.toPlainObject(
-                        requestLog.geoLocation
-                    ),
-                    createdBy: updatedBy,
-                    metadata: {
-                        formId: form.id,
-                    },
-                },
             });
 
             return form;
@@ -150,21 +125,6 @@ export class FormRepository {
             where: { id },
             data,
         });
-    }
-
-    async updateWithCounts(
-        id: string,
-        data: Prisma.FormUpdateInput
-    ): Promise<IFormWithCounts> {
-        const updated = await this.databaseService.form.update({
-            where: { id },
-            data,
-            include: { _count: { select: { assignments: true } } },
-        });
-
-        const [formWithCounts] = await this.attachCounts([updated]);
-
-        return formWithCounts;
     }
 
     async archive(id: string): Promise<Form> {

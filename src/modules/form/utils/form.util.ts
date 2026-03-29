@@ -18,9 +18,14 @@ import {
     IFormResponseWithAnswers,
     IFormWithCounts,
 } from '@modules/form/interfaces/form.interface';
+import { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
 
 @Injectable()
 export class FormUtil {
+    mapActivityLogMetadata(formId: string): IActivityLogMetadata {
+        return { formId };
+    }
+
     mapFormOne(form: Form | IFormWithCounts): FormResponseDto {
         return plainToInstance(FormResponseDto, form);
     }

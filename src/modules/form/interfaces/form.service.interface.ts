@@ -12,10 +12,8 @@ import { FormResponseResponseDto } from '@modules/form/dtos/response/form-respon
 import { FormWithResponseResponseDto } from '@modules/form/dtos/response/form-with-response.response.dto';
 import { FormMetricsResponseDto } from '@modules/form/dtos/response/form-metrics.response.dto';
 import { FormQuestionSummaryResponseDto } from '@modules/form/dtos/response/form-question-summary.response.dto';
-import { IRequestLog } from '@common/request/interfaces/request.interface';
 
 export interface IFormService {
-    // Shared (admin)
     createDraft(
         dto: FormCreateDraftRequestDto,
         createdBy: string,
@@ -27,8 +25,7 @@ export interface IFormService {
     ): Promise<IResponseReturn<FormResponseDto>>;
     publishForm(
         formId: string,
-        createdBy: string,
-        requestLog: IRequestLog
+        createdBy: string
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>>;
     createAssignment(
         formId: string,
@@ -87,6 +84,7 @@ export interface IFormService {
     ): Promise<IResponseReturn<FormWithResponseResponseDto>>;
     submitForm(
         formId: string,
+        assignmentId: string,
         dto: FormSubmitRequestDto,
         userId: string
     ): Promise<IResponseReturn<FormResponseResponseDto>>;

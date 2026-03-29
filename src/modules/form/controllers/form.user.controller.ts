@@ -6,7 +6,6 @@ import {
     HttpStatus,
     Param,
     Post,
-    Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
@@ -56,12 +55,12 @@ export class FormUserController {
     constructor(private readonly formService: FormService) {}
 
     @FormUserListDoc()
-    @ResponsePaging('form.list')
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ResponsePaging('form.list')
     @Get('/')
     async list(
         @AuthJwtPayload('userId') userId: string,
@@ -80,38 +79,48 @@ export class FormUserController {
     }
 
     @FormUserGetDoc()
-    @Response('form.get')
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
-    @Get('/:idForm')
+    @Response('form.get')
+    @Get('/:idForm/assignments/:assignmentId')
     async get(
         @AuthJwtPayload('userId') userId: string,
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
         idForm: string,
-        @Query('assignmentId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param(
+            'assignmentId',
+            RequestRequiredPipe,
+            RequestIsValidObjectIdPipe
+        )
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
         return this.formService.getMyForm(idForm, userId, assignmentId);
     }
 
     @FormUserSubmitDoc()
-    @Response('form.submit')
     @TermPolicyAcceptanceProtected()
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.submit')
     @HttpCode(HttpStatus.OK)
-    @Post('/:idForm/submit')
+    @Post('/:idForm/assignments/:assignmentId/submit')
     async submit(
         @AuthJwtPayload('userId') userId: string,
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
         idForm: string,
+        @Param(
+            'assignmentId',
+            RequestRequiredPipe,
+            RequestIsValidObjectIdPipe
+        )
+        assignmentId: string,
         @Body() dto: FormSubmitRequestDto
     ): Promise<IResponseReturn<FormResponseResponseDto>> {
-        return this.formService.submitForm(idForm, dto, userId);
+        return this.formService.submitForm(idForm, assignmentId, dto, userId);
     }
 }

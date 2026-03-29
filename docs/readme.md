@@ -84,11 +84,12 @@ Additional features and integrations for production-grade deployments.
 20. [Feature Flag][ref-doc-feature-flag] — Dynamic feature management, gradual rollouts, A/B testing
 21. [Activity Log][ref-doc-activity-log] — Recording successful user activities with `@ActivityLog`
 22. [Term Policy][ref-doc-term-policy] — Legal agreements, versioning, and user consent enforcement
-23. [File Upload][ref-doc-file-upload] — Single/multiple file uploads, CSV processing, upload decorators
-24. [Presign][ref-doc-presign] — AWS S3 presigned URLs for secure time-limited object access
-25. [Third Party Integration][ref-doc-third-party-integration] — AWS S3/SES, Firebase, Sentry, no-op mode
-26. [Doc][ref-doc-doc] — Swagger/OpenAPI decorators via the Doc Module
-27. [Analytics][ref-doc-analytics] — Planned analytics design using MongoDB aggregation pipelines
+23. [Form][ref-doc-form] — Admin-managed forms, assignments, and user submissions
+24. [File Upload][ref-doc-file-upload] — Single/multiple file uploads, CSV processing, upload decorators
+25. [Presign][ref-doc-presign] — AWS S3 presigned URLs for secure time-limited object access
+26. [Third Party Integration][ref-doc-third-party-integration] — AWS S3/SES, Firebase, Sentry, no-op mode
+27. [Doc][ref-doc-doc] — Swagger/OpenAPI decorators via the Doc Module
+28. [Analytics][ref-doc-analytics] — Planned analytics design using MongoDB aggregation pipelines
 
 
 
@@ -114,6 +115,7 @@ Additional features and integrations for production-grade deployments.
 [ref-doc-feature-flag]: feature-flag.md
 [ref-doc-activity-log]: activity-log.md
 [ref-doc-term-policy]: term-policy.md
+[ref-doc-form]: form.md
 [ref-doc-file-upload]: file-upload.md
 [ref-doc-presign]: presign.md
 [ref-doc-third-party-integration]: third-party-integration.md

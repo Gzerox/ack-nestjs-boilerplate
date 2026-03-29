@@ -4,7 +4,6 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
@@ -76,7 +75,10 @@ export class FormService implements IFormService {
             },
         );
 
-        return { data: { id: form.id } };
+        return {
+            data: { id: form.id },
+            metadataActivityLog: this.formUtil.mapActivityLogMetadata(form.id),
+        };
     }
 
     async updateDraft(
@@ -105,7 +107,7 @@ export class FormService implements IFormService {
             dto.sections !== undefined;
         const snapshot = form.schemaSnapshot as unknown as IFormSchemaSnapshot;
 
-        const updatedWithCounts = await this.formRepository.updateWithCounts(formId, {
+        const updatedForm = await this.formRepository.update(formId, {
             ...(dto.title !== undefined && { title: dto.title }),
             ...(dto.description !== undefined && {
                 description: dto.description ?? null,
@@ -122,13 +124,12 @@ export class FormService implements IFormService {
             }),
         });
 
-        return { data: this.formUtil.mapFormOne(updatedWithCounts) };
+        return { data: this.formUtil.mapFormOne(updatedForm) };
     }
 
     async publishForm(
         formId: string,
-        createdBy: string,
-        requestLog: IRequestLog
+        createdBy: string
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
         const form = await this.formRepository.findOneById(formId, createdBy);
         if (!form) {
@@ -181,12 +182,13 @@ export class FormService implements IFormService {
             formId,
             this.helperService.dateCreate(),
             sections,
-            questions,
-            createdBy,
-            requestLog
+            questions
         );
 
-        return { data: { id: formId } };
+        return {
+            data: { id: formId },
+            metadataActivityLog: this.formUtil.mapActivityLogMetadata(formId),
+        };
     }
 
     async createAssignment(
@@ -238,7 +240,10 @@ export class FormService implements IFormService {
         }
 
         await this.formRepository.archive(formId);
-        return { data: null };
+        return {
+            data: null,
+            metadataActivityLog: this.formUtil.mapActivityLogMetadata(formId),
+        };
     }
 
     async deleteForm(
@@ -254,7 +259,10 @@ export class FormService implements IFormService {
         }
 
         await this.formRepository.delete(formId);
-        return { data: null };
+        return {
+            data: null,
+            metadataActivityLog: this.formUtil.mapActivityLogMetadata(formId),
+        };
     }
 
     async getFormList(
@@ -441,6 +449,20 @@ export class FormService implements IFormService {
             });
         }
 
+        if (!assignment || !assignment.isActive) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        if (response.formId !== formId || assignment.formId !== formId) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
@@ -478,12 +500,13 @@ export class FormService implements IFormService {
 
     async submitForm(
         formId: string,
+        assignmentId: string,
         dto: FormSubmitRequestDto,
         userId: string
     ): Promise<IResponseReturn<FormResponseResponseDto>> {
         const response =
             await this.formResponseRepository.findByAssignmentAndUser(
-                dto.assignmentId,
+                assignmentId,
                 userId
             );
         if (!response) {
@@ -494,11 +517,18 @@ export class FormService implements IFormService {
         }
 
         const [assignment, form] = await Promise.all([
-            this.formAssignmentRepository.findById(dto.assignmentId),
+            this.formAssignmentRepository.findById(assignmentId),
             this.formRepository.findOneById(formId),
         ]);
 
         if (!assignment || !assignment.isActive) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        if (assignment.formId !== formId || response.formId !== formId) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.assignmentNotFound,
                 message: 'form.error.assignmentNotFound',

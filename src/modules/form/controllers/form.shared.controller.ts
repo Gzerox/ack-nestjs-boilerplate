@@ -9,12 +9,6 @@ import {
     Patch,
     Post,
 } from '@nestjs/common';
-import {
-    RequestGeoLocation,
-    RequestIPAddress,
-    RequestUserAgent,
-} from '@common/request/decorators/request.decorator';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
@@ -82,12 +76,12 @@ export class FormSharedController {
     constructor(private readonly formService: FormService) {}
 
     @FormSharedCreateDraftDoc()
-    @Response('form.createDraft')
-    @ActivityLog(EnumActivityLogAction.adminFormCreate)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ActivityLog(EnumActivityLogAction.adminFormCreate)
+    @Response('form.createDraft')
     @HttpCode(HttpStatus.CREATED)
     @Post('/')
     async createDraft(
@@ -98,11 +92,11 @@ export class FormSharedController {
     }
 
     @FormSharedListDoc()
-    @ResponsePaging('form.list')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ResponsePaging('form.list')
     @Get('/')
     async list(
         @AuthJwtPayload('userId') userId: string,
@@ -129,11 +123,11 @@ export class FormSharedController {
     }
 
     @FormSharedGetDoc()
-    @Response('form.get')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.get')
     @Get('/:idForm')
     async get(
         @AuthJwtPayload('userId') userId: string,
@@ -144,11 +138,11 @@ export class FormSharedController {
     }
 
     @FormSharedUpdateDraftDoc()
-    @Response('form.update')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.update')
     @Patch('/:idForm')
     async updateDraft(
         @AuthJwtPayload('userId') userId: string,
@@ -160,35 +154,28 @@ export class FormSharedController {
     }
 
     @FormSharedPublishDoc()
-    @Response('form.publish')
-    @ActivityLog(EnumActivityLogAction.adminFormPublish)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ActivityLog(EnumActivityLogAction.adminFormPublish)
+    @Response('form.publish')
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/publish')
     async publish(
         @AuthJwtPayload('userId') userId: string,
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
-        idForm: string,
-        @RequestIPAddress() ipAddress: string,
-        @RequestUserAgent() userAgent: UserAgent,
-        @RequestGeoLocation() geoLocation: GeoLocation | null
+        idForm: string
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
-        return this.formService.publishForm(idForm, userId, {
-            ipAddress,
-            userAgent,
-            geoLocation
-        });
+        return this.formService.publishForm(idForm, userId);
     }
 
     @FormSharedCreateAssignmentDoc()
-    @Response('form.assignment.create')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.assignment.create')
     @HttpCode(HttpStatus.CREATED)
     @Post('/:idForm/assignments')
     async createAssignment(
@@ -201,12 +188,12 @@ export class FormSharedController {
     }
 
     @FormSharedArchiveDoc()
-    @Response('form.archive')
-    @ActivityLog(EnumActivityLogAction.adminFormArchive)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ActivityLog(EnumActivityLogAction.adminFormArchive)
+    @Response('form.archive')
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/archive')
     async archive(
@@ -218,12 +205,12 @@ export class FormSharedController {
     }
 
     @FormSharedDeleteDoc()
-    @Response('form.delete')
-    @ActivityLog(EnumActivityLogAction.adminFormDelete)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ActivityLog(EnumActivityLogAction.adminFormDelete)
+    @Response('form.delete')
     @HttpCode(HttpStatus.OK)
     @Delete('/:idForm')
     async delete(
@@ -235,11 +222,11 @@ export class FormSharedController {
     }
 
     @FormSharedMetricsDoc()
-    @Response('form.metrics')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.metrics')
     @Get('/:idForm/metrics')
     async metrics(
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
@@ -249,11 +236,11 @@ export class FormSharedController {
     }
 
     @FormSharedResponsesDoc()
-    @ResponsePaging('form.response.list')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @ResponsePaging('form.response.list')
     @Get('/:idForm/responses')
     async listResponses(
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
@@ -268,11 +255,11 @@ export class FormSharedController {
     }
 
     @FormSharedQuestionSummaryDoc()
-    @Response('form.question.summary')
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
+    @Response('form.question.summary')
     @Get('/:idForm/questions/:questionId/summary')
     async questionSummary(
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)

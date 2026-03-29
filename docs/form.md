@@ -185,31 +185,39 @@ In short:
 
 ### Admin / Shared Routes
 
-Authenticated users manage forms through shared routes under `/forms`. These routes have no role restriction — any user with a valid JWT and API key can create and manage forms.
+Authenticated users manage forms through shared routes under `/shared/forms`.
+
+These endpoints come from `FormSharedController`, which is mounted through `RoutesSharedModule`.
+
+These routes have no role restriction beyond a valid JWT and API key.
 
 Available operations:
 
-- `POST /forms` - create draft
-- `GET /forms` - list owned forms with status and kind filters
-- `GET /forms/:idForm` - get one form
-- `PATCH /forms/:idForm` - update draft
-- `POST /forms/:idForm/publish` - publish draft
-- `POST /forms/:idForm/assignments` - assign a published form to a user
-- `POST /forms/:idForm/archive` - archive published form
-- `DELETE /forms/:idForm` - delete form
-- `GET /forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
-- `GET /forms/:idForm/responses` - list responses for a form
-- `GET /forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
+- `POST /shared/forms` - create draft
+- `GET /shared/forms` - list owned forms with status and kind filters
+- `GET /shared/forms/:idForm` - get one form
+- `PATCH /shared/forms/:idForm` - update draft
+- `POST /shared/forms/:idForm/publish` - publish draft
+- `POST /shared/forms/:idForm/assignments` - assign a published form to a user
+- `POST /shared/forms/:idForm/archive` - archive published form
+- `DELETE /shared/forms/:idForm` - delete form
+- `GET /shared/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
+- `GET /shared/forms/:idForm/responses` - list responses for a form
+- `GET /shared/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
 
 ### User Routes
 
-Users access assigned forms through the same `/forms` base path.
+Users access assigned forms through `/user/forms`.
+
+These endpoints come from `FormUserController`, which is mounted through `RoutesUserModule`.
+
+The user-facing read and submit endpoints are assignment-scoped. `assignmentId` is part of the path because the resource being accessed is a specific form assignment, not just the form definition.
 
 Available operations:
 
-- `GET /forms` - list assigned responses with optional status filter
-- `GET /forms/:idForm?assignmentId=...` - get one published form plus the user's response record
-- `POST /forms/:idForm/submit` - submit answers for an assignment
+- `GET /user/forms` - list assigned responses with optional status filter
+- `GET /user/forms/:idForm/assignments/:assignmentId` - get one published form plus the user's response record
+- `POST /user/forms/:idForm/assignments/:assignmentId/submit` - submit answers for an assignment
 
 User routes require accepted term policies before access.
 
@@ -248,7 +256,7 @@ sequenceDiagram
     User->>API: List assigned forms
     API->>Database: Load FormResponse records by user
     Database-->>User: Return assigned forms
-    User->>API: Open form with assignmentId
+    User->>API: Open assigned form
     API->>Database: Load published form + response
     Database-->>User: Return form schema and current response
     User->>API: Submit answers
@@ -289,7 +297,7 @@ The `isActive` field exists on `FormAssignment` in the schema but there is no en
 
 ### `startsAt` enforcement
 
-Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view (`GET /forms/:idForm?assignmentId=...`) or submit (`POST /forms/:idForm/submit`) a form before `startsAt` is reached. The form list (`GET /forms`) also filters out assignments whose time window is not yet open.
+Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view (`GET /user/forms/:idForm/assignments/:assignmentId`) or submit (`POST /user/forms/:idForm/assignments/:assignmentId/submit`) a form before `startsAt` is reached. The form list (`GET /user/forms`) also filters out assignments whose time window is not yet open.
 
 ### Text and date question summaries return count only
 
@@ -305,7 +313,7 @@ Updating a draft overwrites the existing `schemaSnapshot` in place. There is no 
 
 ### No role restriction on shared routes
 
-The shared routes (`/forms` management operations) do not enforce any role restriction beyond a valid JWT and API key. Any authenticated user can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
+The shared routes (`/shared/forms` management operations) do not enforce any role restriction beyond a valid JWT and API key. Any authenticated user can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
 
 ### No form cloning or templating
 

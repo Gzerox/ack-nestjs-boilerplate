@@ -1,11 +1,11 @@
 import { IsArray, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FormAnswerUpsertDto } from '@modules/form/dtos/request/form-answer-upsert.dto';
+import { FormAnswerUpsertRequestDto } from '@modules/form/dtos/request/form-answer-upsert.request.dto';
 
 export class FormSubmitRequestDto {
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => FormAnswerUpsertDto)
+    @Type(() => FormAnswerUpsertRequestDto)
     @IsOptional()
-    answers?: FormAnswerUpsertDto[];
+    answers?: FormAnswerUpsertRequestDto[];
 }

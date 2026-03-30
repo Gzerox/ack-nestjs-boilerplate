@@ -27,9 +27,11 @@
     "formClosed": "Form is closed or expired",
     "formNotOpenYet": "Form is not yet available",
     "formAlreadyArchived": "Form is already archived",
+    "formAlreadyPublished": "Form is already published",
     "assignmentNotFound": "Form assignment not found",
     "responseNotFound": "Form response not found",
     "responseAlreadySubmitted": "Form already submitted",
-    "responseAlreadyExists": "User already has a response for this assignment"
+    "responseAlreadyExists": "User already has a response for this assignment",
+    "questionNotFound": "Form question not found"
   }
 }

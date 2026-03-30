@@ -1,7 +1,7 @@
 import { IsArray, IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class FormAnswerUpsertDto {
+export class FormAnswerUpsertRequestDto {
     @IsString()
     @IsNotEmpty()
     sectionId: string;

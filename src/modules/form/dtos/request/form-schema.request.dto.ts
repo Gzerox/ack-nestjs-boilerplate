@@ -57,7 +57,6 @@ export class FormSchemaQuestionRequestDto {
     supportText?: string;
 
     @IsBoolean()
-    @IsNotEmpty()
     required: boolean;
 
     @IsString()

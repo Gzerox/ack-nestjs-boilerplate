@@ -40,6 +40,13 @@ export class FormAssignmentRepository {
         });
     }
 
+    async existByFormAndUser(formId: string, userId: string): Promise<boolean> {
+        const count = await this.databaseService.formAssignment.count({
+            where: { formId, userId, isActive: true },
+        });
+        return count > 0;
+    }
+
     async findByIdWithFormAndResponse(
         id: string,
         userId: string

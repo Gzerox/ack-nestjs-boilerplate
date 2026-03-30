@@ -13,7 +13,7 @@ import {
     FormResponse,
     Prisma,
 } from '@generated/prisma-client';
-import { FormAnswerUpsertDto } from '@modules/form/dtos/request/form-answer-upsert.dto';
+import { FormAnswerUpsertRequestDto } from '@modules/form/dtos/request/form-answer-upsert.request.dto';
 
 @Injectable()
 export class FormResponseRepository {
@@ -99,7 +99,7 @@ export class FormResponseRepository {
     async upsertAnswers(
         responseId: string,
         formId: string,
-        answers: FormAnswerUpsertDto[],
+        answers: FormAnswerUpsertRequestDto[],
         status: EnumFormResponseStatus,
         submittedAt?: Date
     ): Promise<FormResponse & { answers: FormAnswer[] }> {

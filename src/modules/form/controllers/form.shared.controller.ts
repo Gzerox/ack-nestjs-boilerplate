@@ -77,11 +77,11 @@ export class FormSharedController {
     constructor(private readonly formService: FormService) {}
 
     @FormSharedCreateDraftDoc()
+    @ActivityLog(EnumActivityLogAction.adminFormCreate)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
-    @ActivityLog(EnumActivityLogAction.adminFormCreate)
     @Response('form.createDraft')
     @HttpCode(HttpStatus.CREATED)
     @Post('/')
@@ -155,11 +155,11 @@ export class FormSharedController {
     }
 
     @FormSharedPublishDoc()
+    @ActivityLog(EnumActivityLogAction.adminFormPublish)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
-    @ActivityLog(EnumActivityLogAction.adminFormPublish)
     @Response('form.publish')
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/publish')
@@ -189,11 +189,11 @@ export class FormSharedController {
     }
 
     @FormSharedArchiveDoc()
+    @ActivityLog(EnumActivityLogAction.adminFormArchive)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
-    @ActivityLog(EnumActivityLogAction.adminFormArchive)
     @Response('form.archive')
     @HttpCode(HttpStatus.OK)
     @Post('/:idForm/archive')
@@ -206,11 +206,11 @@ export class FormSharedController {
     }
 
     @FormSharedDeleteDoc()
+    @ActivityLog(EnumActivityLogAction.adminFormDelete)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('form')
     @ApiKeyProtected()
-    @ActivityLog(EnumActivityLogAction.adminFormDelete)
     @Response('form.delete')
     @HttpCode(HttpStatus.OK)
     @Delete('/:idForm')

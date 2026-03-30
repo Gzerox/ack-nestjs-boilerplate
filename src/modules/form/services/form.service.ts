@@ -139,7 +139,12 @@ export class FormService implements IFormService {
             });
         }
 
-        // TODO: Check and return error if is already published
+        if (form.status === EnumFormStatus.published) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formAlreadyPublished,
+                message: 'form.error.formAlreadyPublished',
+            });
+        }
 
         if (form.status !== EnumFormStatus.draft) {
             throw new ConflictException({
@@ -204,8 +209,13 @@ export class FormService implements IFormService {
             });
         }
 
-        //TODO: Check if the form already has an assignment for dto.userId
-        // If it does, raise error. In assignment model: formId-userId should be unique.
+        const existingAssignment = await this.formAssignmentRepository.existByFormAndUser(formId, dto.userId);
+        if (existingAssignment) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.responseAlreadyExists,
+                message: 'form.error.responseAlreadyExists',
+            });
+        }
 
         if (form.status !== EnumFormStatus.published) {
             throw new ConflictException({
@@ -255,6 +265,13 @@ export class FormService implements IFormService {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
                 message: 'form.error.formNotFound',
+            });
+        }
+
+        if (form.status !== EnumFormStatus.draft) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotDraft,
+                message: 'form.error.formNotDraft',
             });
         }
 
@@ -384,8 +401,8 @@ export class FormService implements IFormService {
         );
         if (!question) {
             throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.responseNotFound,
-                message: 'form.error.responseNotFound',
+                statusCode: EnumFormStatusCodeError.questionNotFound,
+                message: 'form.error.questionNotFound',
             });
         }
 

@@ -1,0 +1,6 @@
+{
+    "list": "Airport list",
+    "error": {
+        "notFound": "Airport not found"
+    }
+}

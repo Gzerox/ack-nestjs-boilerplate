@@ -707,3 +707,64 @@ enum EnumNotificationPriority {
   high
   critical
 }
+
+enum EnumAirportStatus {
+  active
+  inactive
+}
+
+model Airport {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  /// IATA airport code (3 letters), e.g. MXP
+  iataCode String @unique
+
+  /// ICAO airport code (4 letters), e.g. LIMC
+  icaoCode String @unique
+
+  /// Full airport name, e.g. Milan Malpensa Airport
+  name String
+
+  /// Short display name, e.g. Malpensa
+  shortName String?
+
+  /// Main city associated with the airport
+  city String
+
+  /// Country name, e.g. Italy
+  country String
+
+  /// ISO country code, e.g. IT
+  countryCode String
+
+  /// Continent name, e.g. Europe
+  continent String
+
+  /// 2-letter continent code, e.g. EU (project-controlled set: AF, AN, AS, EU, NA, OC, SA)
+  continentCode String?
+
+  /// Region / state / province, e.g. Lombardy
+  region String?
+
+  /// IANA timezone, e.g. Europe/Rome
+  timezone String
+
+  /// Currency used in the country/area, e.g. EUR
+  currencyCode String?
+
+  /// Operational status of the airport in the platform
+  status EnumAirportStatus @default(active)
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String?  @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
+
+  @@index(fields: [city])
+  @@index(fields: [countryCode])
+  @@index(fields: [continent])
+  @@index(fields: [continentCode])
+  @@index(fields: [status])
+  @@map("airports")
+}

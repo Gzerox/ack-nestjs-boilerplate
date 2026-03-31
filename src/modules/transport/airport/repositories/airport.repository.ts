@@ -7,6 +7,7 @@ import { PaginationService } from '@common/pagination/services/pagination.servic
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
 import { Airport, Prisma } from '@generated/prisma-client';
+import { EnumAirportStatus } from '@modules/transport/airport/enums/airport.enum';
 
 @Injectable()
 export class AirportRepository {
@@ -61,6 +62,38 @@ export class AirportRepository {
     async delete(id: string): Promise<Airport> {
         return this.databaseService.airport.delete({
             where: { id },
+        });
+    }
+
+    async search(
+        search: string,
+        limit: number
+    ): Promise<
+        Pick<Airport, 'id' | 'iataCode' | 'name' | 'city' | 'country' | 'timezone'>[]
+    > {
+        return this.databaseService.airport.findMany({
+            where: {
+                status: EnumAirportStatus.active,
+                OR: search
+                    ? [
+                          { iataCode: { contains: search, mode: 'insensitive' } },
+                          { icaoCode: { contains: search, mode: 'insensitive' } },
+                          { name: { contains: search, mode: 'insensitive' } },
+                          { city: { contains: search, mode: 'insensitive' } },
+                          { country: { contains: search, mode: 'insensitive' } },
+                      ]
+                    : undefined,
+            },
+            select: {
+                id: true,
+                iataCode: true,
+                name: true,
+                city: true,
+                country: true,
+                timezone: true,
+            },
+            take: limit,
+            orderBy: { iataCode: 'asc' },
         });
     }
 }

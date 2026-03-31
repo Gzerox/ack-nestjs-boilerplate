@@ -2,8 +2,9 @@ import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
-import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
 import { AirportResponseDto } from '@modules/transport/airport/dtos/response/airport.response.dto';
+import { AirportSearchResponseDto } from '@modules/transport/airport/dtos/response/airport.search.response.dto';
 import { Prisma } from '@generated/prisma-client';
 
 export interface IAirportService {
@@ -14,4 +15,9 @@ export interface IAirportService {
         >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<AirportResponseDto>>;
+
+    search(
+        search: string,
+        limit: number
+    ): Promise<IResponseReturn<AirportSearchResponseDto[]>>;
 }

@@ -42,25 +42,19 @@ model Airport {
   /// Country name, e.g. Italy
   country          String
 
-  /// ISO country code, e.g. IT
+  /// ISO 3166-1 country code (2 letters), e.g. IT
   countryCode      String
 
   /// Continent display label, e.g. Europe
   continent        String
 
-  /// 2-letter continent code, e.g. EU (project-controlled set: AF, AN, AS, EU, NA, OC, SA)
+  /// Continent code (2 letters), e.g. EU - project-controlled set: AF, AN, AS, EU, NA, OC, SA
   continentCode    String?
-
-  /// Region / state / province display label, e.g. Lombardy
-  region           String?
-
-  /// ISO 3166-2 subdivision code, e.g. IT-25
-  regionCode       String?
 
   /// IANA timezone, e.g. Europe/Rome
   timezone         String
 
-  /// Currency used in the country/area, e.g. EUR
+  /// ISO 4217 currency code, e.g. EUR
   currencyCode     String?
 
   /// Operational status of the airport in the platform
@@ -72,8 +66,6 @@ model Airport {
   @@index([city])
   @@index([countryCode])
   @@index([continentCode])
-  @@index([continent])
-  @@index([regionCode])
   @@index([status])
   @@map("airports")
 }
@@ -93,8 +85,6 @@ model Airport {
   "countryCode": "IT",
   "continent": "Europe",
   "continentCode": "EU",
-  "region": "Lombardy",
-  "regionCode": "IT-25",
   "timezone": "Europe/Rome",
   "currencyCode": "EUR",
   "status": "active",
@@ -112,36 +102,34 @@ The airport model should prefer standard-backed code fields for machine logic an
 |---|---|---|---|
 | `iataCode` | IATA airport location code | yes | Must match `^[A-Z]{3}$` |
 | `icaoCode` | ICAO location indicator | yes | Must match `^[A-Z]{4}$` |
-| `countryCode` | ISO 3166-1 alpha-2 | yes | Prefer `@IsISO31661Alpha2()` and uppercase normalization |
+| `countryCode` | ISO 3166-1 | yes | 2-letter code; prefer `@IsISO31661Alpha2()` and uppercase normalization |
 | `currencyCode` | ISO 4217 | no | Prefer `@IsISO4217CurrencyCode()` and uppercase normalization |
-| `regionCode` | ISO 3166-2 subdivision code | recommended | Useful for machine filtering instead of free-text `region` |
 | `timezone` | IANA Time Zone Database | yes | Prefer `@IsTimeZone()` |
-| `continentCode` | 2-letter continent code | recommended | ISO 3166 does not define continent codes; use a closed uppercase set such as `AF`, `AN`, `AS`, `EU`, `NA`, `OC`, `SA` |
+| `continentCode` | 2-letter continent code | recommended | Project-controlled set: `AF`, `AN`, `AS`, `EU`, `NA`, `OC`, `SA` |
 
 ### Display vs machine fields
-- `country`, `continent`, and `region` should be treated as display labels.
-- Filtering, joins, imports, and external integrations should prefer `countryCode`, `continentCode`, `regionCode`, `currencyCode`, `iataCode`, and `icaoCode`.
-- If both a label and code are stored, the code should be the canonical value and the label should be derivable or refreshable from reference data.
+- `country` and `continent` are display labels only.
+- Filtering, joins, imports, and external integrations should prefer `countryCode`, `continentCode`, `iataCode`, and `icaoCode`.
+- Codes are the canonical values; display labels are cached for UX and should be refreshable from reference data.
 
 ### Validation rules
 - `iataCode` must be exactly 3 uppercase letters.
 - `icaoCode` must be exactly 4 uppercase letters.
-- `countryCode` must be a valid ISO 3166-1 alpha-2 code.
+- `countryCode` must be a valid ISO 3166-1 2-letter code.
 - `currencyCode`, when present, must be a valid ISO 4217 code.
-- `regionCode`, when present, should follow ISO 3166-2 for the selected country.
-- `continentCode`, when present, must use the project-controlled 2-letter uppercase set consistently across all airport records.
+- `continentCode`, when present, must use the project-controlled 2-letter uppercase set (AF, AN, AS, EU, NA, OC, SA).
+- `timezone` must be a valid IANA timezone identifier.
 - Invalid or missing required standardized values must be rejected on create/update.
 
 ## **Notes**
-- iataCode should be the main business identifier used in UI and integrations.
-- icaoCode is required and must follow ICAO format (`^[A-Z]{4}$`).
-- countryCode should be treated as ISO 3166-1 alpha-2, not a free-text country abbreviation.
-- region should remain a display field; add `regionCode` if the platform needs stable subdivision-level filtering or analytics.
-- continent should remain a display field; `continentCode` should be the canonical machine value.
-- continentCode is intentionally not described as an ISO field because ISO 3166 does not define continent alpha-2 codes.
-- status allows the platform to keep historical records without deleting airports.    
-- currencyCode is not strictly an airport property, but it can be useful for travel-related business logic and UI display.    
-- timezone is important for flight/trip scheduling consistency.
+- `iataCode` is the main business identifier used in UI and integrations.
+- `icaoCode` is required and must follow ICAO format (`^[A-Z]{4}$`).
+- `countryCode` is ISO 3166-1 alpha-2 (2 letters); use for logic and filtering, never as free-text.
+- `continent` is a display label; `continentCode` is the canonical machine value.
+- `continentCode` is project-controlled (not ISO-standardized) with a fixed 2-letter uppercase set.
+- `status` allows the platform to keep historical records without deleting airports.
+- `currencyCode` is not strictly an airport property, but useful for travel-related business logic and UI.
+- `timezone` is critical for flight/trip scheduling consistency; must be a valid IANA timezone.
 
 ## Airport listing filter
 - Airport lists should return both `active` and `inactive` records by default.
@@ -236,7 +224,6 @@ model Airport {
   countryCode  String
   continent    String
   continentCode String?
-  region       String?
   timezone     String
   currencyCode String?
   status       EnumAirportStatus @default(active)
@@ -247,9 +234,8 @@ model Airport {
   updatedBy    String?           @db.ObjectId
 
   @@index(fields: [city])
-  @@index(fields: [countryCode])
-  @@index(fields: [continent])
-  @@index(fields: [continentCode])
+  @@index(fields: [countryCode, status])
+  @@index(fields: [continentCode, status])
   @@index(fields: [status])
   @@map("airports")
 }

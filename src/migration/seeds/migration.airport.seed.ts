@@ -53,7 +53,6 @@ export class MigrationAirportSeed
                             countryCode: airport.countryCode,
                             continent: airport.continent,
                             continentCode: airport.continentCode,
-                            region: airport.region,
                             timezone: airport.timezone,
                             currencyCode: airport.currencyCode,
                             status: airport.status,

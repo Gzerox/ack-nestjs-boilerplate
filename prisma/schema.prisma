@@ -734,22 +734,19 @@ model Airport {
   /// Country name, e.g. Italy
   country String
 
-  /// ISO country code, e.g. IT
+  /// ISO 3166-1 country code (2 letters), e.g. IT
   countryCode String
 
   /// Continent name, e.g. Europe
   continent String
 
-  /// 2-letter continent code, e.g. EU (project-controlled set: AF, AN, AS, EU, NA, OC, SA)
+  /// Continent code (2 letters), e.g. EU - project-controlled set: AF, AN, AS, EU, NA, OC, SA
   continentCode String?
-
-  /// Region / state / province, e.g. Lombardy
-  region String?
 
   /// IANA timezone, e.g. Europe/Rome
   timezone String
 
-  /// Currency used in the country/area, e.g. EUR
+  /// ISO 4217 currency code, e.g. EUR
   currencyCode String?
 
   /// Operational status of the airport in the platform
@@ -762,9 +759,8 @@ model Airport {
   updatedBy String?  @db.ObjectId
 
   @@index(fields: [city])
-  @@index(fields: [countryCode])
-  @@index(fields: [continent])
-  @@index(fields: [continentCode])
+  @@index(fields: [countryCode, status])
+  @@index(fields: [continentCode, status])
   @@index(fields: [status])
   @@map("airports")
 }

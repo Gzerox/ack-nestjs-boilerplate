@@ -67,10 +67,12 @@ export class AirportResponseDto extends DatabaseDto {
 
     @ApiProperty({
         required: false,
-        description: 'Region / state / province',
-        example: 'Lombardy',
+        description: 'Continent code (2 letters) - project-controlled set: AF, AN, AS, EU, NA, OC, SA',
+        example: 'EU',
+        maxLength: 2,
+        minLength: 2,
     })
-    region?: string;
+    continentCode?: string;
 
     @ApiProperty({
         required: true,

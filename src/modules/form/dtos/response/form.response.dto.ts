@@ -80,7 +80,7 @@ export class FormResponseDto extends DatabaseDto {
     description: string | null;
 
     @ApiProperty({
-        description: 'Form schema snapshot',
+        description: 'Form schema',
         type: FormSchemaDto,
         required: true,
     })

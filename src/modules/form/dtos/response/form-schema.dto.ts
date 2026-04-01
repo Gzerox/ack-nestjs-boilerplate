@@ -41,12 +41,6 @@ export class FormSchemaValidationDto {
 }
 
 export class FormSchemaQuestionDto {
-    @ApiProperty({
-        description: 'Question identifier',
-        example: 'agency_overall_rating',
-        required: true,
-    })
-    id: string;
 
     @ApiProperty({
         description: 'Question type',
@@ -103,12 +97,6 @@ export class FormSchemaQuestionDto {
 }
 
 export class FormSchemaSectionDto {
-    @ApiProperty({
-        description: 'Section identifier',
-        example: 'agency',
-        required: true,
-    })
-    id: string;
 
     @ApiProperty({
         description: 'Display label',

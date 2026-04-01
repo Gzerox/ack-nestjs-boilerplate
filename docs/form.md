@@ -31,17 +31,17 @@ This module is designed so form structure is flexible while being drafted, but i
 - [Related Documents](#related-documents)
 - [Form Concept](#form-concept)
 - [Form Lifecycle](#form-lifecycle)
-  - [Draft Stage](#draft-stage)
-  - [Publish Stage](#publish-stage)
-  - [Assignment Stage](#assignment-stage)
-  - [Submission Stage](#submission-stage)
+    - [Draft Stage](#draft-stage)
+    - [Publish Stage](#publish-stage)
+    - [Assignment Stage](#assignment-stage)
+    - [Submission Stage](#submission-stage)
 - [Schema Snapshot](#schema-snapshot)
 - [Routes Overview](#routes-overview)
-  - [Admin / Shared Routes](#admin--shared-routes)
-  - [User Routes](#user-routes)
+    - [Admin / Shared Routes](#admin--shared-routes)
+    - [User Routes](#user-routes)
 - [Flow](#flow)
-  - [Admin Flow Diagram](#admin-flow-diagram)
-  - [User Flow Diagram](#user-flow-diagram)
+    - [Admin Flow Diagram](#admin-flow-diagram)
+    - [User Flow Diagram](#user-flow-diagram)
 - [Important Rules](#important-rules)
 - [Known Limitations](#known-limitations)
 - [Contribution](#contribution)
@@ -97,6 +97,7 @@ At publish time:
 - `schemaSnapshot` is treated as the source of truth for the current form definition
 - the publish operation materializes the snapshot into `FormSection` records
 - the publish operation materializes the snapshot into `FormQuestion` records
+- published `FormSection.id` and `FormQuestion.id` become the identifiers used by published read APIs, submissions, and summaries
 - the form status becomes `published`
 - `publishedAt` is set
 
@@ -135,7 +136,7 @@ When a user submits:
 - the assignment must exist and be active
 - the form must still be `published`
 - the form-level and assignment-level close dates must not be exceeded
-- answers are upserted into `FormAnswer`
+- answers are upserted into `FormAnswer` using published `questionId` values (`FormQuestion.id`)
 - the response is marked as `submitted`
 - `submittedAt` is set
 
@@ -174,6 +175,10 @@ The question summary endpoint (`GET /forms/:idForm/questions/:questionId/summary
 - `text` / `date` — returns only the count of non-null responses; individual values are not surfaced
 
 Conceptually, `schemaSnapshot` is the editable blueprint. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
+
+Each question carries a `key` field — a stable, human-readable identifier supplied by the form creator, unique per form (`[formId, key]`). The `key` is stored in the draft `schemaSnapshot` and persisted into `FormQuestion.key` on publish. It is returned alongside the published ObjectId in all schema responses.
+
+Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `FormQuestion.id` ObjectId.
 
 In short:
 

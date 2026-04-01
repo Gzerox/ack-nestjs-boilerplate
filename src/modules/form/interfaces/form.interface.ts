@@ -30,7 +30,6 @@ export interface IFormSchemaValidation {
 }
 
 export interface IFormSchemaQuestion {
-    id: string;
     type: EnumFormQuestionType;
     label: string;
     supportText?: string;
@@ -41,7 +40,6 @@ export interface IFormSchemaQuestion {
 }
 
 export interface IFormSchemaSection {
-    id: string;
     label?: string | null;
     questions: IFormSchemaQuestion[];
 }
@@ -50,6 +48,11 @@ export interface IFormSchemaSnapshot {
     title: string;
     description?: string | null;
     sections: IFormSchemaSection[];
+}
+
+export interface IFormWithStructure extends Form {
+    sections?: FormSection[];
+    questions?: FormQuestion[];
 }
 
 export interface IFormResponseStatusCount {
@@ -70,11 +73,11 @@ export interface IFormCount {
     response: IFormResponseStatusCount;
 }
 
-export interface IFormWithCounts extends Form {
+export interface IFormWithCounts extends IFormWithStructure {
     count: IFormCount;
 }
 
 export interface IFormAssignmentWithRelations extends FormAssignment {
-    form: Form;
+    form: IFormWithStructure;
     responses: IFormResponseWithAnswers[];
 }

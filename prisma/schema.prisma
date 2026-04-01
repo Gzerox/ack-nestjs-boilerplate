@@ -470,7 +470,6 @@ model NotificationUserSetting {
 
 model Form {
   id             String         @id @default(auto()) @map("_id") @db.ObjectId
-  createdBy      String         @db.ObjectId
   kind           EnumFormKind
   title          String
   description    String?
@@ -478,12 +477,16 @@ model Form {
   schemaSnapshot Json
   closesAt       DateTime?
   publishedAt    DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
 
   sections    FormSection[]    @relation("FormSections")
   questions   FormQuestion[]   @relation("FormQuestions")
   assignments FormAssignment[] @relation("FormAssignments")
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String   @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   @@index(fields: [createdBy, status])
   @@index(fields: [kind, status])
@@ -495,36 +498,35 @@ model Form {
 model FormSection {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   formId    String   @db.ObjectId
-  sectionId String
   label     String?
   position  Int
   createdAt DateTime @default(now())
 
-  form Form @relation("FormSections", fields: [formId], references: [id], onDelete: Cascade)
+  form      Form           @relation("FormSections", fields: [formId], references: [id], onDelete: Cascade)
+  questions FormQuestion[] @relation("FormSectionQuestions")
 
-  @@unique(fields: [formId, sectionId])
   @@index(fields: [formId, position])
   @@map("FormSections")
 }
 
 model FormQuestion {
-  id         String               @id @default(auto()) @map("_id") @db.ObjectId
-  formId     String               @db.ObjectId
-  sectionId  String
-  questionId String
-  type       EnumFormQuestionType
+  id          String               @id @default(auto()) @map("_id") @db.ObjectId
+  formId      String               @db.ObjectId
+  sectionId   String               @db.ObjectId
+  type        EnumFormQuestionType
   label       String
   supportText String?
   placeholder String?
   required    Boolean
-  position   Int
-  validation Json?
-  options    Json?
-  createdAt  DateTime             @default(now())
+  position    Int
+  validation  Json?
+  options     Json?
+  createdAt   DateTime             @default(now())
 
-  form Form @relation("FormQuestions", fields: [formId], references: [id], onDelete: Cascade)
+  form    Form         @relation("FormQuestions", fields: [formId], references: [id], onDelete: Cascade)
+  section FormSection  @relation("FormSectionQuestions", fields: [sectionId], references: [id], onDelete: Cascade)
+  answers FormAnswer[] @relation("FormQuestionAnswers")
 
-  @@unique(fields: [formId, questionId])
   @@index(fields: [formId, sectionId, position])
   @@index(fields: [formId, type])
   @@map("FormQuestions")
@@ -559,11 +561,15 @@ model FormResponse {
   userId       String                 @db.ObjectId
   status       EnumFormResponseStatus @default(pending)
   submittedAt  DateTime?
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
 
   assignment FormAssignment @relation("FormResponses", fields: [assignmentId], references: [id], onDelete: Cascade)
   answers    FormAnswer[]   @relation("FormAnswers")
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String?  @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   @@unique(fields: [assignmentId, userId])
   @@index(fields: [formId, status])
@@ -576,22 +582,25 @@ model FormAnswer {
   id           String    @id @default(auto()) @map("_id") @db.ObjectId
   formId       String    @db.ObjectId
   responseId   String    @db.ObjectId
-  sectionId    String
-  questionId   String
+  questionId   String    @db.ObjectId
   numberValue  Float?
   optionValue  String?
   optionValues String[]
   textValue    String?
   booleanValue Boolean?
   dateValue    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
 
   response FormResponse @relation("FormAnswers", fields: [responseId], references: [id], onDelete: Cascade)
+  question FormQuestion @relation("FormQuestionAnswers", fields: [questionId], references: [id], onDelete: Cascade)
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String?  @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   @@unique(fields: [responseId, questionId])
   @@index(fields: [formId, questionId])
-  @@index(fields: [formId, sectionId])
   @@map("FormAnswers")
 }
 

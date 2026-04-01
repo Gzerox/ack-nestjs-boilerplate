@@ -21,8 +21,8 @@ export class FormQuestionBreakdownItemDto {
 
 export class FormQuestionSummaryResponseDto {
     @ApiProperty({
-        description: 'Question identifier',
-        example: 'agency_overall_rating',
+        description: 'Published question identifier',
+        example: '507f1f77bcf86cd799439011',
         required: true,
     })
     questionId: string;

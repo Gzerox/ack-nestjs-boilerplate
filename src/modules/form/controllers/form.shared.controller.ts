@@ -114,10 +114,7 @@ export class FormSharedController {
             FormAvailableStatus
         )
         status?: Record<string, IPaginationIn>,
-        @PaginationQueryFilterInEnum<EnumFormKind>(
-            'kind',
-            FormAvailableKind
-        )
+        @PaginationQueryFilterInEnum<EnumFormKind>('kind', FormAvailableKind)
         kind?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseDto>> {
         return this.formService.getFormList(pagination, status, kind, userId);
@@ -265,7 +262,8 @@ export class FormSharedController {
     async questionSummary(
         @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
         idForm: string,
-        @Param('questionId', RequestRequiredPipe) questionId: string
+        @Param('questionId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        questionId: string
     ): Promise<IResponseReturn<FormQuestionSummaryResponseDto>> {
         return this.formService.getQuestionSummary(idForm, questionId);
     }

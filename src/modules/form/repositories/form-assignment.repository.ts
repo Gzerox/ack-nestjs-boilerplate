@@ -54,7 +54,12 @@ export class FormAssignmentRepository {
         return this.databaseService.formAssignment.findUnique({
             where: { id },
             include: {
-                form: true,
+                form: {
+                    include: {
+                        sections: true,
+                        questions: true,
+                    },
+                },
                 responses: {
                     where: { userId },
                     take: 1,

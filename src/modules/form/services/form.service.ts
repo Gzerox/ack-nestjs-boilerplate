@@ -37,8 +37,10 @@ import {
 } from '@generated/prisma-client';
 import { FormSchemaSectionRequestDto } from '@modules/form/dtos/request/form-schema.request.dto';
 import {
+    IFormAssignmentWithRelations,
     IFormResponseWithAnswers,
     IFormSchemaSnapshot,
+    IFormWithStructure,
 } from '@modules/form/interfaces/form.interface';
 
 @Injectable()
@@ -55,7 +57,7 @@ export class FormService implements IFormService {
 
     async createDraft(
         dto: FormCreateDraftRequestDto,
-        createdBy: string,
+        createdBy: string
     ): Promise<IResponseReturn<FormCreateDraftResponseDto>> {
         const snapshot = this.buildSnapshot(
             dto.title,
@@ -63,17 +65,15 @@ export class FormService implements IFormService {
             dto.sections
         );
 
-        const form = await this.formRepository.create(
-            {
-                createdBy,
-                kind: dto.kind,
-                title: dto.title,
-                description: dto.description ?? null,
-                closesAt: dto.closesAt ?? null,
-                status: EnumFormStatus.draft,
-                schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-            },
-        );
+        const form = await this.formRepository.create({
+            createdBy,
+            kind: dto.kind,
+            title: dto.title,
+            description: dto.description ?? null,
+            closesAt: dto.closesAt ?? null,
+            status: EnumFormStatus.draft,
+            schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+        });
 
         return {
             data: { id: form.id },
@@ -154,40 +154,30 @@ export class FormService implements IFormService {
         }
 
         const snapshot = form.schemaSnapshot as unknown as IFormSchemaSnapshot;
-        const sections: Omit<Prisma.FormSectionCreateManyInput, 'formId'>[] = (
-            snapshot.sections ?? []
-        ).map((s, i: number) => ({
-            sectionId: s.id,
-            label: s.label ?? null,
-            position: i,
-        }));
-
-        const questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[] =
-            (snapshot.sections ?? []).flatMap(s =>
-                (s.questions ?? []).map((q, qi: number) => ({
-                    sectionId: s.id,
-                    questionId: q.id,
-                    type: q.type,
-                    label: q.label,
-                    supportText: q.supportText ?? null,
-                    placeholder: q.placeholder ?? null,
-                    required: q.required,
-                    position: qi,
-                    validation:
-                        (q.validation as unknown as Prisma.InputJsonValue) ??
-                        null,
-                    options:
-                        q.options?.length
-                            ? (q.options as unknown as Prisma.InputJsonValue)
-                            : null,
-                }))
-            );
 
         await this.formRepository.publishWithSchema(
             formId,
             this.helperService.dateCreate(),
-            sections,
-            questions
+            (snapshot.sections ?? []).map((section, sectionIndex) => ({
+                label: section.label ?? null,
+                position: sectionIndex,
+                questions: (section.questions ?? []).map(
+                    (question, questionIndex) => ({
+                        type: question.type,
+                        label: question.label,
+                        supportText: question.supportText ?? null,
+                        placeholder: question.placeholder ?? null,
+                        required: question.required,
+                        position: questionIndex,
+                        validation:
+                            (question.validation as unknown as Prisma.InputJsonValue) ??
+                            null,
+                        options: question.options?.length
+                            ? (question.options as unknown as Prisma.InputJsonValue)
+                            : null,
+                    })
+                ),
+            }))
         );
 
         return {
@@ -209,7 +199,11 @@ export class FormService implements IFormService {
             });
         }
 
-        const existingAssignment = await this.formAssignmentRepository.existByFormAndUser(formId, dto.userId);
+        const existingAssignment =
+            await this.formAssignmentRepository.existByFormAndUser(
+                formId,
+                dto.userId
+            );
         if (existingAssignment) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.responseAlreadyExists,
@@ -291,12 +285,13 @@ export class FormService implements IFormService {
         kind?: Record<string, IPaginationIn>,
         createdBy?: string
     ): Promise<IResponsePagingReturn<FormResponseDto>> {
-        const result = await this.formRepository.findWithPaginationOffsetAndCounts(
-            pagination,
-            status,
-            kind,
-            createdBy
-        );
+        const result =
+            await this.formRepository.findWithPaginationOffsetAndCounts(
+                pagination,
+                status,
+                kind,
+                createdBy
+            );
 
         return {
             ...result,
@@ -324,18 +319,16 @@ export class FormService implements IFormService {
     async getFormMetrics(
         formId: string
     ): Promise<IResponseReturn<FormMetricsResponseDto>> {
-        const form = await this.formRepository.existById(formId);
+        const [form, counts] = await Promise.all([
+            this.formRepository.existById(formId),
+            this.formResponseRepository.countByFormGroupedByStatus(formId),
+        ]);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
                 message: 'form.error.formNotFound',
             });
         }
-
-        const counts =
-            await this.formResponseRepository.countByFormGroupedByStatus(
-                formId
-            );
         const assignedCount = counts.reduce((s, c) => s + c._count, 0);
         const submittedCount =
             counts.find(c => c.status === EnumFormResponseStatus.submitted)
@@ -387,18 +380,16 @@ export class FormService implements IFormService {
         formId: string,
         questionId: string
     ): Promise<IResponseReturn<FormQuestionSummaryResponseDto>> {
-        const form = await this.formRepository.existById(formId);
+        const [form, question] = await Promise.all([
+            this.formRepository.existById(formId),
+            this.formRepository.findQuestionByFormAndId(formId, questionId),
+        ]);
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.formNotFound,
                 message: 'form.error.formNotFound',
             });
         }
-
-        const question = await this.formRepository.findQuestionByFormAndId(
-            formId,
-            questionId
-        );
         if (!question) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.questionNotFound,
@@ -448,71 +439,15 @@ export class FormService implements IFormService {
         userId: string,
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
-        const assignmentWithRelations =
-            await this.formAssignmentRepository.findByIdWithFormAndResponse(
-                assignmentId,
-                userId
-            );
-
-        if (!assignmentWithRelations || !assignmentWithRelations.isActive) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
-        const response = assignmentWithRelations.responses[0] ?? null;
-        if (!response) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.responseNotFound,
-                message: 'form.error.responseNotFound',
-            });
-        }
-
-        if (
-            response.formId !== formId ||
-            assignmentWithRelations.formId !== formId
-        ) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
-        const form = assignmentWithRelations.form;
-        if (!form) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.formNotFound,
-                message: 'form.error.formNotFound',
-            });
-        }
-
-        if (form.status !== EnumFormStatus.published) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formNotPublished,
-                message: 'form.error.formNotPublished',
-            });
-        }
-
         const now = this.helperService.dateCreate();
+        const { form, response } = await this.fetchAndValidateAssignment(
+            assignmentId,
+            formId,
+            userId,
+            now
+        );
 
-        if (assignmentWithRelations.startsAt && now < assignmentWithRelations.startsAt) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formNotOpenYet,
-                message: 'form.error.formNotOpenYet',
-            });
-        }
-
-        if (assignmentWithRelations.closesAt && now > assignmentWithRelations.closesAt) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formClosed,
-                message: 'form.error.formClosed',
-            });
-        }
-
-        return {
-            data: this.formUtil.mapFormWithResponse(form, response),
-        };
+        return { data: this.formUtil.mapFormWithResponse(form, response) };
     }
 
     async submitForm(
@@ -521,73 +456,13 @@ export class FormService implements IFormService {
         dto: FormSubmitRequestDto,
         userId: string
     ): Promise<IResponseReturn<FormResponseResponseDto>> {
-        const assignmentWithRelations =
-            await this.formAssignmentRepository.findByIdWithFormAndResponse(
-                assignmentId,
-                userId
-            );
-
-        if (!assignmentWithRelations || !assignmentWithRelations.isActive) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
-        const response = assignmentWithRelations.responses[0] ?? null;
-        if (!response) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.responseNotFound,
-                message: 'form.error.responseNotFound',
-            });
-        }
-
-        if (
-            assignmentWithRelations.formId !== formId ||
-            response.formId !== formId
-        ) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.assignmentNotFound,
-                message: 'form.error.assignmentNotFound',
-            });
-        }
-
         const now = this.helperService.dateCreate();
-
-        if (
-            assignmentWithRelations.startsAt &&
-            now < assignmentWithRelations.startsAt
-        ) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formNotOpenYet,
-                message: 'form.error.formNotOpenYet',
-            });
-        }
-
-        if (
-            assignmentWithRelations.closesAt &&
-            now > assignmentWithRelations.closesAt
-        ) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formClosed,
-                message: 'form.error.formClosed',
-            });
-        }
-
-        const form = assignmentWithRelations.form;
-        if (!form) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.formNotFound,
-                message: 'form.error.formNotFound',
-            });
-        }
-
-        if (form.status !== EnumFormStatus.published) {
-            throw new ConflictException({
-                statusCode: EnumFormStatusCodeError.formNotPublished,
-                message: 'form.error.formNotPublished',
-            });
-        }
+        const { form, response } = await this.fetchAndValidateAssignment(
+            assignmentId,
+            formId,
+            userId,
+            now
+        );
 
         if (form.closesAt && now > form.closesAt) {
             throw new ConflictException({
@@ -603,6 +478,22 @@ export class FormService implements IFormService {
             });
         }
 
+        const questionIds = [
+            ...new Set((dto.answers ?? []).map(answer => answer.questionId)),
+        ];
+        const questions =
+            await this.formRepository.findManyQuestionsByFormAndIds(
+                formId,
+                questionIds
+            );
+
+        if (questions.length !== questionIds.length) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.questionNotFound,
+                message: 'form.error.questionNotFound',
+            });
+        }
+
         const submitted = await this.formResponseRepository.upsertAnswers(
             response.id,
             formId,
@@ -612,6 +503,76 @@ export class FormService implements IFormService {
         );
 
         return { data: this.formUtil.mapResponseOne(submitted) };
+    }
+
+    private async fetchAndValidateAssignment(
+        assignmentId: string,
+        formId: string,
+        userId: string,
+        now: Date
+    ): Promise<{
+        assignment: IFormAssignmentWithRelations;
+        response: IFormResponseWithAnswers;
+        form: IFormWithStructure;
+    }> {
+        const assignment =
+            await this.formAssignmentRepository.findByIdWithFormAndResponse(
+                assignmentId,
+                userId
+            );
+
+        if (!assignment || !assignment.isActive) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        const response = assignment.responses[0] ?? null;
+        if (!response) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.responseNotFound,
+                message: 'form.error.responseNotFound',
+            });
+        }
+
+        if (response.formId !== formId || assignment.formId !== formId) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.assignmentNotFound,
+                message: 'form.error.assignmentNotFound',
+            });
+        }
+
+        const form = assignment.form;
+        if (!form) {
+            throw new NotFoundException({
+                statusCode: EnumFormStatusCodeError.formNotFound,
+                message: 'form.error.formNotFound',
+            });
+        }
+
+        if (form.status !== EnumFormStatus.published) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotPublished,
+                message: 'form.error.formNotPublished',
+            });
+        }
+
+        if (assignment.startsAt && now < assignment.startsAt) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formNotOpenYet,
+                message: 'form.error.formNotOpenYet',
+            });
+        }
+
+        if (assignment.closesAt && now > assignment.closesAt) {
+            throw new ConflictException({
+                statusCode: EnumFormStatusCodeError.formClosed,
+                message: 'form.error.formClosed',
+            });
+        }
+
+        return { assignment, response, form };
     }
 
     private buildSnapshot(

@@ -40,10 +40,6 @@ export class FormSchemaValidationRequestDto {
 }
 
 export class FormSchemaQuestionRequestDto {
-    @IsString()
-    @IsNotEmpty()
-    id: string;
-
     @IsEnum(EnumFormQuestionType)
     @IsNotEmpty()
     type: EnumFormQuestionType;
@@ -76,10 +72,6 @@ export class FormSchemaQuestionRequestDto {
 }
 
 export class FormSchemaSectionRequestDto {
-    @IsString()
-    @IsNotEmpty()
-    id: string;
-
     @IsString()
     @IsOptional()
     label?: string;

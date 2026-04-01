@@ -1,12 +1,17 @@
-import { IsArray, IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+    IsArray,
+    IsBoolean,
+    IsDate,
+    IsMongoId,
+    IsNotEmpty,
+    IsNumber,
+    IsOptional,
+    IsString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FormAnswerUpsertRequestDto {
-    @IsString()
-    @IsNotEmpty()
-    sectionId: string;
-
-    @IsString()
+    @IsMongoId()
     @IsNotEmpty()
     questionId: string;
 

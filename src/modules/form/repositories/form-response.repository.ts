@@ -111,7 +111,6 @@ export class FormResponseRepository {
                     data: answers.map(answer => ({
                         formId,
                         responseId,
-                        sectionId: answer.sectionId,
                         questionId: answer.questionId,
                         numberValue: answer.numberValue ?? null,
                         optionValue: answer.optionValue ?? null,

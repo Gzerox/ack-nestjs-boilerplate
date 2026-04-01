@@ -7,15 +7,18 @@ import {
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import {
+    EnumFormQuestionType,
     EnumFormResponseStatus,
     EnumFormStatus,
     Form,
     FormQuestion,
+    FormSection,
     Prisma,
 } from '@generated/prisma-client';
 import {
     IFormCount,
     IFormResponseStatusCount,
+    IFormWithStructure,
     IFormWithCounts,
 } from '@modules/form/interfaces/form.interface';
 
@@ -26,40 +29,70 @@ export class FormRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    async create(
-        data: Prisma.FormCreateInput,
-    ): Promise<Form> {
+    async create(data: Prisma.FormCreateInput): Promise<Form> {
         return this.databaseService.form.create({ data });
     }
 
     async publishWithSchema(
         formId: string,
         publishedAt: Date,
-        sections: Omit<Prisma.FormSectionCreateManyInput, 'formId'>[],
-        questions: Omit<Prisma.FormQuestionCreateManyInput, 'formId'>[]
+        sections: Array<{
+            label: string | null;
+            position: number;
+            questions: Array<{
+                type: EnumFormQuestionType;
+                label: string;
+                supportText?: string | null;
+                placeholder?: string | null;
+                required: boolean;
+                position: number;
+                validation?: Prisma.InputJsonValue | null;
+                options?: Prisma.InputJsonValue | null;
+            }>;
+        }>
     ): Promise<Form> {
         return this.databaseService.$transaction(async tx => {
-            // Delete any previously materialized sections/questions (idempotent publish)
-            await tx.formSection.deleteMany({ where: { formId } });
-            await tx.formQuestion.deleteMany({ where: { formId } });
+            await Promise.all([
+                tx.formSection.deleteMany({ where: { formId } }),
+                tx.formQuestion.deleteMany({ where: { formId } }),
+            ]);
 
-            if (sections.length > 0) {
-                await tx.formSection.createMany({
-                    data: sections.map(s => ({ ...s, formId })),
-                });
-            }
-            if (questions.length > 0) {
-                await tx.formQuestion.createMany({
-                    data: questions.map(q => ({ ...q, formId })),
-                });
+            const createdSections: FormSection[] = [];
+            for (const section of sections) {
+                createdSections.push(
+                    await tx.formSection.create({
+                        data: {
+                            formId,
+                            label: section.label,
+                            position: section.position,
+                        },
+                    })
+                );
             }
 
-            const form = await tx.form.update({
+            const allQuestions = sections.flatMap((section, sectionIndex) =>
+                section.questions.map(question => ({
+                    formId,
+                    sectionId: createdSections[sectionIndex].id,
+                    type: question.type,
+                    label: question.label,
+                    supportText: question.supportText ?? null,
+                    placeholder: question.placeholder ?? null,
+                    required: question.required,
+                    position: question.position,
+                    validation: question.validation ?? null,
+                    options: question.options ?? null,
+                }))
+            );
+
+            if (allQuestions.length > 0) {
+                await tx.formQuestion.createMany({ data: allQuestions });
+            }
+
+            return tx.form.update({
                 where: { id: formId },
                 data: { status: EnumFormStatus.published, publishedAt },
             });
-
-            return form;
         });
     }
 
@@ -105,7 +138,11 @@ export class FormRepository {
     ): Promise<IFormWithCounts | null> {
         const form = await this.databaseService.form.findFirst({
             where: { id, ...(createdBy && { createdBy }) },
-            include: { _count: { select: { assignments: true } } },
+            include: {
+                sections: true,
+                questions: true,
+                _count: { select: { assignments: true } },
+            },
         });
 
         if (!form) {
@@ -117,10 +154,7 @@ export class FormRepository {
         return formWithCounts;
     }
 
-    async update(
-        id: string,
-        data: Prisma.FormUpdateInput
-    ): Promise<Form> {
+    async update(id: string, data: Prisma.FormUpdateInput): Promise<Form> {
         return this.databaseService.form.update({
             where: { id },
             data,
@@ -149,13 +183,31 @@ export class FormRepository {
         formId: string,
         questionId: string
     ): Promise<FormQuestion | null> {
-        return this.databaseService.formQuestion.findUnique({
-            where: { formId_questionId: { formId, questionId } },
+        return this.databaseService.formQuestion.findFirst({
+            where: { id: questionId, formId },
+        });
+    }
+
+    async findManyQuestionsByFormAndIds(
+        formId: string,
+        questionIds: string[]
+    ): Promise<FormQuestion[]> {
+        if (questionIds.length === 0) {
+            return [];
+        }
+
+        return this.databaseService.formQuestion.findMany({
+            where: {
+                formId,
+                id: {
+                    in: questionIds,
+                },
+            },
         });
     }
 
     private async attachCounts(
-        forms: (Form & { _count: { assignments: number } })[]
+        forms: (IFormWithStructure & { _count: { assignments: number } })[]
     ): Promise<IFormWithCounts[]> {
         if (forms.length === 0) {
             return [];
@@ -198,23 +250,17 @@ export class FormRepository {
             countsByForm.set(count.formId, current);
         }
 
-        return forms.map(form => ({
-            id: form.id,
-            createdBy: form.createdBy,
-            kind: form.kind,
-            title: form.title,
-            description: form.description,
-            status: form.status,
-            schemaSnapshot: form.schemaSnapshot,
-            closesAt: form.closesAt,
-            publishedAt: form.publishedAt,
-            createdAt: form.createdAt,
-            updatedAt: form.updatedAt,
-            count: this.buildCount(
-                form._count.assignments,
-                countsByForm.get(form.id)
-            ),
-        }));
+        return forms.map(form => {
+            const { _count, ...rest } = form;
+
+            return {
+                ...rest,
+                count: this.buildCount(
+                    form._count.assignments,
+                    countsByForm.get(form.id)
+                ),
+            };
+        });
     }
 
     private buildCount(

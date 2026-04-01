@@ -148,6 +148,7 @@ model User {
   deviceOwnerships        DeviceOwnership[]          @relation("DeviceOwnershipUser")
   revokedSessions         Session[]                  @relation("SessionRevokedByUser")
   revokedDeviceOwnerships DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
+  formAssignments         FormAssignment[]           @relation("UserFormAssignments")
 
   @@unique(fields: [username])
   @@unique(fields: [email])
@@ -467,6 +468,133 @@ model NotificationUserSetting {
   @@map("NotificationUserSettings")
 }
 
+model Form {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy      String         @db.ObjectId
+  kind           EnumFormKind
+  title          String
+  description    String?
+  status         EnumFormStatus @default(draft)
+  schemaSnapshot Json
+  closesAt       DateTime?
+  publishedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  sections    FormSection[]    @relation("FormSections")
+  questions   FormQuestion[]   @relation("FormQuestions")
+  assignments FormAssignment[] @relation("FormAssignments")
+
+  @@index(fields: [createdBy, status])
+  @@index(fields: [kind, status])
+  @@index(fields: [publishedAt])
+  @@index(fields: [closesAt])
+  @@map("Forms")
+}
+
+model FormSection {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  formId    String   @db.ObjectId
+  sectionId String
+  label     String?
+  position  Int
+  createdAt DateTime @default(now())
+
+  form Form @relation("FormSections", fields: [formId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [formId, sectionId])
+  @@index(fields: [formId, position])
+  @@map("FormSections")
+}
+
+model FormQuestion {
+  id         String               @id @default(auto()) @map("_id") @db.ObjectId
+  formId     String               @db.ObjectId
+  sectionId  String
+  questionId String
+  type       EnumFormQuestionType
+  label       String
+  supportText String?
+  placeholder String?
+  required    Boolean
+  position   Int
+  validation Json?
+  options    Json?
+  createdAt  DateTime             @default(now())
+
+  form Form @relation("FormQuestions", fields: [formId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [formId, questionId])
+  @@index(fields: [formId, sectionId, position])
+  @@index(fields: [formId, type])
+  @@map("FormQuestions")
+}
+
+model FormAssignment {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  formId    String    @db.ObjectId
+  userId    String    @db.ObjectId
+  required  Boolean   @default(true)
+  startsAt  DateTime?
+  closesAt  DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  form      Form           @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
+  user      User           @relation("UserFormAssignments", fields: [userId], references: [id])
+  responses FormResponse[] @relation("FormResponses")
+
+  @@unique(fields: [formId, userId])
+  @@index(fields: [formId, isActive])
+  @@index(fields: [userId])
+  @@index(fields: [userId, isActive])
+  @@map("FormAssignments")
+}
+
+model FormResponse {
+  id           String                 @id @default(auto()) @map("_id") @db.ObjectId
+  formId       String                 @db.ObjectId
+  assignmentId String                 @db.ObjectId
+  userId       String                 @db.ObjectId
+  status       EnumFormResponseStatus @default(pending)
+  submittedAt  DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  assignment FormAssignment @relation("FormResponses", fields: [assignmentId], references: [id], onDelete: Cascade)
+  answers    FormAnswer[]   @relation("FormAnswers")
+
+  @@unique(fields: [assignmentId, userId])
+  @@index(fields: [formId, status])
+  @@index(fields: [userId])
+  @@index(fields: [userId, status])
+  @@map("FormResponses")
+}
+
+model FormAnswer {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formId       String    @db.ObjectId
+  responseId   String    @db.ObjectId
+  sectionId    String
+  questionId   String
+  numberValue  Float?
+  optionValue  String?
+  optionValues String[]
+  textValue    String?
+  booleanValue Boolean?
+  dateValue    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  response FormResponse @relation("FormAnswers", fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [responseId, questionId])
+  @@index(fields: [formId, questionId])
+  @@index(fields: [formId, sectionId])
+  @@map("FormAnswers")
+}
+
 type UserTermPolicy {
   termsOfService Boolean
   privacy        Boolean
@@ -543,6 +671,32 @@ type GeoLocation {
   country   String
   region    String
   city      String
+}
+
+enum EnumFormKind {
+  survey
+  form
+  poll
+}
+
+enum EnumFormStatus {
+  draft
+  published
+  archived
+}
+
+enum EnumFormResponseStatus {
+  pending
+  submitted
+}
+
+enum EnumFormQuestionType {
+  text
+  number
+  singleSelect
+  multiSelect
+  boolean
+  date
 }
 
 enum EnumUserGender {
@@ -674,6 +828,11 @@ enum EnumActivityLogAction {
   adminUserResetTwoFactor
   adminUserImport
   adminDeviceRemove
+
+  adminFormCreate
+  adminFormPublish
+  adminFormArchive
+  adminFormDelete
 }
 
 enum EnumDevicePlatform {

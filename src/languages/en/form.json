@@ -1,0 +1,37 @@
+{
+    "form": {
+        "list": "Get form list",
+        "get": "Get form detail",
+        "createDraft": "Form draft created",
+        "update": "Form updated",
+        "publish": "Form published",
+        "archive": "Form archived",
+        "delete": "Form deleted",
+        "metrics": "Form metrics",
+        "submit": "Form submitted"
+    },
+    "assignment": {
+        "create": "Assignment created",
+        "list": "Get assignments"
+    },
+    "response": {
+        "list": "Get form responses"
+    },
+    "question": {
+        "summary": "Question summary"
+    },
+    "error": {
+        "formNotFound": "Form not found",
+        "formNotPublished": "Form is not published",
+        "formNotDraft": "Form cannot be edited after publishing",
+        "formClosed": "Form is closed or expired",
+        "formNotOpenYet": "Form is not yet available",
+        "formAlreadyArchived": "Form is already archived",
+        "formAlreadyPublished": "Form is already published",
+        "assignmentNotFound": "Form assignment not found",
+        "responseNotFound": "Form response not found",
+        "responseAlreadySubmitted": "Form already submitted",
+        "responseAlreadyExists": "User already has a response for this assignment",
+        "questionNotFound": "Form question not found"
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "list": "Itinerary list",
+  "get": "Itinerary detail",
+  "create": "Itinerary created",
+  "error": {
+    "notFound": "Itinerary not found",
+    "departAirportSameAsArrive": "Departure and arrival airports must be different",
+    "arriveAtBeforeDepartAt": "Arrival time cannot be before departure time",
+    "segmentChronologyInvalid": "Flight segments are not in chronological order: {details}",
+    "airportHasSegments": "Cannot delete airport with active flight segments",
+    "airportNotFound": "Airport {id} not found"
+  }
+}

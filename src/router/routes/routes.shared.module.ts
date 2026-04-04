@@ -10,6 +10,8 @@ import { UserSharedController } from '@modules/user/controllers/user.shared.cont
 import { UserModule } from '@modules/user/user.module';
 import { FormSharedController } from '@modules/form/controllers/form.shared.controller';
 import { FormModule } from '@modules/form/form.module';
+import { ItinerarySharedController } from '@modules/transport/itinerary/controllers/itinerary.shared.controller';
+import { TransportModule } from '@modules/transport/transport.module';
 import { Module } from '@nestjs/common';
 
 /**
@@ -27,9 +29,10 @@ import { Module } from '@nestjs/common';
         DeviceSharedController,
         NotificationSharedController,
         FormSharedController,
+        ItinerarySharedController,
     ],
     providers: [],
     exports: [],
-    imports: [UserModule, PasswordHistoryModule, DeviceModule, FormModule],
+    imports: [UserModule, PasswordHistoryModule, DeviceModule, FormModule, TransportModule],
 })
 export class RoutesSharedModule {}

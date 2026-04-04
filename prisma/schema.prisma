@@ -931,4 +931,58 @@ model Airport {
   @@index(fields: [continentCode, status])
   @@index(fields: [status])
   @@map("airports")
+
+  departSegments TransportFlightSegment[] @relation("TransportFlightSegmentDepart")
+  arriveSegments TransportFlightSegment[] @relation("TransportFlightSegmentArrive")
+}
+
+enum EnumFlightDirection {
+  outbound
+  return
+}
+
+model TransportItinerary {
+  id        String               @id @default(auto()) @map("_id") @db.ObjectId
+  name      String               @db.String
+  direction EnumFlightDirection
+
+  segments  TransportFlightSegment[]
+
+  createdAt DateTime             @default(now())
+  createdBy String?              @db.ObjectId
+  updatedAt DateTime             @updatedAt
+  updatedBy String?              @db.ObjectId
+
+  @@index(fields: [direction])
+  @@index(fields: [createdAt])
+  @@map("TransportItineraries")
+}
+
+model TransportFlightSegment {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  itineraryId     String     @db.ObjectId
+  airline         String?    @db.String
+  flightNumber    String     @db.String
+  departAirportId String     @db.ObjectId
+  arriveAirportId String     @db.ObjectId
+  departAt        DateTime?  /// UTC
+  arriveAt        DateTime?  /// UTC
+  bookingRef      String?    @db.String
+  notes           String?    @db.String
+
+  itinerary     TransportItinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  departAirport Airport            @relation("TransportFlightSegmentDepart", fields: [departAirportId], references: [id], onDelete: Restrict)
+  arriveAirport Airport            @relation("TransportFlightSegmentArrive", fields: [arriveAirportId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  createdBy String?  @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
+
+  @@index(fields: [itineraryId])
+  @@index(fields: [departAirportId])
+  @@index(fields: [arriveAirportId])
+  @@index(fields: [departAt])
+  @@index(fields: [arriveAt])
+  @@map("TransportFlightSegments")
 }

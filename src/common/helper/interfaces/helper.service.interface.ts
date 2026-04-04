@@ -60,6 +60,7 @@ export interface IHelperService {
     dateBackward(date: Date, duration: Duration): Date;
     dateCreateDuration(duration: DurationLikeObject): Duration;
     dateDiff(dateOne: Date, dateTwo: Date): Duration;
+    dateFromZoned(dateStr: string, timezone: string): Date;
     resolveCity(geoLocation?: GeoLocation): string;
     resolveDevice(userAgent: UserAgent): string;
 }

@@ -13,6 +13,7 @@ import { AwsModule } from '@common/aws/aws.module';
 import { MigrationTemplateEmailNotificationSeed } from '@migration/seeds/migration.template-notification.seed';
 import { MigrationTemplateTermPolicySeed } from '@migration/seeds/migration.template-term-policy.seed';
 import { MigrationAirportSeed } from '@migration/seeds/migration.airport.seed';
+import { MigrationItinerarySeed } from '@migration/seeds/migration.itinerary.seed';
 
 /**
  * Migration module that provides database seeding and removal functionality.
@@ -42,6 +43,7 @@ import { MigrationAirportSeed } from '@migration/seeds/migration.airport.seed';
         MigrationTemplateTermPolicySeed,
         MigrationAwsS3ConfigSeed,
         MigrationAirportSeed,
+        MigrationItinerarySeed,
     ],
     exports: [],
 })

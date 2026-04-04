@@ -858,6 +858,10 @@ export class HelperService implements IHelperService {
         return dOne.diff(dTwo);
     }
 
+    dateFromZoned(dateStr: string, timezone: string): Date {
+        return DateTime.fromISO(dateStr, { zone: timezone }).toUTC().toJSDate();
+    }
+
     /**
      * Retrieves the current machine's hostname.
      *

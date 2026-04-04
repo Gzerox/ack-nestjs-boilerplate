@@ -10,21 +10,37 @@ Trip media helps backend users upload photos or images so travelers can preview 
 
 ## Related Documents
 
-1. Directory index: [README.md](/Users/dantoniolc/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/README.md)
-2. Trip aggregate: [trip.md](/Users/dantoniolc/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip.md)
-3. Contact scope: [trip-contact.md](/Users/dantoniolc/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-contact.md)
-4. Attachment scope: [trip-attachments.md](/Users/dantoniolc/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-attachments.md)
+1. Directory index: [README.md](README.md)
+2. Trip aggregate: [trip.md](trip.md)
+3. Contact scope: [trip-contact.md](trip-contact.md)
+4. Attachment scope: [trip-attachments.md](trip-attachments.md)
+
+## Enumerations
+
+```text
+TripMediaKind: IMAGE | VIDEO | THUMBNAIL | OTHER
+```
 
 ## Prisma Draft Schema
 
 ```prisma
+enum TripMediaKind {
+  IMAGE
+  VIDEO
+  THUMBNAIL
+  OTHER
+}
+
 model TripMedia {
   id              String             @id @default(uuid())
   tripId          String
   calendarEventId String?
-  kind            String             @db.VarChar(32)
+  createdBy       String
+
+  kind            TripMediaKind      @default(OTHER)
   url             String
   caption         String?
+
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -42,12 +58,14 @@ model TripMedia {
 2. Media can be attached to the trip directly or to a specific `TripCalendarEvent`.
 3. Media is typically created during trip creation or trip editing flows.
 4. No standalone controller is expected for now.
-5. The `Trip` model should expose `medias TripMedia[]`.
+5. The `Trip` model exposes `medias TripMedia[]`.
 6. The `TripCalendarEvent` model exposes `medias TripMedia[]`.
+7. `TripMedia.kind` is constrained to `TripMediaKind`. Free strings are not accepted. The default value is `OTHER`.
+8. `createdBy` stores the `userId` of the authenticated caller who added the media record.
 
 ## Upload and Management Behavior
 
-1. Backend users are expected to add media as part of trip creation or update payloads.
+1. Backend users add media as part of trip creation or update payloads.
 2. Media storage and upload transport can be specified later; this file only defines the domain contract.
 3. If `calendarEventId` is provided, that event must belong to the same trip as `tripId`.
 
@@ -56,6 +74,26 @@ model TripMedia {
 No dedicated controller is expected for now.
 
 Trip-media records are managed as part of trip aggregate save flows.
+
+## DTOs
+
+### `TripMediaCreateRequestDto` (nested in `TripCreateDraftRequestDto` / `TripUpdateDraftRequestDto`)
+
+- `kind: TripMediaKind` — `@IsEnum(TripMediaKind) @IsNotEmpty`
+- `url: string` — `@IsUrl @IsNotEmpty`
+- `caption?: string` — `@IsString @IsOptional`
+- `calendarEventId?: string` — `@IsMongoId @IsOptional` (links media to a specific calendar event within the same trip)
+
+### `TripMediaResponseDto`
+
+- `id: string`
+- `tripId: string`
+- `calendarEventId: string | null`
+- `kind: TripMediaKind`
+- `url: string`
+- `caption: string | null`
+- `createdAt: Date`
+- `createdBy: string`
 
 ## End-user Surface
 
@@ -66,14 +104,14 @@ Trip media is returned to the traveler when invoking:
 Expected read shape:
 
 1. trip-level `medias`
-2. event-level `calendarEvents.medias`
+2. event-level `calendarEvents[].medias`
 
 ## Validation Rules
 
 1. `tripId` is always required.
 2. `calendarEventId`, if set, must reference a `TripCalendarEvent` in the same trip.
 3. `url` must point to a valid uploaded media resource.
-4. `kind` should be constrained during implementation to the supported media categories.
+4. `kind` must be a valid `TripMediaKind` value.
 
 ## Authorization and Visibility
 

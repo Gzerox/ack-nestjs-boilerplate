@@ -16,11 +16,16 @@ note_type: implementation-spec
 
 This specification covers **end-to-end implementation** of `TransportItinerary` and `TransportFlightSegment` in the transport module.
 
+**In scope (Phase 1):**
+- `GET /shared/v1/itineraries` — paginated list with direction filter
+- `GET /shared/v1/itineraries/:itineraryId` — full detail with segments
+- `POST /shared/v1/itineraries` — create itinerary with nested segments (includes timezone conversion and chronology validation)
+
 **Out of scope (deferred):**
 - Participant assignment models (`FlightItineraryParticipant`, `FlightSegmentParticipant`)
 - User-facing itinerary endpoints (participant ownership required)
 - Trip module integration (addressed in separate Trip spec)
-- Segment CRUD endpoints (to be added when needed in separate spec)
+- Segment-level CRUD endpoints (edit/delete individual segments after creation)
 
 ---
 
@@ -58,7 +63,6 @@ model TransportItinerary {
 model TransportFlightSegment {
   id              String     @id @default(auto()) @map("_id") @db.ObjectId
   itineraryId     String     @db.ObjectId
-  order           Int
   airline         String?    @db.String
   flightNumber    String     @db.String
   departAirportId String     @db.ObjectId
@@ -77,7 +81,6 @@ model TransportFlightSegment {
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
-  @@unique(fields: [itineraryId, order])
   @@index(fields: [itineraryId])
   @@index(fields: [departAirportId])
   @@index(fields: [arriveAirportId])
@@ -103,7 +106,6 @@ model TransportFlightSegment {
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
 | `itineraryId` | `string` | Valid ObjectId, required | Must reference existing `TransportItinerary` |
-| `order` | `number` | Integer ≥ 1, required, unique per itinerary | 1-based; no gaps allowed |
 | `flightNumber` | `string` | 1–20 chars, required | IATA format, e.g. "BA101", "AA2500" |
 | `airline` | `string` | 0–100 chars, optional | Airline name or IATA code, e.g. "United" |
 | `departAirportId` | `string` | Valid ObjectId, required | Must reference existing `Airport` |
@@ -116,7 +118,7 @@ model TransportFlightSegment {
 **Validation Rules:**
 - `departAirportId !== arriveAirportId` — reject with `departAirportSameAsArrive`
 - `arriveAt >= departAt` (when both provided) — reject with `arriveAtBeforeDepartAt`
-- Consecutive segments: if both have times, `segment[n+1].departAt >= segment[n].arriveAt` — reject with `segmentChronologyInvalid`
+- Consecutive segments (ordered by `departAt asc`): if adjacent segments both have times, `next.departAt >= prev.arriveAt` — reject with `segmentChronologyInvalid`
 - Unknown ObjectIds → throw `NotFoundException` with `itineraryNotFound` or `airportNotFound`
 
 ---
@@ -124,19 +126,16 @@ model TransportFlightSegment {
 ## Business Rules
 
 ### Multi-stop routes
-Multi-leg flights are modeled as multiple `TransportFlightSegment` rows ordered by `order`.
+Multi-leg flights are modeled as multiple `TransportFlightSegment` rows. Segments are always returned sorted by `departAt asc, createdAt asc` — no explicit `order` field is stored.
 
 Example: `MXP → FCO → JFK`
 ```
 Itinerary "User A outbound"
-├── Segment 1: MXP → FCO, order=1
-└── Segment 2: FCO → JFK, order=2
+├── Segment: MXP → FCO  (departAt: 2026-06-15T04:00Z)
+└── Segment: FCO → JFK  (departAt: 2026-06-15T08:00Z)
 ```
 
-### Order contiguity
-- When creating segments in bulk, `order` must be contiguous and 1-based: `[1, 2, 3, ...]`
-- No sparse ordering allowed (gaps rejected)
-- Future deletion/editing may require renumbering service
+Segments where `departAt` is null sort after timed segments (secondary sort by `createdAt asc` ensures stable ordering).
 
 ### Timezone handling
 - Input times are in the **local timezone of the selected airport**
@@ -155,9 +154,9 @@ Itinerary "User A outbound"
 
 ### Segment chronology validation
 1. Single segment: if both `departAt` and `arriveAt` provided, `arriveAt >= departAt`
-2. Consecutive segments: if segment `n` and `n+1` both have times, `segment[n+1].departAt >= segment[n].arriveAt`
-3. DST transitions must be handled by timezone-aware libraries (e.g., `date-fns-tz`, `moment-timezone`)
-4. Do not silently reorder; reject invalid chronology
+2. Consecutive segments: after sorting by `departAt asc`, if adjacent segments both have times, `next.departAt >= prev.arriveAt`
+3. DST transitions must be handled by timezone-aware libraries (e.g., `date-fns-tz`)
+4. Reject invalid chronology — do not silently reorder or coerce
 
 ### Airport immutability
 - `Airport.onDelete = Restrict` on both segment foreign keys
@@ -201,8 +200,6 @@ src/modules/transport/
     │   └── itinerary.exception.ts
     ├── interfaces/
     │   └── itinerary.service.interface.ts
-    ├── pipes/
-    │   └── validate-itinerary-chronology.pipe.ts
     ├── repositories/
     │   └── itinerary.repository.ts
     ├── services/
@@ -263,7 +260,7 @@ export const ItineraryMaxSegments = 10; // per itinerary
 
 ```typescript
 import { Type } from 'class-transformer';
-import { IsEnum, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator';
 import { EnumFlightDirection } from '../enums/itinerary.enum';
 import { CreateSegmentRequestDto } from './create-segments.request.dto';
 
@@ -276,6 +273,9 @@ export class CreateItineraryRequestDto {
   @IsEnum(EnumFlightDirection)
   direction: EnumFlightDirection;
 
+  @ArrayMaxSize(10) // ItineraryMaxSegments
+  @ArrayMinSize(1)
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateSegmentRequestDto)
   segments: CreateSegmentRequestDto[];
@@ -285,16 +285,11 @@ export class CreateItineraryRequestDto {
 #### `create-segments.request.dto.ts`
 
 ```typescript
-import { Type } from 'class-transformer';
-import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateSegmentRequestDto {
-  @IsNumber()
-  @IsNotEmpty()
-  order: number;
-
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(20)
   flightNumber: string;
 
@@ -303,11 +298,11 @@ export class CreateSegmentRequestDto {
   @MaxLength(100)
   airline?: string;
 
-  @IsString()
+  @IsMongoId()
   @IsNotEmpty()
   departAirportId: string;
 
-  @IsString()
+  @IsMongoId()
   @IsNotEmpty()
   arriveAirportId: string;
 
@@ -354,7 +349,6 @@ import { AirportResponseDto } from '../../airport/dtos/response/airport.response
 export class SegmentResponseDto {
   id: string;
   itineraryId: string;
-  order: number;
   airline: string | null;
   flightNumber: string;
   departAt: Date | null;
@@ -454,53 +448,48 @@ export class AirportHasSegmentsException extends BadRequestException {
 ### `itinerary.repository.ts`
 
 ```typescript
+import { DatabaseService } from '@common/database/services/database.service';
+import {
+  IPaginationIn,
+  IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import { PaginationService } from '@common/pagination/services/pagination.service';
+import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { DatabaseService } from '@app/common/database/services/database.service';
-import { PaginationService } from '@app/common/pagination/services/pagination.service';
-import { IPaginationQueryOffsetParams } from '@app/common/pagination/interfaces/pagination.interface';
+import { Prisma, TransportItinerary } from '@generated/prisma-client';
 
 @Injectable()
 export class ItineraryRepository {
-  private readonly logger = new Logger(ItineraryRepository.name);
-
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly paginationService: PaginationService,
   ) {}
 
   async findWithPaginationOffset(
-    pagination: IPaginationQueryOffsetParams<
+    {
+      where,
+      ...params
+    }: IPaginationQueryOffsetParams<
       Prisma.TransportItinerarySelect,
       Prisma.TransportItineraryWhereInput
     >,
-    directions?: string[],
-  ) {
-    const { offset, limit, sort, where } = pagination;
-
-    const whereClause: Prisma.TransportItineraryWhereInput = {
-      ...where,
-      ...(directions && directions.length > 0 ? { direction: { in: directions } } : {}),
-    };
-
-    const [data, count] = await this.databaseService.$transaction([
-      this.databaseService.transportItinerary.findMany({
-        where: whereClause,
-        select: pagination.select,
-        orderBy: sort as Prisma.TransportItineraryOrderByWithRelationInput,
-        skip: offset,
-        take: limit,
-      }),
-      this.databaseService.transportItinerary.count({ where: whereClause }),
-    ]);
-
-    return { data, count };
+    direction?: Record<string, IPaginationIn>,
+  ): Promise<IResponsePagingReturn<TransportItinerary>> {
+    return this.paginationService.offset<
+      TransportItinerary,
+      Prisma.TransportItinerarySelect,
+      Prisma.TransportItineraryWhereInput
+    >(this.databaseService.transportItinerary, {
+      ...params,
+      where: {
+        ...where,
+        ...direction,
+      },
+    });
   }
 
-  async findOneById(id: string) {
-    return this.databaseService.transportItinerary.findUnique({
-      where: { id },
-    });
+  async findOneById(id: string): Promise<TransportItinerary | null> {
+    return this.databaseService.transportItinerary.findUnique({ where: { id } });
   }
 
   async findOneWithSegments(id: string) {
@@ -508,7 +497,7 @@ export class ItineraryRepository {
       where: { id },
       include: {
         segments: {
-          orderBy: { order: 'asc' },
+          orderBy: [{ departAt: 'asc' }, { createdAt: 'asc' }],
           include: {
             departAirport: true,
             arriveAirport: true,
@@ -518,24 +507,20 @@ export class ItineraryRepository {
     });
   }
 
-  async create(data: Prisma.TransportItineraryCreateInput) {
+  async createWithSegments(
+    data: Prisma.TransportItineraryCreateInput,
+  ) {
     return this.databaseService.transportItinerary.create({
       data,
-      include: { segments: true },
-    });
-  }
-
-  async update(id: string, data: Prisma.TransportItineraryUpdateInput) {
-    return this.databaseService.transportItinerary.update({
-      where: { id },
-      data,
-      include: { segments: true },
-    });
-  }
-
-  async delete(id: string) {
-    return this.databaseService.transportItinerary.delete({
-      where: { id },
+      include: {
+        segments: {
+          orderBy: [{ departAt: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            departAirport: true,
+            arriveAirport: true,
+          },
+        },
+      },
     });
   }
 }
@@ -548,9 +533,13 @@ export class ItineraryRepository {
 ### `itinerary.service.interface.ts`
 
 ```typescript
-import { IResponseReturn, IResponsePagingReturn } from '@app/common/response/interfaces/response.interface';
-import { IPaginationQueryOffsetParams } from '@app/common/pagination/interfaces/pagination.interface';
-import { Prisma } from '@prisma/client';
+import {
+  IPaginationIn,
+  IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import { Prisma } from '@generated/prisma-client';
+import { CreateItineraryRequestDto } from '../dtos/request/create-itinerary.request.dto';
 import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
 
@@ -560,10 +549,15 @@ export interface IItineraryService {
       Prisma.TransportItinerarySelect,
       Prisma.TransportItineraryWhereInput
     >,
-    directions?: string[],
+    direction?: Record<string, IPaginationIn>,
   ): Promise<IResponsePagingReturn<ItineraryResponseDto>>;
 
   getOne(id: string): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
+
+  create(
+    dto: CreateItineraryRequestDto,
+    createdBy?: string,
+  ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
 }
 ```
 
@@ -574,23 +568,34 @@ export interface IItineraryService {
 ### `itinerary.service.ts`
 
 ```typescript
-import { Injectable, Logger } from '@nestjs/common';
-import { ItineraryRepository } from '../repositories/itinerary.repository';
-import { ItineraryUtil } from '../utils/itinerary.util';
-import { IItineraryService } from '../interfaces/itinerary.service.interface';
-import { IPaginationQueryOffsetParams } from '@app/common/pagination/interfaces/pagination.interface';
-import { Prisma } from '@prisma/client';
+import {
+  IPaginationIn,
+  IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import { AirportRepository } from '@modules/transport/airport/repositories/airport.repository';
+import { Injectable } from '@nestjs/common';
+import { fromZonedTime } from 'date-fns-tz';
+import { Prisma } from '@generated/prisma-client';
+import { CreateItineraryRequestDto } from '../dtos/request/create-itinerary.request.dto';
 import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
-import { IResponseReturn, IResponsePagingReturn } from '@app/common/response/interfaces/response.interface';
-import { ItineraryNotFoundException } from '../exceptions/itinerary.exception';
+import {
+  AirportNotFoundBadRequestException,
+  ArriveAtBeforeDepartAtException,
+  DepartAirportSameAsArriveException,
+  ItineraryNotFoundException,
+  SegmentChronologyException,
+} from '../exceptions/itinerary.exception';
+import { IItineraryService } from '../interfaces/itinerary.service.interface';
+import { ItineraryRepository } from '../repositories/itinerary.repository';
+import { ItineraryUtil } from '../utils/itinerary.util';
 
 @Injectable()
 export class ItineraryService implements IItineraryService {
-  private readonly logger = new Logger(ItineraryService.name);
-
   constructor(
     private readonly itineraryRepository: ItineraryRepository,
+    private readonly airportRepository: AirportRepository,
     private readonly itineraryUtil: ItineraryUtil,
   ) {}
 
@@ -599,21 +604,16 @@ export class ItineraryService implements IItineraryService {
       Prisma.TransportItinerarySelect,
       Prisma.TransportItineraryWhereInput
     >,
-    directions?: string[],
+    direction?: Record<string, IPaginationIn>,
   ): Promise<IResponsePagingReturn<ItineraryResponseDto>> {
-    const { data, count } = await this.itineraryRepository.findWithPaginationOffset(
+    const { data, ...others } = await this.itineraryRepository.findWithPaginationOffset(
       pagination,
-      directions,
+      direction,
     );
 
-    const mapped = this.itineraryUtil.mapList(data);
-    const paginationInfo = this.itineraryRepository.getOffsetPaginationInfo(pagination, count);
-
     return {
-      type: 'offset',
-      data: mapped,
-      count,
-      ...paginationInfo,
+      data: this.itineraryUtil.mapList(data),
+      ...others,
     };
   }
 
@@ -624,11 +624,95 @@ export class ItineraryService implements IItineraryService {
       throw new ItineraryNotFoundException(id);
     }
 
-    this.logger.log(`Fetched itinerary: ${id}`);
+    return { data: this.itineraryUtil.mapOneWithSegments(itinerary) };
+  }
 
-    return {
-      data: this.itineraryUtil.mapOneWithSegments(itinerary),
-    };
+  async create(
+    dto: CreateItineraryRequestDto,
+    createdBy?: string,
+  ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
+    // 1. Batch-fetch all unique airports
+    const uniqueAirportIds = [
+      ...new Set(dto.segments.flatMap((s) => [s.departAirportId, s.arriveAirportId])),
+    ];
+    const airports = await Promise.all(
+      uniqueAirportIds.map((id) => this.airportRepository.findOneById(id)),
+    );
+    const airportMap = new Map(
+      airports.map((a, i) => [uniqueAirportIds[i], a]),
+    );
+
+    // 3. Validate all airport IDs exist
+    for (const id of uniqueAirportIds) {
+      if (!airportMap.get(id)) {
+        throw new AirportNotFoundBadRequestException(id);
+      }
+    }
+
+    // 4. Convert times so we can sort segments chronologically for validation
+    // departAt drives display order; segments with null departAt sort last (by createdAt in DB)
+    const convertedSegments: Prisma.TransportFlightSegmentCreateWithoutItineraryInput[] = [];
+
+    for (let i = 0; i < dto.segments.length; i++) {
+      const seg = dto.segments[i];
+
+      // 5. Depart ≠ arrive
+      if (seg.departAirportId === seg.arriveAirportId) {
+        throw new DepartAirportSameAsArriveException();
+      }
+
+      // 6. Timezone conversion: local → UTC using airport IANA timezone
+      const departAirport = airportMap.get(seg.departAirportId)!;
+      const arriveAirport = airportMap.get(seg.arriveAirportId)!;
+
+      const departAt = seg.departAt
+        ? fromZonedTime(seg.departAt, departAirport.timezone)
+        : null;
+      const arriveAt = seg.arriveAt
+        ? fromZonedTime(seg.arriveAt, arriveAirport.timezone)
+        : null;
+
+      // 7. Single-segment chronology: arriveAt >= departAt
+      if (departAt && arriveAt && arriveAt < departAt) {
+        throw new ArriveAtBeforeDepartAtException();
+      }
+
+      convertedSegments.push({
+        flightNumber: seg.flightNumber,
+        airline: seg.airline ?? null,
+        departAirport: { connect: { id: seg.departAirportId } },
+        arriveAirport: { connect: { id: seg.arriveAirportId } },
+        departAt,
+        arriveAt,
+        bookingRef: seg.bookingRef ?? null,
+        notes: seg.notes ?? null,
+        createdBy: createdBy ?? null,
+      });
+    }
+
+    // 8. Consecutive-segment chronology: sort by departAt, then validate adjacent pairs
+    const timedSegments = convertedSegments
+      .filter((s) => s.departAt != null)
+      .sort((a, b) => (a.departAt as Date).getTime() - (b.departAt as Date).getTime());
+
+    for (let i = 1; i < timedSegments.length; i++) {
+      const prev = timedSegments[i - 1];
+      const curr = timedSegments[i];
+      if (prev.arriveAt && curr.departAt && (curr.departAt as Date) < (prev.arriveAt as Date)) {
+        throw new SegmentChronologyException(
+          `Segment departing ${(curr.departAt as Date).toISOString()} departs before previous segment arrives`,
+        );
+      }
+    }
+
+    const created = await this.itineraryRepository.createWithSegments({
+      name: dto.name,
+      direction: dto.direction,
+      createdBy: createdBy ?? null,
+      segments: { create: convertedSegments },
+    });
+
+    return { data: this.itineraryUtil.mapOneWithSegments(created) };
   }
 }
 ```
@@ -681,7 +765,6 @@ export class ItineraryUtil {
     return {
       id: segment.id,
       itineraryId: segment.itineraryId,
-      order: segment.order,
       airline: segment.airline || null,
       flightNumber: segment.flightNumber,
       departAt: segment.departAt,
@@ -705,10 +788,10 @@ export class ItineraryUtil {
 
 ```typescript
 import { applyDecorators, MethodDecorator } from '@nestjs/common';
-import { Doc } from '@app/common/doc/decorators/doc.decorator';
-import { DocAuth } from '@app/common/doc/decorators/doc-auth.decorator';
-import { DocResponsePaging } from '@app/common/doc/decorators/doc-response-paging.decorator';
-import { DocResponse } from '@app/common/doc/decorators/doc-response.decorator';
+import { Doc } from '@common/doc/decorators/doc.decorator';
+import { DocAuth } from '@common/doc/decorators/doc-auth.decorator';
+import { DocResponsePaging } from '@common/doc/decorators/doc-response-paging.decorator';
+import { DocResponse } from '@common/doc/decorators/doc-response.decorator';
 import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
 import { ItineraryDefaultAvailableSearch } from '../constants/itinerary.list.constant';
@@ -739,6 +822,20 @@ export function ItinerarySharedGetDoc(): MethodDecorator {
     }),
   );
 }
+
+export function ItinerarySharedCreateDoc(): MethodDecorator {
+  return applyDecorators(
+    Doc({
+      summary: 'Create an itinerary with segments',
+      description: 'Create a flight itinerary with one or more flight segments. Departure/arrival times are accepted in the local airport timezone and stored as UTC.',
+    }),
+    DocAuth({ xApiKey: true, jwtAccessToken: true }),
+    DocResponse<ItineraryWithSegmentsResponseDto>('itinerary.create', {
+      dto: ItineraryWithSegmentsResponseDto,
+      httpStatus: 201,
+    }),
+  );
+}
 ```
 
 ---
@@ -748,24 +845,34 @@ export function ItinerarySharedGetDoc(): MethodDecorator {
 ### `itinerary.shared.controller.ts`
 
 ```typescript
-import { Controller, Get, Param, Logger } from '@nestjs/common';
+import {
+  IPaginationIn,
+  IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import {
+  PaginationOffsetQuery,
+  PaginationQueryFilterInEnum,
+} from '@common/pagination/decorators/pagination.decorator';
+import { Response, ResponsePaging } from '@common/response/decorators/response.decorator';
+import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
+import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
+import { UserProtected } from '@modules/user/decorators/user.decorator';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { RequestRequiredPipe } from '@app/common/request/pipes/request.required.pipe';
-import { RequestIsValidObjectIdPipe } from '@app/common/request/pipes/request-is-valid-object-id.pipe';
-import { UserProtected } from '@app/common/auth/decorators/user.protected.decorator';
-import { AuthJwtAccessProtected } from '@app/common/auth/decorators/auth-jwt-access.protected.decorator';
-import { ApiKeyProtected } from '@app/common/auth/decorators/api-key.protected.decorator';
-import { Response } from '@app/common/response/decorators/response.decorator';
-import { ResponsePaging } from '@app/common/response/decorators/response-paging.decorator';
-import { PaginationQueryOffset } from '@app/common/pagination/decorators/pagination-query-offset.decorator';
-import { PaginationQueryFilterInEnum } from '@app/common/pagination/decorators/pagination-query-filter-in-enum.decorator';
-import { IPaginationQueryOffsetParams } from '@app/common/pagination/interfaces/pagination.interface';
-import { Prisma } from '@prisma/client';
-import { ItineraryService } from '../services/itinerary.service';
-import { ItinerarySharedListDoc, ItinerarySharedGetDoc } from '../docs/itinerary.shared.doc';
-import { EnumFlightDirection } from '../enums/itinerary.enum';
+import { Prisma } from '@generated/prisma-client';
+import { ItinerarySharedCreateDoc, ItinerarySharedGetDoc, ItinerarySharedListDoc } from '../docs/itinerary.shared.doc';
+import { CreateItineraryRequestDto } from '../dtos/request/create-itinerary.request.dto';
 import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
+import { EnumFlightDirection } from '../enums/itinerary.enum';
+import { ItineraryDefaultAvailableSearch } from '../constants/itinerary.list.constant';
+import { ItineraryService } from '../services/itinerary.service';
+
+// Resolved URLs (registered in routes.shared.module.ts with /shared prefix):
+// GET  /shared/v1/itineraries
+// GET  /shared/v1/itineraries/:itineraryId
+// POST /shared/v1/itineraries
 
 @ApiTags('modules.shared.itinerary')
 @Controller({
@@ -773,8 +880,6 @@ import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-wit
   version: '1',
 })
 export class ItinerarySharedController {
-  private readonly logger = new Logger(ItinerarySharedController.name);
-
   constructor(private readonly itineraryService: ItineraryService) {}
 
   @ItinerarySharedListDoc()
@@ -782,18 +887,17 @@ export class ItinerarySharedController {
   @UserProtected()
   @AuthJwtAccessProtected()
   @ApiKeyProtected()
-  @PaginationQueryOffset()
-  @PaginationQueryFilterInEnum('direction', Object.values(EnumFlightDirection))
   @Get('')
   async list(
-    @PaginationQueryOffset() pagination: IPaginationQueryOffsetParams<
+    @PaginationOffsetQuery({ availableSearch: ItineraryDefaultAvailableSearch })
+    pagination: IPaginationQueryOffsetParams<
       Prisma.TransportItinerarySelect,
       Prisma.TransportItineraryWhereInput
     >,
-    @PaginationQueryFilterInEnum('direction') directions?: Record<string, any>,
-  ) {
-    const directionFilters = directions?.direction ? (directions.direction as string[]) : undefined;
-    return this.itineraryService.getListOffset(pagination, directionFilters);
+    @PaginationQueryFilterInEnum<EnumFlightDirection>('direction', Object.values(EnumFlightDirection))
+    direction?: Record<string, IPaginationIn>,
+  ): Promise<IResponsePagingReturn<ItineraryResponseDto>> {
+    return this.itineraryService.getListOffset(pagination, direction);
   }
 
   @ItinerarySharedGetDoc()
@@ -803,10 +907,22 @@ export class ItinerarySharedController {
   @ApiKeyProtected()
   @Get(':itineraryId')
   async get(
-    @Param('itineraryId', RequestRequiredPipe, RequestIsValidObjectIdPipe) itineraryId: string,
-  ) {
-    this.logger.log(`Fetching itinerary: ${itineraryId}`);
+    @Param('itineraryId') itineraryId: string,
+  ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
     return this.itineraryService.getOne(itineraryId);
+  }
+
+  @ItinerarySharedCreateDoc()
+  @Response('itinerary.create')
+  @UserProtected()
+  @AuthJwtAccessProtected()
+  @ApiKeyProtected()
+  @HttpCode(HttpStatus.CREATED)
+  @Post('')
+  async create(
+    @Body() dto: CreateItineraryRequestDto,
+  ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
+    return this.itineraryService.create(dto);
   }
 }
 ```
@@ -821,13 +937,14 @@ export class ItinerarySharedController {
 {
   "list": "Itinerary list",
   "get": "Itinerary detail",
+  "create": "Itinerary created",
   "error": {
     "notFound": "Itinerary not found",
     "departAirportSameAsArrive": "Departure and arrival airports must be different",
     "arriveAtBeforeDepartAt": "Arrival time cannot be before departure time",
-    "segmentChronologyInvalid": "Flight segments are not in chronological order",
+    "segmentChronologyInvalid": "Flight segments are not in chronological order: {details}",
     "airportHasSegments": "Cannot delete airport with active flight segments",
-    "airportNotFound": "Airport not found"
+    "airportNotFound": "Airport {id} not found"
   }
 }
 ```
@@ -839,16 +956,25 @@ export class ItinerarySharedController {
 ### `transport.module.ts` (update)
 
 ```typescript
+import { AirportRepository } from '@modules/transport/airport/repositories/airport.repository';
+import { AirportService } from '@modules/transport/airport/services/airport.service';
+import { AirportUtil } from '@modules/transport/airport/utils/airport.util';
+import { ItineraryRepository } from '@modules/transport/itinerary/repositories/itinerary.repository';
+import { ItineraryService } from '@modules/transport/itinerary/services/itinerary.service';
+import { ItineraryUtil } from '@modules/transport/itinerary/utils/itinerary.util';
 import { Module } from '@nestjs/common';
-import { AirportModule } from './airport/airport.module';
-import { ItineraryRepository } from './itinerary/repositories/itinerary.repository';
-import { ItineraryService } from './itinerary/services/itinerary.service';
-import { ItineraryUtil } from './itinerary/utils/itinerary.util';
 
 @Module({
-  imports: [AirportModule],
-  providers: [ItineraryRepository, ItineraryService, ItineraryUtil],
-  exports: [ItineraryRepository, ItineraryService, ItineraryUtil],
+  imports: [],
+  providers: [
+    AirportService, AirportRepository, AirportUtil,
+    ItineraryService, ItineraryRepository, ItineraryUtil,
+  ],
+  exports: [
+    AirportService, AirportRepository, AirportUtil,
+    ItineraryService, ItineraryRepository, ItineraryUtil,
+  ],
+  controllers: [],
 })
 export class TransportModule {}
 ```
@@ -858,13 +984,19 @@ export class TransportModule {}
 #### `routes.shared.module.ts` (update)
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { TransportModule } from '@modules/transport/transport.module';
+// Add to existing RoutesSharedModule — keep all other imports/controllers intact
 import { ItinerarySharedController } from '@modules/transport/itinerary/controllers/itinerary.shared.controller';
+import { TransportModule } from '@modules/transport/transport.module';
 
 @Module({
-  imports: [TransportModule],
-  controllers: [ItinerarySharedController],
+  imports: [
+    // ... existing imports
+    TransportModule,
+  ],
+  controllers: [
+    // ... existing controllers
+    ItinerarySharedController,
+  ],
 })
 export class RoutesSharedModule {}
 ```
@@ -873,7 +1005,20 @@ export class RoutesSharedModule {}
 
 ## Query Parameters & Pagination
 
-### List Endpoint (`GET /itineraries`)
+### Create Endpoint (`POST /shared/v1/itineraries`)
+
+Request body: `CreateItineraryRequestDto` (JSON).
+
+Validation flow (all in service):
+1. All `departAirportId` / `arriveAirportId` values are batch-fetched and must exist.
+2. Per segment: `departAirportId !== arriveAirportId`.
+3. `departAt` / `arriveAt` strings are interpreted as **local time in the respective airport's IANA timezone** and converted to UTC before persisting.
+4. Per segment: `arriveAt >= departAt` (when both provided).
+5. Across segments (sorted by `departAt asc`): adjacent `next.departAt >= prev.arriveAt` (when both provided).
+
+Returns `201 Created` with the full `ItineraryWithSegmentsResponseDto` including UTC timestamps.
+
+### List Endpoint (`GET /shared/v1/itineraries`)
 
 | Parameter | Type | Default | Max | Description |
 |---|---|---|---|---|
@@ -929,7 +1074,6 @@ GET /v1/itineraries?page=2&perPage=50&orderBy=name:asc
       {
         "id": "67cb5c1d8f9b8f2c00000010",
         "itineraryId": "67cb5c1d8f9b8f2c00000001",
-        "order": 1,
         "airline": "United Airlines",
         "flightNumber": "UA101",
         "departAt": "2026-06-15T10:00:00.000Z",
@@ -962,7 +1106,6 @@ GET /v1/itineraries?page=2&perPage=50&orderBy=name:asc
       {
         "id": "67cb5c1d8f9b8f2c00000011",
         "itineraryId": "67cb5c1d8f9b8f2c00000001",
-        "order": 2,
         "airline": "United Airlines",
         "flightNumber": "UA456",
         "departAt": "2026-06-15T16:30:00.000Z",
@@ -1023,7 +1166,6 @@ GET /v1/itineraries?page=2&perPage=50&orderBy=name:asc
 - [ ] `name` is 1–255 characters
 - [ ] `direction` is `outbound` or `return` (enum)
 - [ ] `segments` array is not empty and ≤ 10 items
-- [ ] Each segment `order` is unique within itinerary and 1-based with no gaps
 - [ ] Each segment `flightNumber` is 1–20 characters
 - [ ] Each segment `departAirportId` ≠ `arriveAirportId`
 - [ ] Each segment `arriveAirportId` references an existing airport

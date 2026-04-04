@@ -302,5 +302,19 @@ Query parameters:
 
 ---
 
+## Planned schema update (itinerary integration)
+
+When `TransportFlightSegment` is added to the schema, add the following back-relation fields to the `Airport` model so Prisma can resolve the named relations used by `TransportFlightSegment`:
+
+```prisma
+// Add inside the Airport model
+departSegments TransportFlightSegment[] @relation("TransportFlightSegmentDepart")
+arriveSegments TransportFlightSegment[] @relation("TransportFlightSegmentArrive")
+```
+
+These fields are navigation-only and do not add columns. Run `pnpm db:generate` after applying.
+
+---
+
 ## References
 1. https://ourairports.com/data/

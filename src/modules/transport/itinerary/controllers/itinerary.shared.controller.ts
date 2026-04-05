@@ -15,7 +15,10 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
-import { AuthJwtAccessProtected, AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
+import {
+    AuthJwtAccessProtected,
+    AuthJwtPayload,
+} from '@modules/auth/decorators/auth.jwt.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import {
     Body,
@@ -26,19 +29,24 @@ import {
     Param,
     Post,
 } from '@nestjs/common';
+import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@generated/prisma-client';
 import {
     ItinerarySharedCreateDoc,
     ItinerarySharedGetDoc,
     ItinerarySharedListDoc,
-} from '../docs/itinerary.shared.doc';
-import { CreateItineraryRequestDto } from '../dtos/request/create-itinerary.request.dto';
-import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
-import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
-import { EnumFlightDirection } from '../enums/itinerary.enum';
-import { ItineraryDefaultAvailableSearch } from '../constants/itinerary.list.constant';
-import { ItineraryService } from '../services/itinerary.service';
+} from '@modules/transport/itinerary/docs/itinerary.shared.doc';
+import { CreateItineraryRequestDto } from '@modules/transport/itinerary/dtos/request/create-itinerary.request.dto';
+import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
+import { ItineraryWithSegmentsResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
+import { EnumFlightDirection } from '@modules/transport/itinerary/enums/itinerary.enum';
+import {
+    ItineraryDefaultAvailableSearch,
+    ItineraryDefaultPerPage,
+} from '@modules/transport/itinerary/constants/itinerary.list.constant';
+import { ItineraryService } from '@modules/transport/itinerary/services/itinerary.service';
 
 @ApiTags('modules.shared.itinerary')
 @Controller({
@@ -55,16 +63,19 @@ export class ItinerarySharedController {
     @ApiKeyProtected()
     @Get('')
     async list(
-        @PaginationOffsetQuery({ availableSearch: ItineraryDefaultAvailableSearch })
+        @PaginationOffsetQuery({
+            availableSearch: ItineraryDefaultAvailableSearch,
+            defaultPerPage: ItineraryDefaultPerPage,
+        })
         pagination: IPaginationQueryOffsetParams<
             Prisma.TransportItinerarySelect,
             Prisma.TransportItineraryWhereInput
         >,
         @PaginationQueryFilterInEnum<EnumFlightDirection>(
             'direction',
-            Object.values(EnumFlightDirection),
+            Object.values(EnumFlightDirection)
         )
-        direction?: Record<string, IPaginationIn>,
+        direction?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<ItineraryResponseDto>> {
         return this.itineraryService.getListOffset(pagination, direction);
     }
@@ -76,7 +87,8 @@ export class ItinerarySharedController {
     @ApiKeyProtected()
     @Get(':itineraryId')
     async get(
-        @Param('itineraryId') itineraryId: string,
+        @Param('itineraryId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        itineraryId: string
     ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
         return this.itineraryService.getOne(itineraryId);
     }
@@ -90,7 +102,7 @@ export class ItinerarySharedController {
     @Post('')
     async create(
         @AuthJwtPayload('userId') userId: string,
-        @Body() dto: CreateItineraryRequestDto,
+        @Body() dto: CreateItineraryRequestDto
     ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
         return this.itineraryService.create(dto, userId);
     }

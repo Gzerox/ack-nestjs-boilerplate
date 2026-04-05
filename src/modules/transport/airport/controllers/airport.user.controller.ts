@@ -62,6 +62,6 @@ export class AirportUserController {
     async search(
         @Query() { search, limit }: AirportSearchRequestDto
     ): Promise<IResponseReturn<AirportSearchResponseDto[]>> {
-        return this.airportService.search(search ?? '', limit ?? 10);
+        return this.airportService.search(search, limit);
     }
 }

@@ -1,21 +1,28 @@
 import { applyDecorators } from '@nestjs/common';
-import { Doc, DocAuth, DocResponse, DocResponsePaging } from '@common/doc/decorators/doc.decorator';
-import { ItineraryDefaultAvailableSearch } from '../constants/itinerary.list.constant';
-import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
-import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
+import {
+    Doc,
+    DocAuth,
+    DocResponse,
+    DocResponsePaging,
+} from '@common/doc/decorators/doc.decorator';
+import {
+    ItineraryDefaultAvailableSearch,
+    ItineraryMaxSegments,
+} from '@modules/transport/itinerary/constants/itinerary.list.constant';
+import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
+import { ItineraryWithSegmentsResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
 
 export function ItinerarySharedListDoc(): MethodDecorator {
     return applyDecorators(
         Doc({
             summary: 'Get list of itineraries',
-            description:
-                'Retrieve a paginated list of flight itineraries with optional filtering by direction.',
+            description: `Retrieve a paginated list of flight itineraries with optional filtering by direction.`,
         }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponsePaging<ItineraryResponseDto>('itinerary.list', {
             dto: ItineraryResponseDto,
             availableSearch: ItineraryDefaultAvailableSearch,
-        }),
+        })
     );
 }
 
@@ -29,7 +36,7 @@ export function ItinerarySharedGetDoc(): MethodDecorator {
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponse<ItineraryWithSegmentsResponseDto>('itinerary.get', {
             dto: ItineraryWithSegmentsResponseDto,
-        }),
+        })
     );
 }
 
@@ -37,13 +44,12 @@ export function ItinerarySharedCreateDoc(): MethodDecorator {
     return applyDecorators(
         Doc({
             summary: 'Create an itinerary with segments',
-            description:
-                'Create a flight itinerary with one or more flight segments. Departure/arrival times are accepted in the local airport timezone and stored as UTC.',
+            description: `Create a flight itinerary with up to ${ItineraryMaxSegments} flight segments. Departure and arrival times are required, accepted in the local airport timezone, and stored as UTC.`,
         }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponse<ItineraryWithSegmentsResponseDto>('itinerary.create', {
             dto: ItineraryWithSegmentsResponseDto,
             httpStatus: 201,
-        }),
+        })
     );
 }

@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { TransportFlightSegment, TransportItinerary } from '@generated/prisma-client';
-import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
+import { TransportItinerary } from '@generated/prisma-client';
+import { AirportResponseDto } from '@modules/transport/airport/dtos/response/airport.response.dto';
+import { EnumAirportStatus } from '@modules/transport/airport/enums/airport.enum';
+import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
 import {
     ItineraryWithSegmentsResponseDto,
     SegmentResponseDto,
-} from '../dtos/response/itinerary-with-segments.response.dto';
+} from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
+import {
+    ITransportFlightSegmentWithAirports,
+    ITransportItineraryWithSegments,
+} from '@modules/transport/itinerary/interfaces/itinerary.interface';
 
 @Injectable()
 export class ItineraryUtil {
     mapList(data: TransportItinerary[]): ItineraryResponseDto[] {
-        return data.map((itinerary) => ({
+        return data.map(itinerary => ({
             id: itinerary.id,
             name: itinerary.name,
             direction: itinerary.direction,
@@ -19,12 +25,7 @@ export class ItineraryUtil {
     }
 
     mapOneWithSegments(
-        itinerary: TransportItinerary & {
-            segments: (TransportFlightSegment & {
-                departAirport: any;
-                arriveAirport: any;
-            })[];
-        },
+        itinerary: ITransportItineraryWithSegments
     ): ItineraryWithSegmentsResponseDto {
         return {
             id: itinerary.id,
@@ -32,12 +33,14 @@ export class ItineraryUtil {
             direction: itinerary.direction,
             createdAt: itinerary.createdAt,
             updatedAt: itinerary.updatedAt,
-            segments: itinerary.segments.map((segment) => this.mapSegment(segment)),
+            segments: itinerary.segments.map(segment =>
+                this.mapSegment(segment)
+            ),
         };
     }
 
     private mapSegment(
-        segment: TransportFlightSegment & { departAirport: any; arriveAirport: any },
+        segment: ITransportFlightSegmentWithAirports
     ): SegmentResponseDto {
         return {
             id: segment.id,
@@ -48,10 +51,34 @@ export class ItineraryUtil {
             arriveAt: segment.arriveAt,
             bookingRef: segment.bookingRef || null,
             notes: segment.notes || null,
-            departAirport: segment.departAirport,
-            arriveAirport: segment.arriveAirport,
+            departAirport: this.mapAirport(segment.departAirport),
+            arriveAirport: this.mapAirport(segment.arriveAirport),
             createdAt: segment.createdAt,
             updatedAt: segment.updatedAt,
+        };
+    }
+
+    private mapAirport(
+        airport: ITransportFlightSegmentWithAirports['departAirport']
+    ): AirportResponseDto {
+        return {
+            id: airport.id,
+            iataCode: airport.iataCode,
+            icaoCode: airport.icaoCode,
+            name: airport.name,
+            shortName: airport.shortName ?? undefined,
+            city: airport.city,
+            country: airport.country,
+            countryCode: airport.countryCode,
+            continent: airport.continent,
+            continentCode: airport.continentCode ?? undefined,
+            timezone: airport.timezone,
+            currencyCode: airport.currencyCode ?? undefined,
+            status: airport.status as EnumAirportStatus,
+            createdAt: airport.createdAt,
+            createdBy: airport.createdBy ?? undefined,
+            updatedAt: airport.updatedAt,
+            updatedBy: airport.updatedBy ?? undefined,
         };
     }
 }

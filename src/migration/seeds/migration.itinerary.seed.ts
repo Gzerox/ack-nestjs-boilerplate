@@ -14,7 +14,10 @@ import { Command } from 'nest-commander';
     description: 'Seed/Remove Itineraries',
     allowUnknownOptions: false,
 })
-export class MigrationItinerarySeed extends MigrationSeedBase implements IMigrationSeed {
+export class MigrationItinerarySeed
+    extends MigrationSeedBase
+    implements IMigrationSeed
+{
     private readonly logger = new Logger(MigrationItinerarySeed.name);
 
     constructor(private readonly databaseService: DatabaseService) {
@@ -23,7 +26,9 @@ export class MigrationItinerarySeed extends MigrationSeedBase implements IMigrat
 
     async seed(): Promise<void> {
         this.logger.log('Seeding Itineraries...');
-        this.logger.log(`Found ${migrationItineraryData.length} Itineraries to seed.`);
+        this.logger.log(
+            `Found ${migrationItineraryData.length} Itineraries to seed.`
+        );
 
         try {
             for (const record of migrationItineraryData) {
@@ -39,38 +44,45 @@ export class MigrationItinerarySeed extends MigrationSeedBase implements IMigrat
 
     private async seedOne(record: ItinerarySeedRecord): Promise<void> {
         const iataSet = new Set(
-            record.segments.flatMap((s) => [s.departIata, s.arriveIata]),
+            record.segments.flatMap(s => [s.departIata, s.arriveIata])
         );
         const airports = await this.databaseService.airport.findMany({
             where: { iataCode: { in: [...iataSet] } },
             select: { id: true, iataCode: true },
         });
 
-        const airportMap = new Map(airports.map((a) => [a.iataCode, a.id]));
+        const airportMap = new Map(airports.map(a => [a.iataCode, a.id]));
 
         for (const iata of iataSet) {
             if (!airportMap.has(iata)) {
-                this.logger.warn(`Airport ${iata} not found — skipping itinerary "${record.name}"`);
+                this.logger.warn(
+                    `Airport ${iata} not found — skipping itinerary "${record.name}"`
+                );
                 return;
             }
         }
 
         const segments: Prisma.TransportFlightSegmentCreateWithoutItineraryInput[] =
-            record.segments.map((seg) => ({
+            record.segments.map(seg => ({
                 flightNumber: seg.flightNumber,
                 airline: seg.airline ?? null,
-                departAirport: { connect: { id: airportMap.get(seg.departIata)! } },
-                arriveAirport: { connect: { id: airportMap.get(seg.arriveIata)! } },
-                departAt: seg.departAt ? new Date(seg.departAt) : null,
-                arriveAt: seg.arriveAt ? new Date(seg.arriveAt) : null,
+                departAirport: {
+                    connect: { id: airportMap.get(seg.departIata)! },
+                },
+                arriveAirport: {
+                    connect: { id: airportMap.get(seg.arriveIata)! },
+                },
+                departAt: new Date(seg.departAt),
+                arriveAt: new Date(seg.arriveAt),
                 bookingRef: seg.bookingRef ?? null,
                 notes: seg.notes ?? null,
             }));
 
-        const existing = await this.databaseService.transportItinerary.findFirst({
-            where: { name: record.name },
-            select: { id: true },
-        });
+        const existing =
+            await this.databaseService.transportItinerary.findFirst({
+                where: { name: record.name },
+                select: { id: true },
+            });
 
         if (existing) {
             await this.databaseService.transportItinerary.update({

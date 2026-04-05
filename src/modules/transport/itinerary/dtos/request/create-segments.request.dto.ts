@@ -1,4 +1,12 @@
-import { IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+    IsDateString,
+    IsMongoId,
+    IsNotEmpty,
+    IsOptional,
+    IsString,
+    MaxLength,
+    MinLength,
+} from 'class-validator';
 
 export class CreateSegmentRequestDto {
     @IsString()
@@ -20,12 +28,12 @@ export class CreateSegmentRequestDto {
     arriveAirportId: string;
 
     @IsDateString()
-    @IsOptional()
-    departAt?: string;
+    @IsNotEmpty()
+    departAt: string;
 
     @IsDateString()
-    @IsOptional()
-    arriveAt?: string;
+    @IsNotEmpty()
+    arriveAt: string;
 
     @IsString()
     @IsOptional()

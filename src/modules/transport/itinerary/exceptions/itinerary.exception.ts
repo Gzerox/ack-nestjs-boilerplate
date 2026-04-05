@@ -1,27 +1,5 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { EnumItineraryStatusCodeError } from '../enums/itinerary-status-code.enum';
-
-export class ItineraryNotFoundException extends NotFoundException {
-    constructor(itineraryId: string) {
-        super({
-            statusCode: EnumItineraryStatusCodeError.notFound,
-            message: 'itinerary.error.notFound',
-            messageProperties: { id: itineraryId },
-            data: { itineraryId },
-        });
-    }
-}
-
-export class AirportNotFoundBadRequestException extends BadRequestException {
-    constructor(airportId: string) {
-        super({
-            statusCode: EnumItineraryStatusCodeError.airportNotFound,
-            message: 'itinerary.error.airportNotFound',
-            messageProperties: { id: airportId },
-            data: { airportId },
-        });
-    }
-}
+import { BadRequestException } from '@nestjs/common';
+import { EnumItineraryStatusCodeError } from '@modules/transport/itinerary/enums/itinerary-status-code.enum';
 
 export class DepartAirportSameAsArriveException extends BadRequestException {
     constructor() {
@@ -50,17 +28,6 @@ export class SegmentChronologyException extends BadRequestException {
             message: 'itinerary.error.segmentChronologyInvalid',
             messageProperties: { details },
             data: { details },
-        });
-    }
-}
-
-export class AirportHasSegmentsException extends BadRequestException {
-    constructor(airportId: string) {
-        super({
-            statusCode: EnumItineraryStatusCodeError.airportHasSegments,
-            message: 'itinerary.error.airportHasSegments',
-            messageProperties: { id: airportId },
-            data: { airportId },
         });
     }
 }

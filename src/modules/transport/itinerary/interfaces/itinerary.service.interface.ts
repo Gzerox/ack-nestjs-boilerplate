@@ -7,9 +7,9 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
-import { CreateItineraryRequestDto } from '../dtos/request/create-itinerary.request.dto';
-import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
-import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
+import { CreateItineraryRequestDto } from '@modules/transport/itinerary/dtos/request/create-itinerary.request.dto';
+import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
+import { ItineraryWithSegmentsResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
 
 export interface IItineraryService {
     getListOffset(
@@ -17,13 +17,15 @@ export interface IItineraryService {
             Prisma.TransportItinerarySelect,
             Prisma.TransportItineraryWhereInput
         >,
-        direction?: Record<string, IPaginationIn>,
+        direction?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<ItineraryResponseDto>>;
 
-    getOne(id: string): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
+    getOne(
+        id: string
+    ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
 
     create(
         dto: CreateItineraryRequestDto,
-        createdBy: string,
+        createdBy: string
     ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
 }

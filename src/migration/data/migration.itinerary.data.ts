@@ -5,8 +5,8 @@ export interface ItinerarySeedSegment {
     airline?: string;
     departIata: string;
     arriveIata: string;
-    departAt?: string;
-    arriveAt?: string;
+    departAt: string;
+    arriveAt: string;
     bookingRef?: string;
     notes?: string;
 }

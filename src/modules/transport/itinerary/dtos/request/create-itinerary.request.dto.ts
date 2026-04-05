@@ -9,8 +9,9 @@ import {
     MinLength,
     ValidateNested,
 } from 'class-validator';
-import { EnumFlightDirection } from '../../enums/itinerary.enum';
-import { CreateSegmentRequestDto } from './create-segments.request.dto';
+import { ItineraryMaxSegments } from '@modules/transport/itinerary/constants/itinerary.list.constant';
+import { EnumFlightDirection } from '@modules/transport/itinerary/enums/itinerary.enum';
+import { CreateSegmentRequestDto } from '@modules/transport/itinerary/dtos/request/create-segments.request.dto';
 
 export class CreateItineraryRequestDto {
     @IsString()
@@ -21,7 +22,7 @@ export class CreateItineraryRequestDto {
     @IsEnum(EnumFlightDirection)
     direction: EnumFlightDirection;
 
-    @ArrayMaxSize(10)
+    @ArrayMaxSize(ItineraryMaxSegments)
     @ArrayMinSize(1)
     @IsArray()
     @ValidateNested({ each: true })

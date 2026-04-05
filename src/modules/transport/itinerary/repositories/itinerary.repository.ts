@@ -7,12 +7,17 @@ import { PaginationService } from '@common/pagination/services/pagination.servic
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
 import { Prisma, TransportItinerary } from '@generated/prisma-client';
+import { EnumFlightDirection } from '@modules/transport/itinerary/enums/itinerary.enum';
+import {
+    ITransportFlightSegment,
+    ITransportItineraryWithSegments,
+} from '@modules/transport/itinerary/interfaces/itinerary.interface';
 
 @Injectable()
 export class ItineraryRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService,
+        private readonly paginationService: PaginationService
     ) {}
 
     async findWithPaginationOffset(
@@ -23,7 +28,7 @@ export class ItineraryRepository {
             Prisma.TransportItinerarySelect,
             Prisma.TransportItineraryWhereInput
         >,
-        direction?: Record<string, IPaginationIn>,
+        direction?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TransportItinerary>> {
         return this.paginationService.offset<
             TransportItinerary,
@@ -39,10 +44,14 @@ export class ItineraryRepository {
     }
 
     async findOneById(id: string): Promise<TransportItinerary | null> {
-        return this.databaseService.transportItinerary.findUnique({ where: { id } });
+        return this.databaseService.transportItinerary.findUnique({
+            where: { id },
+        });
     }
 
-    async findOneWithSegments(id: string) {
+    async findOneWithSegments(
+        id: string
+    ): Promise<ITransportItineraryWithSegments | null> {
         return this.databaseService.transportItinerary.findUnique({
             where: { id },
             include: {
@@ -57,9 +66,33 @@ export class ItineraryRepository {
         });
     }
 
-    async createWithSegments(data: Prisma.TransportItineraryCreateInput) {
+    async createWithSegments(
+        data: {
+            name: string;
+            direction: EnumFlightDirection;
+        },
+        segments: ITransportFlightSegment[],
+        createdBy: string
+    ): Promise<ITransportItineraryWithSegments> {
         return this.databaseService.transportItinerary.create({
-            data,
+            data: {
+                ...data,
+                createdBy,
+                segments: {
+                    create: segments.map(
+                        ({ departAirportId, arriveAirportId, ...segment }) => ({
+                            ...segment,
+                            departAirport: {
+                                connect: { id: departAirportId },
+                            },
+                            arriveAirport: {
+                                connect: { id: arriveAirportId },
+                            },
+                            createdBy,
+                        })
+                    ),
+                },
+            },
             include: {
                 segments: {
                     orderBy: [{ departAt: 'asc' }, { createdAt: 'asc' }],

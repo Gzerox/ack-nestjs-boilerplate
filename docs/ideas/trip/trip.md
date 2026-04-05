@@ -212,6 +212,34 @@ TripEventCategory:   GENERAL | ARRIVAL | DEPARTURE | CHECK_IN | CHECK_OUT |
                      DEADLINE | EMERGENCY | OTHER
 ```
 
+## Shared Embedded File Metadata
+
+Trip-level visuals, trip media, and attachment-backed files use the same embedded file metadata object pattern as `UserPhoto`.
+
+```prisma
+type TripFileAsset {
+  bucket       String
+  key          String
+  cdnUrl       String?
+  completedUrl String
+  mime         String
+  extension    String
+  access       String
+  size         Int
+}
+```
+
+Fields:
+
+- `bucket`: S3 bucket name
+- `key`: object key/path
+- `cdnUrl?`: optional CDN URL
+- `completedUrl`: final resolved read URL
+- `mime`: MIME type
+- `extension`: file extension
+- `access`: accessibility level, aligned with S3 access semantics
+- `size`: object size in bytes
+
 ## Prisma Draft Schema
 
 ```prisma
@@ -254,6 +282,8 @@ model Trip {
   title          String
   subtitle       String?
   description    String?             @db.Text
+  icon           TripFileAsset?
+  coverImage     TripFileAsset?
   startDate      DateTime
   endDate        DateTime
   timezone       String?             @db.VarChar(64)
@@ -346,13 +376,15 @@ model TripCalendarEvent {
 5. `TripInvite` handles invitation workflow only and does not own traveler documents.
 6. `TripCalendarEvent` is part of the trip detail payload and must be included when loading a full trip.
 7. `TripCalendarEvent.medias` exposes event-attached `TripMedia[]` when available.
-8. `Trip.contacts` links to [trip-contact.md](trip-contact.md) for traveler-facing support references.
-9. `Trip.medias` links to [trip-media.md](trip-media.md) for trip-level image/media exposure.
-10. `Trip.attachments` links to [trip-attachments.md](trip-attachments.md) for trip-specific files and legal material.
-11. `Trip.forms` links to [trip-form.md](trip-form.md) for trip-to-form assignments.
-12. `TripTravelerGroup` is defined in [trip-traveler.md](trip-traveler.md) because it also scopes travelers and traveler documents indirectly.
-13. A `TripInvite` can be revoked through `status = REVOKED`, with `revokedAt` and `revokedBy` stored for audit.
-14. `createdBy` on all models stores the `userId` of the authenticated caller at creation time.
+8. `Trip.icon` is the compact trip visual asset, intended for cards, selectors, and other reduced visual surfaces.
+9. `Trip.coverImage` is the main trip banner/hero visual asset for richer read surfaces.
+10. `Trip.contacts` links to [trip-contact.md](trip-contact.md) for traveler-facing support references.
+11. `Trip.medias` links to [trip-media.md](trip-media.md) for trip-level image/media exposure.
+12. `Trip.attachments` links to [trip-attachments.md](trip-attachments.md) for trip-specific files and legal material.
+13. `Trip.forms` links to [trip-form.md](trip-form.md) for trip-to-form assignments.
+14. `TripTravelerGroup` is defined in [trip-traveler.md](trip-traveler.md) because it also scopes travelers and traveler documents indirectly.
+15. A `TripInvite` can be revoked through `status = REVOKED`, with `revokedAt` and `revokedBy` stored for audit.
+16. `createdBy` on all models stores the `userId` of the authenticated caller at creation time.
 
 ## State Model
 
@@ -528,6 +560,8 @@ The concrete class `TripService implements ITripService`.
 - `title: string` — `@IsString @IsNotEmpty`
 - `subtitle?: string` — `@IsString @IsOptional`
 - `description?: string` — `@IsString @IsOptional`
+- `icon?: TripFileAssetDto` — `@ValidateNested @Type(() => TripFileAssetDto) @IsOptional`
+- `coverImage?: TripFileAssetDto` — `@ValidateNested @Type(() => TripFileAssetDto) @IsOptional`
 - `startDate: Date` — `@IsDate @Type(() => Date) @IsNotEmpty`
 - `endDate: Date` — `@IsDate @Type(() => Date) @IsNotEmpty`
 - `timezone?: string` — `@IsString @IsOptional` max 64 chars
@@ -546,6 +580,17 @@ Note: `groups` must appear before `invites` and `calendarEvents` in processing o
 All fields from `TripCreateDraftRequestDto` (all optional), plus:
 
 - `updatedAt: string` — `@IsISO8601 @IsNotEmpty` (optimistic concurrency token — the client echoes back the last known `updatedAt`)
+
+#### `TripFileAssetDto`
+
+- `bucket: string`
+- `key: string`
+- `cdnUrl?: string`
+- `completedUrl: string`
+- `mime: string`
+- `extension: string`
+- `access: string`
+- `size: number`
 
 #### `TripGroupCreateRequestDto` (nested)
 
@@ -589,6 +634,8 @@ All fields from `TripCreateDraftRequestDto` (all optional), plus:
 - `slug: string`
 - `title: string`
 - `subtitle: string | null`
+- `icon: TripFileAssetDto | null`
+- `coverImage: TripFileAssetDto | null`
 - `startDate: Date`
 - `endDate: Date`
 - `timezone: string | null`
@@ -676,15 +723,16 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 3. Service creates `Trip` in `DRAFT` under the authenticated tenant, setting `createdBy` from JWT payload.
 4. If the payload includes `groups`, they are created first (required before child entities reference `groupId`).
 5. Create may include connected `TripInvite`, `TripCalendarEvent`, `TripMedia`, and `TripAttachment` payloads in the same unit of work.
-6. Contact and form associations are submitted as existing `ObjectId[]` values and expanded by the service into `TripContact[]` and `TripForm[]`.
-7. After persisting invites, the service enqueues one invite email notification per `TripInvite` (see [Invite Notification](#invite-notification)).
+6. Create may also include optional `icon` and `coverImage` trip-level asset payloads.
+7. Contact and form associations are submitted as existing `ObjectId[]` values and expanded by the service into `TripContact[]` and `TripForm[]`.
+8. After persisting invites, the service enqueues one invite email notification per `TripInvite` (see [Invite Notification](#invite-notification)).
 
 ### Partial Save
 
 1. Backend user calls `PUT /shared/trips/:idTrip`.
 2. Request body must include `updatedAt` matching the current trip `updatedAt` (optimistic concurrency).
 3. Payload updates the trip aggregate and its connected entities.
-4. Aggregate updates may include contacts, forms, media, and attachments in the same request.
+4. Aggregate updates may include `icon`, `coverImage`, contacts, forms, media, and attachments in the same request.
 5. Contact and form associations may be replaced by resubmitting their `ObjectId[]` lists — the service replaces all existing links atomically.
 6. Save is idempotent by entity id.
 7. New invites added during a partial save trigger the same email notification flow.

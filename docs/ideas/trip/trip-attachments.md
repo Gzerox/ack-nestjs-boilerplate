@@ -22,6 +22,23 @@ TripAttachmentType: TERMS_AND_CONDITIONS | PRIVACY_POLICY | INSURANCE |
                     VISA_REQUIREMENTS | HEALTH_REQUIREMENTS | OTHER
 ```
 
+## Shared Embedded File Metadata
+
+Trip attachments use the same embedded file metadata object shape as `UserPhoto` whenever a file is attached.
+
+```prisma
+type TripFileAsset {
+  bucket       String
+  key          String
+  cdnUrl       String?
+  completedUrl String
+  mime         String
+  extension    String
+  access       String
+  size         Int
+}
+```
+
 ## Prisma Draft Schema
 
 ```prisma
@@ -42,7 +59,7 @@ model TripAttachment {
   title           String
   type            TripAttachmentType  @default(OTHER)
   contentMarkdown String?             @db.Text
-  fileUrl         String?
+  file            TripFileAsset?
   displayName     String?
   required        Boolean             @default(false)
 
@@ -67,7 +84,7 @@ model TripAttachment {
 ## Management Behavior
 
 1. Attachments are created, updated, or removed through trip aggregate save flows.
-2. A single attachment may contain an uploaded file URL, inline markdown content, or both, depending on the final product requirement.
+2. A single attachment may contain an uploaded file, inline markdown content, or both, depending on the final product requirement.
 3. `required = true` indicates material that the traveler is expected to review as part of the trip.
 
 ## Controllers
@@ -83,11 +100,11 @@ Backend users manage attachments through trip creation and edit operations.
 - `title: string` — `@IsString @IsNotEmpty`
 - `type: TripAttachmentType` — `@IsEnum(TripAttachmentType) @IsNotEmpty`
 - `contentMarkdown?: string` — `@IsString @IsOptional`
-- `fileUrl?: string` — `@IsUrl @IsOptional`
+- `file?: TripFileAssetDto` — `@ValidateNested @Type(() => TripFileAssetDto) @IsOptional`
 - `displayName?: string` — `@IsString @IsOptional`
 - `required: boolean` — `@IsBoolean @IsNotEmpty`
 
-At least one of `contentMarkdown` or `fileUrl` should be non-null in normal usage. This constraint is enforced at the service layer, not the DTO level.
+At least one of `contentMarkdown` or `file` should be non-null in normal usage. This constraint is enforced at the service layer, not the DTO level.
 
 ### `TripAttachmentResponseDto`
 
@@ -96,7 +113,7 @@ At least one of `contentMarkdown` or `fileUrl` should be non-null in normal usag
 - `title: string`
 - `type: TripAttachmentType`
 - `contentMarkdown: string | null`
-- `fileUrl: string | null`
+- `file: TripFileAssetDto | null`
 - `displayName: string | null`
 - `required: boolean`
 - `createdAt: Date`
@@ -104,13 +121,13 @@ At least one of `contentMarkdown` or `fileUrl` should be non-null in normal usag
 
 ### `TripAttachmentPublicResponseDto`
 
-Same fields as `TripAttachmentResponseDto`. This is a distinct class used in `TripUserResponseDto` as the extension point for future visibility restrictions (e.g., omitting `fileUrl` for certain types in customer-facing responses).
+Same fields as `TripAttachmentResponseDto`. This is a distinct class used in `TripUserResponseDto` as the extension point for future visibility restrictions (e.g., omitting `file` for certain types in customer-facing responses).
 
 ## Validation Rules
 
 1. `tripId` is always required.
 2. `title` is required.
-3. At least one of `contentMarkdown` or `fileUrl` should be present in normal usage.
+3. At least one of `contentMarkdown` or `file` should be present in normal usage.
 4. `type` must be a valid `TripAttachmentType` value.
 
 ## Authorization and Visibility

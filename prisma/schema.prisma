@@ -926,14 +926,14 @@ model Airport {
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
+  departSegments TransportFlightSegment[] @relation("TransportFlightSegmentDepart")
+  arriveSegments TransportFlightSegment[] @relation("TransportFlightSegmentArrive")
+
   @@index(fields: [city])
   @@index(fields: [countryCode, status])
   @@index(fields: [continentCode, status])
   @@index(fields: [status])
   @@map("airports")
-
-  departSegments TransportFlightSegment[] @relation("TransportFlightSegmentDepart")
-  arriveSegments TransportFlightSegment[] @relation("TransportFlightSegmentArrive")
 }
 
 enum EnumFlightDirection {
@@ -942,16 +942,16 @@ enum EnumFlightDirection {
 }
 
 model TransportItinerary {
-  id        String               @id @default(auto()) @map("_id") @db.ObjectId
-  name      String               @db.String
+  id        String              @id @default(auto()) @map("_id") @db.ObjectId
+  name      String              @db.String
   direction EnumFlightDirection
 
-  segments  TransportFlightSegment[]
+  segments TransportFlightSegment[]
 
-  createdAt DateTime             @default(now())
-  createdBy String?              @db.ObjectId
-  updatedAt DateTime             @updatedAt
-  updatedBy String?              @db.ObjectId
+  createdAt DateTime @default(now())
+  createdBy String?  @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   @@index(fields: [direction])
   @@index(fields: [createdAt])
@@ -959,16 +959,16 @@ model TransportItinerary {
 }
 
 model TransportFlightSegment {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  itineraryId     String     @db.ObjectId
-  airline         String?    @db.String
-  flightNumber    String     @db.String
-  departAirportId String     @db.ObjectId
-  arriveAirportId String     @db.ObjectId
-  departAt        DateTime?  /// UTC
-  arriveAt        DateTime?  /// UTC
-  bookingRef      String?    @db.String
-  notes           String?    @db.String
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  itineraryId     String   @db.ObjectId
+  airline         String?  @db.String
+  flightNumber    String   @db.String
+  departAirportId String   @db.ObjectId
+  arriveAirportId String   @db.ObjectId
+  departAt        DateTime /// UTC
+  arriveAt        DateTime /// UTC
+  bookingRef      String?  @db.String
+  notes           String?  @db.String
 
   itinerary     TransportItinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
   departAirport Airport            @relation("TransportFlightSegmentDepart", fields: [departAirportId], references: [id], onDelete: Restrict)

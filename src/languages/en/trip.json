@@ -4,6 +4,8 @@
         "get":         "Get trip detail",
         "createDraft": "Trip draft created",
         "update":      "Trip updated",
+        "uploadIcon":  "Trip icon uploaded",
+        "uploadCoverImage": "Trip cover image uploaded",
         "publish":     "Trip published",
         "cancel":      "Trip cancelled",
         "archive":     "Trip archived",

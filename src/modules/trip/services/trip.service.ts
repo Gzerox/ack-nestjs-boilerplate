@@ -1,26 +1,39 @@
 import {
     ConflictException,
     Injectable,
+    InternalServerErrorException,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
+import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
+import { EnumAwsStatusCodeError } from '@common/aws/enums/aws.status-code.enum';
+import { AwsS3Service } from '@common/aws/services/aws.s3.service';
+import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { IFile } from '@common/file/interfaces/file.interface';
+import { FileService } from '@common/file/services/file.service';
 import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
-import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { HelperService } from '@common/helper/services/helper.service';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
-import { generateUniqueSlug } from '@modules/trip/utils/trip.util';
+import {
+    createTripAssetKey,
+    generateUniqueSlug,
+} from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
+import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { Prisma, Trip, TripCalendarEvent, TripStatus } from '@generated/prisma-client';
+
+type TripAssetField = 'icon' | 'coverImage';
 
 @Injectable()
 export class TripService implements ITripService {
@@ -28,7 +41,9 @@ export class TripService implements ITripService {
 
     constructor(
         private readonly tripRepository: TripRepository,
-        private readonly helperService: HelperService
+        private readonly helperService: HelperService,
+        private readonly awsS3Service: AwsS3Service,
+        private readonly fileService: FileService
     ) {}
 
     async createDraft(
@@ -134,6 +149,22 @@ export class TripService implements ITripService {
 
         const updated = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
         return { data: this.mapToResponseDto(updated!) };
+    }
+
+    async uploadIcon(
+        tripId: string,
+        file: IFile,
+        tenantId: string
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>> {
+        return this.uploadAsset(tripId, file, tenantId, 'icon');
+    }
+
+    async uploadCoverImage(
+        tripId: string,
+        file: IFile,
+        tenantId: string
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>> {
+        return this.uploadAsset(tripId, file, tenantId, 'coverImage');
     }
 
     async publish(
@@ -366,6 +397,95 @@ export class TripService implements ITripService {
                 updatedAt: e.updatedAt,
             })),
         } as TripResponseDto;
+    }
+
+    private async uploadAsset(
+        tripId: string,
+        file: IFile,
+        tenantId: string,
+        field: TripAssetField
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>> {
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        if (trip.status !== TripStatus.draft) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notDraft,
+                message: 'trip.error.notDraft',
+            });
+        }
+
+        const previousAsset = trip[field];
+        const extension = this.fileService.extractExtensionFromFilename(
+            file.originalname
+        ) as EnumFileExtensionImage;
+        const key = createTripAssetKey(
+            trip.id,
+            field,
+            extension,
+            this.fileService
+        );
+        const aws = await this.awsS3Service.putItem({
+            key,
+            size: file.size,
+            file: file.buffer,
+        });
+
+        if (!aws) {
+            throw new ServiceUnavailableException({
+                statusCode: EnumAwsStatusCodeError.serviceUnavailable,
+                message: 'aws.error.serviceUnavailable',
+            });
+        }
+
+        try {
+            const updateData: Prisma.TripUpdateInput =
+                field === 'icon' ? { icon: aws } : { coverImage: aws };
+
+            await this.tripRepository.update(trip.id, updateData);
+        } catch (err: unknown) {
+            await this.deleteAssetBestEffort(
+                aws.key,
+                `cleanup uploaded trip ${field} after failed database update`
+            );
+
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
+
+        if (previousAsset?.key && previousAsset.key !== aws.key) {
+            await this.deleteAssetBestEffort(
+                previousAsset.key,
+                `cleanup previous trip ${field}`
+            );
+        }
+
+        return {
+            data: aws as TripFileAssetResponseDto,
+        };
+    }
+
+    private async deleteAssetBestEffort(
+        key: string,
+        context: string
+    ): Promise<void> {
+        try {
+            await this.awsS3Service.deleteItem(key);
+        } catch (error: unknown) {
+            this.logger.warn({ error, key }, `Failed to ${context}`);
+        }
     }
 
 }

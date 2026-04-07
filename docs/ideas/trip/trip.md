@@ -136,6 +136,8 @@ Aggregate-owned keys:
         "get":         "Get trip detail",
         "createDraft": "Trip draft created",
         "update":      "Trip updated",
+        "uploadIcon":  "Trip icon uploaded",
+        "uploadCoverImage": "Trip cover image uploaded",
         "publish":     "Trip published",
         "cancel":      "Trip cancelled",
         "archive":     "Trip archived"
@@ -160,6 +162,8 @@ Invite keys are documented in [trip-invite.md](trip-invite.md). Traveler keys ar
 Response decorator usage examples:
 
 - `@Response('trip.createDraft')` for `POST /shared/trips`
+- `@Response('trip.uploadIcon')` for `PUT /shared/trips/:idTrip/icon`
+- `@Response('trip.uploadCoverImage')` for `PUT /shared/trips/:idTrip/cover-image`
 - `@ResponsePaging('trip.list')` for `GET /shared/trips`
 - `@Response('trip.get')` for `GET /shared/trips/:idTrip`
 - `@Response('tenantContact.create')` for `POST /shared/contacts`
@@ -300,12 +304,13 @@ model TripCalendarEvent {
 4. `TripCalendarEvent.medias` exposes event-attached `TripMedia[]` when available.
 5. `Trip.icon` is the compact trip visual asset intended for cards, selectors, and other reduced visual surfaces.
 6. `Trip.coverImage` is the main trip banner or hero visual asset for richer read surfaces.
-7. `Trip.contacts` links to [trip-contact.md](trip-contact.md), using tenant-owned contact records documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
-8. `Trip.medias` links to [trip-media.md](trip-media.md) for trip-level image and media exposure.
-9. `Trip.attachments` links to [trip-attachments.md](trip-attachments.md) for trip-specific files and legal material.
-10. `Trip.forms` links to [trip-form.md](trip-form.md) for direct trip-owned forms.
-11. `TripTravelerGroup` is defined in [trip-traveler.md](trip-traveler.md) because it also scopes travelers, invites, and traveler documents indirectly.
-12. `createdBy` on all aggregate models stores the `userId` of the authenticated caller at creation time.
+7. Trip-level visual assets are managed through dedicated upload endpoints after the trip exists rather than being uploaded inline with draft creation.
+8. `Trip.contacts` links to [trip-contact.md](trip-contact.md), using tenant-owned contact records documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
+9. `Trip.medias` links to [trip-media.md](trip-media.md) for trip-level image and media exposure.
+10. `Trip.attachments` links to [trip-attachments.md](trip-attachments.md) for trip-specific files and legal material.
+11. `Trip.forms` links to [trip-form.md](trip-form.md) for direct trip-owned forms.
+12. `TripTravelerGroup` is defined in [trip-traveler.md](trip-traveler.md) because it also scopes travelers, invites, and traveler documents indirectly.
+13. `createdBy` on all aggregate models stores the `userId` of the authenticated caller at creation time.
 
 ## State Model
 
@@ -593,7 +598,7 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 3. Service creates `Trip` in `DRAFT` under the authenticated tenant, setting `createdBy` from JWT payload.
 4. If the payload includes `groups`, they are created first.
 5. Create may include connected `TripInvite`, `TripCalendarEvent`, `TripMedia`, and `TripAttachment` payloads in the same unit of work.
-6. Create may also include optional `icon` and `coverImage` trip-level asset payloads.
+6. `icon` and `coverImage` are uploaded separately through dedicated trip asset endpoints after the draft exists.
 7. Contact associations are submitted as existing `ObjectId[]` values and expanded by the service into `TripContact[]`.
 8. Trip forms are created separately through `POST /shared/trips/:idTrip/forms` after the trip exists.
 9. Invite creation and notification behavior during draft creation are defined in [trip-invite.md](trip-invite.md).
@@ -603,11 +608,12 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 1. Backend user calls `PUT /shared/trips/:idTrip`.
 2. Request body must include `updatedAt` matching the current trip `updatedAt`.
 3. Payload updates the trip aggregate and its connected entities.
-4. Aggregate updates may include `icon`, `coverImage`, contacts, media, attachments, new invites, and calendar events in the same request.
-5. Contact associations may be replaced by resubmitting their `ObjectId[]` lists; the service replaces all existing links atomically.
-6. Trip forms are managed through dedicated trip-form endpoints rather than aggregate update payload fields.
-7. Save is idempotent by entity id where ids are supplied by the payload contract.
-8. Invite additions during a partial save follow the issuance and delivery rules in [trip-invite.md](trip-invite.md).
+4. Aggregate updates may include contacts, media, attachments, new invites, and calendar events in the same request.
+5. `icon` and `coverImage` are replaced through dedicated trip asset upload endpoints, not through the aggregate update body.
+6. Contact associations may be replaced by resubmitting their `ObjectId[]` lists; the service replaces all existing links atomically.
+7. Trip forms are managed through dedicated trip-form endpoints rather than aggregate update payload fields.
+8. Save is idempotent by entity id where ids are supplied by the payload contract.
+9. Invite additions during a partial save follow the issuance and delivery rules in [trip-invite.md](trip-invite.md).
 
 ### Publish
 
@@ -622,6 +628,13 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 1. Backend user can cancel or archive a trip through explicit status-transition endpoints.
 2. Service validates allowed transitions and stamps `cancelledAt` or `archivedAt`.
 3. Status-transition endpoints do not require an `updatedAt` concurrency token.
+
+### Asset Uploads
+
+1. Backend user uploads trip visuals through `PUT /shared/trips/:idTrip/icon` or `PUT /shared/trips/:idTrip/cover-image`.
+2. Upload endpoints accept a single multipart file and are only allowed while the trip is in `DRAFT`.
+3. Files are stored under a trip-bound S3 path derived from the persisted `tripId`.
+4. Uploading a new file replaces the current field value.
 
 ## Controllers
 

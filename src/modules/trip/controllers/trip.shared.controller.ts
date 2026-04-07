@@ -8,10 +8,16 @@ import {
     Patch,
     Post,
     Put,
+    UploadedFile,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthJwtAccessProtected, AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
+import { FileUploadSingle } from '@common/file/decorators/file.decorator';
+import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { IFile } from '@common/file/interfaces/file.interface';
+import { FileExtensionPipe } from '@common/file/pipes/file.extension.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
+import { RequestTimeout } from '@common/request/decorators/request.decorator';
 import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
 import { Response, ResponsePaging } from '@common/response/decorators/response.decorator';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
@@ -36,10 +42,9 @@ import { TripService } from '@modules/trip/services/trip.service';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
+import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
-import { FormCreateDraftRequestDto } from '@modules/form/dtos/request/form-create-draft.request.dto';
-import { FormCreateDraftResponseDto } from '@modules/form/dtos/response/form-create-draft.response.dto';
 import { FormService } from '@modules/form/services/form.service';
 import {
     TRIP_TAG_SHARED,
@@ -47,7 +52,6 @@ import {
     TripDefaultAvailableSearch,
     TripDefaultAvailableSort,
     TripDefaultPerPage,
-    TripDefaultSort,
 } from '@modules/trip/constants/trip.constant';
 import {
     TripSharedArchiveDoc,
@@ -58,14 +62,18 @@ import {
     TripSharedPublishDoc,
     TripSharedUnpublishDoc,
     TripSharedUpdateDraftDoc,
+    TripSharedUploadCoverImageDoc,
+    TripSharedUploadIconDoc,
 } from '@modules/trip/docs/trip.shared.doc';
+import { DatabaseUtil } from '@common/database/utils/database.util';
 
 @ApiTags(TRIP_TAG_SHARED)
 @Controller({ version: '1', path: '/trips' })
 export class TripSharedController {
     constructor(
         private readonly tripService: TripService,
-        private readonly formService: FormService
+        private readonly databaseUtil: DatabaseUtil
+
     ) {}
 
     @TripSharedCreateDraftDoc()
@@ -82,7 +90,7 @@ export class TripSharedController {
         @Body() body: TripCreateDraftRequestDto
     ): Promise<IResponseReturn<TripCreateDraftResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
-        const tenantId = '';
+        const tenantId = this.databaseUtil.createId()
         return this.tripService.createDraft(body, tenantId, userId);
     }
 
@@ -101,6 +109,60 @@ export class TripSharedController {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
         return this.tripService.updateDraft(tripId, body, tenantId, userId);
+    }
+
+    @TripSharedUploadIconDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @FileUploadSingle()
+    @RequestTimeout('1m')
+    @Response('trip.uploadIcon')
+    @HttpCode(HttpStatus.OK)
+    @Put('/:idTrip/icon')
+    async uploadIcon(
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string,
+        @UploadedFile(
+            RequestRequiredPipe,
+            FileExtensionPipe([
+                EnumFileExtensionImage.jpeg,
+                EnumFileExtensionImage.png,
+                EnumFileExtensionImage.jpg,
+            ])
+        )
+        file: IFile
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.uploadIcon(tripId, file, tenantId);
+    }
+
+    @TripSharedUploadCoverImageDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @FileUploadSingle()
+    @RequestTimeout('1m')
+    @Response('trip.uploadCoverImage')
+    @HttpCode(HttpStatus.OK)
+    @Put('/:idTrip/cover-image')
+    async uploadCoverImage(
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string,
+        @UploadedFile(
+            RequestRequiredPipe,
+            FileExtensionPipe([
+                EnumFileExtensionImage.jpeg,
+                EnumFileExtensionImage.png,
+                EnumFileExtensionImage.jpg,
+            ])
+        )
+        file: IFile
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.uploadCoverImage(tripId, file, tenantId);
     }
 
     @TripSharedPublishDoc()

@@ -3,15 +3,27 @@ import {
     Doc,
     DocAuth,
     DocRequest,
+    DocRequestFile,
     DocResponse,
     DocResponsePaging,
 } from '@common/doc/decorators/doc.decorator';
 import { EnumDocRequestBodyType } from '@common/doc/enums/doc.enum';
+import { FileSingleDto } from '@common/file/dtos/file.single.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
+import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+
+const TripDocParamsIdTrip = [
+    {
+        name: 'idTrip',
+        required: true,
+        description: 'Trip identifier',
+        type: String,
+    },
+];
 
 export function TripSharedCreateDraftDoc(): MethodDecorator {
     return applyDecorators(
@@ -31,6 +43,34 @@ export function TripSharedUpdateDraftDoc(): MethodDecorator {
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripUpdateDraftRequestDto }),
         DocResponse<TripResponseDto>('trip.update', { dto: TripResponseDto })
+    );
+}
+
+export function TripSharedUploadIconDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'upload trip icon' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequestFile({
+            dto: FileSingleDto,
+            params: TripDocParamsIdTrip,
+        }),
+        DocResponse<TripFileAssetResponseDto>('trip.uploadIcon', {
+            dto: TripFileAssetResponseDto,
+        })
+    );
+}
+
+export function TripSharedUploadCoverImageDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'upload trip cover image' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequestFile({
+            dto: FileSingleDto,
+            params: TripDocParamsIdTrip,
+        }),
+        DocResponse<TripFileAssetResponseDto>('trip.uploadCoverImage', {
+            dto: TripFileAssetResponseDto,
+        })
     );
 }
 

@@ -47,6 +47,12 @@ const featureFlagData: Prisma.FeatureFlagCreateInput[] = [
         rolloutPercent: 100,
         isEnable: true,
     },
+    {
+        key: 'trip',
+        description: 'Enable trip feature',
+        rolloutPercent: 100,
+        isEnable: true,
+    },
 ];
 
 export const migrationFeatureFlagData: Record<

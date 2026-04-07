@@ -2,11 +2,13 @@ import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
+import { IFile } from '@common/file/interfaces/file.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
-import { Prisma, TripStatus } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
+import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 
@@ -23,6 +25,18 @@ export interface ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>>;
+
+    uploadIcon(
+        tripId: string,
+        file: IFile,
+        tenantId: string
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>>;
+
+    uploadCoverImage(
+        tripId: string,
+        file: IFile,
+        tenantId: string
+    ): Promise<IResponseReturn<TripFileAssetResponseDto>>;
 
     publish(
         tripId: string,

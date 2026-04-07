@@ -1,87 +1,118 @@
-# Trip Form Implementation
+# Trip Form Integration
 
 ## Scope
 
-This file owns trip links to external forms:
+This file documents how forms belong directly to trips.
 
-1. `TripForm`
+There is no separate trip-to-form bridge model in this approach.
 
 ## Related Documents
 
 1. Directory index: [README.md](README.md)
 2. Trip aggregate: [trip.md](trip.md)
-3. Trip contact scope: [trip-contact.md](trip-contact.md)
-4. Media scope: [trip-media.md](trip-media.md)
-5. Attachment scope: [trip-attachments.md](trip-attachments.md)
+3. Runtime form lifecycle: [../../form.md](../../form.md)
+4. Trip traveler scope: [trip-traveler.md](trip-traveler.md)
 
 ## Prisma Draft Schema
 
+Recommended ownership model:
+
 ```prisma
-model TripForm {
-  id        String   @id @default(uuid())
-  tripId    String
-  formId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Trip {
+  id        String @id @default(uuid())
+  // ...
 
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  forms     Form[]
+}
 
-  @@unique([tripId, formId])
+model Form {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  tripId         String
+  kind           EnumFormKind
+  title          String
+  description    String?
+  status         EnumFormStatus @default(draft)
+  schemaSnapshot Json
+  closesAt       DateTime?
+  publishedAt    DateTime?
+
+  trip           Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  sections       FormSection[]    @relation("FormSections")
+  questions      FormQuestion[]   @relation("FormQuestions")
+  assignments    FormAssignment[] @relation("FormAssignments")
+
   @@index([tripId])
-  @@index([formId])
+  @@index([tripId, status])
 }
 ```
 
 ## Entity Notes
 
-1. `TripForm` links a trip to a form created through the form module.
-2. The `Trip` model exposes `forms TripForm[]`.
-3. `POST /shared/forms` creates the form resource and returns its id.
-4. `POST /shared/trips` receives forms as a list of existing form `ObjectId` values.
-5. The service creates `TripForm[]` internally from that form id list.
-
-## Module Dependency Note
-
-`TripModule` must import `FormModule` to validate form existence and status before creating `TripForm` links.
-
-Prefer adding a method `existByIdAndStatus(formId: string, status: EnumFormStatus): Promise<boolean>` to `FormRepository` rather than injecting `FormService`, to avoid circular dependency risk.
+1. A `Form` belongs to exactly one trip through `tripId`.
+2. `Trip` exposes `forms Form[]`.
+3. There is no bridge table between `Trip` and `Form`.
+4. Cross-trip reuse happens by copying a form into a new `Form` row for another trip.
+5. `FormAssignment` remains the per-user delivery record for a trip-owned form.
 
 ## Controllers
 
-No dedicated trip-form controller is expected for now.
+Preferred creation flow:
 
-Form resources themselves are created by the form module through `POST /shared/forms`.
+- `POST /shared/trips/:idTrip/forms`
+
+This route creates a new draft form owned by the trip.
+
+After creation, runtime form management remains centered on the form module:
+
+- `PATCH /shared/forms/:idForm`
+- `POST /shared/forms/:idForm/publish`
+- `POST /shared/forms/:idForm/assignments`
+- `POST /shared/forms/:idForm/archive`
+- `GET /shared/forms/:idForm/metrics`
+- `GET /shared/forms/:idForm/responses`
+- `GET /shared/forms/:idForm/questions/:questionId/summary`
 
 ## DTOs
 
-`TripForm` links are **not** submitted as nested objects. They are passed as a flat array of form ids in the parent trip request DTOs:
+### `TripOwnedFormCreateRequestDto`
 
-- In `TripCreateDraftRequestDto`: `formIds?: string[]`
-- In `TripUpdateDraftRequestDto`: `formIds?: string[]`
+Trip-owned form creation reuses the runtime form draft payload:
 
-The service resolves each id to a `TripForm` link internally.
+- `kind: EnumFormKind`
+- `title: string`
+- `description?: string`
+- `closesAt?: Date`
+- `sections: FormSchemaSectionRequestDto[]`
 
-### `TripFormResponseDto`
+`tripId` is taken from the URL path parameter, not the request body.
 
-Returned as part of `TripResponseDto.forms[]` (backend detail only):
+## Assignment Semantics
 
-- `id: string`
-- `tripId: string`
-- `formId: string`
-- `createdAt: Date`
+`FormAssignment` is still required even when forms are trip-owned.
 
-`TripFormResponseDto` is **not** included in `TripUserResponseDto`. End-user form exposure should only be defined after form visibility rules are finalized.
+Responsibilities:
+
+- `Trip`: ownership scope
+- `Form`: questionnaire definition for that trip
+- `FormAssignment`: which specific user must answer the form
+
+Default rules:
+
+1. Creating a form under a trip does not automatically assign it to all travelers.
+2. Assignments may target only users who belong to the trip through `TripTraveler`.
+3. Assignment scheduling, required/optional behavior, and active/inactive state remain assignment-level concerns.
+4. User-facing submission remains assignment-scoped.
 
 ## Validation Rules
 
 1. `tripId` is always required.
-2. `formId` must reference an existing form with `status = PUBLISHED` in the current tenant context. Draft or archived forms may not be linked to a trip.
-   - The service calls `FormRepository.existByIdAndStatus(formId, EnumFormStatus.published)`.
-   - On failure, throw `BadRequestException` with `EnumFormStatusCodeError.formNotPublished` and message key `form.error.formNotPublished`.
-3. Duplicate links must be prevented by `(tripId, formId)`.
-4. All `formIds` submitted in `POST /shared/trips` must pass the status check before any `TripForm` record is created.
+2. A form must always belong to one trip.
+3. Draft and publish checks must validate the form inside its trip scope.
+4. Assignments for a trip-owned form must target users who belong to the same trip.
+5. Reuse across trips must create a new copied `Form`; one form record cannot belong to multiple trips.
 
 ## Authorization and Visibility
 
-1. Backend-user access to trip-form linkage is controlled by trip aggregate write access.
-2. End-user exposure should only be defined after form visibility rules are finalized.
+1. Backend-user access to form creation is controlled by trip aggregate write access.
+2. Runtime form management permissions still apply when mutating the form after creation.
+3. End-user `/user/forms` reads may include trip context directly through `Form.tripId`.

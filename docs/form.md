@@ -4,7 +4,7 @@ This documentation explains the features and usage of **Form Module**: Located a
 
 ## Overview
 
-Form Module provides a structured way for backend users to create reusable questionnaires, publish them, assign them to users, and collect final responses.
+Form Module provides a structured way for backend users to create trip-owned form instances, publish them, assign them to users, and collect final responses.
 
 This feature was previously referred to as **survey** in the documentation. The current implementation is now the generic `form` module, where `survey` is only one supported value of `EnumFormKind`.
 
@@ -24,12 +24,14 @@ This module is designed so form structure is flexible while being drafted, but i
 - [Activity Log Documentation][ref-doc-activity-log] - For create/publish/archive/delete activity recording
 - [Term Policy Documentation][ref-doc-term-policy] - For user access requirements before submitting forms
 - [Response Documentation][ref-doc-response] - For standardized API response format
+- [Trip Form Integration](ideas/trip/trip-form.md) - For direct trip ownership and traveler assignment rules
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Related Documents](#related-documents)
 - [Form Concept](#form-concept)
+- [Trip Ownership](#trip-ownership)
 - [Form Lifecycle](#form-lifecycle)
     - [Draft Stage](#draft-stage)
     - [Publish Stage](#publish-stage)
@@ -39,6 +41,7 @@ This module is designed so form structure is flexible while being drafted, but i
 - [Routes Overview](#routes-overview)
     - [Admin / Shared Routes](#admin--shared-routes)
     - [User Routes](#user-routes)
+- [Trip Integration](#trip-integration)
 - [Flow](#flow)
     - [Admin Flow Diagram](#admin-flow-diagram)
     - [User Flow Diagram](#user-flow-diagram)
@@ -64,6 +67,25 @@ Supported form kinds are currently:
 - `poll`
 
 The important design decision is that the editable form definition lives first as a **snapshot of the schema**, not as assignment or response records.
+
+## Trip Ownership
+
+Each runtime `Form` belongs to exactly one trip.
+
+Recommended ownership model:
+
+- `Form.tripId` is required
+- `Trip` exposes `forms Form[]`
+- `FormAssignment` remains the per-user delivery record for a form
+- `FormResponse` remains the per-assignment submission record
+
+This keeps ownership simple:
+
+- a trip owns many forms
+- a form belongs to one trip
+- assignments target individual users for that trip-owned form
+
+If another trip needs the same questionnaire, the backend creates a new copied `Form` row for that trip. Cross-trip reuse should happen by cloning, not by sharing one live form record across multiple trips.
 
 ## Form Lifecycle
 
@@ -169,14 +191,14 @@ Question definitions currently support:
 
 The question summary endpoint (`GET /forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
 
-- `singleSelect` / `multiSelect` — counts occurrences of each option value (frequency breakdown)
-- `boolean` — counts `true` and `false` responses separately
-- `number` — returns `min`, `max`, `avg`, and total response count
-- `text` / `date` — returns only the count of non-null responses; individual values are not surfaced
+- `singleSelect` / `multiSelect` - counts occurrences of each option value (frequency breakdown)
+- `boolean` - counts `true` and `false` responses separately
+- `number` - returns `min`, `max`, `avg`, and total response count
+- `text` / `date` - returns only the count of non-null responses; individual values are not surfaced
 
-Conceptually, `schemaSnapshot` is the editable blueprint. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
+Conceptually, `schemaSnapshot` is the editable blueprint for one trip-owned form instance. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
 
-Each question carries a `key` field — a stable, human-readable identifier supplied by the form creator, unique per form (`[formId, key]`). The `key` is stored in the draft `schemaSnapshot` and persisted into `FormQuestion.key` on publish. It is returned alongside the published ObjectId in all schema responses.
+Each question carries a `key` field - a stable, human-readable identifier supplied by the form creator, unique per form (`[formId, key]`). The `key` is stored in the draft `schemaSnapshot` and persisted into `FormQuestion.key` on publish. It is returned alongside the published ObjectId in all schema responses.
 
 Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `FormQuestion.id` ObjectId.
 
@@ -196,9 +218,12 @@ These endpoints come from `FormSharedController`, which is mounted through `Rout
 
 These routes have no role restriction beyond a valid JWT and API key.
 
-Available operations:
+Preferred creation flow for trip-owned forms:
 
-- `POST /shared/forms` - create draft
+- `POST /shared/trips/:idTrip/forms` - create a new draft form for a trip
+
+Existing runtime form operations remain centered on `/shared/forms/:idForm`:
+
 - `GET /shared/forms` - list owned forms with status and kind filters
 - `GET /shared/forms/:idForm` - get one form
 - `PATCH /shared/forms/:idForm` - update draft
@@ -209,6 +234,8 @@ Available operations:
 - `GET /shared/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
 - `GET /shared/forms/:idForm/responses` - list responses for a form
 - `GET /shared/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
+
+If the generic `POST /shared/forms` route is kept in the future, it must require `tripId`. It should not create trip-less forms.
 
 ### User Routes
 
@@ -226,6 +253,24 @@ Available operations:
 
 User routes require accepted term policies before access.
 
+## Trip Integration
+
+Trip integration should be direct, not bridge-based.
+
+Recommended model:
+
+- `Form.tripId` is the direct relation to `Trip`
+- a trip-facing creation route creates the form with that `tripId`
+- `/user/forms` may enrich each item with trip summary directly from the form relation
+
+This is intentionally simpler than introducing a separate bridge model when the product does not require many-to-many reuse.
+
+`FormAssignment` still matters in this model:
+
+- `Trip` tells you the owner scope
+- `Form` tells you the questionnaire definition
+- `FormAssignment` tells you which user must answer it and on what schedule
+
 ## Flow
 
 ### Admin Flow Diagram
@@ -233,11 +278,14 @@ User routes require accepted term policies before access.
 ```mermaid
 sequenceDiagram
     participant Creator as Form Creator
+    participant Trip
     participant Form as Form Draft
     participant Snapshot as schemaSnapshot
     participant Database
 
-    Creator->>Form: Create draft
+    Creator->>Trip: Create trip
+    Creator->>Trip: POST /shared/trips/:idTrip/forms
+    Trip->>Form: Create trip-owned draft form
     Form->>Snapshot: Store editable title / description / sections / questions
     Creator->>Form: Update draft while status is draft
     Creator->>Form: Publish form
@@ -274,6 +322,7 @@ sequenceDiagram
 ## Important Rules
 
 - A form starts as a draft through `schemaSnapshot`
+- Each form belongs to exactly one trip
 - Drafts can only be updated while status is `draft`
 - Publishing materializes the draft into `FormSection` and `FormQuestion`
 - Assignments are created only after the form is published
@@ -283,6 +332,7 @@ sequenceDiagram
 - Form visibility and submission are blocked before assignment `startsAt` is reached
 - Once a response is submitted, it cannot be submitted again
 - Forms can be archived only after publication
+- If another trip needs the same questionnaire, create a copied new `Form` row for that trip
 
 ## Known Limitations
 
@@ -316,13 +366,13 @@ The question summary aggregation reads at most 1000 raw answer records per quest
 
 Updating a draft overwrites the existing `schemaSnapshot` in place. There is no history of previous draft states, and no way to restore a prior version of the schema.
 
+### No built-in form cloning flow
+
+Cross-trip reuse is copy-based, but a first-class cloning endpoint or workflow is not defined in this pass.
+
 ### No role restriction on shared routes
 
 The shared routes (`/shared/forms` management operations) do not enforce any role restriction beyond a valid JWT and API key. Any authenticated user can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
-
-### No form cloning or templating
-
-There is no endpoint to duplicate an existing form or use a published form as a template for a new draft.
 
 <!-- REFERENCES -->
 

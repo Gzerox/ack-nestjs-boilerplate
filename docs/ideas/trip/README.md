@@ -2,20 +2,21 @@
 
 ## Purpose
 
-This directory splits the Trip implementation into smaller, topic-focused documents so the aggregate lifecycle, traveler/PII surface, trip contact linkage, visual assets, media, and attachments can evolve independently while staying connected.
+This directory splits the Trip implementation into smaller, topic-focused documents so the aggregate lifecycle, invite workflow, traveler/PII surface, trip contact linkage, visual assets, media, and attachments can evolve independently while staying connected.
 
 All decisions in these files must continue to follow [.claude/CLAUDE.md](../../../.claude/CLAUDE.md).
 
 ## Document Map
 
-1. [trip.md](trip.md): aggregate root, draft/publish lifecycle, invites, calendar events, and trip-level controllers.
-2. [trip-traveler.md](trip-traveler.md): traveler grouping, traveler records, trip-scoped traveler documents, and PII-aware traveler endpoints.
-3. [../tenant/tenant-contact.md](../tenant/tenant-contact.md): tenant-owned contact book and shared contact-management endpoints.
-4. [trip-contact.md](trip-contact.md): trip support-contact linking through `TripContact`.
-5. [trip-media.md](trip-media.md): trip media and event-linked media usage using embedded file metadata objects.
-6. [trip-attachments.md](trip-attachments.md): trip-specific files, legal material, and other managed attachments using embedded file metadata objects.
-7. [trip-form.md](trip-form.md): trip links to external forms created through the form module.
-8. [../transport/itinerary.md](../transport/itinerary.md): separate transport itinerary scope.
+1. [trip.md](trip.md): aggregate root, draft/publish lifecycle, calendar events, and trip-facing controllers.
+2. [trip-invite.md](trip-invite.md): invite issuance, acceptance, revocation, token handling, and invite notification behavior.
+3. [trip-traveler.md](trip-traveler.md): traveler grouping, traveler records, trip-scoped traveler documents, and PII-aware traveler endpoints.
+4. [../tenant/tenant-contact.md](../tenant/tenant-contact.md): tenant-owned contact book and shared contact-management endpoints.
+5. [trip-contact.md](trip-contact.md): trip support-contact linking through `TripContact`.
+6. [trip-media.md](trip-media.md): trip media and event-linked media usage using embedded file metadata objects.
+7. [trip-attachments.md](trip-attachments.md): trip-specific files, legal material, and other managed attachments using embedded file metadata objects.
+8. [trip-form.md](trip-form.md): direct trip-owned forms and traveler assignment rules.
+9. [../transport/itinerary.md](../transport/itinerary.md): separate transport itinerary scope.
 
 ## Current Scope
 
@@ -30,8 +31,6 @@ The Trip domain currently includes these entities:
 7. `TripContact`
 8. `TripMedia`
 9. `TripAttachment`
-10. `TripForm`
-
 Trip flows also depend on tenant-owned `TenantContact` records documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
 
 Core capabilities:
@@ -44,7 +43,7 @@ Core capabilities:
 6. Expose trip details to customers, including `calendarEvents.medias`, support contacts, trip-level media, and trip visuals.
 7. Attach tenant-scoped support contacts to trips through `TripContact`.
 8. Allow backend users to manage trip-specific attachments during trip setup and edits.
-9. Keep trip-to-form linkage documented separately from form creation, which is owned by the form module.
+9. Keep direct trip-owned form behavior documented separately from the rest of the trip aggregate.
 
 ## Shared Relationships
 
@@ -57,14 +56,15 @@ Core capabilities:
 7. `Trip.icon` and `Trip.coverImage` are optional trip-level visual assets stored as embedded file metadata objects.
 8. `TripMedia` can be attached directly to a trip or to a specific `TripCalendarEvent`, and stores embedded file metadata instead of only a raw URL.
 9. `TripAttachment` stores trip-specific files or policy/legal material managed during trip setup, using embedded file metadata when a file is present.
-10. `TripForm` links a trip to forms created through the form module.
+10. Trip-owned forms belong directly to `Trip`; cross-trip reuse happens by copying a form into a new row.
 
 ## Reading Order
 
-1. Start with [trip.md](trip.md) for lifecycle, trip creation, publishing, and trip-facing APIs.
-2. Continue with [trip-traveler.md](trip-traveler.md) for traveler ownership, document visibility, and PII handling.
-3. Use [../tenant/tenant-contact.md](../tenant/tenant-contact.md) for tenant contact management and shared contact endpoints.
-4. Use [trip-contact.md](trip-contact.md) for trip contact linking and traveler-facing support references.
-5. Use [trip-media.md](trip-media.md) for trip and event media behavior, including embedded file metadata.
-6. Use [trip-attachments.md](trip-attachments.md) for trip-level files and legal attachments, including embedded file metadata.
-7. Use [trip-form.md](trip-form.md) when form linkage work is in scope.
+1. Start with [trip.md](trip.md) for lifecycle, trip creation, publication, and trip-facing APIs.
+2. Continue with [trip-invite.md](trip-invite.md) for invitation issuance, acceptance, revocation, and delivery semantics.
+3. Continue with [trip-traveler.md](trip-traveler.md) for traveler ownership, document visibility, and PII handling.
+4. Use [../tenant/tenant-contact.md](../tenant/tenant-contact.md) for tenant contact management and shared contact endpoints.
+5. Use [trip-contact.md](trip-contact.md) for trip contact linking and traveler-facing support references.
+6. Use [trip-media.md](trip-media.md) for trip and event media behavior, including embedded file metadata.
+7. Use [trip-attachments.md](trip-attachments.md) for trip-level files and legal attachments, including embedded file metadata.
+8. Use [trip-form.md](trip-form.md) when direct trip-owned form behavior is in scope.

@@ -22,12 +22,17 @@ import {
 
 /**
  * Factory function to create PaginationOrderPipe that handles ordering functionality for pagination
- * @param {string[]} defaultAvailableOrder - Array of fields that can be used for ordering
+ * @param {string[]} [defaultAvailableOrder] - Array of fields that can be used for ordering
+ * @param {IPaginationOrderBy[]} [defaultOrderBy] - Per-endpoint fallback sort order; must only reference fields in defaultAvailableOrder when the allowlist is provided
  * @returns {Type<PipeTransform>} Configured pipe class for ordering
+ * @throws {Error} When defaultOrderBy contains a field not present in defaultAvailableOrder
  */
 export function PaginationOrderPipe(
-    defaultAvailableOrder?: string[]
+    defaultAvailableOrder?: string[],
+    defaultOrderBy?: IPaginationOrderBy[]
 ): Type<PipeTransform> {
+    //TODO: We would need to verify that the values in defautlOrderBy are part of defaultAvailableOrder.
+    // If the defaultOrderBy contains a field which does not support order, we shall raise errors.
     @Injectable({ scope: Scope.REQUEST })
     class MixinPaginationOrderPipe implements PipeTransform {
         constructor(@Inject(REQUEST) private readonly request: IRequestApp) {}
@@ -47,6 +52,8 @@ export function PaginationOrderPipe(
         ): Promise<
             IPaginationQueryOffsetParams | IPaginationQueryCursorParams
         > {
+            const effectiveDefault = defaultOrderBy ?? PaginationDefaultOrderBy;
+
             if (
                 !value?.orderBy ||
                 !defaultAvailableOrder ||
@@ -54,7 +61,7 @@ export function PaginationOrderPipe(
             ) {
                 return {
                     ...value,
-                    orderBy: PaginationDefaultOrderBy,
+                    orderBy: effectiveDefault,
                 };
             }
 
@@ -65,7 +72,7 @@ export function PaginationOrderPipe(
             if (orderByExtractFromRequest.length === 0) {
                 return {
                     ...value,
-                    orderBy: PaginationDefaultOrderBy,
+                    orderBy: effectiveDefault,
                 };
             }
 

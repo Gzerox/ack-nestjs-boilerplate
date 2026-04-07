@@ -12,17 +12,22 @@ import { EnumPaginationStatusCodeError } from '@common/pagination/enums/paginati
 
 /**
  * Factory function to create PaginationOffsetPipe that handles offset-based pagination
- * @param {number} defaultPerPage - Default number of items per page (default: PaginationDefaultPerPage)
+ * @param {number} [defaultPerPage] - Default number of items per page (default: PaginationDefaultPerPage)
+ * @param {number} [defaultMaxPerPage] - Per-endpoint maximum perPage cap (default: PaginationDefaultMaxPerPage)
  * @returns {Type<PipeTransform>} Configured pipe class for offset pagination
  *
  * @constraint
  * - Page: minimum 1, maximum PaginationDefaultMaxPage
- * - PerPage: minimum 1, maximum PaginationDefaultMaxPerPage
+ * - PerPage: minimum 1, maximum defaultMaxPerPage
  * - Default page: 1
- * - Default perPage: PaginationDefaultPerPage or custom defaultPerPage parameter
+ * - Default perPage: defaultPerPage
+ * - defaultMaxPerPage must be >= 1
+ * - defaultPerPage must not exceed defaultMaxPerPage
+ * @throws {Error} When defaultMaxPerPage < 1, defaultPerPage < 1, or defaultPerPage > defaultMaxPerPage
  */
 export function PaginationOffsetPipe(
-    defaultPerPage: number = PaginationDefaultPerPage
+    defaultPerPage: number = PaginationDefaultPerPage,
+    defaultMaxPerPage: number = PaginationDefaultMaxPerPage
 ): Type<PipeTransform> {
     @Injectable({ scope: Scope.REQUEST })
     class MixinPaginationOffsetPipe implements PipeTransform {
@@ -133,7 +138,7 @@ export function PaginationOffsetPipe(
          * @constraint
          * - Must be a valid integer
          * - Must be >= 1
-         * - Must be <= PaginationDefaultMaxPerPage
+         * - Must be <= defaultMaxPerPage
          */
         private validateAndParsePerPage(perPage?: number | string): number {
             let finalPerPage = perPage ?? defaultPerPage;
@@ -150,18 +155,18 @@ export function PaginationOffsetPipe(
                     statusCode: EnumPaginationStatusCodeError.invalidPerPage,
                     message: 'pagination.error.invalidPerPage',
                     messageProperties: {
-                        maxPerPage: PaginationDefaultMaxPerPage,
+                        maxPerPage: defaultMaxPerPage,
                     },
                 });
             }
 
-            if (finalPerPage > PaginationDefaultMaxPerPage) {
+            if (finalPerPage > defaultMaxPerPage) {
                 throw new UnprocessableEntityException({
                     statusCode:
                         EnumPaginationStatusCodeError.perPageExceedsMaximum,
                     message: 'pagination.error.perPageExceedsMaximum',
                     messageProperties: {
-                        maxPerPage: PaginationDefaultMaxPerPage,
+                        maxPerPage: defaultMaxPerPage,
                         receivedPerPage: finalPerPage,
                     },
                 });

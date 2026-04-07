@@ -29,13 +29,16 @@ export interface IPaginationQuery {
 export interface IPaginationQueryOffsetOptions {
     availableSearch?: string[];
     defaultPerPage?: number;
+    defaultMaxPerPage?: number;
     availableOrderBy?: string[];
+    defaultOrderBy?: IPaginationOrderBy[];
 }
 
 export interface IPaginationQueryCursorOptions {
     availableSearch?: string[];
     defaultPerPage?: number;
     availableOrderBy?: string[];
+    defaultOrderBy?: IPaginationOrderBy[];
     cursorField?: string;
 }
 

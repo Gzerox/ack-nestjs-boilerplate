@@ -30,8 +30,8 @@ export function PaginationOffsetQuery(
 ): ParameterDecorator {
     return Query(
         PaginationSearchPipe(options?.availableSearch),
-        PaginationOffsetPipe(options?.defaultPerPage),
-        PaginationOrderPipe(options?.availableOrderBy)
+        PaginationOffsetPipe(options?.defaultPerPage, options?.defaultMaxPerPage),
+        PaginationOrderPipe(options?.availableOrderBy, options?.defaultOrderBy)
     );
 }
 
@@ -47,7 +47,7 @@ export function PaginationCursorQuery(
     return Query(
         PaginationSearchPipe(options?.availableSearch),
         PaginationCursorPipe(options?.defaultPerPage, options?.cursorField),
-        PaginationOrderPipe(options?.availableOrderBy)
+        PaginationOrderPipe(options?.availableOrderBy, options?.defaultOrderBy)
     );
 }
 

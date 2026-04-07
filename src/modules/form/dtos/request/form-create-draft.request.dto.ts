@@ -2,6 +2,7 @@ import {
     IsArray,
     IsDate,
     IsEnum,
+    IsMongoId,
     IsNotEmpty,
     IsOptional,
     IsString,
@@ -34,4 +35,8 @@ export class FormCreateDraftRequestDto {
     @Type(() => FormSchemaSectionRequestDto)
     @IsNotEmpty()
     sections: FormSchemaSectionRequestDto[];
+
+    @IsMongoId()
+    @IsNotEmpty()
+    tripId: string;
 }

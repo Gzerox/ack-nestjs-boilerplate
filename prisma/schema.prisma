@@ -477,10 +477,12 @@ model Form {
   schemaSnapshot Json
   closesAt       DateTime?
   publishedAt    DateTime?
+  tripId         String         @db.ObjectId
 
   sections    FormSection[]    @relation("FormSections")
   questions   FormQuestion[]   @relation("FormQuestions")
   assignments FormAssignment[] @relation("FormAssignments")
+  trip        Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -492,6 +494,7 @@ model Form {
   @@index(fields: [kind, status])
   @@index(fields: [publishedAt])
   @@index(fields: [closesAt])
+  @@index(fields: [tripId])
   @@map("Forms")
 }
 
@@ -604,6 +607,61 @@ model FormAnswer {
   @@map("FormAnswers")
 }
 
+model Trip {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String         @unique
+  tenantId    String         @db.ObjectId
+  createdBy   String         @db.ObjectId
+
+  title       String
+  subtitle    String?
+  description String?
+  icon        TripFileAsset?
+  coverImage  TripFileAsset?
+  startDate   DateTime
+  endDate     DateTime
+  timezone    String?
+
+  status      TripStatus     @default(draft)
+  publishedAt DateTime?
+  archivedAt  DateTime?
+  cancelledAt DateTime?
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  calendarEvents TripCalendarEvent[]
+  forms          Form[]
+
+  @@index(fields: [tenantId])
+  @@index(fields: [status])
+  @@index(fields: [startDate])
+  @@index(fields: [tenantId, status])
+  @@map("Trips")
+}
+
+model TripCalendarEvent {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  tripId      String            @db.ObjectId
+  createdBy   String            @db.ObjectId
+
+  title       String
+  category    TripEventCategory @default(general)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  location    String?
+  description String?
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  trip        Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index(fields: [tripId])
+  @@index(fields: [startsAt])
+  @@map("TripCalendarEvents")
+}
+
 type UserTermPolicy {
   termsOfService Boolean
   privacy        Boolean
@@ -624,6 +682,17 @@ type UserPhoto {
   mime         String
   extension    String
   access       String
+}
+
+type TripFileAsset {
+  bucket       String
+  key          String
+  cdnUrl       String?
+  completedUrl String
+  mime         String
+  extension    String
+  access       String
+  size         Int
 }
 
 type TermPolicyContent {
@@ -706,6 +775,29 @@ enum EnumFormQuestionType {
   multiSelect
   boolean
   date
+}
+
+enum TripStatus {
+  draft
+  published
+  cancelled
+  archived
+}
+
+enum TripEventCategory {
+  general
+  arrival
+  departure
+  checkIn
+  checkOut
+  transfer
+  meal
+  activity
+  meeting
+  freeTime
+  deadline
+  emergency
+  other
 }
 
 enum EnumUserGender {
@@ -842,6 +934,11 @@ enum EnumActivityLogAction {
   adminFormPublish
   adminFormArchive
   adminFormDelete
+
+  adminTripCreate
+  adminTripPublish
+  adminTripCancel
+  adminTripArchive
 }
 
 enum EnumDevicePlatform {

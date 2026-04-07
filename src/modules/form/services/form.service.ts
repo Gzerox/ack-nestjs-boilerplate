@@ -73,6 +73,7 @@ export class FormService implements IFormService {
             closesAt: dto.closesAt ?? null,
             status: EnumFormStatus.draft,
             schemaSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+            ...(dto.tripId && { trip: { connect: { id: dto.tripId } } }),
         });
 
         return {

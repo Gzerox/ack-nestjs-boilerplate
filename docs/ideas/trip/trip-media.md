@@ -12,7 +12,7 @@ Trip media helps backend users upload photos or images so travelers can preview 
 
 1. Directory index: [README.md](README.md)
 2. Trip aggregate: [trip.md](trip.md)
-3. Contact scope: [trip-contact.md](trip-contact.md)
+3. Trip contact scope: [trip-contact.md](trip-contact.md)
 4. Attachment scope: [trip-attachments.md](trip-attachments.md)
 
 ## Enumerations

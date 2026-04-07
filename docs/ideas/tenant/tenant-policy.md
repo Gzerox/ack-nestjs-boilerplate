@@ -358,6 +358,6 @@ New enum `EnumTenantPolicyStatusCodeError` (starting from a range distinct from 
 
 ## Open Items
 
-1. **Tenant Decorator** — once the Tenant Decorator is available (referenced in [trip-contact.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-contact.md)), tenant scoping should migrate from `x-tenant-id` header to the decorator pattern.
+1. **Tenant Decorator** — once the Tenant Decorator is available (referenced in [tenant-contact.md](tenant-contact.md)), tenant scoping should migrate from `x-tenant-id` header to the decorator pattern.
 2. **Acceptance analytics** — Org admin endpoint to view how many users have accepted each policy version (future, not in scope for initial implementation).
 3. **Runtime guard (Phase 2)** — a `@TenantPolicyAcceptanceProtected()` decorator can be added later if runtime enforcement on Org/Trip endpoints is required. Not in scope for Phase 1.

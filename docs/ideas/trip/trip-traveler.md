@@ -14,7 +14,7 @@ Trip lifecycle, invites, and calendar events are defined in [trip.md](trip.md).
 
 1. Directory index: [README.md](README.md)
 2. Trip aggregate: [trip.md](trip.md)
-3. Contact scope: [trip-contact.md](trip-contact.md)
+3. Trip contact scope: [trip-contact.md](trip-contact.md)
 4. Media scope: [trip-media.md](trip-media.md)
 
 ## Enumerations

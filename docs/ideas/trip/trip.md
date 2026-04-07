@@ -14,11 +14,12 @@ Traveler grouping and traveler-document details live in [trip-traveler.md](trip-
 
 1. Directory index: [README.md](README.md)
 2. Traveler scope: [trip-traveler.md](trip-traveler.md)
-3. Contact scope: [trip-contact.md](trip-contact.md)
-4. Media scope: [trip-media.md](trip-media.md)
-5. Attachment scope: [trip-attachments.md](trip-attachments.md)
-6. Form scope: [trip-form.md](trip-form.md)
-7. Transport scope: [docs/ideas/transport/itinerary.md](../transport/itinerary.md)
+3. Tenant contact scope: [../tenant/tenant-contact.md](../tenant/tenant-contact.md)
+4. Trip contact scope: [trip-contact.md](trip-contact.md)
+5. Media scope: [trip-media.md](trip-media.md)
+6. Attachment scope: [trip-attachments.md](trip-attachments.md)
+7. Form scope: [trip-form.md](trip-form.md)
+8. Transport scope: [docs/ideas/transport/itinerary.md](../transport/itinerary.md)
 
 ## Module & Service Layer
 
@@ -123,16 +124,7 @@ export enum EnumTripStatusCodeError {
 }
 ```
 
-### `EnumTenantContactStatusCodeError` (5450–5479)
-
-File: `src/modules/trip/enums/tenant-contact.status-code.enum.ts`
-
-```typescript
-export enum EnumTenantContactStatusCodeError {
-    notFound = 5450,
-    deleted  = 5451,
-}
-```
+Tenant contact status codes are documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
 
 ## i18n Key Structure
 
@@ -178,23 +170,7 @@ export enum EnumTenantContactStatusCodeError {
 }
 ```
 
-### `src/languages/en/tenantContact.json`
-
-```json
-{
-    "tenantContact": {
-        "list":   "Get contact list",
-        "get":    "Get contact detail",
-        "create": "Contact created",
-        "update": "Contact updated",
-        "delete": "Contact deleted"
-    },
-    "error": {
-        "notFound": "Contact not found",
-        "deleted":  "Contact has been deleted"
-    }
-}
-```
+Tenant contact i18n keys are documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
 
 Response decorator usage examples:
 - `@Response('trip.createDraft')` for `POST /shared/trips`
@@ -378,7 +354,7 @@ model TripCalendarEvent {
 7. `TripCalendarEvent.medias` exposes event-attached `TripMedia[]` when available.
 8. `Trip.icon` is the compact trip visual asset, intended for cards, selectors, and other reduced visual surfaces.
 9. `Trip.coverImage` is the main trip banner/hero visual asset for richer read surfaces.
-10. `Trip.contacts` links to [trip-contact.md](trip-contact.md) for traveler-facing support references.
+10. `Trip.contacts` links to [trip-contact.md](trip-contact.md), using tenant-owned contact records documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
 11. `Trip.medias` links to [trip-media.md](trip-media.md) for trip-level image/media exposure.
 12. `Trip.attachments` links to [trip-attachments.md](trip-attachments.md) for trip-specific files and legal material.
 13. `Trip.forms` links to [trip-form.md](trip-form.md) for trip-to-form assignments.

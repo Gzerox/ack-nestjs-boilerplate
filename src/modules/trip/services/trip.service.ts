@@ -22,6 +22,10 @@ import {
 } from '@common/response/interfaces/response.interface';
 import { HelperService } from '@common/helper/services/helper.service';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
+import {
+    ITripInviteTripSummary,
+    ITripInviteWithTrip,
+} from '@modules/trip/interfaces/trip-invite.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
@@ -38,6 +42,7 @@ import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
+import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import {
     Prisma,
     Trip,
@@ -73,8 +78,6 @@ export class TripService implements ITripService {
             this.helperService
         );
 
-        const inviteTokens = await this._prepareInviteTokens(dto.invites ?? []);
-
         const trip = await this.tripRepository.create({
             slug,
             tenantId,
@@ -101,26 +104,31 @@ export class TripService implements ITripService {
                     })),
                 },
             }),
-        });
+            ...(dto.invites?.length && {
+                invites: {
+                    create: dto.invites.map(invite => {
+                        // TODO: validate duplicate invite emails before persisting.
+                        const tokenHash = this.helperService.sha256Hash(
+                            this.helperService.randomString(32)
+                        );
 
-        if (inviteTokens.length) {
-            await this.tripInviteRepository.createMany(
-                inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
-                    tripId: trip.id,
-                    createdBy,
-                    email,
-                    tokenHash,
-                    ...(expiresAt !== undefined && { expiresAt }),
-                }))
-            );
-        }
+                        return {
+                            createdBy,
+                            email: invite.email,
+                            tokenHash,
+                            expiresAt: invite.expiresAt ?? null,
+                        };
+                    }),
+                },
+            }),
+        });
 
         return {
             data: {
                 id: trip.id,
                 slug: trip.slug,
                 status: trip.status,
-            } as TripCreateDraftResponseDto,
+            },
             metadataActivityLog: { tripId: trip.id },
         };
     }
@@ -488,7 +496,29 @@ export class TripService implements ITripService {
         };
     }
 
-    private mapToListItemDto(trip: Trip): TripListItemResponseDto {
+    async getUserInviteList(
+        userId: string,
+        email: string,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripInviteSelect,
+            Prisma.TripInviteWhereInput
+        >
+    ): Promise<IResponsePagingReturn<TripInviteListItemResponseDto>> {
+        const result = await this.tripInviteRepository.findManyByUser(
+            userId,
+            email,
+            pagination
+        );
+
+        return {
+            ...result,
+            data: result.data.map(invite => this.mapToInviteListItemDto(invite)),
+        };
+    }
+
+    private mapToListItemDto(
+        trip: Trip | ITripInviteTripSummary
+    ): TripListItemResponseDto {
         return {
             id: trip.id,
             slug: trip.slug,
@@ -634,6 +664,15 @@ export class TripService implements ITripService {
             createdAt: invite.createdAt,
             updatedAt: invite.updatedAt,
         } as TripInviteResponseDto;
+    }
+
+    private mapToInviteListItemDto(
+        invite: ITripInviteWithTrip
+    ): TripInviteListItemResponseDto {
+        return {
+            ...this.mapToInviteResponseDto(invite),
+            trip: this.mapToListItemDto(invite.trip),
+        } ;
     }
 
     private async _prepareInviteTokens(

@@ -9,6 +9,7 @@ import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.creat
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
+import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 
@@ -80,6 +81,12 @@ export interface ITripService {
         pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>>;
+
+    getUserInviteList(
+        userId: string,
+        email: string,
+        pagination: IPaginationQueryOffsetParams<Prisma.TripInviteSelect, Prisma.TripInviteWhereInput>
+    ): Promise<IResponsePagingReturn<TripInviteListItemResponseDto>>;
 
     acceptInvite(
         rawToken: string,

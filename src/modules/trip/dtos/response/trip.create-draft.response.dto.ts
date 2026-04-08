@@ -1,9 +1,8 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
-import { DatabaseDto } from '@common/database/dtos/database.dto';
 import { TripStatus } from '@generated/prisma-client';
 
-export class TripCreateDraftResponseDto extends DatabaseDto {
+export class TripCreateDraftResponseDto {
     @ApiProperty({
         description: 'Unique trip identifier',
         example: faker.database.mongodbObjectId(),

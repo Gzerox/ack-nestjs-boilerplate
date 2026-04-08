@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '@common/database/services/database.service';
+import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
+import { PaginationService } from '@common/pagination/services/pagination.service';
+import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Prisma, TripInvite } from '@generated/prisma-client';
+import { ITripInviteWithTrip } from '@modules/trip/interfaces/trip-invite.interface';
 
 @Injectable()
 export class TripInviteRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(
+        private readonly databaseService: DatabaseService,
+        private readonly paginationService: PaginationService
+    ) {}
 
     async createMany(data: Prisma.TripInviteCreateManyInput[]): Promise<void> {
         await this.databaseService.tripInvite.createMany({ data });
@@ -26,6 +33,45 @@ export class TripInviteRepository {
         return this.databaseService.tripInvite.findMany({
             where: { tripId },
             orderBy: { createdAt: 'asc' },
+        });
+    }
+
+    async findManyByUser(
+        userId: string,
+        email: string,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripInviteSelect,
+            Prisma.TripInviteWhereInput
+        >
+    ): Promise<IResponsePagingReturn<ITripInviteWithTrip>> {
+        return this.paginationService.offset<
+            ITripInviteWithTrip,
+            Prisma.TripInviteSelect,
+            Prisma.TripInviteWhereInput
+        >(this.databaseService.tripInvite, {
+            ...pagination,
+            where: {
+                ...pagination.where,
+                OR: [{ userId }, { email }],
+            },
+            include: {
+                trip: {
+                    select: {
+                        id: true,
+                        slug: true,
+                        title: true,
+                        subtitle: true,
+                        icon: true,
+                        coverImage: true,
+                        startDate: true,
+                        endDate: true,
+                        timezone: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
+            },
         });
     }
 

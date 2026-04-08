@@ -16,6 +16,7 @@
         "createForm":  "Trip form created"
     },
     "invite": {
+        "list": "Get trip invite list",
         "accept": "Invite accepted",
         "revoke": "Invite revoked"
     },

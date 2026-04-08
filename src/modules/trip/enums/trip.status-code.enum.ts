@@ -9,4 +9,5 @@ export enum EnumTripStatusCodeError {
     publishConflict   = 5407,
     publishValidation = 5408,
     slugConflict      = 5440,
+    travelerNotFound  = 5450,
 }

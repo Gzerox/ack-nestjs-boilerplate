@@ -149,6 +149,7 @@ model User {
   revokedSessions         Session[]                  @relation("SessionRevokedByUser")
   revokedDeviceOwnerships DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
   formAssignments         FormAssignment[]           @relation("UserFormAssignments")
+  tripTravelers           TripTraveler[]             @relation("TripTravelerUser")
 
   @@unique(fields: [username])
   @@unique(fields: [email])
@@ -632,6 +633,7 @@ model Trip {
 
   calendarEvents TripCalendarEvent[]
   forms          Form[]
+  travelers      TripTraveler[]
 
   @@index(fields: [tenantId])
   @@index(fields: [status])
@@ -660,6 +662,26 @@ model TripCalendarEvent {
   @@index(fields: [tripId])
   @@index(fields: [startsAt])
   @@map("TripCalendarEvents")
+}
+
+model TripTraveler {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String   @db.ObjectId
+  userId    String   @db.ObjectId
+  groupId   String?  @db.ObjectId
+  createdBy String   @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user      User     @relation("TripTravelerUser", fields: [userId], references: [id])
+
+  @@unique([tripId, userId])
+  @@index(fields: [tripId])
+  @@index(fields: [userId])
+  @@index(fields: [groupId])
+  @@map("TripTravelers")
 }
 
 type UserTermPolicy {
@@ -939,6 +961,7 @@ enum EnumActivityLogAction {
   adminTripPublish
   adminTripCancel
   adminTripArchive
+  adminTripTravelerGet
 }
 
 enum EnumDevicePlatform {

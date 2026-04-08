@@ -79,7 +79,7 @@ export class TripRepository {
         return this.databaseService.trip.findMany({ where: { id: { in: tripIds } } });
     }
 
-    async findManyByUserOrPublished(
+    async findManyByTravelerOrPublished(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
         status?: Record<string, IPaginationIn>
@@ -92,7 +92,7 @@ export class TripRepository {
                     ...pagination.where,
                     OR: [
                         { status: TripStatus.published },
-                        { createdBy: userId },
+                        { travelers: { some: { userId } } },
                     ],
                     ...status,
                 },

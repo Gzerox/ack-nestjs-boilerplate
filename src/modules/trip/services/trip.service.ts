@@ -20,6 +20,7 @@ import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfa
 import { HelperService } from '@common/helper/services/helper.service';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
+import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
 import {
     createTripAssetKey,
@@ -41,6 +42,7 @@ export class TripService implements ITripService {
 
     constructor(
         private readonly tripRepository: TripRepository,
+        private readonly tripTravelerRepository: TripTravelerRepository,
         private readonly helperService: HelperService,
         private readonly awsS3Service: AwsS3Service,
         private readonly fileService: FileService
@@ -93,7 +95,7 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const existing = await this.tripRepository.existByIdAndTenant(tripId, tenantId);
+        const existing = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
         if (!existing) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -109,8 +111,7 @@ export class TripService implements ITripService {
             });
         }
 
-        const fullTrip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
-        if (fullTrip!.status !== TripStatus.draft) {
+        if (existing.status !== TripStatus.draft) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.notDraft,
                 message: 'trip.error.notDraft',
@@ -148,7 +149,13 @@ export class TripService implements ITripService {
         await this.tripRepository.update(tripId, updateData);
 
         const updated = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
-        return { data: this.mapToResponseDto(updated!) };
+        if (!updated) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        return { data: this.mapToResponseDto(updated) };
     }
 
     async uploadIcon(
@@ -322,6 +329,9 @@ export class TripService implements ITripService {
     }
 
     async getTripForUser(tripId: string, userId: string): Promise<IResponseReturn<TripResponseDto>> {
+        // TODO: We should invoke tripTravelerRepository and load `trip` relationship.
+        //  in this way we can simplify this service method, and invoke the repository only 1 time.
+        //  Then we could should perform if(!traveler.trip){ throw NotFound }
         const trip = await this.tripRepository.findOneById(tripId);
         if (!trip) {
             throw new NotFoundException({
@@ -330,9 +340,8 @@ export class TripService implements ITripService {
             });
         }
 
-        // TODO: When TripTraveler is implemented, verify user is part of the trip
-        // For now, only published trips are accessible to users, or trips they created
-        if (trip.status !== TripStatus.published && trip.createdBy !== userId) {
+        const isTraveler = await this.tripTravelerRepository.existsByTripAndUser(tripId, userId);
+        if (!isTraveler && trip.status !== TripStatus.published && trip.createdBy !== userId) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
                 message: 'trip.error.notFound',
@@ -347,9 +356,7 @@ export class TripService implements ITripService {
         pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>> {
-        // TODO: When TripTraveler is implemented, filter by trips where user is a TripTraveler or has pending TripInvite
-        // For now, return published trips or trips created by the user
-        const result = await this.tripRepository.findManyByUserOrPublished(
+        const result = await this.tripRepository.findManyByTravelerOrPublished(
             userId,
             pagination,
             status

@@ -121,3 +121,11 @@ export function TripSharedListDoc(): MethodDecorator {
         DocResponsePaging<TripListItemResponseDto>('trip.list', { dto: TripListItemResponseDto })
     );
 }
+
+export function TripSharedRevokeInviteDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'revoke trip invite' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocResponse('invite.revoke')
+    );
+}

@@ -60,6 +60,7 @@ import {
     TripSharedGetDoc,
     TripSharedListDoc,
     TripSharedPublishDoc,
+    TripSharedRevokeInviteDoc,
     TripSharedUnpublishDoc,
     TripSharedUpdateDraftDoc,
     TripSharedUploadCoverImageDoc,
@@ -250,6 +251,25 @@ export class TripSharedController {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
         return this.tripService.getTrip(tripId, tenantId);
+    }
+
+    @TripSharedRevokeInviteDoc()
+    @ActivityLog(EnumActivityLogAction.adminTripRevokeInvite)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('invite.revoke')
+    @HttpCode(HttpStatus.OK)
+    @Patch('/:idTrip/invites/:idInvite/revoke')
+    async revokeInvite(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string,
+        @Param('idInvite', RequestIsValidObjectIdPipe, RequestRequiredPipe) inviteId: string
+    ): Promise<IResponseReturn<void>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.revokeInvite(tripId, inviteId, tenantId, userId);
     }
 
     @TripSharedListDoc()

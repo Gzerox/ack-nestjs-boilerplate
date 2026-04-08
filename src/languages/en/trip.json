@@ -15,17 +15,26 @@
         "archive":     "Trip archived",
         "createForm":  "Trip form created"
     },
+    "invite": {
+        "accept": "Invite accepted",
+        "revoke": "Invite revoked"
+    },
     "error": {
-        "notFound":          "Trip not found",
-        "notDraft":          "Trip cannot be edited after leaving draft state",
-        "notPublished":      "Trip is not published",
-        "alreadyCancelled":  "Trip is already cancelled",
-        "alreadyArchived":   "Trip is already archived",
-        "alreadyPublished":  "Trip is already published",
-        "invalidTransition": "This status transition is not allowed",
-        "publishConflict":   "Trip was modified by another request; reload and retry",
-        "publishValidation": "Trip failed publish validation; check errors for details",
-        "slugConflict":      "Could not generate a unique trip slug; try again",
-        "travelerNotFound":  "Trip traveler not found"
+        "notFound":             "Trip not found",
+        "notDraft":             "Trip cannot be edited after leaving draft state",
+        "notPublished":         "Trip is not published",
+        "alreadyCancelled":     "Trip is already cancelled",
+        "alreadyArchived":      "Trip is already archived",
+        "alreadyPublished":     "Trip is already published",
+        "invalidTransition":    "This status transition is not allowed",
+        "publishConflict":      "Trip was modified by another request; reload and retry",
+        "publishValidation":    "Trip failed publish validation; check errors for details",
+        "slugConflict":         "Could not generate a unique trip slug; try again",
+        "travelerNotFound":     "Trip traveler not found",
+        "inviteNotFound":       "Invite not found",
+        "inviteExpired":        "Invite has expired",
+        "inviteRevoked":        "Invite has been revoked",
+        "inviteAlreadyAccepted":"Invite has already been accepted",
+        "inviteTokenInvalid":   "Invite token is invalid"
     }
 }

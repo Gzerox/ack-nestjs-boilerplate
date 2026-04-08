@@ -634,6 +634,7 @@ model Trip {
   calendarEvents TripCalendarEvent[]
   forms          Form[]
   travelers      TripTraveler[]
+  invites        TripInvite[]
 
   @@index(fields: [tenantId])
   @@index(fields: [status])
@@ -682,6 +683,37 @@ model TripTraveler {
   @@index(fields: [userId])
   @@index(fields: [groupId])
   @@map("TripTravelers")
+}
+
+enum TripInviteStatus {
+  INVITED
+  ACCEPTED
+  REVOKED
+}
+
+model TripInvite {
+  id         String           @id @default(auto()) @map("_id") @db.ObjectId
+  tripId     String           @db.ObjectId
+  createdBy  String           @db.ObjectId
+  userId     String?          @db.ObjectId
+  email      String
+  tokenHash  String           @unique
+
+  status     TripInviteStatus @default(INVITED)
+  acceptedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  revokedBy  String?          @db.ObjectId
+
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  trip       Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, email])
+  @@index(fields: [tripId])
+  @@index(fields: [userId])
+  @@map("TripInvites")
 }
 
 type UserTermPolicy {
@@ -962,6 +994,7 @@ enum EnumActivityLogAction {
   adminTripCancel
   adminTripArchive
   adminTripTravelerGet
+  adminTripRevokeInvite
 }
 
 enum EnumDevicePlatform {

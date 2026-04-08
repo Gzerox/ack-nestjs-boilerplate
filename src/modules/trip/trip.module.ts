@@ -4,12 +4,13 @@ import { AwsModule } from '@common/aws/aws.module';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
+import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
 import { TripService } from '@modules/trip/services/trip.service';
 import { TripTravelerService } from '@modules/trip/services/trip-traveler.service';
 
 @Module({
     imports: [FormModule, AwsModule],
-    providers: [TripService, TripRepository, TripCalendarEventRepository, TripTravelerRepository, TripTravelerService],
+    providers: [TripService, TripRepository, TripCalendarEventRepository, TripTravelerRepository, TripInviteRepository, TripTravelerService],
     exports: [TripService, TripTravelerService],
     controllers: [],
 })

@@ -8,6 +8,11 @@ export enum EnumTripStatusCodeError {
     invalidTransition = 5406,
     publishConflict   = 5407,
     publishValidation = 5408,
-    slugConflict      = 5440,
-    travelerNotFound  = 5450,
+    slugConflict          = 5440,
+    travelerNotFound      = 5450,
+    inviteNotFound        = 5420,
+    inviteExpired         = 5421,
+    inviteRevoked         = 5422,
+    inviteAlreadyAccepted = 5423,
+    inviteTokenInvalid    = 5424,
 }

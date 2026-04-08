@@ -28,14 +28,20 @@ export class TripRepository {
     async findOneByIdAndTenant(tripId: string, tenantId: string): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
             where: { id: tripId, tenantId },
-            include: { calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] } },
+            include: {
+                calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] },
+                invites: { orderBy: { createdAt: 'asc' } },
+            },
         });
     }
 
     async findOneById(tripId: string): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
             where: { id: tripId },
-            include: { calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] } },
+            include: {
+                calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] },
+                invites: { orderBy: { createdAt: 'asc' } },
+            },
         });
     }
 

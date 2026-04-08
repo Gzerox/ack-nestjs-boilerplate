@@ -11,6 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import { TripFileAssetRequestDto } from '@modules/trip/dtos/request/trip-file-asset.request.dto';
 import { TripCalendarEventCreateRequestDto } from '@modules/trip/dtos/request/trip-calendar-event.create.request.dto';
+import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
 
 export class TripUpdateDraftRequestDto {
     @IsISO8601()
@@ -59,4 +60,10 @@ export class TripUpdateDraftRequestDto {
     @Type(() => TripCalendarEventCreateRequestDto)
     @IsOptional()
     calendarEvents?: TripCalendarEventCreateRequestDto[];
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => TripInviteCreateRequestDto)
+    @IsOptional()
+    invites?: TripInviteCreateRequestDto[];
 }

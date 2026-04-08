@@ -3,7 +3,7 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
-import { Prisma } from '@generated/prisma-client';
+import { Prisma, TripTraveler } from '@generated/prisma-client';
 import { ITripTravelerWithUser } from '@modules/trip/interfaces/trip-traveler.interface';
 
 @Injectable()
@@ -69,5 +69,21 @@ export class TripTravelerRepository {
             select: { id: true },
         });
         return record !== null;
+    }
+
+    async findOrCreate(
+        tripId: string,
+        userId: string,
+        createdBy: string
+    ): Promise<TripTraveler> {
+        const existing = await this.databaseService.tripTraveler.findFirst({
+            where: { tripId, userId },
+        });
+        if (existing) {
+            return existing;
+        }
+        return this.databaseService.tripTraveler.create({
+            data: { tripId, userId, createdBy },
+        });
     }
 }

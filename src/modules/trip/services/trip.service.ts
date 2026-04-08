@@ -16,11 +16,15 @@ import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
-import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import {
+    IResponsePagingReturn,
+    IResponseReturn,
+} from '@common/response/interfaces/response.interface';
 import { HelperService } from '@common/helper/services/helper.service';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
+import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
 import {
     createTripAssetKey,
@@ -28,11 +32,20 @@ import {
 } from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
-import { Prisma, Trip, TripCalendarEvent, TripStatus } from '@generated/prisma-client';
+import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
+import {
+    Prisma,
+    Trip,
+    TripCalendarEvent,
+    TripInvite,
+    TripInviteStatus,
+    TripStatus,
+} from '@generated/prisma-client';
 
 type TripAssetField = 'icon' | 'coverImage';
 
@@ -43,6 +56,7 @@ export class TripService implements ITripService {
     constructor(
         private readonly tripRepository: TripRepository,
         private readonly tripTravelerRepository: TripTravelerRepository,
+        private readonly tripInviteRepository: TripInviteRepository,
         private readonly helperService: HelperService,
         private readonly awsS3Service: AwsS3Service,
         private readonly fileService: FileService
@@ -53,7 +67,13 @@ export class TripService implements ITripService {
         tenantId: string,
         createdBy: string
     ): Promise<IResponseReturn<TripCreateDraftResponseDto>> {
-        const slug = await generateUniqueSlug(dto.title, this.tripRepository, this.helperService);
+        const slug = await generateUniqueSlug(
+            dto.title,
+            this.tripRepository,
+            this.helperService
+        );
+
+        const inviteTokens = await this._prepareInviteTokens(dto.invites ?? []);
 
         const trip = await this.tripRepository.create({
             slug,
@@ -83,8 +103,24 @@ export class TripService implements ITripService {
             }),
         });
 
+        if (inviteTokens.length) {
+            await this.tripInviteRepository.createMany(
+                inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
+                    tripId: trip.id,
+                    createdBy,
+                    email,
+                    tokenHash,
+                    ...(expiresAt !== undefined && { expiresAt }),
+                }))
+            );
+        }
+
         return {
-            data: { id: trip.id, slug: trip.slug, status: trip.status } as TripCreateDraftResponseDto,
+            data: {
+                id: trip.id,
+                slug: trip.slug,
+                status: trip.status,
+            } as TripCreateDraftResponseDto,
             metadataActivityLog: { tripId: trip.id },
         };
     }
@@ -95,7 +131,10 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const existing = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const existing = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!existing) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -103,7 +142,10 @@ export class TripService implements ITripService {
             });
         }
 
-        if (existing.updatedAt.toISOString() !== new Date(dto.updatedAt).toISOString()) {
+        if (
+            existing.updatedAt.toISOString() !==
+            new Date(dto.updatedAt).toISOString()
+        ) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.publishConflict,
                 message: 'trip.error.publishConflict',
@@ -146,9 +188,45 @@ export class TripService implements ITripService {
             };
         }
 
+        const inviteTokens = await this._prepareInviteTokens(dto.invites ?? []);
+
+        // Validate that new invite emails do not conflict with existing invites
+        if (inviteTokens.length) {
+            for (const { email } of inviteTokens) {
+                const exists =
+                    await this.tripInviteRepository.existsByTripAndEmail(
+                        tripId,
+                        email
+                    );
+                if (exists) {
+                    throw new ConflictException({
+                        statusCode:
+                            EnumTripStatusCodeError.inviteAlreadyAccepted,
+                        message: 'trip.error.inviteAlreadyAccepted',
+                        data: { email },
+                    });
+                }
+            }
+        }
+
         await this.tripRepository.update(tripId, updateData);
 
-        const updated = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        if (inviteTokens.length) {
+            await this.tripInviteRepository.createMany(
+                inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
+                    tripId,
+                    createdBy: updatedBy,
+                    email,
+                    tokenHash,
+                    ...(expiresAt !== undefined && { expiresAt }),
+                }))
+            );
+        }
+
+        const updated = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!updated) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -179,7 +257,10 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!trip) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -202,7 +283,10 @@ export class TripService implements ITripService {
         }
 
         await this.tripRepository.publish(tripId, updatedBy);
-        const withEvents = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const withEvents = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         return {
             data: this.mapToResponseDto(withEvents!),
             metadataActivityLog: { tripId: withEvents!.id },
@@ -214,7 +298,10 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!trip) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -230,7 +317,10 @@ export class TripService implements ITripService {
         }
 
         await this.tripRepository.unpublish(tripId, updatedBy);
-        const withEvents = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const withEvents = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         return {
             data: this.mapToResponseDto(withEvents!),
             metadataActivityLog: { tripId: withEvents!.id },
@@ -242,7 +332,10 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<void>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!trip) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -274,7 +367,10 @@ export class TripService implements ITripService {
         tenantId: string,
         updatedBy: string
     ): Promise<IResponseReturn<void>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!trip) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -305,7 +401,10 @@ export class TripService implements ITripService {
         tripId: string,
         tenantId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(tripId, tenantId);
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
         if (!trip) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
@@ -316,11 +415,18 @@ export class TripService implements ITripService {
     }
 
     async getTripList(
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         tenantId: string,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>> {
-        const result = await this.tripRepository.findManyByTenant(pagination, tenantId, status);
+        const result = await this.tripRepository.findManyByTenant(
+            pagination,
+            tenantId,
+            status
+        );
 
         return {
             ...result,
@@ -328,7 +434,10 @@ export class TripService implements ITripService {
         };
     }
 
-    async getTripForUser(tripId: string, userId: string): Promise<IResponseReturn<TripResponseDto>> {
+    async getTripForUser(
+        tripId: string,
+        userId: string
+    ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: We should invoke tripTravelerRepository and load `trip` relationship.
         //  in this way we can simplify this service method, and invoke the repository only 1 time.
         //  Then we could should perform if(!traveler.trip){ throw NotFound }
@@ -340,8 +449,16 @@ export class TripService implements ITripService {
             });
         }
 
-        const isTraveler = await this.tripTravelerRepository.existsByTripAndUser(tripId, userId);
-        if (!isTraveler && trip.status !== TripStatus.published && trip.createdBy !== userId) {
+        const isTraveler =
+            await this.tripTravelerRepository.existsByTripAndUser(
+                tripId,
+                userId
+            );
+        if (
+            !isTraveler &&
+            trip.status !== TripStatus.published &&
+            trip.createdBy !== userId
+        ) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
                 message: 'trip.error.notFound',
@@ -353,7 +470,10 @@ export class TripService implements ITripService {
 
     async getUserTripList(
         userId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>> {
         const result = await this.tripRepository.findManyByTravelerOrPublished(
@@ -385,7 +505,100 @@ export class TripService implements ITripService {
         } as TripListItemResponseDto;
     }
 
-    private mapToResponseDto(trip: Trip & { calendarEvents?: TripCalendarEvent[] }): TripResponseDto {
+    async acceptInvite(
+        rawToken: string,
+        userId: string
+    ): Promise<IResponseReturn<void>> {
+        const tokenHash = this.helperService.sha256Hash(rawToken);
+        const invite =
+            await this.tripInviteRepository.findOneByTokenHash(tokenHash);
+
+        if (!invite) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.inviteTokenInvalid,
+                message: 'trip.error.inviteTokenInvalid',
+            });
+        }
+
+        if (invite.status === TripInviteStatus.ACCEPTED) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteAlreadyAccepted,
+                message: 'trip.error.inviteAlreadyAccepted',
+            });
+        }
+
+        if (invite.status === TripInviteStatus.REVOKED) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteRevoked,
+                message: 'trip.error.inviteRevoked',
+            });
+        }
+
+        if (invite.expiresAt && invite.expiresAt < new Date()) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteExpired,
+                message: 'trip.error.inviteExpired',
+            });
+        }
+
+        const now = this.helperService.dateCreate();
+        await this.tripInviteRepository.acceptWithTraveler(
+            invite.id,
+            userId,
+            invite.tripId,
+            now
+        );
+
+        return { data: undefined };
+    }
+
+    async revokeInvite(
+        tripId: string,
+        inviteId: string,
+        tenantId: string,
+        revokedBy: string
+    ): Promise<IResponseReturn<void>> {
+        const tripExists = await this.tripRepository.existByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!tripExists) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        const invite = await this.tripInviteRepository.findOneByIdAndTrip(
+            inviteId,
+            tripId
+        );
+        if (!invite) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.inviteNotFound,
+                message: 'trip.error.inviteNotFound',
+            });
+        }
+
+        if (invite.status === TripInviteStatus.REVOKED) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteRevoked,
+                message: 'trip.error.inviteRevoked',
+            });
+        }
+
+        const now = this.helperService.dateCreate();
+        await this.tripInviteRepository.revoke(inviteId, revokedBy, now);
+
+        return { data: undefined };
+    }
+
+    private mapToResponseDto(
+        trip: Trip & {
+            calendarEvents?: TripCalendarEvent[];
+            invites?: TripInvite[];
+        }
+    ): TripResponseDto {
         return {
             ...this.mapToListItemDto(trip),
             description: trip.description,
@@ -403,7 +616,59 @@ export class TripService implements ITripService {
                 createdAt: e.createdAt,
                 updatedAt: e.updatedAt,
             })),
+            invites: (trip.invites ?? []).map(i =>
+                this.mapToInviteResponseDto(i)
+            ),
         } as TripResponseDto;
+    }
+
+    private mapToInviteResponseDto(invite: TripInvite): TripInviteResponseDto {
+        return {
+            id: invite.id,
+            email: invite.email,
+            status: invite.status,
+            acceptedAt: invite.acceptedAt,
+            expiresAt: invite.expiresAt,
+            revokedAt: invite.revokedAt,
+            revokedBy: invite.revokedBy,
+            createdAt: invite.createdAt,
+            updatedAt: invite.updatedAt,
+        } as TripInviteResponseDto;
+    }
+
+    private async _prepareInviteTokens(
+        inviteDtos: TripInviteCreateRequestDto[]
+    ): Promise<
+        Array<{
+            email: string;
+            tokenHash: string;
+            rawToken: string;
+            expiresAt?: Date;
+        }>
+    > {
+        if (!inviteDtos.length) {
+            return [];
+        }
+
+        const emails = inviteDtos.map(d => d.email);
+        const unique = new Set(emails);
+        if (unique.size !== emails.length) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteAlreadyAccepted,
+                message: 'trip.error.inviteAlreadyAccepted',
+            });
+        }
+
+        return inviteDtos.map(d => {
+            const rawToken = this.helperService.randomString(32);
+            const tokenHash = this.helperService.sha256Hash(rawToken);
+            return {
+                email: d.email,
+                tokenHash,
+                rawToken,
+                expiresAt: d.expiresAt,
+            };
+        });
     }
 
     private async uploadAsset(
@@ -494,5 +759,4 @@ export class TripService implements ITripService {
             this.logger.warn({ error, key }, `Failed to ${context}`);
         }
     }
-
 }

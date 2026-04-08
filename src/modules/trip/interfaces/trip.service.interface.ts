@@ -80,4 +80,16 @@ export interface ITripService {
         pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>>;
+
+    acceptInvite(
+        rawToken: string,
+        userId: string
+    ): Promise<IResponseReturn<void>>;
+
+    revokeInvite(
+        tripId: string,
+        inviteId: string,
+        tenantId: string,
+        revokedBy: string
+    ): Promise<IResponseReturn<void>>;
 }

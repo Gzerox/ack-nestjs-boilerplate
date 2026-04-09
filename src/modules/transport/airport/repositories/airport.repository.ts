@@ -68,9 +68,7 @@ export class AirportRepository {
     async search(
         search: string,
         limit: number
-    ): Promise<
-        Pick<Airport, 'id' | 'iataCode' | 'name' | 'city' | 'country' | 'timezone'>[]
-    > {
+    ): Promise<Airport[]> {
         return this.databaseService.airport.findMany({
             where: {
                 status: EnumAirportStatus.active,
@@ -83,14 +81,6 @@ export class AirportRepository {
                           { country: { contains: search, mode: 'insensitive' } },
                       ]
                     : undefined,
-            },
-            select: {
-                id: true,
-                iataCode: true,
-                name: true,
-                city: true,
-                country: true,
-                timezone: true,
             },
             take: limit,
             orderBy: { iataCode: 'asc' },

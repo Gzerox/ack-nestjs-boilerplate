@@ -10,6 +10,7 @@ import { UserSharedController } from '@modules/user/controllers/user.shared.cont
 import { UserModule } from '@modules/user/user.module';
 import { FormSharedController } from '@modules/form/controllers/form.shared.controller';
 import { FormModule } from '@modules/form/form.module';
+import { AirportSharedController } from '@modules/transport/airport/controllers/airport.shared.controller';
 import { ItinerarySharedController } from '@modules/transport/itinerary/controllers/itinerary.shared.controller';
 import { TransportModule } from '@modules/transport/transport.module';
 import { TripSharedController } from '@modules/trip/controllers/trip.shared.controller';
@@ -31,6 +32,7 @@ import { Module } from '@nestjs/common';
         DeviceSharedController,
         NotificationSharedController,
         FormSharedController,
+        AirportSharedController,
         ItinerarySharedController,
         TripSharedController,
     ],

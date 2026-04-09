@@ -4,7 +4,6 @@ import {
 } from '@common/pagination/interfaces/pagination.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
 import { AirportResponseDto } from '@modules/transport/airport/dtos/response/airport.response.dto';
-import { AirportSearchResponseDto } from '@modules/transport/airport/dtos/response/airport.search.response.dto';
 import { Prisma } from '@generated/prisma-client';
 
 export interface IAirportService {
@@ -19,5 +18,5 @@ export interface IAirportService {
     search(
         search: string,
         limit: number
-    ): Promise<IResponseReturn<AirportSearchResponseDto[]>>;
+    ): Promise<IResponseReturn<AirportResponseDto[]>>;
 }

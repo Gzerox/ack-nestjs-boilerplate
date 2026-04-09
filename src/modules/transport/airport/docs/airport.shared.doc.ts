@@ -9,9 +9,8 @@ import {
 import { AirportDocQuerySearch } from '@modules/transport/airport/constants/airport.doc.constant';
 import { AirportDefaultAvailableSearch } from '@modules/transport/airport/constants/airport.list.constant';
 import { AirportResponseDto } from '@modules/transport/airport/dtos/response/airport.response.dto';
-import { AirportSearchResponseDto } from '@modules/transport/airport/dtos/response/airport.search.response.dto';
 
-export function AirportUserListDoc(): MethodDecorator {
+export function AirportSharedListDoc(): MethodDecorator {
     return applyDecorators(
         Doc({ summary: 'get list of airports' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
@@ -22,13 +21,13 @@ export function AirportUserListDoc(): MethodDecorator {
     );
 }
 
-export function AirportUserSearchDoc(): MethodDecorator {
+export function AirportSharedSearchDoc(): MethodDecorator {
     return applyDecorators(
         Doc({ summary: 'search airports for autocomplete' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocRequest({ queries: AirportDocQuerySearch }),
         DocResponse('airport.search', {
-            dto: AirportSearchResponseDto,
+            dto: AirportResponseDto,
         })
     );
 }

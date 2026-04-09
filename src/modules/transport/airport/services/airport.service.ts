@@ -4,7 +4,6 @@ import {
 } from '@common/pagination/interfaces/pagination.interface';
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
 import { AirportResponseDto } from '@modules/transport/airport/dtos/response/airport.response.dto';
-import { AirportSearchResponseDto } from '@modules/transport/airport/dtos/response/airport.search.response.dto';
 import { IAirportService } from '@modules/transport/airport/interfaces/airport.service.interface';
 import { AirportRepository } from '@modules/transport/airport/repositories/airport.repository';
 import { AirportUtil } from '@modules/transport/airport/utils/airport.util';
@@ -43,10 +42,9 @@ export class AirportService implements IAirportService {
     async search(
         search: string,
         limit: number
-    ): Promise<IResponseReturn<AirportSearchResponseDto[]>> {
+    ): Promise<IResponseReturn<AirportResponseDto[]>> {
         const data = await this.airportRepository.search(search, limit);
-        const airports: AirportSearchResponseDto[] =
-            this.airportUtil.mapSearch(data);
+        const airports: AirportResponseDto[] = this.airportUtil.mapList(data);
 
         return { data: airports };
     }

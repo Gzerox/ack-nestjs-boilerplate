@@ -1,15 +1,14 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { FileService } from '@common/file/services/file.service';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { HelperService } from '@common/helper/services/helper.service';
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
-import { TripContactResponseDto } from '@modules/trip/dtos/response/trip-contact.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
+import { TenantContactResponseDto } from '@modules/trip/dtos/response/tenant-contact.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
-import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
-import { HelperService } from '@common/helper/services/helper.service';
 import {
     ITripInviteTripSummary,
     ITripInviteWithTrip,
@@ -18,6 +17,7 @@ import {
     ITripContactWithContact,
     ITripDetail,
 } from '@modules/trip/interfaces/trip.interface';
+import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { plainToInstance } from 'class-transformer';
 import { Trip, TripInvite } from '@generated/prisma-client';
 
@@ -99,7 +99,10 @@ export class TripUtil {
 
     mapTripContactList(
         contacts?: ITripContactWithContact[] | null
-    ): TripContactResponseDto[] {
-        return plainToInstance(TripContactResponseDto, contacts ?? []);
+    ): TenantContactResponseDto[] {
+        return plainToInstance(
+            TenantContactResponseDto,
+            (contacts ?? []).map(({ contact }) => contact)
+        );
     }
 }

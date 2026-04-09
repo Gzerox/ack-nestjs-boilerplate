@@ -185,9 +185,9 @@ export class DeviceOwnershipRepository {
                     create: {
                         action: EnumActivityLogAction.userDeviceRefresh,
                         ipAddress,
-                        userAgent: this.databaseUtil.toPlainObject(userAgent),
-                        geoLocation:
-                            this.databaseUtil.toPlainObject(geoLocation),
+                        userAgent:
+                            this.databaseUtil.toPlainObject(userAgent),
+                        geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                         createdBy: userId,
                     },
                 },
@@ -294,13 +294,8 @@ export class DeviceOwnershipRepository {
                                         action: EnumActivityLogAction.userRemoveDevice,
                                         ipAddress,
                                         userAgent:
-                                            this.databaseUtil.toPlainObject(
-                                                userAgent
-                                            ),
-                                        geoLocation:
-                                            this.databaseUtil.toPlainObject(
-                                                geoLocation
-                                            ),
+                                            this.databaseUtil.toPlainObject(userAgent),
+                                        geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                                         createdBy: removedBy,
                                     },
                                 },

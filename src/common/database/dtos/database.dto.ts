@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class DatabaseDto {
     @ApiProperty({
         description: 'Database document identifier',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     id: string;

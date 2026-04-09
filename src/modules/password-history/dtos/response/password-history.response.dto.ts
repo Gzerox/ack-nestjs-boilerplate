@@ -8,7 +8,7 @@ import { Exclude, Type } from 'class-transformer';
 export class PasswordHistoryResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     userId: string;
 

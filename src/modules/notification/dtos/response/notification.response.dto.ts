@@ -6,7 +6,7 @@ import { EnumNotificationPriority, EnumNotificationType } from '@generated/prism
 export class NotificationResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     userId: string;
 

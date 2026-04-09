@@ -8,7 +8,7 @@ import { Type } from 'class-transformer';
 export class TermPolicyUserAcceptanceResponseDto extends DatabaseDto {
     @ApiProperty({
         description: 'Identifier of the user who accepted the terms or policy',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     readonly userId: string;
@@ -22,7 +22,7 @@ export class TermPolicyUserAcceptanceResponseDto extends DatabaseDto {
 
     @ApiProperty({
         description: 'Identifier of the terms or policy accepted',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     readonly termPolicyId: string;

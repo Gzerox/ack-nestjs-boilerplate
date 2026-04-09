@@ -13,7 +13,11 @@ import {
     IActivityLogMetadata,
 } from '@modules/activity-log/interfaces/activity-log.interface';
 import { Injectable } from '@nestjs/common';
-import { ActivityLog, EnumActivityLogAction, Prisma } from '@generated/prisma-client';
+import {
+    ActivityLog,
+    EnumActivityLogAction,
+    Prisma,
+} from '@generated/prisma-client';
 
 @Injectable()
 export class ActivityLogRepository {
@@ -90,7 +94,7 @@ export class ActivityLogRepository {
                 geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                 metadata:
                     metadata && Object.keys(metadata).length > 0
-                        ? (metadata as Prisma.InputJsonValue)
+                        ? this.databaseUtil.toPlainObject(metadata)
                         : null,
                 createdBy: userId,
             },

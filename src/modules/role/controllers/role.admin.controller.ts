@@ -31,7 +31,7 @@ import {
 } from '@common/response/interfaces/response.interface';
 import { RoleCreateRequestDto } from '@modules/role/dtos/request/role.create.request.dto';
 import { RoleUpdateRequestDto } from '@modules/role/dtos/request/role.update.request.dto';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import {
     EnumActivityLogAction,
@@ -103,7 +103,7 @@ export class RoleAdminController {
     @ApiKeyProtected()
     @Get('/get/:roleId')
     async get(
-        @Param('roleId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('roleId', RequestRequiredPipe, RequestIsValidUuidPipe)
         roleId: string
     ): Promise<IResponseReturn<RoleDto>> {
         return this.roleService.getOne(roleId);
@@ -143,7 +143,7 @@ export class RoleAdminController {
     @ApiKeyProtected()
     @Put('/update/:roleId')
     async update(
-        @Param('roleId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('roleId', RequestRequiredPipe, RequestIsValidUuidPipe)
         roleId: string,
         @Body()
         body: RoleUpdateRequestDto
@@ -165,7 +165,7 @@ export class RoleAdminController {
     @ApiKeyProtected()
     @Delete('/delete/:roleId')
     async delete(
-        @Param('roleId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('roleId', RequestRequiredPipe, RequestIsValidUuidPipe)
         roleId: string
     ): Promise<IResponseReturn<void>> {
         return this.roleService.deleteByAdmin(roleId);

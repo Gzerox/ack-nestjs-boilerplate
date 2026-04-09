@@ -6,7 +6,7 @@ import { Exclude } from 'class-transformer';
 export class UserTwoFactorDto extends DatabaseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     userId: string;
 

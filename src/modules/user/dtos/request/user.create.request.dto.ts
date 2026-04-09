@@ -24,7 +24,7 @@ export class UserCreateRequestDto {
     email: Lowercase<string>;
 
     @ApiProperty({
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     @IsString()
@@ -45,7 +45,7 @@ export class UserCreateRequestDto {
     name?: string;
 
     @ApiProperty({
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     @IsString()

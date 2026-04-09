@@ -6,7 +6,7 @@ import { EnumNotificationChannel, EnumNotificationType } from '@generated/prisma
 export class NotificationUserSettingDto extends DatabaseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         description: 'User ID',
     })
     userId: string;

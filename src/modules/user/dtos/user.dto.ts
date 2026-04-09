@@ -1,8 +1,9 @@
 import { faker } from '@faker-js/faker';
 import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
-import { Exclude, Type } from 'class-transformer';
+import { Exclude, Transform, Type } from 'class-transformer';
 import { DatabaseDto } from '@common/database/dtos/database.dto';
 import {
+    EnumTermPolicyType,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -51,7 +52,7 @@ export class UserDto extends DatabaseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     roleId: string;
 
@@ -110,7 +111,7 @@ export class UserDto extends DatabaseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     countryId: string;
 
@@ -153,7 +154,12 @@ export class UserDto extends DatabaseDto {
         required: true,
         type: UserTermPolicyDto,
     })
-    @Type(() => UserTermPolicyDto)
+    @Transform(({ obj }) => ({
+        [EnumTermPolicyType.termsOfService]: obj.termPolicyTermsOfService,
+        [EnumTermPolicyType.privacy]: obj.termPolicyPrivacy,
+        [EnumTermPolicyType.cookies]: obj.termPolicyCookies,
+        [EnumTermPolicyType.marketing]: obj.termPolicyMarketing,
+    }))
     termPolicy: UserTermPolicyDto;
 
     @ApiProperty({

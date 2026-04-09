@@ -3,7 +3,10 @@ import {
     IHelperEmailValidation,
     IHelperPasswordOptions,
 } from '@common/helper/interfaces/helper.interface';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 import { DateObjectUnits, DateTime, Duration, DurationLikeObject } from 'luxon';
 
 export interface IHelperService {

@@ -2,6 +2,7 @@ import {
     IsArray,
     IsDate,
     IsISO8601,
+    IsMongoId,
     IsNotEmpty,
     IsOptional,
     IsString,
@@ -66,4 +67,9 @@ export class TripUpdateDraftRequestDto {
     @Type(() => TripInviteCreateRequestDto)
     @IsOptional()
     invites?: TripInviteCreateRequestDto[];
+
+    @IsArray()
+    @IsMongoId({ each: true })
+    @IsOptional()
+    contactIds?: string[];
 }

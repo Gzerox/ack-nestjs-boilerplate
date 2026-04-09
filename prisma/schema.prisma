@@ -632,6 +632,7 @@ model Trip {
   updatedAt   DateTime       @updatedAt
 
   calendarEvents TripCalendarEvent[]
+  contacts       TripContact[]
   forms          Form[]
   travelers      TripTraveler[]
   invites        TripInvite[]
@@ -683,6 +684,45 @@ model TripTraveler {
   @@index(fields: [userId])
   @@index(fields: [groupId])
   @@map("TripTravelers")
+}
+
+model TenantContact {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId  String   @db.ObjectId
+  createdBy String   @db.ObjectId
+
+  firstName String
+  lastName  String
+  category  String?
+  phoneE164 String?
+  email     String?
+  notes     String?
+
+  deletedAt DateTime?
+  deletedBy String?  @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trips     TripContact[]
+
+  @@index(fields: [tenantId])
+  @@index(fields: [tenantId, deletedAt])
+  @@map("TenantContacts")
+}
+
+model TripContact {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String        @db.ObjectId
+  contactId String        @db.ObjectId
+
+  trip      Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  contact   TenantContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, contactId])
+  @@index(fields: [tripId])
+  @@index(fields: [contactId])
+  @@map("TripContacts")
 }
 
 enum TripInviteStatus {

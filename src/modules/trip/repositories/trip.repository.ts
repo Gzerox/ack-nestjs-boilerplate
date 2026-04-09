@@ -7,6 +7,7 @@ import {
 } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import { ITripDetail } from '@modules/trip/interfaces/trip.interface';
 import { Prisma, Trip, TripStatus } from '@generated/prisma-client';
 
 @Injectable()
@@ -22,25 +23,64 @@ export class TripRepository {
     }
 
     async update(tripId: string, data: Prisma.TripUpdateInput): Promise<Trip> {
-        return this.databaseService.trip.update({ where: { id: tripId }, data });
+        return this.databaseService.trip.update({
+            where: { id: tripId },
+            data,
+        });
     }
 
-    async findOneByIdAndTenant(tripId: string, tenantId: string): Promise<Trip | null> {
+    async findOneByIdAndTenant(
+        tripId: string,
+        tenantId: string
+    ): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
             where: { id: tripId, tenantId },
-            include: {
-                calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] },
-                invites: { orderBy: { createdAt: 'asc' } },
-            },
         });
     }
 
     async findOneById(tripId: string): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
             where: { id: tripId },
+        });
+    }
+
+    async findDetailByIdAndTenant(
+        tripId: string,
+        tenantId: string
+    ): Promise<ITripDetail | null> {
+        return this.databaseService.trip.findFirst({
+            where: { id: tripId, tenantId },
             include: {
-                calendarEvents: { orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }] },
-                invites: { orderBy: { createdAt: 'asc' } },
+                calendarEvents: {
+                    orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
+                },
+                invites: {
+                    orderBy: { createdAt: 'asc' },
+                },
+                contacts: {
+                    include: {
+                        contact: true,
+                    },
+                },
+            },
+        });
+    }
+
+    async findDetailById(tripId: string): Promise<ITripDetail | null> {
+        return this.databaseService.trip.findFirst({
+            where: { id: tripId },
+            include: {
+                calendarEvents: {
+                    orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
+                },
+                invites: {
+                    orderBy: { createdAt: 'asc' },
+                },
+                contacts: {
+                    include: {
+                        contact: true,
+                    },
+                },
             },
         });
     }
@@ -64,46 +104,50 @@ export class TripRepository {
     }
 
     async findManyByTenant(
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         tenantId: string,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<Trip>> {
-        return this.paginationService.offset<Trip, Prisma.TripSelect, Prisma.TripWhereInput>(
-            this.databaseService.trip,
-            {
-                ...pagination,
-                where: {
-                    ...pagination.where,
-                    tenantId,
-                    ...status,
-                },
-            }
-        );
-    }
-
-    async findManyByIds(tripIds: string[]): Promise<Trip[]> {
-        return this.databaseService.trip.findMany({ where: { id: { in: tripIds } } });
+        return this.paginationService.offset<
+            Trip,
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >(this.databaseService.trip, {
+            ...pagination,
+            where: {
+                ...pagination.where,
+                tenantId,
+                ...status,
+            },
+        });
     }
 
     async findManyByTravelerOrPublished(
         userId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<Trip>> {
-        return this.paginationService.offset<Trip, Prisma.TripSelect, Prisma.TripWhereInput>(
-            this.databaseService.trip,
-            {
-                ...pagination,
-                where: {
-                    ...pagination.where,
-                    OR: [
-                        { status: TripStatus.published },
-                        { travelers: { some: { userId } } },
-                    ],
-                    ...status,
-                },
-            }
-        );
+        return this.paginationService.offset<
+            Trip,
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >(this.databaseService.trip, {
+            ...pagination,
+            where: {
+                ...pagination.where,
+                OR: [
+                    { status: TripStatus.published },
+                    { travelers: { some: { userId } } },
+                ],
+                ...status,
+            },
+        });
     }
 
     async publish(tripId: string, updatedBy?: string): Promise<Trip> {

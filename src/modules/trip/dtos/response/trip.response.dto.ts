@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
+import { TripContactResponseDto } from '@modules/trip/dtos/response/trip-contact.response.dto';
 
 export class TripResponseDto extends TripListItemResponseDto {
     @ApiProperty({ required: false })
@@ -25,4 +26,8 @@ export class TripResponseDto extends TripListItemResponseDto {
     @ApiProperty({ type: () => TripInviteResponseDto, isArray: true, required: true })
     @Type(() => TripInviteResponseDto)
     invites: TripInviteResponseDto[];
+
+    @ApiProperty({ type: () => TripContactResponseDto, isArray: true, required: true })
+    @Type(() => TripContactResponseDto)
+    contacts: TripContactResponseDto[];
 }

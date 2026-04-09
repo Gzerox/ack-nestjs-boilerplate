@@ -3,7 +3,7 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
-import { Prisma, TripTraveler } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
 import { ITripTravelerWithUser } from '@modules/trip/interfaces/trip-traveler.interface';
 
 @Injectable()
@@ -15,7 +15,10 @@ export class TripTravelerRepository {
 
     async findManyByTrip(
         tripId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.TripTravelerSelect, Prisma.TripTravelerWhereInput>
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripTravelerSelect,
+            Prisma.TripTravelerWhereInput
+        >
     ): Promise<IResponsePagingReturn<ITripTravelerWithUser>> {
         return this.paginationService.offset<
             ITripTravelerWithUser,
@@ -36,11 +39,14 @@ export class TripTravelerRepository {
                         email: true,
                     },
                 },
-            }
+            },
         });
     }
 
-    async findOneByTripAndId(tripId: string, travelerId: string): Promise<ITripTravelerWithUser | null> {
+    async findOneByTripAndId(
+        tripId: string,
+        travelerId: string
+    ): Promise<ITripTravelerWithUser | null> {
         return this.databaseService.tripTraveler.findFirst({
             where: { id: travelerId, tripId },
             select: {
@@ -63,27 +69,14 @@ export class TripTravelerRepository {
         }) as unknown as Promise<ITripTravelerWithUser | null>;
     }
 
-    async existsByTripAndUser(tripId: string, userId: string): Promise<boolean> {
+    async existsByTripAndUser(
+        tripId: string,
+        userId: string
+    ): Promise<boolean> {
         const record = await this.databaseService.tripTraveler.findFirst({
             where: { tripId, userId },
             select: { id: true },
         });
         return record !== null;
-    }
-
-    async findOrCreate(
-        tripId: string,
-        userId: string,
-        createdBy: string
-    ): Promise<TripTraveler> {
-        const existing = await this.databaseService.tripTraveler.findFirst({
-            where: { tripId, userId },
-        });
-        if (existing) {
-            return existing;
-        }
-        return this.databaseService.tripTraveler.create({
-            data: { tripId, userId, createdBy },
-        });
     }
 }

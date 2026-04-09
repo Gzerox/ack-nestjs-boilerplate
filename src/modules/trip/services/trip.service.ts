@@ -22,18 +22,13 @@ import {
 } from '@common/response/interfaces/response.interface';
 import { HelperService } from '@common/helper/services/helper.service';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
-import {
-    ITripInviteTripSummary,
-    ITripInviteWithTrip,
-} from '@modules/trip/interfaces/trip-invite.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
+import { TripContactRepository } from '@modules/trip/repositories/trip-contact.repository';
+import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
-import {
-    createTripAssetKey,
-    generateUniqueSlug,
-} from '@modules/trip/utils/trip.util';
+import { TripUtil } from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
@@ -41,13 +36,9 @@ import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.cre
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
-import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import {
     Prisma,
-    Trip,
-    TripCalendarEvent,
-    TripInvite,
     TripInviteStatus,
     TripStatus,
 } from '@generated/prisma-client';
@@ -62,6 +53,9 @@ export class TripService implements ITripService {
         private readonly tripRepository: TripRepository,
         private readonly tripTravelerRepository: TripTravelerRepository,
         private readonly tripInviteRepository: TripInviteRepository,
+        private readonly tripContactRepository: TripContactRepository,
+        private readonly tenantContactRepository: TenantContactRepository,
+        private readonly tripUtil: TripUtil,
         private readonly helperService: HelperService,
         private readonly awsS3Service: AwsS3Service,
         private readonly fileService: FileService
@@ -72,10 +66,11 @@ export class TripService implements ITripService {
         tenantId: string,
         createdBy: string
     ): Promise<IResponseReturn<TripCreateDraftResponseDto>> {
-        const slug = await generateUniqueSlug(
+        await this.assertValidContactIds(dto.contactIds ?? [], tenantId);
+
+        const slug = await this.tripUtil.generateUniqueSlug(
             dto.title,
-            this.tripRepository,
-            this.helperService
+            this.tripRepository
         );
 
         const trip = await this.tripRepository.create({
@@ -119,6 +114,15 @@ export class TripService implements ITripService {
                             expiresAt: invite.expiresAt ?? null,
                         };
                     }),
+                },
+            }),
+            ...(dto.contactIds?.length && {
+                contacts: {
+                    create: dto.contactIds.map(contactId => ({
+                        contact: {
+                            connect: { id: contactId },
+                        },
+                    })),
                 },
             }),
         });
@@ -166,6 +170,10 @@ export class TripService implements ITripService {
                 statusCode: EnumTripStatusCodeError.notDraft,
                 message: 'trip.error.notDraft',
             });
+        }
+
+        if (dto.contactIds !== undefined) {
+            await this.assertValidContactIds(dto.contactIds, tenantId);
         }
 
         const updateData: Prisma.TripUpdateInput = {
@@ -219,6 +227,10 @@ export class TripService implements ITripService {
 
         await this.tripRepository.update(tripId, updateData);
 
+        if (dto.contactIds !== undefined) {
+            await this.tripContactRepository.replaceAll(tripId, dto.contactIds);
+        }
+
         if (inviteTokens.length) {
             await this.tripInviteRepository.createMany(
                 inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
@@ -231,7 +243,7 @@ export class TripService implements ITripService {
             );
         }
 
-        const updated = await this.tripRepository.findOneByIdAndTenant(
+        const updated = await this.tripRepository.findDetailByIdAndTenant(
             tripId,
             tenantId
         );
@@ -241,7 +253,7 @@ export class TripService implements ITripService {
                 message: 'trip.error.notFound',
             });
         }
-        return { data: this.mapToResponseDto(updated) };
+        return { data: this.tripUtil.mapResponse(updated) };
     }
 
     async uploadIcon(
@@ -291,12 +303,12 @@ export class TripService implements ITripService {
         }
 
         await this.tripRepository.publish(tripId, updatedBy);
-        const withEvents = await this.tripRepository.findOneByIdAndTenant(
+        const withEvents = await this.tripRepository.findDetailByIdAndTenant(
             tripId,
             tenantId
         );
         return {
-            data: this.mapToResponseDto(withEvents!),
+            data: this.tripUtil.mapResponse(withEvents!),
             metadataActivityLog: { tripId: withEvents!.id },
         };
     }
@@ -325,12 +337,12 @@ export class TripService implements ITripService {
         }
 
         await this.tripRepository.unpublish(tripId, updatedBy);
-        const withEvents = await this.tripRepository.findOneByIdAndTenant(
+        const withEvents = await this.tripRepository.findDetailByIdAndTenant(
             tripId,
             tenantId
         );
         return {
-            data: this.mapToResponseDto(withEvents!),
+            data: this.tripUtil.mapResponse(withEvents!),
             metadataActivityLog: { tripId: withEvents!.id },
         };
     }
@@ -409,7 +421,7 @@ export class TripService implements ITripService {
         tripId: string,
         tenantId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        const trip = await this.tripRepository.findOneByIdAndTenant(
+        const trip = await this.tripRepository.findDetailByIdAndTenant(
             tripId,
             tenantId
         );
@@ -419,7 +431,7 @@ export class TripService implements ITripService {
                 message: 'trip.error.notFound',
             });
         }
-        return { data: this.mapToResponseDto(trip) };
+        return { data: this.tripUtil.mapResponse(trip) };
     }
 
     async getTripList(
@@ -438,7 +450,7 @@ export class TripService implements ITripService {
 
         return {
             ...result,
-            data: result.data.map(t => this.mapToListItemDto(t)),
+            data: this.tripUtil.mapList(result.data),
         };
     }
 
@@ -473,7 +485,15 @@ export class TripService implements ITripService {
             });
         }
 
-        return { data: this.mapToResponseDto(trip) };
+        const tripDetail = await this.tripRepository.findDetailById(tripId);
+        if (!tripDetail) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        return { data: this.tripUtil.mapResponse(tripDetail) };
     }
 
     async getUserTripList(
@@ -492,7 +512,7 @@ export class TripService implements ITripService {
 
         return {
             ...result,
-            data: result.data.map(t => this.mapToListItemDto(t)),
+            data: this.tripUtil.mapList(result.data),
         };
     }
 
@@ -512,27 +532,8 @@ export class TripService implements ITripService {
 
         return {
             ...result,
-            data: result.data.map(invite => this.mapToInviteListItemDto(invite)),
+            data: this.tripUtil.mapInviteListItemList(result.data),
         };
-    }
-
-    private mapToListItemDto(
-        trip: Trip | ITripInviteTripSummary
-    ): TripListItemResponseDto {
-        return {
-            id: trip.id,
-            slug: trip.slug,
-            title: trip.title,
-            subtitle: trip.subtitle,
-            icon: trip.icon ?? null,
-            coverImage: trip.coverImage ?? null,
-            startDate: trip.startDate,
-            endDate: trip.endDate,
-            timezone: trip.timezone,
-            status: trip.status,
-            createdAt: trip.createdAt,
-            updatedAt: trip.updatedAt,
-        } as TripListItemResponseDto;
     }
 
     async acceptInvite(
@@ -623,58 +624,6 @@ export class TripService implements ITripService {
         return { data: undefined };
     }
 
-    private mapToResponseDto(
-        trip: Trip & {
-            calendarEvents?: TripCalendarEvent[];
-            invites?: TripInvite[];
-        }
-    ): TripResponseDto {
-        return {
-            ...this.mapToListItemDto(trip),
-            description: trip.description,
-            publishedAt: trip.publishedAt,
-            cancelledAt: trip.cancelledAt,
-            archivedAt: trip.archivedAt,
-            calendarEvents: (trip.calendarEvents ?? []).map(e => ({
-                id: e.id,
-                title: e.title,
-                category: e.category,
-                startsAt: e.startsAt,
-                endsAt: e.endsAt,
-                location: e.location,
-                description: e.description,
-                createdAt: e.createdAt,
-                updatedAt: e.updatedAt,
-            })),
-            invites: (trip.invites ?? []).map(i =>
-                this.mapToInviteResponseDto(i)
-            ),
-        } as TripResponseDto;
-    }
-
-    private mapToInviteResponseDto(invite: TripInvite): TripInviteResponseDto {
-        return {
-            id: invite.id,
-            email: invite.email,
-            status: invite.status,
-            acceptedAt: invite.acceptedAt,
-            expiresAt: invite.expiresAt,
-            revokedAt: invite.revokedAt,
-            revokedBy: invite.revokedBy,
-            createdAt: invite.createdAt,
-            updatedAt: invite.updatedAt,
-        } as TripInviteResponseDto;
-    }
-
-    private mapToInviteListItemDto(
-        invite: ITripInviteWithTrip
-    ): TripInviteListItemResponseDto {
-        return {
-            ...this.mapToInviteResponseDto(invite),
-            trip: this.mapToListItemDto(invite.trip),
-        } ;
-    }
-
     private async _prepareInviteTokens(
         inviteDtos: TripInviteCreateRequestDto[]
     ): Promise<
@@ -710,6 +659,29 @@ export class TripService implements ITripService {
         });
     }
 
+    private async assertValidContactIds(
+        contactIds: string[],
+        tenantId: string
+    ): Promise<void> {
+        if (!contactIds.length) {
+            return;
+        }
+
+        const uniqueContactIds = [...new Set(contactIds)];
+        const contacts =
+            await this.tenantContactRepository.findManyActiveByIdsAndTenant(
+                uniqueContactIds,
+                tenantId
+            );
+
+        if (contacts.length !== uniqueContactIds.length) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.contactNotFound,
+                message: 'trip.error.contactNotFound',
+            });
+        }
+    }
+
     private async uploadAsset(
         tripId: string,
         file: IFile,
@@ -739,11 +711,10 @@ export class TripService implements ITripService {
         const extension = this.fileService.extractExtensionFromFilename(
             file.originalname
         ) as EnumFileExtensionImage;
-        const key = createTripAssetKey(
+        const key = this.tripUtil.createTripAssetKey(
             trip.id,
             field,
-            extension,
-            this.fileService
+            extension
         );
         const aws = await this.awsS3Service.putItem({
             key,

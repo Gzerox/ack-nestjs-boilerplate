@@ -30,6 +30,7 @@
         "invalidTransition":    "This status transition is not allowed",
         "publishConflict":      "Trip was modified by another request; reload and retry",
         "publishValidation":    "Trip failed publish validation; check errors for details",
+        "contactNotFound":      "One or more trip contacts were not found",
         "slugConflict":         "Could not generate a unique trip slug; try again",
         "travelerNotFound":     "Trip traveler not found",
         "inviteNotFound":       "Invite not found",

@@ -17,7 +17,6 @@ import {
     EnumUserLoginFrom,
     EnumUserLoginWith,
     PasswordHistory,
-    User,
 } from '@generated/prisma-client';
 import { createPrivateKey, createPublicKey } from 'crypto';
 import verifyAppleToken, {
@@ -312,7 +311,7 @@ export class AuthUtil {
      * @returns Formatted access token payload
      */
     createPayloadAccessToken(
-        data: User,
+        data: Pick<IUser, 'id' | 'roleId' | 'username' | 'email'>,
         sessionId: string,
         deviceOwnershipId: string,
         loginAt: Date,
@@ -370,7 +369,7 @@ export class AuthUtil {
      * @param user - User entity
      * @returns True if attempts exceeded limit
      */
-    checkPasswordAttempt(user: User): boolean {
+    checkPasswordAttempt(user: Pick<IUser, 'passwordAttempt'>): boolean {
         return this.passwordAttempt
             ? user.passwordAttempt >= this.passwordMaxAttempt
             : false;

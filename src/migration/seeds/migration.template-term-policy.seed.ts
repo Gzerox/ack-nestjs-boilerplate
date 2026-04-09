@@ -1,6 +1,5 @@
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { DatabaseService } from '@common/database/services/database.service';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import {
     EnumTermPolicyStatus,
@@ -26,8 +25,7 @@ export class MigrationTemplateTermPolicySeed
     constructor(
         private readonly termPolicyTemplateService: TermPolicyTemplateService,
         private readonly databaseService: DatabaseService,
-        private readonly awsS3Service: AwsS3Service,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly awsS3Service: AwsS3Service
     ) {
         super();
     }
@@ -69,20 +67,25 @@ export class MigrationTemplateTermPolicySeed
                         type: EnumTermPolicyType.termsOfService,
                         version: 1,
                         status: EnumTermPolicyStatus.published,
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...termsOfServiceAsset,
-                            },
-                        ]),
+                        contents: {
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...termsOfServiceAsset,
+                                },
+                            ],
+                        },
                     },
                     update: {
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...termsOfServiceAsset,
-                            },
-                        ]),
+                        contents: {
+                            deleteMany: {},
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...termsOfServiceAsset,
+                                },
+                            ],
+                        },
                     },
                 }),
                 this.databaseService.termPolicy.upsert({
@@ -96,20 +99,25 @@ export class MigrationTemplateTermPolicySeed
                         type: EnumTermPolicyType.privacy,
                         version: 1,
                         status: EnumTermPolicyStatus.published,
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...privacyAsset,
-                            },
-                        ]),
+                        contents: {
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...privacyAsset,
+                                },
+                            ],
+                        },
                     },
                     update: {
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...privacyAsset,
-                            },
-                        ]),
+                        contents: {
+                            deleteMany: {},
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...privacyAsset,
+                                },
+                            ],
+                        },
                     },
                 }),
                 this.databaseService.termPolicy.upsert({
@@ -123,20 +131,25 @@ export class MigrationTemplateTermPolicySeed
                         type: EnumTermPolicyType.cookies,
                         version: 1,
                         status: EnumTermPolicyStatus.published,
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...cookieAsset,
-                            },
-                        ]),
+                        contents: {
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...cookieAsset,
+                                },
+                            ],
+                        },
                     },
                     update: {
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...cookieAsset,
-                            },
-                        ]),
+                        contents: {
+                            deleteMany: {},
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...cookieAsset,
+                                },
+                            ],
+                        },
                     },
                 }),
                 this.databaseService.termPolicy.upsert({
@@ -150,20 +163,25 @@ export class MigrationTemplateTermPolicySeed
                         type: EnumTermPolicyType.marketing,
                         version: 1,
                         status: EnumTermPolicyStatus.published,
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...marketingAsset,
-                            },
-                        ]),
+                        contents: {
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...marketingAsset,
+                                },
+                            ],
+                        },
                     },
                     update: {
-                        contents: this.databaseUtil.toPlainArray([
-                            {
-                                language: EnumMessageLanguage.en,
-                                ...marketingAsset,
-                            },
-                        ]),
+                        contents: {
+                            deleteMany: {},
+                            create: [
+                                {
+                                    language: EnumMessageLanguage.en,
+                                    ...marketingAsset,
+                                },
+                            ],
+                        },
                     },
                 }),
             ]);

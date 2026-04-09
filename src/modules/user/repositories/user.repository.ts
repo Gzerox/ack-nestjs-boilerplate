@@ -260,7 +260,7 @@ export class UserRepository {
     ): Promise<(ForgotPassword & { user: IUser }) | null> {
         const today = this.helperService.dateCreate();
 
-        return this.databaseService.forgotPassword.findFirst({
+        return (await this.databaseService.forgotPassword.findFirst({
             where: {
                 token,
                 isUsed: false,
@@ -280,7 +280,9 @@ export class UserRepository {
                     },
                 },
             },
-        });
+        })) as unknown as
+            | (ForgotPassword & { user: IUser })
+            | null;
     }
 
     async findOneLatestByForgotPassword(
@@ -424,12 +426,10 @@ export class UserRepository {
                     username,
                     isVerified: roleType === EnumRoleType.user ? false : true,
                     status: EnumUserStatus.active,
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: false,
-                        [EnumTermPolicyType.marketing]: false,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
-                    },
+                    termPolicyTermsOfService: true,
+                    termPolicyPrivacy: true,
+                    termPolicyCookies: false,
+                    termPolicyMarketing: false,
                     createdBy,
                     deletedAt: null,
                     passwordHistories: {
@@ -1099,6 +1099,11 @@ export class UserRepository {
                                     this.databaseUtil.toPlainObject(
                                         geoLocation
                                     ),
+                                deviceOwnership: {
+                                    connect: {
+                                        id: deviceOwnership.id,
+                                    },
+                                },
                                 createdBy: userId,
                             },
                         },
@@ -1168,12 +1173,10 @@ export class UserRepository {
                     username,
                     isVerified: true,
                     status: EnumUserStatus.active,
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: cookies,
-                        [EnumTermPolicyType.marketing]: marketing,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
-                    },
+                    termPolicyTermsOfService: true,
+                    termPolicyPrivacy: true,
+                    termPolicyCookies: cookies,
+                    termPolicyMarketing: marketing,
                     createdBy: userId,
                     deletedAt: null,
                     activityLogs: {
@@ -1307,6 +1310,10 @@ export class UserRepository {
                     passwordExpired,
                     password: passwordHash,
                     passwordAttempt: 0,
+                    termPolicyTermsOfService: true,
+                    termPolicyPrivacy: true,
+                    termPolicyCookies: cookies,
+                    termPolicyMarketing: marketing,
                     passwordHistories: {
                         create: {
                             password: passwordHash,
@@ -1315,12 +1322,6 @@ export class UserRepository {
                             createdAt: passwordCreated,
                             createdBy: userId,
                         },
-                    },
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: cookies,
-                        [EnumTermPolicyType.marketing]: marketing,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
                     },
                     createdBy: userId,
                     deletedAt: null,
@@ -2030,12 +2031,10 @@ export class UserRepository {
                                         ? false
                                         : true,
                                 status: EnumUserStatus.active,
-                                termPolicy: {
-                                    [EnumTermPolicyType.cookies]: false,
-                                    [EnumTermPolicyType.marketing]: false,
-                                    [EnumTermPolicyType.privacy]: true,
-                                    [EnumTermPolicyType.termsOfService]: true,
-                                },
+                                termPolicyTermsOfService: true,
+                                termPolicyPrivacy: true,
+                                termPolicyCookies: false,
+                                termPolicyMarketing: false,
                                 createdBy,
                                 deletedAt: null,
                                 passwordHistories: {

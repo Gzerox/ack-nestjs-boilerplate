@@ -15,7 +15,7 @@ import {
 } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EnumVerificationType, TwoFactor, User } from '@generated/prisma-client';
+import { EnumVerificationType, type TwoFactor, type User } from '@generated/prisma-client';
 import { plainToInstance } from 'class-transformer';
 import { Duration } from 'luxon';
 import { Profanity } from '@2toad/profanity';
@@ -153,7 +153,7 @@ export class UserUtil {
         return plainToInstance(UserExportResponseDto, users);
     }
 
-    mapOne(user: User): UserDto {
+    mapOne(user: IUser): UserDto {
         return plainToInstance(UserDto, user);
     }
 

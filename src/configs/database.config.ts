@@ -10,7 +10,7 @@ export default registerAs(
     (): IConfigDatabase => ({
         url:
             process.env?.DATABASE_URL ??
-            'mongodb://localhost:27017,localhost:27018,localhost:27019',
+            'postgresql://postgres:postgres@localhost:5432/ACKNestJs?schema=public',
         debug: process.env.DATABASE_DEBUG === 'true',
     })
 );

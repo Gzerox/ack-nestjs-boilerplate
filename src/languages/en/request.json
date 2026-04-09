@@ -16,7 +16,6 @@
         "isInt": "{property} should be an integer.",
         "isNumberString": "{property} should be a numeric string.",
         "isNumber": "{property} should be a number.",
-        "isMongoId": "{property} should be a valid MongoDB ObjectId.",
         "isBoolean": "{property} should be a boolean.",
         "isEnum": "{property} does not match any valid enum value.",
         "isObject": "{property} should be an object.",

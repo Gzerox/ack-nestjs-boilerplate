@@ -1,6 +1,5 @@
 import { EnumAppEnvironment } from '@app/enums/app.enum';
 import { DatabaseService } from '@common/database/services/database.service';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import { MigrationSeedBase } from '@migration/bases/migration.seed.base';
 import { migrationTermPolicyData } from '@migration/data/migration.term-policy.data';
 import { IMigrationSeed } from '@migration/interfaces/migration.seed.interface';
@@ -26,8 +25,7 @@ export class MigrationTermPolicySeed
 
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly configService: ConfigService,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly configService: ConfigService
     ) {
         super();
 
@@ -52,10 +50,11 @@ export class MigrationTermPolicySeed
                             },
                         },
                         create: {
-                            ...termPolicy,
-                            contents: this.databaseUtil.toPlainArray(
-                                termPolicy.contents
-                            ),
+                            type: termPolicy.type,
+                            version: termPolicy.version,
+                            contents: {
+                                create: [],
+                            },
                             status: EnumTermPolicyStatus.published,
                         },
                         update: {},

@@ -46,7 +46,6 @@ import {
     EnumTermPolicyStatus,
     EnumTermPolicyType,
     Prisma,
-    TermPolicy,
 } from '@generated/prisma-client';
 
 @Injectable()
@@ -71,7 +70,12 @@ export class TermPolicyService implements ITermPolicyService {
             });
         }
 
-        const { termPolicy } = __user;
+        const termPolicyMap = {
+            [EnumTermPolicyType.termsOfService]: __user.termPolicyTermsOfService,
+            [EnumTermPolicyType.privacy]: __user.termPolicyPrivacy,
+            [EnumTermPolicyType.cookies]: __user.termPolicyCookies,
+            [EnumTermPolicyType.marketing]: __user.termPolicyMarketing,
+        };
 
         const defaultTermPolicies = [
             EnumTermPolicyType.termsOfService,
@@ -82,7 +86,7 @@ export class TermPolicyService implements ITermPolicyService {
                 ? defaultTermPolicies
                 : requiredTermPolicies;
 
-        if (!requiredTermPolicies.every(type => termPolicy[type])) {
+        if (!requiredTermPolicies.every(type => termPolicyMap[type])) {
             throw new ForbiddenException({
                 statusCode: EnumTermPolicyStatusCodeError.requiredInvalid,
                 message: 'termPolicy.error.requiredInvalid',
@@ -268,7 +272,7 @@ export class TermPolicyService implements ITermPolicyService {
     async deleteByAdmin(
         termPolicyId: string
     ): Promise<IResponseReturn<TermPolicyResponseDto>> {
-        const termPolicy: TermPolicy =
+        const termPolicy =
             await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new NotFoundException({
@@ -290,7 +294,6 @@ export class TermPolicyService implements ITermPolicyService {
                     access: EnumAwsS3Accessibility.private,
                 }),
             ]);
-
             const mapped = this.termPolicyUtil.mapOne(deleted);
 
             return {
@@ -393,7 +396,6 @@ export class TermPolicyService implements ITermPolicyService {
             };
             const updated = await this.termPolicyRepository.updateContent(
                 termPolicyId,
-                termPolicy.contents as unknown as TermContentDto[],
                 mappedContent,
                 updatedBy
             );
@@ -431,7 +433,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (existingContent) {
@@ -490,7 +492,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (!existingContent) {
@@ -503,7 +505,6 @@ export class TermPolicyService implements ITermPolicyService {
         try {
             const updated = await this.termPolicyRepository.removeContent(
                 termPolicyId,
-                termPolicy.contents as unknown as TermContentDto[],
                 { language },
                 updatedBy
             );
@@ -535,7 +536,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (!existContent) {
@@ -576,9 +577,7 @@ export class TermPolicyService implements ITermPolicyService {
                 statusCode: EnumTermPolicyStatusCodeError.statusInvalid,
                 message: 'termPolicy.error.statusInvalid',
             });
-        } else if (
-            (termPolicy.contents as unknown as TermContentDto[]).length === 0
-        ) {
+        } else if (termPolicy.contents.length === 0) {
             throw new BadRequestException({
                 statusCode: EnumTermPolicyStatusCodeError.contentEmpty,
                 message: 'termPolicy.error.contentEmpty',
@@ -588,10 +587,31 @@ export class TermPolicyService implements ITermPolicyService {
         try {
             const contentPublicPath =
                 this.termPolicyUtil.getContentPublicPath(termPolicy);
-            const contents = termPolicy.contents as unknown as TermContentDto[];
+            const contents = termPolicy.contents;
+            const itemsToMove = contents.map(
+                ({
+                    bucket,
+                    key,
+                    cdnUrl,
+                    completedUrl,
+                    mime,
+                    extension,
+                    access,
+                    size,
+                }) => ({
+                    bucket,
+                    key,
+                    cdnUrl: cdnUrl ?? undefined,
+                    completedUrl,
+                    mime,
+                    extension,
+                    access: access as EnumAwsS3Accessibility,
+                    size,
+                })
+            );
 
             const newItems = await this.awsS3Service.moveItems(
-                contents,
+                itemsToMove,
                 contentPublicPath,
                 {}
             );

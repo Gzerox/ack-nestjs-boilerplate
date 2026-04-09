@@ -13,7 +13,6 @@ import { FormModule } from '@modules/form/form.module';
 import { ItinerarySharedController } from '@modules/transport/itinerary/controllers/itinerary.shared.controller';
 import { TransportModule } from '@modules/transport/transport.module';
 import { TripSharedController } from '@modules/trip/controllers/trip.shared.controller';
-import { TripTravelerSharedController } from '@modules/trip/controllers/trip-traveler.shared.controller';
 import { TripModule } from '@modules/trip/trip.module';
 import { Module } from '@nestjs/common';
 
@@ -34,7 +33,6 @@ import { Module } from '@nestjs/common';
         FormSharedController,
         ItinerarySharedController,
         TripSharedController,
-        TripTravelerSharedController,
     ],
     providers: [],
     exports: [],

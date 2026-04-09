@@ -45,7 +45,8 @@ import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.cre
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
-import { FormService } from '@modules/form/services/form.service';
+import { TripTravelerListItemResponseDto } from '@modules/trip/dtos/response/trip-traveler.list-item.response.dto';
+import { TripTravelerDetailResponseDto } from '@modules/trip/dtos/response/trip-traveler.detail.response.dto';
 import {
     TRIP_TAG_SHARED,
     TripAvailableStatus,
@@ -66,15 +67,20 @@ import {
     TripSharedUploadCoverImageDoc,
     TripSharedUploadIconDoc,
 } from '@modules/trip/docs/trip.shared.doc';
+import {
+    TripTravelerSharedGetDoc,
+    TripTravelerSharedListDoc,
+} from '@modules/trip/docs/trip-traveler.shared.doc';
 import { DatabaseUtil } from '@common/database/utils/database.util';
+import { TripTravelerService } from '@modules/trip/services/trip-traveler.service';
 
 @ApiTags(TRIP_TAG_SHARED)
 @Controller({ version: '1', path: '/trips' })
 export class TripSharedController {
     constructor(
         private readonly tripService: TripService,
-        private readonly databaseUtil: DatabaseUtil
-
+        private readonly databaseUtil: DatabaseUtil,
+        private readonly tripTravelerService: TripTravelerService,
     ) {}
 
     @TripSharedCreateDraftDoc()
@@ -91,7 +97,7 @@ export class TripSharedController {
         @Body() body: TripCreateDraftRequestDto
     ): Promise<IResponseReturn<TripCreateDraftResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
-        const tenantId = this.databaseUtil.createId()
+        const tenantId = this.databaseUtil.createId();
         return this.tripService.createDraft(body, tenantId, userId);
     }
 
@@ -272,6 +278,40 @@ export class TripSharedController {
         return this.tripService.revokeInvite(tripId, inviteId, tenantId, userId);
     }
 
+    @TripTravelerSharedListDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @ResponsePaging('trip.tripTraveler.list')
+    @Get('/:idTrip/travelers')
+    async listTravelers(
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string,
+        @PaginationOffsetQuery()
+        pagination: IPaginationQueryOffsetParams<Prisma.TripTravelerSelect, Prisma.TripTravelerWhereInput>
+    ): Promise<IResponsePagingReturn<TripTravelerListItemResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripTravelerService.getList(tripId, tenantId, pagination);
+    }
+
+    @TripTravelerSharedGetDoc()
+    @ActivityLog(EnumActivityLogAction.adminTripTravelerGet)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip.tripTraveler.get')
+    @Get('/:idTrip/travelers/:idTraveler')
+    async getTraveler(
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string,
+        @Param('idTraveler', RequestIsValidObjectIdPipe, RequestRequiredPipe) travelerId: string
+    ): Promise<IResponseReturn<TripTravelerDetailResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripTravelerService.getOne(tripId, travelerId, tenantId);
+    }
+
     @TripSharedListDoc()
     @UserProtected()
     @AuthJwtAccessProtected()
@@ -293,5 +333,4 @@ export class TripSharedController {
         const tenantId = '';
         return this.tripService.getTripList(pagination, tenantId, status);
     }
-
 }

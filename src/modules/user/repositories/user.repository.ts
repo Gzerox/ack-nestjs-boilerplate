@@ -1099,11 +1099,7 @@ export class UserRepository {
                                     this.databaseUtil.toPlainObject(
                                         geoLocation
                                     ),
-                                deviceOwnership: {
-                                    connect: {
-                                        id: deviceOwnership.id,
-                                    },
-                                },
+                                deviceOwnershipId: deviceOwnership.id,
                                 createdBy: userId,
                             },
                         },

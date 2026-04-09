@@ -118,14 +118,14 @@ services:
                     memory: 128M
 
     postgres:
-        image: postgres:latest
+        image: postgres:18-alpine
         hostname: postgres
         ports:
             - '5432:5432'
         networks:
             - app-network
         volumes:
-            - postgres_data:/var/lib/postgresql
+            - postgres_data:/var/lib/postgresql/data
         environment:
             - POSTGRES_USER=postgres
             - POSTGRES_PASSWORD=postgres
@@ -141,7 +141,6 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
-        profiles: ['postgres']
 
 volumes:
     redis_data:

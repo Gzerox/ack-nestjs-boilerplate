@@ -32,10 +32,10 @@ model ApiKey {
 }
 
 model Role {
-  id          String        @id @default(uuid()) @db.Uuid
+  id          String       @id @default(uuid()) @db.Uuid
   name        String
   description String?
-  type        EnumRoleType  @default(user)
+  type        EnumRoleType @default(user)
   abilities   Json
 
   // timestamps fields
@@ -101,31 +101,31 @@ model UserMobileNumber {
 }
 
 model User {
-  id              String             @id @default(uuid()) @db.Uuid
-  name            String?
-  username        String
-  isVerified      Boolean            @default(false)
-  verifiedAt      DateTime?
-  email           String
-  roleId          String             @db.Uuid
-  password        String?
-  passwordExpired DateTime?
-  passwordCreated DateTime?
-  passwordAttempt Int?
-  signUpAt        DateTime           @default(now())
-  signUpFrom      EnumUserSignUpFrom
-  signUpWith      EnumUserSignUpWith
-  status          EnumUserStatus     @default(active)
-  gender          EnumUserGender?
-  countryId       String             @db.Uuid
-  lastLoginAt     DateTime?
-  lastIPAddress   String?
-  lastLoginFrom   EnumUserLoginFrom?
-  lastLoginWith   EnumUserLoginWith?
-  termPolicyTermsOfService Boolean   @default(false)
-  termPolicyPrivacy        Boolean   @default(false)
-  termPolicyMarketing      Boolean   @default(false)
-  termPolicyCookies        Boolean   @default(false)
+  id                       String             @id @default(uuid()) @db.Uuid
+  name                     String?
+  username                 String
+  isVerified               Boolean            @default(false)
+  verifiedAt               DateTime?
+  email                    String
+  roleId                   String             @db.Uuid
+  password                 String?
+  passwordExpired          DateTime?
+  passwordCreated          DateTime?
+  passwordAttempt          Int?
+  signUpAt                 DateTime           @default(now())
+  signUpFrom               EnumUserSignUpFrom
+  signUpWith               EnumUserSignUpWith
+  status                   EnumUserStatus     @default(active)
+  gender                   EnumUserGender?
+  countryId                String             @db.Uuid
+  lastLoginAt              DateTime?
+  lastIPAddress            String?
+  lastLoginFrom            EnumUserLoginFrom?
+  lastLoginWith            EnumUserLoginWith?
+  termPolicyTermsOfService Boolean            @default(false)
+  termPolicyPrivacy        Boolean            @default(false)
+  termPolicyMarketing      Boolean            @default(false)
+  termPolicyCookies        Boolean            @default(false)
   photo                    Json?
 
   // timestamps fields
@@ -224,21 +224,21 @@ model ActivityLog {
 }
 
 model Session {
-  id                String       @id @default(uuid()) @db.Uuid
-  userId            String       @db.Uuid
-  deviceOwnershipId String       @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  deviceOwnershipId String    @db.Uuid
   jti               String
   ipAddress         String
   userAgent         Json
   geoLocation       Json?
   expiredAt         DateTime
   revokedAt         DateTime?
-  isRevoked         Boolean      @default(false)
-  revokedById       String?      @db.Uuid
+  isRevoked         Boolean   @default(false)
+  revokedById       String?   @db.Uuid
 
-  revokedBy       User?            @relation("SessionRevokedByUser", fields: [revokedById], references: [id])
-  user            User?            @relation("UserSessions", fields: [userId], references: [id])
-  deviceOwnership DeviceOwnership? @relation("DeviceOwnershipSessions", fields: [deviceOwnershipId], references: [id])
+  revokedBy       User?           @relation("SessionRevokedByUser", fields: [revokedById], references: [id])
+  user            User?           @relation("UserSessions", fields: [userId], references: [id])
+  deviceOwnership DeviceOwnership @relation("DeviceOwnershipSessions", fields: [deviceOwnershipId], references: [id])
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -348,8 +348,8 @@ model TermPolicy {
 }
 
 model TermPolicyContent {
-  id           String     @id @default(uuid()) @db.Uuid
-  termPolicyId String     @db.Uuid
+  id           String   @id @default(uuid()) @db.Uuid
+  termPolicyId String   @db.Uuid
   language     String
   bucket       String
   key          String
@@ -359,8 +359,8 @@ model TermPolicyContent {
   extension    String
   access       String
   size         Int
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   termPolicy TermPolicy @relation(fields: [termPolicyId], references: [id], onDelete: Cascade)
 

@@ -1,10 +1,10 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
 import {
-    IsMongoId,
     IsNotEmpty,
     IsOptional,
     IsString,
+    IsUUID,
     MaxLength,
     MinLength,
 } from 'class-validator';
@@ -29,7 +29,7 @@ export class UserCreateRequestDto {
     })
     @IsString()
     @IsNotEmpty()
-    @IsMongoId()
+    @IsUUID()
     roleId: string;
 
     @ApiProperty({
@@ -50,6 +50,6 @@ export class UserCreateRequestDto {
     })
     @IsString()
     @IsNotEmpty()
-    @IsMongoId()
+    @IsUUID()
     countryId: string;
 }

@@ -7,6 +7,7 @@ import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
 import { TripContactRepository } from '@modules/trip/repositories/trip-contact.repository';
 import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
+import { TripAssetRepository } from '@modules/trip/repositories/trip-asset.repository';
 import { TripService } from '@modules/trip/services/trip.service';
 import { TripTravelerService } from '@modules/trip/services/trip-traveler.service';
 import { TripUtil } from '@modules/trip/utils/trip.util';
@@ -21,6 +22,7 @@ import { TripUtil } from '@modules/trip/utils/trip.util';
         TripInviteRepository,
         TripContactRepository,
         TenantContactRepository,
+        TripAssetRepository,
         TripUtil,
         TripTravelerService,
     ],

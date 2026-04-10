@@ -9,16 +9,23 @@ import {
     Post,
     Put,
     UploadedFile,
+    UploadedFiles,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
     AuthJwtAccessProtected,
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
-import { FileUploadSingle } from '@common/file/decorators/file.decorator';
-import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { FileUploadMultiple, FileUploadSingle } from '@common/file/decorators/file.decorator';
+import { FileSizeInBytes } from '@common/file/constants/file.constant';
+import {
+    EnumFileExtensionDocument,
+    EnumFileExtensionImage,
+    EnumFileExtensionVideo,
+} from '@common/file/enums/file.enum';
 import { IFile } from '@common/file/interfaces/file.interface';
 import { FileExtensionPipe } from '@common/file/pipes/file.extension.pipe';
+import { FileExtensionMultiplePipe } from '@common/file/pipes/file.extension-multiple.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { RequestTimeout } from '@common/request/decorators/request.decorator';
 import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
@@ -47,12 +54,17 @@ import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
+import { ParseJsonArrayPipe } from '@common/request/pipes/request.parse-json-array.pipe';
 import { TripService } from '@modules/trip/services/trip.service';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
+import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripTravelerListItemResponseDto } from '@modules/trip/dtos/response/trip-traveler.list-item.response.dto';
 import { TripTravelerDetailResponseDto } from '@modules/trip/dtos/response/trip-traveler.detail.response.dto';
@@ -73,8 +85,10 @@ import {
     TripSharedRevokeInviteDoc,
     TripSharedUnpublishDoc,
     TripSharedUpdateDraftDoc,
+    TripSharedUploadAttachmentBatchDoc,
     TripSharedUploadCoverImageDoc,
     TripSharedUploadIconDoc,
+    TripSharedUploadMediaBatchDoc,
 } from '@modules/trip/docs/trip.shared.doc';
 import {
     TripTravelerSharedGetDoc,
@@ -365,5 +379,74 @@ export class TripSharedController {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
         return this.tripService.getTripList(pagination, tenantId, status);
+    }
+
+    @TripSharedUploadMediaBatchDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @FileUploadMultiple({ field: 'files', maxFiles: 20, fileSize: FileSizeInBytes })
+    @RequestTimeout('2m')
+    @Response('trip.uploadMedia')
+    @HttpCode(HttpStatus.CREATED)
+    @Post('/:idTrip/media')
+    async uploadMediaBatch(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @UploadedFiles(
+            FileExtensionMultiplePipe([
+                EnumFileExtensionImage.jpeg,
+                EnumFileExtensionImage.jpg,
+                EnumFileExtensionImage.png,
+                EnumFileExtensionVideo.mp4,
+            ])
+        )
+        files: IFile[],
+        @Body('data', new ParseJsonArrayPipe(TripMediaBatchItemRequestDto))
+        metadata: TripMediaBatchItemRequestDto[]
+    ): Promise<IResponseReturn<TripMediaResponseDto[]>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.uploadMediaBatch(
+            tripId,
+            files,
+            metadata,
+            tenantId,
+            userId
+        );
+    }
+
+    @TripSharedUploadAttachmentBatchDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @FileUploadMultiple({ field: 'files', maxFiles: 10, fileSize: FileSizeInBytes })
+    @RequestTimeout('2m')
+    @Response('trip.uploadAttachments')
+    @HttpCode(HttpStatus.CREATED)
+    @Post('/:idTrip/attachments')
+    async uploadAttachmentBatch(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @UploadedFiles(
+            FileExtensionMultiplePipe([EnumFileExtensionDocument.pdf])
+        )
+        files: IFile[],
+        @Body('data', new ParseJsonArrayPipe(TripAttachmentBatchItemRequestDto))
+        metadata: TripAttachmentBatchItemRequestDto[]
+    ): Promise<IResponseReturn<TripAttachmentResponseDto[]>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.uploadAttachmentBatch(
+            tripId,
+            files,
+            metadata,
+            tenantId,
+            userId
+        );
     }
 }

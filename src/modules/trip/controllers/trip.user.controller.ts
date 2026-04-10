@@ -95,6 +95,7 @@ export class TripUserController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
     @ResponsePaging('trip.list')
     @Get('/')
     async list(
@@ -115,6 +116,7 @@ export class TripUserController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
     @Response('trip.get')
     @Get('/:idTrip')
     async get(

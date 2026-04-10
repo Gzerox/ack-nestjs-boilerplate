@@ -4,7 +4,7 @@ This documentation explains the features and usage of **Form Module**: Located a
 
 ## Overview
 
-Form Module provides a structured way for backend users to create trip-owned form instances, publish them, assign them to users, and collect final responses.
+Form Module provides a structured way for backend users to create trip-owned form instances, publish them, assign them to users, and collect final submissions.
 
 This feature was previously referred to as **survey** in the documentation. The current implementation is now the generic `form` module, where `survey` is only one supported value of `EnumFormKind`.
 
@@ -15,7 +15,7 @@ At a high level, the feature works in four stages:
 - **Assignment stage**: published forms are assigned to users
 - **Submission stage**: assigned users submit final answers
 
-This module is designed so form structure is flexible while being drafted, but immutable once it is published. Assignment and response records are handled separately from the draft schema.
+This module is designed so form structure is flexible while being drafted, but immutable once it is published. Assignment and answer records are handled separately from the draft schema.
 
 ## Related Documents
 
@@ -25,6 +25,7 @@ This module is designed so form structure is flexible while being drafted, but i
 - [Term Policy Documentation][ref-doc-term-policy] - For user access requirements before submitting forms
 - [Response Documentation][ref-doc-response] - For standardized API response format
 - [Trip Form Integration](ideas/trip/trip-form.md) - For direct trip ownership and traveler assignment rules
+- [Future Form Templates](ideas/form/form-templates.md) - For a possible reusable-template design if cross-trip reuse becomes a real product need
 
 ## Table of Contents
 
@@ -51,14 +52,14 @@ This module is designed so form structure is flexible while being drafted, but i
 
 ## Form Concept
 
-The form feature is built for cases where authenticated users need to define a structured questionnaire, publish it, assign it to specific users, and collect one final response per assignment.
+The form feature is built for cases where authenticated users need to define a structured questionnaire, publish it, assign it to specific users, and collect one final submission per assignment.
 
 A form contains:
 
 - form metadata such as kind, title, and description
 - a form schema made of sections and questions
 - assignment records defining which users must answer the form
-- response records storing submission status and answers
+- assignment submission state (`status`, `submittedAt`) and answer records
 
 Supported form kinds are currently:
 
@@ -66,7 +67,7 @@ Supported form kinds are currently:
 - `form`
 - `poll`
 
-The important design decision is that the editable form definition lives first as a **snapshot of the schema**, not as assignment or response records.
+The important design decision is that the editable form definition lives first as a **snapshot of the schema**, not as assignment/answer records.
 
 ## Trip Ownership
 
@@ -77,7 +78,6 @@ Recommended ownership model:
 - `Form.tripId` is required
 - `Trip` exposes `forms Form[]`
 - `FormAssignment` remains the per-user delivery record for a form
-- `FormResponse` remains the per-assignment submission record
 
 This keeps ownership simple:
 
@@ -133,7 +133,7 @@ This rule exists to preserve consistency between:
 
 - what admins published
 - what users see
-- what responses refer to
+- what assignment states and answers refer to
 
 ### Assignment Stage
 
@@ -143,8 +143,8 @@ When a form creator creates an assignment:
 
 - a `FormAssignment` record is created targeting the user identified by `userId`, which must reference a valid `User` record
 - assignment-specific scheduling can be stored through `startsAt` and `closesAt`
-- a linked `FormResponse` record is created immediately
-- the initial response status is `pending`
+- assignment `status` is initialized to `pending`
+- `submittedAt` remains `null` until submission
 
 This means the recipient list is no longer part of the draft schema. It is managed as separate assignment data after publication.
 
@@ -154,20 +154,20 @@ Once a form is published and assigned, the user can open the form and submit ans
 
 When a user submits:
 
-- the system loads the response through the provided `assignmentId`
+- the system loads the assignment through the provided `assignmentId`
 - the assignment must exist and be active
 - the form must still be `published`
 - the form-level and assignment-level close dates must not be exceeded
-- answers are upserted into `FormAnswer` using published `questionId` values (`FormQuestion.id`)
-- the response is marked as `submitted`
+- answers are upserted into `FormAnswer` using `assignmentId` and published `questionId` values (`FormQuestion.id`)
+- the assignment is marked as `submitted`
 - `submittedAt` is set
 
 After submission:
 
-- the same response cannot be submitted again
+- the same assignment cannot be submitted again
 - the submission is treated as final
 
-This guarantees that each assignment has one final submitted response.
+This guarantees one final submitted state per assignment.
 
 ## Schema Snapshot
 
@@ -189,7 +189,7 @@ Question definitions currently support:
 - `boolean`
 - `date`
 
-The question summary endpoint (`GET /forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
+The question summary endpoint (`GET /shared/forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
 
 - `singleSelect` / `multiSelect` - counts occurrences of each option value (frequency breakdown)
 - `boolean` - counts `true` and `false` responses separately
@@ -198,15 +198,13 @@ The question summary endpoint (`GET /forms/:idForm/questions/:questionId/summary
 
 Conceptually, `schemaSnapshot` is the editable blueprint for one trip-owned form instance. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
 
-Each question carries a `key` field - a stable, human-readable identifier supplied by the form creator, unique per form (`[formId, key]`). The `key` is stored in the draft `schemaSnapshot` and persisted into `FormQuestion.key` on publish. It is returned alongside the published ObjectId in all schema responses.
-
 Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `FormQuestion.id` ObjectId.
 
 In short:
 
 - **before publish**: `schemaSnapshot` acts as the draft
 - **on publish**: `schemaSnapshot` is materialized into sections and questions
-- **after publish**: assignments and responses operate on the published form
+- **after publish**: assignments and answers operate on the published form
 
 ## Routes Overview
 
@@ -232,7 +230,7 @@ Existing runtime form operations remain centered on `/shared/forms/:idForm`:
 - `POST /shared/forms/:idForm/archive` - archive published form
 - `DELETE /shared/forms/:idForm` - delete form
 - `GET /shared/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
-- `GET /shared/forms/:idForm/responses` - list responses for a form
+- `GET /shared/forms/:idForm/responses` - list assignment status and answers for a form
 - `GET /shared/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
 
 If the generic `POST /shared/forms` route is kept in the future, it must require `tripId`. It should not create trip-less forms.
@@ -247,8 +245,8 @@ The user-facing read and submit endpoints are assignment-scoped. `assignmentId` 
 
 Available operations:
 
-- `GET /user/forms` - list assigned responses with optional status filter
-- `GET /user/forms/:idForm/assignments/:assignmentId` - get one published form plus the user's response record
+- `GET /user/forms` - list assigned forms with optional assignment status filter
+- `GET /user/forms/:idForm/assignments/:assignmentId` - get one published form plus the user's assignment state and answers
 - `POST /user/forms/:idForm/assignments/:assignmentId/submit` - submit answers for an assignment
 
 User routes require accepted term policies before access.
@@ -270,6 +268,7 @@ This is intentionally simpler than introducing a separate bridge model when the 
 - `Trip` tells you the owner scope
 - `Form` tells you the questionnaire definition
 - `FormAssignment` tells you which user must answer it and on what schedule
+- `FormAnswer` stores submitted values keyed by `assignmentId` and `questionId`
 
 ## Flow
 
@@ -293,7 +292,7 @@ sequenceDiagram
     Snapshot->>Database: Create FormQuestion records
     Database-->>Creator: Form published and locked
     Creator->>Database: Create FormAssignment for target user
-    Database->>Database: Create linked FormResponse with status pending
+    Database->>Database: Initialize assignment status as pending
     Creator->>Database: Read metrics / responses / question summary
 ```
 
@@ -303,18 +302,18 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant API
-    participant Response as FormResponse
+    participant Assignment as FormAssignment
     participant Database
 
     User->>API: List assigned forms
-    API->>Database: Load FormResponse records by user
+    API->>Database: Load FormAssignment records by user
     Database-->>User: Return assigned forms
     User->>API: Open assigned form
-    API->>Database: Load published form + response
-    Database-->>User: Return form schema and current response
+    API->>Database: Load published form + assignment + answers
+    Database-->>User: Return form schema and current assignment state
     User->>API: Submit answers
     API->>Database: Upsert FormAnswer records
-    API->>Response: Mark as submitted
+    API->>Assignment: Mark status as submitted
     Database-->>User: Submission accepted
     Note over User,Database: Submission cannot be repeated once submitted
 ```
@@ -326,11 +325,11 @@ sequenceDiagram
 - Drafts can only be updated while status is `draft`
 - Publishing materializes the draft into `FormSection` and `FormQuestion`
 - Assignments are created only after the form is published
-- Each assignment creates one linked `FormResponse`
+- Each assignment starts with `status = pending` and `submittedAt = null`
 - Users can submit only for an active assignment
 - Submission is blocked if the assignment has not yet opened (`startsAt`) or is closed (`closesAt`)
 - Form visibility and submission are blocked before assignment `startsAt` is reached
-- Once a response is submitted, it cannot be submitted again
+- Once an assignment is submitted, it cannot be submitted again
 - Forms can be archived only after publication
 - If another trip needs the same questionnaire, create a copied new `Form` row for that trip
 
@@ -356,11 +355,7 @@ Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot vie
 
 ### Text and date question summaries return count only
 
-The `GET /forms/:idForm/questions/:questionId/summary` endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
-
-### Question summary is capped at 1000 answers
-
-The question summary aggregation reads at most 1000 raw answer records per question. Forms with high submission volumes may return incomplete aggregates for that question.
+The `GET /shared/forms/:idForm/questions/:questionId/summary` endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
 
 ### No form versioning
 

@@ -22,22 +22,9 @@ TripAttachmentType: TERMS_AND_CONDITIONS | PRIVACY_POLICY | INSURANCE |
                     VISA_REQUIREMENTS | HEALTH_REQUIREMENTS | OTHER
 ```
 
-## Shared Embedded File Metadata
+## Shared Trip Asset Entity
 
-Trip attachments use the same embedded file metadata object shape as `UserPhoto` whenever a file is attached.
-
-```prisma
-type TripFileAsset {
-  bucket       String
-  key          String
-  cdnUrl       String?
-  completedUrl String
-  mime         String
-  extension    String
-  access       String
-  size         Int
-}
-```
+Trip attachments use the shared `TripAsset` model when a file is present.
 
 ## Prisma Draft Schema
 
@@ -55,11 +42,11 @@ model TripAttachment {
   id              String              @id @default(uuid())
   tripId          String
   createdBy       String
+  assetId         String?
 
   title           String
   type            TripAttachmentType  @default(OTHER)
   contentMarkdown String?             @db.Text
-  file            TripFileAsset?
   displayName     String?
   required        Boolean             @default(false)
 
@@ -67,8 +54,10 @@ model TripAttachment {
   updatedAt       DateTime            @updatedAt
 
   trip            Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  asset           TripAsset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index([tripId])
+  @@unique([assetId])
 }
 ```
 
@@ -104,7 +93,7 @@ Backend users manage attachments through trip creation and edit operations.
 - `displayName?: string` — `@IsString @IsOptional`
 - `required: boolean` — `@IsBoolean @IsNotEmpty`
 
-At least one of `contentMarkdown` or `file` should be non-null in normal usage. This constraint is enforced at the service layer, not the DTO level.
+At least one of `contentMarkdown` or `file` should be non-null in normal usage. This constraint is enforced at the service layer.
 
 ### `TripAttachmentResponseDto`
 

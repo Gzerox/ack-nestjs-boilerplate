@@ -1,7 +1,9 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { DatabaseDto } from '@common/database/dtos/database.dto';
 import { TripEventCategory } from '@generated/prisma-client';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 
 export class TripCalendarEventResponseDto extends DatabaseDto {
     @ApiProperty({
@@ -44,4 +46,12 @@ export class TripCalendarEventResponseDto extends DatabaseDto {
         required: false,
     })
     description: string | null;
+
+    @ApiProperty({
+        type: () => TripMediaResponseDto,
+        isArray: true,
+        required: true,
+    })
+    @Type(() => TripMediaResponseDto)
+    medias: TripMediaResponseDto[];
 }

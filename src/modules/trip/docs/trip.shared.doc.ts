@@ -15,6 +15,10 @@ import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripMediaBatchUploadRequestDto } from '@modules/trip/dtos/request/trip-media-batch-upload.request.dto';
+import { TripAttachmentBatchUploadRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-upload.request.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 
 const TripDocParamsIdTrip = [
     {
@@ -127,5 +131,35 @@ export function TripSharedRevokeInviteDoc(): MethodDecorator {
         Doc({ summary: 'revoke trip invite' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponse('invite.revoke')
+    );
+}
+
+export function TripSharedUploadMediaBatchDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'batch upload trip media' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequestFile({
+            dto: TripMediaBatchUploadRequestDto,
+            params: TripDocParamsIdTrip,
+        }),
+        DocResponse<TripMediaResponseDto>('trip.uploadMedia', {
+            dto: TripMediaResponseDto,
+            httpStatus: HttpStatus.CREATED,
+        })
+    );
+}
+
+export function TripSharedUploadAttachmentBatchDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'batch upload trip attachments' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequestFile({
+            dto: TripAttachmentBatchUploadRequestDto,
+            params: TripDocParamsIdTrip,
+        }),
+        DocResponse<TripAttachmentResponseDto>('trip.uploadAttachments', {
+            dto: TripAttachmentResponseDto,
+            httpStatus: HttpStatus.CREATED,
+        })
     );
 }

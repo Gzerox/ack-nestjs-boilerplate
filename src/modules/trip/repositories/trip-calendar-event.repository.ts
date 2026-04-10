@@ -17,4 +17,14 @@ export class TripCalendarEventRepository {
             where: { tripId },
         });
     }
+
+    async existsByIdsAndTrip(
+        ids: string[],
+        tripId: string
+    ): Promise<boolean> {
+        const count = await this.databaseService.tripCalendarEvent.count({
+            where: { id: { in: ids }, tripId },
+        });
+        return count === ids.length;
+    }
 }

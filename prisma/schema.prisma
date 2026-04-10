@@ -616,6 +616,9 @@ model Trip {
   forms          Form[]
   travelers      TripTraveler[]
   invites        TripInvite[]
+  medias         TripMedia[]
+  attachments    TripAttachment[]
+  assets         TripAsset[]
 
   @@index(fields: [tenantId])
   @@index(fields: [status])
@@ -640,10 +643,97 @@ model TripCalendarEvent {
   updatedAt   DateTime          @updatedAt
 
   trip        Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  medias      TripMedia[]
 
   @@index(fields: [tripId])
   @@index(fields: [startsAt])
   @@map("TripCalendarEvents")
+}
+
+model TripAsset {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  tripId       String         @db.ObjectId
+  bucket       String
+  key          String
+  cdnUrl       String?
+  completedUrl String
+  mime         String
+  extension    String
+  access       String
+  size         Int
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  trip         Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  media        TripMedia?
+  attachment   TripAttachment?
+
+  @@index(fields: [tripId])
+  @@index(fields: [tripId, createdAt(sort: Desc)])
+  @@map("TripAssets")
+}
+
+enum TripMediaKind {
+  IMAGE
+  VIDEO
+  THUMBNAIL
+  OTHER
+}
+
+model TripMedia {
+  id              String             @id @default(auto()) @map("_id") @db.ObjectId
+  tripId          String             @db.ObjectId
+  calendarEventId String?            @db.ObjectId
+  createdBy       String             @db.ObjectId
+  assetId         String             @db.ObjectId
+
+  kind            TripMediaKind      @default(OTHER)
+  caption         String?
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  trip            Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  calendarEvent   TripCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  asset           TripAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique(fields: [assetId])
+  @@index(fields: [tripId])
+  @@index(fields: [calendarEventId])
+  @@map("TripMedias")
+}
+
+enum TripAttachmentType {
+  TERMS_AND_CONDITIONS
+  PRIVACY_POLICY
+  INSURANCE
+  VISA_REQUIREMENTS
+  HEALTH_REQUIREMENTS
+  OTHER
+}
+
+model TripAttachment {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  tripId          String              @db.ObjectId
+  createdBy       String              @db.ObjectId
+  assetId         String?             @unique @db.ObjectId
+
+  title           String
+  type            TripAttachmentType  @default(OTHER)
+  contentMarkdown String?
+  displayName     String?
+  required        Boolean             @default(false)
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  trip            Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  asset           TripAsset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index(fields: [tripId])
+  @@index(fields: [type])
+  @@map("TripAttachments")
 }
 
 model TripTraveler {

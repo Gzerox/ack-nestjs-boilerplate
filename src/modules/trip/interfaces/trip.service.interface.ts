@@ -7,10 +7,14 @@ import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfa
 import { Prisma } from '@generated/prisma-client';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
+import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 
 export interface ITripService {
@@ -99,4 +103,20 @@ export interface ITripService {
         tenantId: string,
         revokedBy: string
     ): Promise<IResponseReturn<void>>;
+
+    uploadMediaBatch(
+        tripId: string,
+        files: IFile[],
+        metadata: TripMediaBatchItemRequestDto[],
+        tenantId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripMediaResponseDto[]>>;
+
+    uploadAttachmentBatch(
+        tripId: string,
+        files: IFile[],
+        metadata: TripAttachmentBatchItemRequestDto[],
+        tenantId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripAttachmentResponseDto[]>>;
 }

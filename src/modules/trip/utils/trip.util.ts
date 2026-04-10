@@ -1,11 +1,12 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { FileService } from '@common/file/services/file.service';
-import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
 import { HelperService } from '@common/helper/services/helper.service';
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 import { TenantContactResponseDto } from '@modules/trip/dtos/response/tenant-contact.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
@@ -14,8 +15,11 @@ import {
     ITripInviteWithTrip,
 } from '@modules/trip/interfaces/trip-invite.interface';
 import {
+    ITripAttachmentWithAsset,
+    ITripCalendarEventWithMedias,
     ITripContactWithContact,
     ITripDetail,
+    ITripMediaWithAsset,
 } from '@modules/trip/interfaces/trip.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { plainToInstance } from 'class-transformer';
@@ -54,16 +58,18 @@ export class TripUtil {
 
     createTripAssetKey(
         tripId: string,
-        field: 'icon' | 'coverImage',
-        extension: EnumFileExtensionImage
+        field: 'icon' | 'coverImage' | 'media' | 'attachment',
+        extension: string
     ): string {
-        const path =
-            field === 'icon'
-                ? `trips/${tripId}/icon`
-                : `trips/${tripId}/cover-image`;
+        const pathMap: Record<typeof field, string> = {
+            icon: `trips/${tripId}/icon`,
+            coverImage: `trips/${tripId}/cover-image`,
+            media: `trips/${tripId}/media`,
+            attachment: `trips/${tripId}/attachments`,
+        };
 
         return this.fileService.createRandomFilename({
-            path,
+            path: pathMap[field],
             extension,
             randomLength: 20,
         });
@@ -78,13 +84,48 @@ export class TripUtil {
     mapResponse(trip: ITripDetail): TripResponseDto {
         return plainToInstance(TripResponseDto, {
             ...trip,
-            calendarEvents: plainToInstance(
-                TripCalendarEventResponseDto,
-                trip.calendarEvents
-            ),
+            calendarEvents: this.mapCalendarEventList(trip.calendarEvents),
             invites: this.mapInviteList(trip.invites),
             contacts: this.mapTripContactList(trip.contacts),
+            medias: this.mapMediaList(trip.medias),
+            attachments: this.mapAttachmentList(trip.attachments),
         });
+    }
+
+    mapCalendarEventList(
+        calendarEvents?: ITripCalendarEventWithMedias[] | null
+    ): TripCalendarEventResponseDto[] {
+        return plainToInstance(
+            TripCalendarEventResponseDto,
+            (calendarEvents ?? []).map(calendarEvent => ({
+                ...calendarEvent,
+                medias: this.mapMediaList(calendarEvent.medias),
+            }))
+        );
+    }
+
+    mapMediaList(
+        medias?: ITripMediaWithAsset[] | null
+    ): TripMediaResponseDto[] {
+        return plainToInstance(
+            TripMediaResponseDto,
+            (medias ?? []).map(media => ({
+                ...media,
+                file: media.asset,
+            }))
+        );
+    }
+
+    mapAttachmentList(
+        attachments?: ITripAttachmentWithAsset[] | null
+    ): TripAttachmentResponseDto[] {
+        return plainToInstance(
+            TripAttachmentResponseDto,
+            (attachments ?? []).map(attachment => ({
+                ...attachment,
+                file: attachment.asset,
+            }))
+        );
     }
 
     mapInviteList(invites?: TripInvite[] | null): TripInviteResponseDto[] {

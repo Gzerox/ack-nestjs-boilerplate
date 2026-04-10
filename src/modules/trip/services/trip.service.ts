@@ -5,8 +5,10 @@ import {
     Logger,
     NotFoundException,
     ServiceUnavailableException,
+    UnprocessableEntityException,
 } from '@nestjs/common';
 import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
+import { EnumRequestStatusCodeError } from '@common/request/enums/request.status-code.enum';
 import { EnumAwsStatusCodeError } from '@common/aws/enums/aws.status-code.enum';
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
@@ -21,24 +23,32 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { HelperService } from '@common/helper/services/helper.service';
+import { DatabaseUtil } from '@common/database/utils/database.util';
 import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
 import { TripContactRepository } from '@modules/trip/repositories/trip-contact.repository';
 import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
+import { TripAssetRepository } from '@modules/trip/repositories/trip-asset.repository';
+import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
 import { TripUtil } from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
+import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
+import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import {
     Prisma,
+    Trip,
     TripInviteStatus,
     TripStatus,
 } from '@generated/prisma-client';
@@ -55,10 +65,13 @@ export class TripService implements ITripService {
         private readonly tripInviteRepository: TripInviteRepository,
         private readonly tripContactRepository: TripContactRepository,
         private readonly tenantContactRepository: TenantContactRepository,
+        private readonly tripAssetRepository: TripAssetRepository,
+        private readonly tripCalendarEventRepository: TripCalendarEventRepository,
         private readonly tripUtil: TripUtil,
         private readonly helperService: HelperService,
         private readonly awsS3Service: AwsS3Service,
-        private readonly fileService: FileService
+        private readonly fileService: FileService,
+        private readonly databaseUtil: DatabaseUtil
     ) {}
 
     async createDraft(
@@ -72,8 +85,10 @@ export class TripService implements ITripService {
             dto.title,
             this.tripRepository
         );
+        const tripId = this.databaseUtil.createId();
 
-        const trip = await this.tripRepository.create({
+        const trip = await this.createWithRelationErrorMapping({
+            id: tripId,
             slug,
             tenantId,
             createdBy,
@@ -114,6 +129,24 @@ export class TripService implements ITripService {
                             expiresAt: invite.expiresAt ?? null,
                         };
                     }),
+                },
+            }),
+            ...(dto.medias?.length && {
+                medias: {
+                    create: this.tripRepository.buildTripMediaCreateData(
+                        dto.medias,
+                        createdBy,
+                        tripId
+                    ),
+                },
+            }),
+            ...(dto.attachments?.length && {
+                attachments: {
+                    create: this.tripRepository.buildTripAttachmentCreateData(
+                        dto.attachments,
+                        createdBy,
+                        tripId
+                    ),
                 },
             }),
             ...(dto.contactIds?.length && {
@@ -176,34 +209,6 @@ export class TripService implements ITripService {
             await this.assertValidContactIds(dto.contactIds, tenantId);
         }
 
-        const updateData: Prisma.TripUpdateInput = {
-            title: dto.title,
-            subtitle: dto.subtitle ?? undefined,
-            description: dto.description ?? undefined,
-            icon: dto.icon ?? undefined,
-            coverImage: dto.coverImage ?? undefined,
-            startDate: dto.startDate,
-            endDate: dto.endDate,
-            timezone: dto.timezone ?? undefined,
-        };
-
-        if (dto.calendarEvents !== undefined) {
-            updateData.calendarEvents = {
-                deleteMany: { tripId },
-                ...(dto.calendarEvents.length > 0 && {
-                    create: dto.calendarEvents.map(e => ({
-                        createdBy: updatedBy,
-                        title: e.title,
-                        category: e.category,
-                        startsAt: e.startsAt ?? null,
-                        endsAt: e.endsAt ?? null,
-                        location: e.location ?? null,
-                        description: e.description ?? null,
-                    })),
-                }),
-            };
-        }
-
         const inviteTokens = await this._prepareInviteTokens(dto.invites ?? []);
 
         // Validate that new invite emails do not conflict with existing invites
@@ -225,7 +230,67 @@ export class TripService implements ITripService {
             }
         }
 
-        await this.tripRepository.update(tripId, updateData);
+        try {
+            await this.tripRepository.update(tripId, {
+                title: dto.title,
+                subtitle: dto.subtitle ?? undefined,
+                description: dto.description ?? undefined,
+                icon: dto.icon ?? undefined,
+                coverImage: dto.coverImage ?? undefined,
+                startDate: dto.startDate,
+                endDate: dto.endDate,
+                timezone: dto.timezone ?? undefined,
+                ...(dto.calendarEvents !== undefined && {
+                    calendarEvents: {
+                        //TODO: Bad - everytime we delete all entries and re-create them.
+                        deleteMany: { tripId },
+                        ...(dto.calendarEvents.length > 0 && {
+                            create: dto.calendarEvents.map(e => ({
+                                createdBy: updatedBy,
+                                title: e.title,
+                                category: e.category,
+                                startsAt: e.startsAt ?? null,
+                                endsAt: e.endsAt ?? null,
+                                location: e.location ?? null,
+                                description: e.description ?? null,
+                            })),
+                        }),
+                    },
+                }),
+                ...(dto.medias !== undefined && {
+                    medias: {
+                        //TODO: Bad - everytime we delete all entries and re-create them.
+                        deleteMany: { tripId },
+                        ...(dto.medias.length > 0 && {
+                            create: this.tripRepository.buildTripMediaCreateData(
+                                dto.medias,
+                                updatedBy,
+                                tripId
+                            ),
+                        }),
+                    },
+                }),
+                ...(dto.attachments !== undefined && {
+                    attachments: {
+                        //TODO: Bad - everytime we delete all entries and re-create them.
+                        deleteMany: { tripId },
+                        ...(dto.attachments.length > 0 && {
+                            create: this.tripRepository.buildTripAttachmentCreateData(
+                                dto.attachments,
+                                updatedBy,
+                                tripId
+                            ),
+                        }),
+                    },
+                }),
+            });
+        } catch (error: unknown) {
+            this.handleMediaCalendarEventRelationError(error);
+        }
+
+        if (dto.medias !== undefined || dto.attachments !== undefined) {
+            await this.tripAssetRepository.deleteOrphanByTrip(tripId);
+        }
 
         if (dto.contactIds !== undefined) {
             await this.tripContactRepository.replaceAll(tripId, dto.contactIds);
@@ -682,6 +747,30 @@ export class TripService implements ITripService {
         }
     }
 
+    private handleMediaCalendarEventRelationError(error: unknown): never {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === 'P2025') {
+                throw new NotFoundException({
+                    statusCode:
+                        EnumTripStatusCodeError.mediaCalendarEventInvalid,
+                    message: 'trip.error.mediaCalendarEventInvalid',
+                });
+            }
+        }
+
+        throw error;
+    }
+
+    private async createWithRelationErrorMapping(
+        data: Prisma.TripCreateInput
+    ): Promise<Trip> {
+        try {
+            return await this.tripRepository.create(data);
+        } catch (error: unknown) {
+            this.handleMediaCalendarEventRelationError(error);
+        }
+    }
+
     private async uploadAsset(
         tripId: string,
         file: IFile,
@@ -711,11 +800,7 @@ export class TripService implements ITripService {
         const extension = this.fileService.extractExtensionFromFilename(
             file.originalname
         ) as EnumFileExtensionImage;
-        const key = this.tripUtil.createTripAssetKey(
-            trip.id,
-            field,
-            extension
-        );
+        const key = this.tripUtil.createTripAssetKey(trip.id, field, extension);
         const aws = await this.awsS3Service.putItem({
             key,
             size: file.size,
@@ -759,6 +844,201 @@ export class TripService implements ITripService {
         };
     }
 
+    async uploadMediaBatch(
+        tripId: string,
+        files: IFile[],
+        metadata: TripMediaBatchItemRequestDto[],
+        tenantId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripMediaResponseDto[]>> {
+        if (files.length !== metadata.length) {
+            throw new UnprocessableEntityException({
+                statusCode: EnumRequestStatusCodeError.validation,
+                message: 'request.error.validation',
+            });
+        }
+
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        if (trip.status !== TripStatus.draft) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notDraft,
+                message: 'trip.error.notDraft',
+            });
+        }
+
+        const calendarEventIds = [
+            ...new Set(
+                metadata
+                    .map(m => m.calendarEventId)
+                    .filter((id): id is string => !!id)
+            ),
+        ];
+        if (calendarEventIds.length > 0) {
+            const valid =
+                await this.tripCalendarEventRepository.existsByIdsAndTrip(
+                    calendarEventIds,
+                    tripId
+                );
+            if (!valid) {
+                throw new NotFoundException({
+                    statusCode:
+                        EnumTripStatusCodeError.mediaCalendarEventInvalid,
+                    message: 'trip.error.mediaCalendarEventInvalid',
+                });
+            }
+        }
+
+        const uploadedKeys: string[] = [];
+        const batchItems = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const extension = this.fileService.extractExtensionFromFilename(
+                file.originalname
+            );
+            const key = this.tripUtil.createTripAssetKey(
+                tripId,
+                'media',
+                extension
+            );
+            const aws = await this.awsS3Service.putItem({
+                key,
+                size: file.size,
+                file: file.buffer,
+            });
+
+            if (!aws) {
+                await this.deleteAssetsBestEffort(uploadedKeys);
+                throw new ServiceUnavailableException({
+                    statusCode: EnumAwsStatusCodeError.serviceUnavailable,
+                    message: 'aws.error.serviceUnavailable',
+                });
+            }
+
+            uploadedKeys.push(key);
+            batchItems.push({
+                asset: aws,
+                tripId,
+                createdBy,
+                kind: metadata[i].kind,
+                caption: metadata[i].caption ?? null,
+                calendarEventId: metadata[i].calendarEventId ?? null,
+            });
+        }
+
+        let medias;
+        try {
+            medias = await this.tripAssetRepository.createMediaBatch(
+                batchItems
+            );
+        } catch (err: unknown) {
+            await this.deleteAssetsBestEffort(uploadedKeys);
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
+
+        return { data: this.tripUtil.mapMediaList(medias) };
+    }
+
+    async uploadAttachmentBatch(
+        tripId: string,
+        files: IFile[],
+        metadata: TripAttachmentBatchItemRequestDto[],
+        tenantId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripAttachmentResponseDto[]>> {
+        if (files.length !== metadata.length) {
+            throw new UnprocessableEntityException({
+                statusCode: EnumRequestStatusCodeError.validation,
+                message: 'request.error.validation',
+            });
+        }
+
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        if (trip.status !== TripStatus.draft) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notDraft,
+                message: 'trip.error.notDraft',
+            });
+        }
+
+        const uploadedKeys: string[] = [];
+        const batchItems = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const extension = this.fileService.extractExtensionFromFilename(
+                file.originalname
+            );
+            const key = this.tripUtil.createTripAssetKey(
+                tripId,
+                'attachment',
+                extension
+            );
+            const aws = await this.awsS3Service.putItem({
+                key,
+                size: file.size,
+                file: file.buffer,
+            });
+
+            if (!aws) {
+                await this.deleteAssetsBestEffort(uploadedKeys);
+                throw new ServiceUnavailableException({
+                    statusCode: EnumAwsStatusCodeError.serviceUnavailable,
+                    message: 'aws.error.serviceUnavailable',
+                });
+            }
+
+            uploadedKeys.push(key);
+            batchItems.push({
+                asset: aws,
+                tripId,
+                createdBy,
+                title: metadata[i].title,
+                type: metadata[i].type,
+                displayName: metadata[i].displayName ?? null,
+            });
+        }
+
+        let attachments;
+        try {
+            attachments =
+                await this.tripAssetRepository.createAttachmentBatch(
+                    batchItems
+                );
+        } catch (err: unknown) {
+            await this.deleteAssetsBestEffort(uploadedKeys);
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                _error: err,
+            });
+        }
+
+        return { data: this.tripUtil.mapAttachmentList(attachments) };
+    }
+
     private async deleteAssetBestEffort(
         key: string,
         context: string
@@ -767,6 +1047,15 @@ export class TripService implements ITripService {
             await this.awsS3Service.deleteItem(key);
         } catch (error: unknown) {
             this.logger.warn({ error, key }, `Failed to ${context}`);
+        }
+    }
+
+    private async deleteAssetsBestEffort(keys: string[]): Promise<void> {
+        if (!keys.length) { return; }
+        try {
+            await this.awsS3Service.deleteItems(keys);
+        } catch (error: unknown) {
+            this.logger.warn({ error, keys }, 'Failed to cleanup S3 assets');
         }
     }
 }

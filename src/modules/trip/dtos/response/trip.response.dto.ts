@@ -5,6 +5,8 @@ import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-i
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TenantContactResponseDto } from '@modules/trip/dtos/response/tenant-contact.response.dto';
+import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 
 export class TripResponseDto extends TripListItemResponseDto {
     @ApiProperty({ required: false })
@@ -30,4 +32,12 @@ export class TripResponseDto extends TripListItemResponseDto {
     @ApiProperty({ type: () => TenantContactResponseDto, isArray: true, required: true })
     @Type(() => TenantContactResponseDto)
     contacts: TenantContactResponseDto[];
+
+    @ApiProperty({ type: () => TripMediaResponseDto, isArray: true, required: true })
+    @Type(() => TripMediaResponseDto)
+    medias: TripMediaResponseDto[];
+
+    @ApiProperty({ type: () => TripAttachmentResponseDto, isArray: true, required: true })
+    @Type(() => TripAttachmentResponseDto)
+    attachments: TripAttachmentResponseDto[];
 }

@@ -21,22 +21,9 @@ Trip media helps backend users upload photos or images so travelers can preview 
 TripMediaKind: IMAGE | VIDEO | THUMBNAIL | OTHER
 ```
 Even if we should want to support 
-## Shared Embedded File Metadata
+## Shared Trip Asset Entity
 
-Trip media stores an embedded file metadata object using the same semantic shape as `UserPhoto`.
-
-```prisma
-type TripFileAsset {
-  bucket       String
-  key          String
-  cdnUrl       String?
-  completedUrl String
-  mime         String
-  extension    String
-  access       String
-  size         Int
-}
-```
+Trip media references a shared `TripAsset` row. Media records no longer persist file metadata as Prisma composite types.
 
 ## Prisma Draft Schema
 
@@ -53,9 +40,9 @@ model TripMedia {
   tripId          String
   calendarEventId String?
   createdBy       String
+  assetId         String
 
   kind            TripMediaKind      @default(OTHER)
-  file            TripFileAsset
   caption         String?
 
   createdAt       DateTime           @default(now())
@@ -63,9 +50,11 @@ model TripMedia {
 
   trip            Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
   calendarEvent   TripCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  asset           TripAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@index([tripId])
   @@index([calendarEventId])
+  @@unique([assetId])
 }
 ```
 
@@ -79,14 +68,14 @@ model TripMedia {
 6. The `TripCalendarEvent` model exposes `medias TripMedia[]`.
 7. `TripMedia.kind` is constrained to `TripMediaKind`. Free strings are not accepted. The default value is `OTHER`.
 8. `createdBy` stores the `userId` of the authenticated caller who added the media record.
-9. Media persists embedded file metadata, not just a raw URL string.
+9. Media references `TripAsset` metadata through `assetId`, not just a raw URL string.
 
 ## Upload and Management Behavior
 
 1. Backend users add media as part of trip creation or update payloads.
 2. Media storage and upload transport can be specified later; this file only defines the domain contract.
 3. If `calendarEventId` is provided, that event must belong to the same trip as `tripId`.
-4. Read surfaces should expose `completedUrl` from the embedded `file` object instead of maintaining a separate persisted URL field.
+4. Read surfaces expose `file` from the joined `TripAsset` relation (bucket/key/mime/size/completedUrl).
 
 ## Controllers
 

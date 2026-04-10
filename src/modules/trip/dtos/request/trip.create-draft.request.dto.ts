@@ -12,6 +12,8 @@ import { Type } from 'class-transformer';
 import { TripFileAssetRequestDto } from '@modules/trip/dtos/request/trip-file-asset.request.dto';
 import { TripCalendarEventCreateRequestDto } from '@modules/trip/dtos/request/trip-calendar-event.create.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
+import { TripMediaCreateRequestDto } from '@modules/trip/dtos/request/trip-media.create.request.dto';
+import { TripAttachmentCreateRequestDto } from '@modules/trip/dtos/request/trip-attachment.create.request.dto';
 
 export class TripCreateDraftRequestDto {
     @IsString()
@@ -62,6 +64,18 @@ export class TripCreateDraftRequestDto {
     @Type(() => TripInviteCreateRequestDto)
     @IsOptional()
     invites?: TripInviteCreateRequestDto[];
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => TripMediaCreateRequestDto)
+    @IsOptional()
+    medias?: TripMediaCreateRequestDto[];
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => TripAttachmentCreateRequestDto)
+    @IsOptional()
+    attachments?: TripAttachmentCreateRequestDto[];
 
     @IsArray()
     @IsMongoId({ each: true })

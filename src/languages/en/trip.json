@@ -13,7 +13,9 @@
         "publish":     "Trip published",
         "cancel":      "Trip cancelled",
         "archive":     "Trip archived",
-        "createForm":  "Trip form created"
+        "createForm":  "Trip form created",
+        "uploadMedia": "Trip media uploaded",
+        "uploadAttachments": "Trip attachments uploaded"
     },
     "invite": {
         "list": "Get trip invite list",
@@ -31,12 +33,15 @@
         "publishConflict":      "Trip was modified by another request; reload and retry",
         "publishValidation":    "Trip failed publish validation; check errors for details",
         "contactNotFound":      "One or more trip contacts were not found",
+        "mediaCalendarEventInvalid": "One or more media items reference a calendar event outside this trip",
         "slugConflict":         "Could not generate a unique trip slug; try again",
         "travelerNotFound":     "Trip traveler not found",
         "inviteNotFound":       "Invite not found",
         "inviteExpired":        "Invite has expired",
         "inviteRevoked":        "Invite has been revoked",
         "inviteAlreadyAccepted":"Invite has already been accepted",
-        "inviteTokenInvalid":   "Invite token is invalid"
+        "inviteTokenInvalid":   "Invite token is invalid",
+        "mediaNotFound":        "Trip media not found",
+        "attachmentNotFound":   "Trip attachment not found"
     }
 }

@@ -15,7 +15,6 @@ import {
 import { IFormService } from '@modules/form/interfaces/form.service.interface';
 import { FormRepository } from '@modules/form/repositories/form.repository';
 import { FormAssignmentRepository } from '@modules/form/repositories/form-assignment.repository';
-import { FormResponseRepository } from '@modules/form/repositories/form-response.repository';
 import { FormUtil } from '@modules/form/utils/form.util';
 import { HelperService } from '@common/helper/services/helper.service';
 import { EnumFormStatusCodeError } from '@modules/form/enums/form.status-code.enum';
@@ -37,8 +36,8 @@ import {
 } from '@generated/prisma-client';
 import { FormSchemaSectionRequestDto } from '@modules/form/dtos/request/form-schema.request.dto';
 import {
+    IFormAssignmentWithAnswers,
     IFormAssignmentWithRelations,
-    IFormResponseWithAnswers,
     IFormSchemaSnapshot,
     IFormWithStructure,
 } from '@modules/form/interfaces/form.interface';
@@ -50,7 +49,6 @@ export class FormService implements IFormService {
     constructor(
         private readonly formRepository: FormRepository,
         private readonly formAssignmentRepository: FormAssignmentRepository,
-        private readonly formResponseRepository: FormResponseRepository,
         private readonly formUtil: FormUtil,
         private readonly helperService: HelperService
     ) {}
@@ -220,7 +218,7 @@ export class FormService implements IFormService {
         }
 
         const assignment =
-            await this.formAssignmentRepository.createWithResponse(formId, dto);
+            await this.formAssignmentRepository.create(formId, dto);
 
         return { data: this.formUtil.mapAssignmentOne(assignment) };
     }
@@ -322,7 +320,7 @@ export class FormService implements IFormService {
     ): Promise<IResponseReturn<FormMetricsResponseDto>> {
         const [form, counts] = await Promise.all([
             this.formRepository.existById(formId),
-            this.formResponseRepository.countByFormGroupedByStatus(formId),
+            this.formAssignmentRepository.countByFormGroupedByStatus(formId),
         ]);
         if (!form) {
             throw new NotFoundException({
@@ -353,8 +351,8 @@ export class FormService implements IFormService {
     async getFormResponses(
         formId: string,
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>> {
         const form = await this.formRepository.existById(formId);
@@ -365,14 +363,14 @@ export class FormService implements IFormService {
             });
         }
 
-        const result = await this.formResponseRepository.findManyByForm(
+        const result = await this.formAssignmentRepository.findManyByForm(
             formId,
             pagination
         );
         return {
             ...result,
             data: this.formUtil.mapResponseList(
-                result.data as IFormResponseWithAnswers[]
+                result.data as IFormAssignmentWithAnswers[]
             ),
         } as IResponsePagingReturn<FormResponseResponseDto>;
     }
@@ -399,7 +397,7 @@ export class FormService implements IFormService {
         }
 
         const answers =
-            await this.formResponseRepository.aggregateAnswersByQuestion(
+            await this.formAssignmentRepository.aggregateAnswersByQuestion(
                 formId,
                 questionId
             );
@@ -416,12 +414,12 @@ export class FormService implements IFormService {
     async getMyFormList(
         userId: string,
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>> {
-        const result = await this.formResponseRepository.findManyByUser(
+        const result = await this.formAssignmentRepository.findManyByUser(
             userId,
             pagination,
             status,
@@ -430,7 +428,7 @@ export class FormService implements IFormService {
         return {
             ...result,
             data: this.formUtil.mapResponseList(
-                result.data as IFormResponseWithAnswers[]
+                result.data as IFormAssignmentWithAnswers[]
             ),
         } as IResponsePagingReturn<FormResponseResponseDto>;
     }
@@ -441,14 +439,14 @@ export class FormService implements IFormService {
         assignmentId: string
     ): Promise<IResponseReturn<FormWithResponseResponseDto>> {
         const now = this.helperService.dateCreate();
-        const { form, response } = await this.fetchAndValidateAssignment(
+        const { assignment, form } = await this.fetchAndValidateAssignment(
             assignmentId,
             formId,
             userId,
             now
         );
 
-        return { data: this.formUtil.mapFormWithResponse(form, response) };
+        return { data: this.formUtil.mapFormWithResponse(form, assignment) };
     }
 
     async submitForm(
@@ -458,7 +456,7 @@ export class FormService implements IFormService {
         userId: string
     ): Promise<IResponseReturn<FormResponseResponseDto>> {
         const now = this.helperService.dateCreate();
-        const { form, response } = await this.fetchAndValidateAssignment(
+        const { assignment, form } = await this.fetchAndValidateAssignment(
             assignmentId,
             formId,
             userId,
@@ -472,7 +470,7 @@ export class FormService implements IFormService {
             });
         }
 
-        if (response.status === EnumFormResponseStatus.submitted) {
+        if (assignment.status === EnumFormResponseStatus.submitted) {
             throw new ConflictException({
                 statusCode: EnumFormStatusCodeError.responseAlreadySubmitted,
                 message: 'form.error.responseAlreadySubmitted',
@@ -495,11 +493,10 @@ export class FormService implements IFormService {
             });
         }
 
-        const submitted = await this.formResponseRepository.upsertAnswers(
-            response.id,
+        const submitted = await this.formAssignmentRepository.submit(
+            assignment.id,
             formId,
             dto.answers ?? [],
-            EnumFormResponseStatus.submitted,
             now
         );
 
@@ -513,11 +510,10 @@ export class FormService implements IFormService {
         now: Date
     ): Promise<{
         assignment: IFormAssignmentWithRelations;
-        response: IFormResponseWithAnswers;
         form: IFormWithStructure;
     }> {
         const assignment =
-            await this.formAssignmentRepository.findByIdWithFormAndResponse(
+            await this.formAssignmentRepository.findByIdWithFormAndAnswers(
                 assignmentId,
                 userId
             );
@@ -529,15 +525,7 @@ export class FormService implements IFormService {
             });
         }
 
-        const response = assignment.responses[0] ?? null;
-        if (!response) {
-            throw new NotFoundException({
-                statusCode: EnumFormStatusCodeError.responseNotFound,
-                message: 'form.error.responseNotFound',
-            });
-        }
-
-        if (response.formId !== formId || assignment.formId !== formId) {
+        if (assignment.formId !== formId) {
             throw new NotFoundException({
                 statusCode: EnumFormStatusCodeError.assignmentNotFound,
                 message: 'form.error.assignmentNotFound',
@@ -573,7 +561,7 @@ export class FormService implements IFormService {
             });
         }
 
-        return { assignment, response, form };
+        return { assignment, form };
     }
 
     private buildSnapshot(

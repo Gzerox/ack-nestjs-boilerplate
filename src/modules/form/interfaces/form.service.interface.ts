@@ -59,8 +59,8 @@ export interface IFormService {
     getFormResponses(
         formId: string,
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>>;
     getQuestionSummary(
@@ -72,8 +72,8 @@ export interface IFormService {
     getMyFormList(
         userId: string,
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>>;

@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { EnumFormResponseStatus } from '@generated/prisma-client';
 import { DatabaseDto } from '@common/database/dtos/database.dto';
 
 export class FormAssignmentResponseDto extends DatabaseDto {
@@ -23,4 +24,11 @@ export class FormAssignmentResponseDto extends DatabaseDto {
     @ApiProperty({ description: 'When the assignment window closes', example: faker.date.future().toISOString(), required: false, nullable: true })
     @Type(() => Date)
     closesAt: Date | null;
+
+    @ApiProperty({ description: 'Current response status', enum: EnumFormResponseStatus, example: EnumFormResponseStatus.pending, required: true })
+    status: EnumFormResponseStatus;
+
+    @ApiProperty({ description: 'Date the response was submitted', example: faker.date.recent().toISOString(), required: false, nullable: true })
+    @Type(() => Date)
+    submittedAt: Date | null;
 }

@@ -66,8 +66,8 @@ export class FormUserController {
         @AuthJwtPayload('userId') userId: string,
         @PaginationOffsetQuery()
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >,
         @PaginationQueryFilterInEnum<EnumFormResponseStatus>(
             'status',

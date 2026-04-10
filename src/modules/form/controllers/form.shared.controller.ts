@@ -245,8 +245,8 @@ export class FormSharedController {
         idForm: string,
         @PaginationOffsetQuery()
         pagination: IPaginationQueryOffsetParams<
-            Prisma.FormResponseSelect,
-            Prisma.FormResponseWhereInput
+            Prisma.FormAssignmentSelect,
+            Prisma.FormAssignmentWhereInput
         >
     ): Promise<IResponsePagingReturn<FormResponseResponseDto>> {
         return this.formService.getFormResponses(idForm, pagination);

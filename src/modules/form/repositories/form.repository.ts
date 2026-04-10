@@ -18,8 +18,8 @@ import {
 import {
     IFormCount,
     IFormResponseStatusCount,
-    IFormWithStructure,
     IFormWithCounts,
+    IFormWithStructure,
 } from '@modules/form/interfaces/form.interface';
 
 @Injectable()
@@ -213,15 +213,17 @@ export class FormRepository {
             return [];
         }
 
-        const groupedCounts = await this.databaseService.formResponse.groupBy({
-            by: ['formId', 'status'],
-            where: {
-                formId: {
-                    in: forms.map(form => form.id),
+        const groupedCounts = await this.databaseService.formAssignment.groupBy(
+            {
+                by: ['formId', 'status'],
+                where: {
+                    formId: {
+                        in: forms.map(form => form.id),
+                    },
                 },
-            },
-            _count: true,
-        });
+                _count: true,
+            }
+        );
 
         const countsByForm = new Map<string, IFormResponseStatusCount>(
             forms.map(form => [

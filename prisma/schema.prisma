@@ -537,55 +537,35 @@ model FormQuestion {
 }
 
 model FormAssignment {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  formId    String    @db.ObjectId
-  userId    String    @db.ObjectId
-  required  Boolean   @default(true)
-  startsAt  DateTime?
-  closesAt  DateTime?
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String                 @id @default(auto()) @map("_id") @db.ObjectId
+  formId      String                 @db.ObjectId
+  userId      String                 @db.ObjectId
+  required    Boolean                @default(true)
+  startsAt    DateTime?
+  closesAt    DateTime?
+  isActive    Boolean                @default(true)
+  status      EnumFormResponseStatus @default(pending)
+  submittedAt DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
-  form      Form           @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
-  user      User           @relation("UserFormAssignments", fields: [userId], references: [id])
-  responses FormResponse[] @relation("FormResponses")
+  form    Form         @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
+  user    User         @relation("UserFormAssignments", fields: [userId], references: [id])
+  answers FormAnswer[] @relation("FormAnswers")
 
   @@unique(fields: [formId, userId])
   @@index(fields: [formId, isActive])
-  @@index(fields: [userId])
-  @@index(fields: [userId, isActive])
-  @@map("FormAssignments")
-}
-
-model FormResponse {
-  id           String                 @id @default(auto()) @map("_id") @db.ObjectId
-  formId       String                 @db.ObjectId
-  assignmentId String                 @db.ObjectId
-  userId       String                 @db.ObjectId
-  status       EnumFormResponseStatus @default(pending)
-  submittedAt  DateTime?
-
-  assignment FormAssignment @relation("FormResponses", fields: [assignmentId], references: [id], onDelete: Cascade)
-  answers    FormAnswer[]   @relation("FormAnswers")
-
-  // timestamps fields
-  createdAt DateTime @default(now())
-  createdBy String?  @db.ObjectId
-  updatedAt DateTime @updatedAt
-  updatedBy String?  @db.ObjectId
-
-  @@unique(fields: [assignmentId, userId])
   @@index(fields: [formId, status])
   @@index(fields: [userId])
+  @@index(fields: [userId, isActive])
   @@index(fields: [userId, status])
-  @@map("FormResponses")
+  @@map("FormAssignments")
 }
 
 model FormAnswer {
   id           String    @id @default(auto()) @map("_id") @db.ObjectId
   formId       String    @db.ObjectId
-  responseId   String    @db.ObjectId
+  assignmentId String    @db.ObjectId
   questionId   String    @db.ObjectId
   numberValue  Float?
   optionValue  String?
@@ -594,8 +574,8 @@ model FormAnswer {
   booleanValue Boolean?
   dateValue    DateTime?
 
-  response FormResponse @relation("FormAnswers", fields: [responseId], references: [id], onDelete: Cascade)
-  question FormQuestion @relation("FormQuestionAnswers", fields: [questionId], references: [id], onDelete: Cascade)
+  assignment FormAssignment @relation("FormAnswers", fields: [assignmentId], references: [id], onDelete: Cascade)
+  question   FormQuestion   @relation("FormQuestionAnswers", fields: [questionId], references: [id], onDelete: Cascade)
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -603,7 +583,7 @@ model FormAnswer {
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
-  @@unique(fields: [responseId, questionId])
+  @@unique(fields: [assignmentId, questionId])
   @@index(fields: [formId, questionId])
   @@map("FormAnswers")
 }

@@ -4,7 +4,6 @@ import {
     FormAnswer,
     FormAssignment,
     FormQuestion,
-    FormResponse,
     FormSection,
 } from '@generated/prisma-client';
 
@@ -13,7 +12,6 @@ export type {
     FormAnswer,
     FormAssignment,
     FormQuestion,
-    FormResponse,
     FormSection,
 };
 
@@ -64,7 +62,7 @@ export interface IFormAssignmentCount {
     assignments: number;
 }
 
-export interface IFormResponseWithAnswers extends FormResponse {
+export interface IFormAssignmentWithAnswers extends FormAssignment {
     answers?: FormAnswer[];
 }
 
@@ -77,7 +75,6 @@ export interface IFormWithCounts extends IFormWithStructure {
     count: IFormCount;
 }
 
-export interface IFormAssignmentWithRelations extends FormAssignment {
+export interface IFormAssignmentWithRelations extends IFormAssignmentWithAnswers {
     form: IFormWithStructure;
-    responses: IFormResponseWithAnswers[];
 }

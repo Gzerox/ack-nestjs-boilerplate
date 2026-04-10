@@ -16,7 +16,7 @@ import {
     FormQuestionSummaryResponseDto,
 } from '@modules/form/dtos/response/form-question-summary.response.dto';
 import {
-    IFormResponseWithAnswers,
+    IFormAssignmentWithAnswers,
     IFormSchemaQuestion,
     IFormSchemaSection,
     IFormSchemaSnapshot,
@@ -57,20 +57,20 @@ export class FormUtil {
     }
 
     mapResponseOne(
-        response: IFormResponseWithAnswers
+        assignment: IFormAssignmentWithAnswers
     ): FormResponseResponseDto {
-        return plainToInstance(FormResponseResponseDto, response);
+        return plainToInstance(FormResponseResponseDto, assignment);
     }
 
     mapResponseList(
-        responses: IFormResponseWithAnswers[]
+        assignments: IFormAssignmentWithAnswers[]
     ): FormResponseResponseDto[] {
-        return plainToInstance(FormResponseResponseDto, responses);
+        return plainToInstance(FormResponseResponseDto, assignments);
     }
 
     mapFormWithResponse(
         form: Form | IFormWithCounts | IFormWithStructure,
-        response: IFormResponseWithAnswers | null
+        response: IFormAssignmentWithAnswers | null
     ): FormWithResponseResponseDto {
         return plainToInstance(FormWithResponseResponseDto, {
             form: {

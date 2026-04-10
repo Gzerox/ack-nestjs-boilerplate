@@ -14,13 +14,6 @@ export class FormResponseResponseDto extends DatabaseDto {
     formId: string;
 
     @ApiProperty({
-        description: 'Assignment identifier',
-        example: faker.database.mongodbObjectId(),
-        required: true,
-    })
-    assignmentId: string;
-
-    @ApiProperty({
         description: 'Respondent user identifier',
         example: faker.database.mongodbObjectId(),
         required: true,

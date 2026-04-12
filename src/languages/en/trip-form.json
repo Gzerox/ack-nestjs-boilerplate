@@ -1,0 +1,39 @@
+{
+    "trip-form": {
+        "list": "Get trip form list",
+        "get": "Get trip form detail",
+        "createDraft": "Trip form draft created",
+        "update": "Trip form updated",
+        "publish": "Trip form published",
+        "archive": "Trip form archived",
+        "delete": "Trip form deleted",
+        "metrics": "Trip form metrics",
+        "submit": "Trip form submitted"
+    },
+    "assignment": {
+        "create": "Assignment created",
+        "list": "Get assignments"
+    },
+    "response": {
+        "list": "Get trip form responses"
+    },
+    "question": {
+        "summary": "Question summary"
+    },
+    "error": {
+        "tripNotFound": "Trip not found",
+        "formNotFound": "Trip form not found",
+        "formNotPublished": "Trip form is not published",
+        "formNotDraft": "Trip form cannot be edited after publishing",
+        "formClosed": "Trip form is closed or expired",
+        "formNotOpenYet": "Trip form is not yet available",
+        "formAlreadyArchived": "Trip form is already archived",
+        "formAlreadyPublished": "Trip form is already published",
+        "assignmentNotFound": "Trip form assignment not found",
+        "responseNotFound": "Trip form response not found",
+        "responseAlreadySubmitted": "Trip form already submitted",
+        "responseAlreadyExists": "User already has a response for this assignment",
+        "responseQuestionDuplicate": "Duplicate answers for the same question are not allowed",
+        "questionNotFound": "Trip form question not found"
+    }
+}

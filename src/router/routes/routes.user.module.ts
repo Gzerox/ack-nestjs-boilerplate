@@ -1,8 +1,8 @@
 import { TransportModule } from '@modules/transport/transport.module';
 import { UserUserController } from '@modules/user/controllers/user.user.controller';
 import { UserModule } from '@modules/user/user.module';
-import { FormUserController } from '@modules/form/controllers/form.user.controller';
-import { FormModule } from '@modules/form/form.module';
+import { TripFormUserController } from '@modules/trip-form/controllers/trip-form.user.controller';
+import { TripFormModule } from '@modules/trip-form/trip-form.module';
 import { TripUserController } from '@modules/trip/controllers/trip.user.controller';
 import { TripModule } from '@modules/trip/trip.module';
 import { Module } from '@nestjs/common';
@@ -12,9 +12,9 @@ import { Module } from '@nestjs/common';
  * Contains controllers for user operations that require user-level authentication and authorization.
  */
 @Module({
-    controllers: [UserUserController, FormUserController, TripUserController],
+    controllers: [UserUserController, TripFormUserController, TripUserController],
     providers: [],
     exports: [],
-    imports: [UserModule, TransportModule, FormModule, TripModule],
+    imports: [UserModule, TransportModule, TripFormModule, TripModule],
 })
 export class RoutesUserModule {}

@@ -148,7 +148,7 @@ model User {
   deviceOwnerships        DeviceOwnership[]          @relation("DeviceOwnershipUser")
   revokedSessions         Session[]                  @relation("SessionRevokedByUser")
   revokedDeviceOwnerships DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
-  formAssignments         FormAssignment[]           @relation("UserFormAssignments")
+  tripFormAssignments     TripFormAssignment[]       @relation("UserTripFormAssignments")
   tripTravelers           TripTraveler[]             @relation("TripTravelerUser")
 
   @@unique(fields: [username])
@@ -469,21 +469,16 @@ model NotificationUserSetting {
   @@map("NotificationUserSettings")
 }
 
-model Form {
-  id             String         @id @default(auto()) @map("_id") @db.ObjectId
-  kind           EnumFormKind
-  title          String
-  description    String?
-  status         EnumFormStatus @default(draft)
-  schemaSnapshot Json
-  closesAt       DateTime?
-  publishedAt    DateTime?
-  tripId         String         @db.ObjectId
+model TenantFormTemplate {
+  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId         String           @db.ObjectId
+  kind             EnumTripFormKind
+  title            String
+  description      String?
+  isActive         Boolean          @default(true)
+  templateSnapshot Json
 
-  sections    FormSection[]    @relation("FormSections")
-  questions   FormQuestion[]   @relation("FormQuestions")
-  assignments FormAssignment[] @relation("FormAssignments")
-  trip        Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  tripForms TripForm[] @relation("TripFormTemplate")
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -491,78 +486,113 @@ model Form {
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
+  @@index(fields: [tenantId, isActive])
+  @@map("TenantFormTemplates")
+}
+
+model TripForm {
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  kind           EnumTripFormKind
+  title          String
+  description    String?
+  status         EnumTripFormStatus @default(draft)
+  schemaSnapshot Json
+  closesAt       DateTime?
+  publishedAt    DateTime?
+  tripId         String             @db.ObjectId
+  templateId     String?            @db.ObjectId
+
+  sections    TripFormSection[]    @relation("TripFormSections")
+  questions   TripFormQuestion[]   @relation("TripFormQuestions")
+  assignments TripFormAssignment[] @relation("TripFormAssignments")
+  trip        Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  template    TenantFormTemplate?  @relation("TripFormTemplate", fields: [templateId], references: [id])
+
+  // timestamps fields
+  createdAt DateTime @default(now())
+  createdBy String   @db.ObjectId
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
+  deletedAt DateTime?
+  deletedBy String?  @db.ObjectId
+
   @@index(fields: [createdBy, status])
   @@index(fields: [kind, status])
   @@index(fields: [publishedAt])
   @@index(fields: [closesAt])
   @@index(fields: [tripId])
-  @@map("Forms")
+  @@index(fields: [templateId])
+  @@index(fields: [tripId, deletedAt])
+  @@map("TripForms")
 }
 
-model FormSection {
+model TripFormSection {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   formId    String   @db.ObjectId
   label     String?
   position  Int
   createdAt DateTime @default(now())
 
-  form      Form           @relation("FormSections", fields: [formId], references: [id], onDelete: Cascade)
-  questions FormQuestion[] @relation("FormSectionQuestions")
+  form      TripForm           @relation("TripFormSections", fields: [formId], references: [id], onDelete: Cascade)
+  questions TripFormQuestion[] @relation("TripFormSectionQuestions")
 
   @@index(fields: [formId, position])
-  @@map("FormSections")
+  @@map("TripFormSections")
 }
 
-model FormQuestion {
-  id          String               @id @default(auto()) @map("_id") @db.ObjectId
-  formId      String               @db.ObjectId
-  sectionId   String               @db.ObjectId
-  type        EnumFormQuestionType
-  label       String
-  supportText String?
-  placeholder String?
-  required    Boolean
-  position    Int
-  validation  Json?
-  options     Json?
-  createdAt   DateTime             @default(now())
+model TripFormQuestion {
+  id        String                   @id @default(auto()) @map("_id") @db.ObjectId
+  formId    String                   @db.ObjectId
+  sectionId String                   @db.ObjectId
+  type      EnumTripFormQuestionType
+  label     String
+  supportText  String?
+  placeholder  String?
+  required     Boolean
+  position     Int
+  validation   Json?
+  options      Json?
+  createdAt    DateTime               @default(now())
 
-  form    Form         @relation("FormQuestions", fields: [formId], references: [id], onDelete: Cascade)
-  section FormSection  @relation("FormSectionQuestions", fields: [sectionId], references: [id], onDelete: Cascade)
-  answers FormAnswer[] @relation("FormQuestionAnswers")
+  form    TripForm         @relation("TripFormQuestions", fields: [formId], references: [id], onDelete: Cascade)
+  section TripFormSection  @relation("TripFormSectionQuestions", fields: [sectionId], references: [id], onDelete: Cascade)
+  answers TripFormAnswer[] @relation("TripFormQuestionAnswers")
 
   @@index(fields: [formId, sectionId, position])
   @@index(fields: [formId, type])
-  @@map("FormQuestions")
+  @@map("TripFormQuestions")
 }
 
-model FormAssignment {
-  id          String                 @id @default(auto()) @map("_id") @db.ObjectId
-  formId      String                 @db.ObjectId
-  userId      String                 @db.ObjectId
-  required    Boolean                @default(true)
+model TripFormAssignment {
+  id          String                     @id @default(auto()) @map("_id") @db.ObjectId
+  formId      String                     @db.ObjectId
+  tripId      String                     @db.ObjectId
+  userId      String                     @db.ObjectId
+  required    Boolean                    @default(true)
   startsAt    DateTime?
   closesAt    DateTime?
-  isActive    Boolean                @default(true)
-  status      EnumFormResponseStatus @default(pending)
+  isActive    Boolean                    @default(true)
+  status      EnumTripFormResponseStatus @default(pending)
   submittedAt DateTime?
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
 
-  form    Form         @relation("FormAssignments", fields: [formId], references: [id], onDelete: Cascade)
-  user    User         @relation("UserFormAssignments", fields: [userId], references: [id])
-  answers FormAnswer[] @relation("FormAnswers")
+  form    TripForm         @relation("TripFormAssignments", fields: [formId], references: [id], onDelete: Cascade)
+  user    User             @relation("UserTripFormAssignments", fields: [userId], references: [id])
+  answers TripFormAnswer[] @relation("TripFormAnswers")
 
   @@unique(fields: [formId, userId])
+  @@index(fields: [tripId])
   @@index(fields: [formId, isActive])
   @@index(fields: [formId, status])
   @@index(fields: [userId])
+  @@index(fields: [userId, formId])
   @@index(fields: [userId, isActive])
   @@index(fields: [userId, status])
-  @@map("FormAssignments")
+  @@map("TripFormAssignments")
 }
 
-model FormAnswer {
+model TripFormAnswer {
   id           String    @id @default(auto()) @map("_id") @db.ObjectId
   formId       String    @db.ObjectId
   assignmentId String    @db.ObjectId
@@ -574,8 +604,8 @@ model FormAnswer {
   booleanValue Boolean?
   dateValue    DateTime?
 
-  assignment FormAssignment @relation("FormAnswers", fields: [assignmentId], references: [id], onDelete: Cascade)
-  question   FormQuestion   @relation("FormQuestionAnswers", fields: [questionId], references: [id], onDelete: Cascade)
+  assignment TripFormAssignment @relation("TripFormAnswers", fields: [assignmentId], references: [id], onDelete: Cascade)
+  question   TripFormQuestion   @relation("TripFormQuestionAnswers", fields: [questionId], references: [id], onDelete: Cascade)
 
   // timestamps fields
   createdAt DateTime @default(now())
@@ -585,7 +615,7 @@ model FormAnswer {
 
   @@unique(fields: [assignmentId, questionId])
   @@index(fields: [formId, questionId])
-  @@map("FormAnswers")
+  @@map("TripFormAnswers")
 }
 
 model Trip {
@@ -613,7 +643,7 @@ model Trip {
 
   calendarEvents TripCalendarEvent[]
   contacts       TripContact[]
-  forms          Form[]
+  forms          TripForm[]
   travelers      TripTraveler[]
   invites        TripInvite[]
   medias         TripMedia[]
@@ -915,24 +945,24 @@ type GeoLocation {
   city      String
 }
 
-enum EnumFormKind {
+enum EnumTripFormKind {
   survey
   form
   poll
 }
 
-enum EnumFormStatus {
+enum EnumTripFormStatus {
   draft
   published
   archived
 }
 
-enum EnumFormResponseStatus {
+enum EnumTripFormResponseStatus {
   pending
   submitted
 }
 
-enum EnumFormQuestionType {
+enum EnumTripFormQuestionType {
   text
   number
   singleSelect
@@ -1094,10 +1124,15 @@ enum EnumActivityLogAction {
   adminUserImport
   adminDeviceRemove
 
-  adminFormCreate
-  adminFormPublish
-  adminFormArchive
-  adminFormDelete
+  adminTripFormCreate
+  adminTripFormPublish
+  adminTripFormArchive
+  adminTripFormDelete
+  adminTripFormAssign
+
+  adminTenantFormTemplateCreate
+  adminTenantFormTemplateUpdate
+  adminTenantFormTemplateDelete
 
   adminTripCreate
   adminTripPublish

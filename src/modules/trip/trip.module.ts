@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { FormModule } from '@modules/form/form.module';
+import { TripFormModule } from '@modules/trip-form/trip-form.module';
 import { AwsModule } from '@common/aws/aws.module';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
@@ -13,7 +13,7 @@ import { TripTravelerService } from '@modules/trip/services/trip-traveler.servic
 import { TripUtil } from '@modules/trip/utils/trip.util';
 
 @Module({
-    imports: [FormModule, AwsModule],
+    imports: [AwsModule],
     providers: [
         TripService,
         TripRepository,

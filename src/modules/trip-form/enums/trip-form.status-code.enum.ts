@@ -1,0 +1,16 @@
+export enum EnumTripFormStatusCodeError {
+    tripNotFound             = 5299,
+    formNotFound             = 5300,
+    formNotDraft             = 5301,
+    formNotPublished         = 5302,
+    formClosed               = 5303,
+    formAlreadyArchived      = 5304,
+    formNotOpenYet           = 5305,
+    formAlreadyPublished     = 5306,
+    assignmentNotFound       = 5310,
+    responseNotFound         = 5320,
+    responseAlreadySubmitted = 5321,
+    responseAlreadyExists    = 5322,
+    responseQuestionDuplicate = 5323,
+    questionNotFound         = 5330,
+}

@@ -1,12 +1,12 @@
-# Form Documentation
+# Trip Form Documentation
 
-This documentation explains the features and usage of **Form Module**: Located at `src/modules/form`
+This documentation explains the features and usage of **Trip Form Module**: Located at `src/modules/trip-form`
 
 ## Overview
 
-Form Module provides a structured way for backend users to create trip-owned form instances, publish them, assign them to users, and collect final submissions.
+Trip Form Module provides a structured way for backend users to create trip-specific form instances, publish them, assign them to users, and collect final submissions.
 
-This feature was previously referred to as **survey** in the documentation. The current implementation is now the generic `form` module, where `survey` is only one supported value of `EnumFormKind`.
+This feature was previously referred to as **survey** in the documentation. The current implementation supports multiple form kinds (survey, form, poll), and forms are now explicitly trip-scoped through the `TripForm` model.
 
 At a high level, the feature works in four stages:
 
@@ -24,8 +24,7 @@ This module is designed so form structure is flexible while being drafted, but i
 - [Activity Log Documentation][ref-doc-activity-log] - For create/publish/archive/delete activity recording
 - [Term Policy Documentation][ref-doc-term-policy] - For user access requirements before submitting forms
 - [Response Documentation][ref-doc-response] - For standardized API response format
-- [Trip Form Integration](ideas/trip/trip-form.md) - For direct trip ownership and traveler assignment rules
-- [Future Form Templates](ideas/form/form-templates.md) - For a possible reusable-template design if cross-trip reuse becomes a real product need
+- [Trip Form Integration](ideas/trip/trip-form.md) - For direct trip ownership model and workflow
 
 ## Table of Contents
 
@@ -52,9 +51,9 @@ This module is designed so form structure is flexible while being drafted, but i
 
 ## Form Concept
 
-The form feature is built for cases where authenticated users need to define a structured questionnaire, publish it, assign it to specific users, and collect one final submission per assignment.
+The trip form feature is built for cases where authenticated users need to define a structured questionnaire tied to a specific trip, publish it, assign it to specific users, and collect one final submission per assignment.
 
-A form contains:
+A trip form contains:
 
 - form metadata such as kind, title, and description
 - a form schema made of sections and questions
@@ -71,13 +70,13 @@ The important design decision is that the editable form definition lives first a
 
 ## Trip Ownership
 
-Each runtime `Form` belongs to exactly one trip.
+Each `TripForm` belongs to exactly one trip and cannot be shared across trips.
 
-Recommended ownership model:
+Current ownership model:
 
-- `Form.tripId` is required
-- `Trip` exposes `forms Form[]`
-- `FormAssignment` remains the per-user delivery record for a form
+- `TripForm.tripId` is required
+- `Trip` exposes `forms TripForm[]`
+- `TripFormAssignment` is the per-user delivery record for a trip-owned form
 
 This keeps ownership simple:
 
@@ -85,7 +84,7 @@ This keeps ownership simple:
 - a form belongs to one trip
 - assignments target individual users for that trip-owned form
 
-If another trip needs the same questionnaire, the backend creates a new copied `Form` row for that trip. Cross-trip reuse should happen by cloning, not by sharing one live form record across multiple trips.
+If another trip needs the same questionnaire, the backend creates a new copied `TripForm` row for that trip. Cross-trip reuse should happen by cloning (via `POST /trips/:idTrip/forms/from-template`), not by sharing one live form record across multiple trips.
 
 ## Form Lifecycle
 
@@ -117,9 +116,9 @@ When the form creator decides to publish the form, the draft is finalized.
 At publish time:
 
 - `schemaSnapshot` is treated as the source of truth for the current form definition
-- the publish operation materializes the snapshot into `FormSection` records
-- the publish operation materializes the snapshot into `FormQuestion` records
-- published `FormSection.id` and `FormQuestion.id` become the identifiers used by published read APIs, submissions, and summaries
+- the publish operation materializes the snapshot into `TripFormSection` records
+- the publish operation materializes the snapshot into `TripFormQuestion` records
+- published `TripFormSection.id` and `TripFormQuestion.id` become the identifiers used by published read APIs, submissions, and summaries
 - the form status becomes `published`
 - `publishedAt` is set
 
@@ -141,7 +140,7 @@ Assignments are created only after the form is published.
 
 When a form creator creates an assignment:
 
-- a `FormAssignment` record is created targeting the user identified by `userId`, which must reference a valid `User` record
+- a `TripFormAssignment` record is created targeting the user identified by `userId`, which must reference a valid `User` record
 - assignment-specific scheduling can be stored through `startsAt` and `closesAt`
 - assignment `status` is initialized to `pending`
 - `submittedAt` remains `null` until submission
@@ -158,7 +157,7 @@ When a user submits:
 - the assignment must exist and be active
 - the form must still be `published`
 - the form-level and assignment-level close dates must not be exceeded
-- answers are upserted into `FormAnswer` using `assignmentId` and published `questionId` values (`FormQuestion.id`)
+- existing answers for the assignment are deleted and replaced (`deleteMany` + `createMany`) using `assignmentId` and published `questionId` values (`TripFormQuestion.id`)
 - the assignment is marked as `submitted`
 - `submittedAt` is set
 
@@ -189,16 +188,16 @@ Question definitions currently support:
 - `boolean`
 - `date`
 
-The question summary endpoint (`GET /shared/forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
+The question summary endpoint (`GET /trips/:idTrip/forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
 
 - `singleSelect` / `multiSelect` - counts occurrences of each option value (frequency breakdown)
 - `boolean` - counts `true` and `false` responses separately
 - `number` - returns `min`, `max`, `avg`, and total response count
 - `text` / `date` - returns only the count of non-null responses; individual values are not surfaced
 
-Conceptually, `schemaSnapshot` is the editable blueprint for one trip-owned form instance. Once the form is published, that snapshot is materialized into persistent `FormSection` and `FormQuestion` records used by the published form.
+Conceptually, `schemaSnapshot` is the editable blueprint for one trip-owned form instance. Once the form is published, that snapshot is materialized into persistent `TripFormSection` and `TripFormQuestion` records used by the published form.
 
-Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `FormQuestion.id` ObjectId.
+Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `TripFormQuestion.id` ObjectId.
 
 In short:
 
@@ -210,65 +209,65 @@ In short:
 
 ### Admin / Shared Routes
 
-Authenticated users manage forms through shared routes under `/shared/forms`.
+Authenticated users manage trip forms through shared routes under `/trips/:idTrip/forms`.
 
-These endpoints come from `FormSharedController`, which is mounted through `RoutesSharedModule`.
+These endpoints come from `TripFormSharedController`, which is mounted through `RoutesSharedModule`.
 
-These routes have no role restriction beyond a valid JWT and API key.
+These routes have no role restriction, but they do require valid JWT + API key + enabled `trip` feature flag + active user checks.
 
-Preferred creation flow for trip-owned forms:
+Trip form creation and management:
 
-- `POST /shared/trips/:idTrip/forms` - create a new draft form for a trip
+- `POST /trips/:idTrip/forms` - create a new draft form for a trip
+- `POST /trips/:idTrip/forms/from-template` - create a new form by cloning from a `TenantFormTemplate`
 
-Existing runtime form operations remain centered on `/shared/forms/:idForm`:
+Existing runtime form operations:
 
-- `GET /shared/forms` - list owned forms with status and kind filters
-- `GET /shared/forms/:idForm` - get one form
-- `PATCH /shared/forms/:idForm` - update draft
-- `POST /shared/forms/:idForm/publish` - publish draft
-- `POST /shared/forms/:idForm/assignments` - assign a published form to a user
-- `POST /shared/forms/:idForm/archive` - archive published form
-- `DELETE /shared/forms/:idForm` - delete form
-- `GET /shared/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
-- `GET /shared/forms/:idForm/responses` - list assignment status and answers for a form
-- `GET /shared/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
-
-If the generic `POST /shared/forms` route is kept in the future, it must require `tripId`. It should not create trip-less forms.
+- `GET /trips/:idTrip/forms` - list forms for trip with status and kind filters
+- `GET /trips/:idTrip/forms/:idForm` - get one form
+- `PATCH /trips/:idTrip/forms/:idForm` - update draft
+- `PATCH /trips/:idTrip/forms/:idForm/publish` - publish draft
+- `POST /trips/:idTrip/forms/:idForm/assignments` - assign published form to a user
+- `PATCH /trips/:idTrip/forms/:idForm/archive` - archive published form
+- `DELETE /trips/:idTrip/forms/:idForm` - delete form
+- `GET /trips/:idTrip/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
+- `GET /trips/:idTrip/forms/:idForm/responses` - list assignment status and answers for a form
+- `GET /trips/:idTrip/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
 
 ### User Routes
 
-Users access assigned forms through `/user/forms`.
+Users access assigned forms through `/trips/:idTrip/forms`.
 
-These endpoints come from `FormUserController`, which is mounted through `RoutesUserModule`.
+These endpoints come from `TripFormUserController`, which is mounted through `RoutesUserModule`.
 
 The user-facing read and submit endpoints are assignment-scoped. `assignmentId` is part of the path because the resource being accessed is a specific form assignment, not just the form definition.
 
 Available operations:
 
-- `GET /user/forms` - list assigned forms with optional assignment status filter
-- `GET /user/forms/:idForm/assignments/:assignmentId` - get one published form plus the user's assignment state and answers
-- `POST /user/forms/:idForm/assignments/:assignmentId/submit` - submit answers for an assignment
+- `GET /trips/:idTrip/forms` - list assigned forms for trip with optional assignment status filter
+- `GET /trips/:idTrip/forms/:idForm/assignments/:assignmentId` - get one published form plus the user's assignment state and answers
+- `POST /trips/:idTrip/forms/:idForm/assignments/:assignmentId/submit` - submit answers for an assignment
 
 User routes require accepted term policies before access.
 
 ## Trip Integration
 
-Trip integration should be direct, not bridge-based.
+Trip integration is direct, not bridge-based.
 
-Recommended model:
+Current model:
 
-- `Form.tripId` is the direct relation to `Trip`
-- a trip-facing creation route creates the form with that `tripId`
-- `/user/forms` may enrich each item with trip summary directly from the form relation
+- `TripForm.tripId` is the direct relation to `Trip`
+- the form creation route (`POST /trips/:idTrip/forms`) is trip-scoped in the route itself
+- form ownership is enforced by trip-scoped queries
+- `/trips/:idTrip/forms` user routes are trip-scoped
 
 This is intentionally simpler than introducing a separate bridge model when the product does not require many-to-many reuse.
 
-`FormAssignment` still matters in this model:
+`TripFormAssignment` still matters in this model:
 
 - `Trip` tells you the owner scope
-- `Form` tells you the questionnaire definition
-- `FormAssignment` tells you which user must answer it and on what schedule
-- `FormAnswer` stores submitted values keyed by `assignmentId` and `questionId`
+- `TripForm` tells you the questionnaire definition
+- `TripFormAssignment` tells you which user must answer it and on what schedule
+- `TripFormAnswer` stores submitted values keyed by `assignmentId` and `questionId`
 
 ## Flow
 
@@ -277,21 +276,18 @@ This is intentionally simpler than introducing a separate bridge model when the 
 ```mermaid
 sequenceDiagram
     participant Creator as Form Creator
-    participant Trip
     participant Form as Form Draft
     participant Snapshot as schemaSnapshot
     participant Database
 
-    Creator->>Trip: Create trip
-    Creator->>Trip: POST /shared/trips/:idTrip/forms
-    Trip->>Form: Create trip-owned draft form
+    Creator->>Form: POST /trips/:idTrip/forms
     Form->>Snapshot: Store editable title / description / sections / questions
     Creator->>Form: Update draft while status is draft
     Creator->>Form: Publish form
-    Snapshot->>Database: Create FormSection records
-    Snapshot->>Database: Create FormQuestion records
+    Snapshot->>Database: Create TripFormSection records
+    Snapshot->>Database: Create TripFormQuestion records
     Database-->>Creator: Form published and locked
-    Creator->>Database: Create FormAssignment for target user
+    Creator->>Database: Create TripFormAssignment for target user
     Database->>Database: Initialize assignment status as pending
     Creator->>Database: Read metrics / responses / question summary
 ```
@@ -302,17 +298,17 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant API
-    participant Assignment as FormAssignment
+    participant Assignment as TripFormAssignment
     participant Database
 
-    User->>API: List assigned forms
-    API->>Database: Load FormAssignment records by user
+    User->>API: List assigned forms for trip
+    API->>Database: Load TripFormAssignment records by user and trip
     Database-->>User: Return assigned forms
     User->>API: Open assigned form
     API->>Database: Load published form + assignment + answers
     Database-->>User: Return form schema and current assignment state
     User->>API: Submit answers
-    API->>Database: Upsert FormAnswer records
+    API->>Database: Replace TripFormAnswer records (delete + create)
     API->>Assignment: Mark status as submitted
     Database-->>User: Submission accepted
     Note over User,Database: Submission cannot be repeated once submitted
@@ -323,7 +319,7 @@ sequenceDiagram
 - A form starts as a draft through `schemaSnapshot`
 - Each form belongs to exactly one trip
 - Drafts can only be updated while status is `draft`
-- Publishing materializes the draft into `FormSection` and `FormQuestion`
+- Publishing materializes the draft into `TripFormSection` and `TripFormQuestion`
 - Assignments are created only after the form is published
 - Each assignment starts with `status = pending` and `submittedAt = null`
 - Users can submit only for an active assignment
@@ -331,15 +327,15 @@ sequenceDiagram
 - Form visibility and submission are blocked before assignment `startsAt` is reached
 - Once an assignment is submitted, it cannot be submitted again
 - Forms can be archived only after publication
-- If another trip needs the same questionnaire, create a copied new `Form` row for that trip
+- If another trip needs the same questionnaire, create a copied new `TripForm` row or clone from a `TenantFormTemplate`
 
 ## Known Limitations
 
-The following are current limitations of the form module as implemented. They are not bugs but deliberate scope decisions or deferred features.
+The following are current limitations of the trip form module as implemented. They are not bugs but deliberate scope decisions or deferred features.
 
 ### Assignment targeting is user-only
 
-`FormAssignment` targets a single user via `userId`. Group, team, or role-based targeting is not supported. Every assignment must reference a single `User` record.
+`TripFormAssignment` targets a single user via `userId`. Group, team, or role-based targeting is not supported. Every assignment must reference a single `User` record.
 
 ### No bulk assignment
 
@@ -347,27 +343,23 @@ There is no API to assign a form to multiple users at once. Assignments must be 
 
 ### No assignment deactivation
 
-The `isActive` field exists on `FormAssignment` in the schema but there is no endpoint to deactivate or reactivate an assignment after it has been created.
+The `isActive` field exists on `TripFormAssignment` in the schema but there is no endpoint to deactivate or reactivate an assignment after it has been created.
 
 ### `startsAt` enforcement
 
-Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view (`GET /user/forms/:idForm/assignments/:assignmentId`) or submit (`POST /user/forms/:idForm/assignments/:assignmentId/submit`) a form before `startsAt` is reached. The form list (`GET /user/forms`) also filters out assignments whose time window is not yet open.
+Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view or submit a form before `startsAt` is reached. The form list also filters out assignments whose time window is not yet open.
 
 ### Text and date question summaries return count only
 
-The `GET /shared/forms/:idForm/questions/:questionId/summary` endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
+The question summary endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
 
 ### No form versioning
 
 Updating a draft overwrites the existing `schemaSnapshot` in place. There is no history of previous draft states, and no way to restore a prior version of the schema.
 
-### No built-in form cloning flow
-
-Cross-trip reuse is copy-based, but a first-class cloning endpoint or workflow is not defined in this pass.
-
 ### No role restriction on shared routes
 
-The shared routes (`/shared/forms` management operations) do not enforce any role restriction beyond a valid JWT and API key. Any authenticated user can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
+The shared routes do not enforce role-based restrictions. Any authenticated active user with valid JWT + API key and enabled `trip` feature flag can create, update, publish, archive, and delete forms. Role-based access control at the form management level must be handled externally if required.
 
 <!-- REFERENCES -->
 

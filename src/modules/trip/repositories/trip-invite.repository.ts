@@ -3,7 +3,7 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
-import { Prisma, TripInvite } from '@generated/prisma-client';
+import { Prisma, TripInvite, TripInviteStatus } from '@generated/prisma-client';
 import { ITripInviteWithTrip } from '@modules/trip/interfaces/trip-invite.interface';
 
 @Injectable()
@@ -78,14 +78,14 @@ export class TripInviteRepository {
     async accept(inviteId: string, userId: string, acceptedAt: Date): Promise<TripInvite> {
         return this.databaseService.tripInvite.update({
             where: { id: inviteId },
-            data: { status: 'ACCEPTED', userId, acceptedAt },
+            data: { status: TripInviteStatus.accepted, userId, acceptedAt },
         });
     }
 
     async revoke(inviteId: string, revokedBy: string, revokedAt: Date): Promise<TripInvite> {
         return this.databaseService.tripInvite.update({
             where: { id: inviteId },
-            data: { status: 'REVOKED', revokedBy, revokedAt },
+            data: { status: TripInviteStatus.revoked, revokedBy, revokedAt },
         });
     }
 
@@ -106,7 +106,7 @@ export class TripInviteRepository {
         await this.databaseService.$transaction(async tx => {
             await tx.tripInvite.update({
                 where: { id: inviteId },
-                data: { status: 'ACCEPTED', userId, acceptedAt },
+                data: { status: TripInviteStatus.accepted, userId, acceptedAt },
             });
 
             const existing = await tx.tripTraveler.findFirst({

@@ -28,7 +28,6 @@ import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
-import { TripContactRepository } from '@modules/trip/repositories/trip-contact.repository';
 import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
 import { TripAssetRepository } from '@modules/trip/repositories/trip-asset.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
@@ -64,7 +63,6 @@ export class TripService implements ITripService {
         private readonly tripRepository: TripRepository,
         private readonly tripTravelerRepository: TripTravelerRepository,
         private readonly tripInviteRepository: TripInviteRepository,
-        private readonly tripContactRepository: TripContactRepository,
         private readonly tenantContactRepository: TenantContactRepository,
         private readonly tripAssetRepository: TripAssetRepository,
         private readonly tripCalendarEventRepository: TripCalendarEventRepository,
@@ -319,6 +317,26 @@ export class TripService implements ITripService {
                         }),
                     },
                 }),
+                ...(dto.contactIds !== undefined && {
+                    contacts: {
+                        deleteMany: { tripId },
+                        ...(dto.contactIds.length > 0 && {
+                            create: dto.contactIds.map(contactId => ({
+                                contact: { connect: { id: contactId } },
+                            })),
+                        }),
+                    },
+                }),
+                ...(inviteTokens.length > 0 && {
+                    invites: {
+                        create: inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
+                            createdBy: updatedBy,
+                            email,
+                            tokenHash,
+                            ...(expiresAt !== undefined && { expiresAt }),
+                        })),
+                    },
+                }),
             });
         } catch (error: unknown) {
             throw new InternalServerErrorException({
@@ -335,22 +353,6 @@ export class TripService implements ITripService {
 
         if (dto.medias !== undefined || dto.attachments !== undefined) {
             await this.tripAssetRepository.deleteOrphanByTrip(tripId);
-        }
-
-        if (dto.contactIds !== undefined) {
-            await this.tripContactRepository.replaceAll(tripId, dto.contactIds);
-        }
-
-        if (inviteTokens.length) {
-            await this.tripInviteRepository.createMany(
-                inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
-                    tripId,
-                    createdBy: updatedBy,
-                    email,
-                    tokenHash,
-                    ...(expiresAt !== undefined && { expiresAt }),
-                }))
-            );
         }
 
         const updated = await this.tripRepository.findDetailByIdAndTenant(
@@ -568,35 +570,22 @@ export class TripService implements ITripService {
         tripId: string,
         userId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
-        // TODO: We should invoke tripTravelerRepository and load `trip` relationship.
-        //  in this way we can simplify this service method, and invoke the repository only 1 time.
-        //  Then we could should perform if(!traveler.trip){ throw NotFound }
-        const trip = await this.tripRepository.findOneById(tripId);
-        if (!trip) {
-            throw new NotFoundException({
-                statusCode: EnumTripStatusCodeError.notFound,
-                message: 'trip.error.notFound',
-            });
-        }
+        const [tripDetail, isTraveler] = await Promise.all([
+            this.tripRepository.findDetailById(tripId),
+            this.tripTravelerRepository.existsByTripAndUser(tripId, userId),
+        ]);
 
-        const isTraveler =
-            await this.tripTravelerRepository.existsByTripAndUser(
-                tripId,
-                userId
-            );
-        if (
-            !isTraveler &&
-            trip.status !== TripStatus.published &&
-            trip.createdBy !== userId
-        ) {
-            throw new NotFoundException({
-                statusCode: EnumTripStatusCodeError.notFound,
-                message: 'trip.error.notFound',
-            });
-        }
-
-        const tripDetail = await this.tripRepository.findDetailById(tripId);
         if (!tripDetail) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        if (
+            !isTraveler ||
+            tripDetail.status !== TripStatus.published
+        ) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
                 message: 'trip.error.notFound',
@@ -661,14 +650,14 @@ export class TripService implements ITripService {
             });
         }
 
-        if (invite.status === TripInviteStatus.ACCEPTED) {
+        if (invite.status === TripInviteStatus.accepted) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.inviteAlreadyAccepted,
                 message: 'trip.error.inviteAlreadyAccepted',
             });
         }
 
-        if (invite.status === TripInviteStatus.REVOKED) {
+        if (invite.status === TripInviteStatus.revoked) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.inviteRevoked,
                 message: 'trip.error.inviteRevoked',
@@ -721,7 +710,7 @@ export class TripService implements ITripService {
             });
         }
 
-        if (invite.status === TripInviteStatus.REVOKED) {
+        if (invite.status === TripInviteStatus.revoked) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.inviteRevoked,
                 message: 'trip.error.inviteRevoked',

@@ -827,9 +827,9 @@ model TripContact {
 }
 
 enum TripInviteStatus {
-  INVITED
-  ACCEPTED
-  REVOKED
+  invited
+  accepted
+  revoked
 }
 
 model TripInvite {
@@ -840,7 +840,7 @@ model TripInvite {
   email     String
   tokenHash String  @unique
 
-  status     TripInviteStatus @default(INVITED)
+  status     TripInviteStatus @default(invited)
   acceptedAt DateTime?
   expiresAt  DateTime?
   revokedAt  DateTime?

@@ -8,15 +8,12 @@ This file owns the traveler-specific part of the Trip domain:
 2. `TripTraveler`
 3. `TripTravelerDocument`
 
-Trip lifecycle and calendar events are defined in [trip.md](trip.md). Invite issuance, acceptance, and revocation are defined in [trip-invite.md](trip-invite.md).
+Trip lifecycle, invite behavior, media, and attachments are defined in [trip.md](trip.md).
 
 ## Related Documents
 
-1. Directory index: [README.md](README.md)
-2. Trip aggregate: [trip.md](trip.md)
-3. Trip invite scope: [trip-invite.md](trip-invite.md)
-4. Trip contact scope: [trip-contact.md](trip-contact.md)
-5. Media scope: [trip-media.md](trip-media.md)
+1. Trip domain (consolidated): [trip.md](trip.md)
+2. Trip contact scope: [trip-contact.md](trip-contact.md)
 
 ## Enumerations
 
@@ -279,7 +276,6 @@ async get(
 
 ## Cross-document Contract
 
-1. [trip.md](trip.md) owns trip publication, aggregate writes, and trip-facing reads.
-2. [trip-invite.md](trip-invite.md) owns invite issuance, acceptance flow, and revocation behavior.
-3. This file owns the stable traveler record created after invite acceptance.
-4. `TripTravelerGroup` is referenced by all three files and is the shared bridge between invite, traveler, and calendar-event organization.
+1. [trip.md](trip.md) owns trip publication, aggregate writes, trip-facing reads, invite behavior, media, and attachments.
+2. This file owns the stable traveler record created after invite acceptance.
+3. `TripTravelerGroup` is the shared bridge between invite, traveler, and calendar-event organization.

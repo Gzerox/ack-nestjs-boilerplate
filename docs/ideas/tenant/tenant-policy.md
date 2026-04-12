@@ -13,10 +13,9 @@ Platform-level policies (managed by us) remain in the existing `TermPolicy` modu
 
 1. Platform policy system: [docs/term-policy.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/term-policy.md)
 2. Trip aggregate: [docs/ideas/trip/trip.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip.md)
-3. Trip invite: [docs/ideas/trip/trip-invite.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-invite.md)
-4. Trip traveler: [docs/ideas/trip/trip-traveler.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-traveler.md)
-5. Presign documentation: [docs/presign.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/presign.md)
-6. Database documentation: [docs/database.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/database.md)
+3. Trip traveler: [docs/ideas/trip/trip-traveler.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/ideas/trip/trip-traveler.md)
+4. Presign documentation: [docs/presign.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/presign.md)
+5. Database documentation: [docs/database.md](/Users/loris.dantonio/ghq/github.com/Gzerox/ack-nestjs-boilerplate/docs/database.md)
 
 ## Design Decision: Why Not Extend TermPolicy
 

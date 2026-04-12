@@ -8,11 +8,10 @@ There is no separate trip-to-form bridge model in this approach. `TripForm` is t
 
 ## Related Documents
 
-1. Directory index: [README.md](README.md)
-2. Trip aggregate: [trip.md](trip.md)
-3. Runtime form lifecycle: [../../form.md](../../form.md)
-4. Trip traveler scope: [trip-traveler.md](trip-traveler.md)
-5. Tenant form templates: _new module `src/modules/tenant-form-template/`_
+1. Trip domain (consolidated): [trip.md](trip.md)
+2. Runtime form lifecycle: [../../form.md](../../form.md)
+3. Trip traveler scope: [trip-traveler.md](trip-traveler.md)
+4. Tenant form templates: _new module `src/modules/tenant-form-template/`_
 
 ## Prisma Schema
 

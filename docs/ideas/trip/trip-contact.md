@@ -10,11 +10,8 @@ The tenant-owned contact book itself is documented in [../tenant/tenant-contact.
 
 ## Related Documents
 
-1. Directory index: [README.md](README.md)
-2. Trip aggregate: [trip.md](trip.md)
-3. Tenant contact scope: [../tenant/tenant-contact.md](../tenant/tenant-contact.md)
-4. Media scope: [trip-media.md](trip-media.md)
-5. Attachment scope: [trip-attachments.md](trip-attachments.md)
+1. Trip domain (consolidated): [trip.md](trip.md)
+2. Tenant contact scope: [../tenant/tenant-contact.md](../tenant/tenant-contact.md)
 
 ## Domain Model
 

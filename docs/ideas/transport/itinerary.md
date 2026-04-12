@@ -6,7 +6,7 @@ status: ready-to-implement
 stage: implementation
 feature_id: flight-setup
 owner: backend
-last_reviewed: 2026-03-31
+last_reviewed: 2026-04-12
 source_of_truth: ACK NestJS Boilerplate Architecture + Product Features
 ai_ready: true
 note_type: implementation-spec
@@ -17,15 +17,15 @@ note_type: implementation-spec
 This specification covers **end-to-end implementation** of `TransportItinerary` and `TransportFlightSegment` in the transport module.
 
 **In scope (Phase 1):**
-- `GET /shared/v1/itineraries` — paginated list with direction filter
 - `GET /shared/v1/itineraries/:itineraryId` — full detail with segments
 - `POST /shared/v1/itineraries` — create itinerary with nested segments (includes timezone conversion and chronology validation)
+- Trip module integration — each itinerary is mandatory tied to a Trip via `tripId` (FK)
 
 **Out of scope (deferred):**
 - Participant assignment models (`FlightItineraryParticipant`, `FlightSegmentParticipant`)
 - User-facing itinerary endpoints (participant ownership required)
-- Trip module integration (addressed in separate Trip spec)
 - Segment-level CRUD endpoints (edit/delete individual segments after creation)
+- List endpoint (itineraries fetched via trip context)
 
 ---
 
@@ -45,16 +45,19 @@ enum EnumFlightDirection {
 ```prisma
 model TransportItinerary {
   id        String               @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String               @db.ObjectId
   name      String               @db.String
   direction EnumFlightDirection
 
   segments  TransportFlightSegment[]
+  trip      Trip                 @relation(fields: [tripId], references: [id], onDelete: Restrict)
 
   createdAt DateTime             @default(now())
   createdBy String?              @db.ObjectId
   updatedAt DateTime             @updatedAt
   updatedBy String?              @db.ObjectId
 
+  @@index(fields: [tripId])
   @@index(fields: [direction])
   @@index(fields: [createdAt])
   @@map("TransportItineraries")
@@ -96,6 +99,7 @@ model TransportFlightSegment {
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
+| `tripId` | `string` | Valid ObjectId, required | Must reference existing `Trip`; FK |
 | `name` | `string` | 1–255 chars, required | Free text label, e.g. "John Doe outbound" |
 | `direction` | `EnumFlightDirection` | `outbound` or `return`, required | Enum only; no null |
 | `createdBy` | `string` | ObjectId or null | Audit trail; not user-set |
@@ -326,6 +330,13 @@ export class CreateSegmentRequestDto {
 }
 ```
 
+Trip aggregate note:
+- Inline itinerary segments used by `TripCreateDraftRequestDto` / `TripUpdateDraftRequestDto` use a trip-specific DTO (`TripItinerarySegmentCreateRequestDto`) where:
+  - `departAt` and `arriveAt` are `Date` type
+  - both are optional
+  - both use `@Type(() => Date)` + `@IsDate()` validation
+- The `CreateSegmentRequestDto` contract above remains specific to the standalone transport itinerary endpoint.
+
 ### Response DTOs
 
 #### `itinerary.response.dto.ts`
@@ -544,19 +555,11 @@ import { ItineraryResponseDto } from '../dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '../dtos/response/itinerary-with-segments.response.dto';
 
 export interface IItineraryService {
-  getListOffset(
-    pagination: IPaginationQueryOffsetParams<
-      Prisma.TransportItinerarySelect,
-      Prisma.TransportItineraryWhereInput
-    >,
-    direction?: Record<string, IPaginationIn>,
-  ): Promise<IResponsePagingReturn<ItineraryResponseDto>>;
-
   getOne(id: string): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
 
   create(
     dto: CreateItineraryRequestDto,
-    createdBy?: string,
+    createdBy: string,
   ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>>;
 }
 ```

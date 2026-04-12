@@ -509,12 +509,12 @@ model TripForm {
   template    TenantFormTemplate?  @relation("TripFormTemplate", fields: [templateId], references: [id])
 
   // timestamps fields
-  createdAt DateTime @default(now())
-  createdBy String   @db.ObjectId
-  updatedAt DateTime @updatedAt
-  updatedBy String?  @db.ObjectId
+  createdAt DateTime  @default(now())
+  createdBy String    @db.ObjectId
+  updatedAt DateTime  @updatedAt
+  updatedBy String?   @db.ObjectId
   deletedAt DateTime?
-  deletedBy String?  @db.ObjectId
+  deletedBy String?   @db.ObjectId
 
   @@index(fields: [createdBy, status])
   @@index(fields: [kind, status])
@@ -541,18 +541,18 @@ model TripFormSection {
 }
 
 model TripFormQuestion {
-  id        String                   @id @default(auto()) @map("_id") @db.ObjectId
-  formId    String                   @db.ObjectId
-  sectionId String                   @db.ObjectId
-  type      EnumTripFormQuestionType
-  label     String
-  supportText  String?
-  placeholder  String?
-  required     Boolean
-  position     Int
-  validation   Json?
-  options      Json?
-  createdAt    DateTime               @default(now())
+  id          String                   @id @default(auto()) @map("_id") @db.ObjectId
+  formId      String                   @db.ObjectId
+  sectionId   String                   @db.ObjectId
+  type        EnumTripFormQuestionType
+  label       String
+  supportText String?
+  placeholder String?
+  required    Boolean
+  position    Int
+  validation  Json?
+  options     Json?
+  createdAt   DateTime                 @default(now())
 
   form    TripForm         @relation("TripFormQuestions", fields: [formId], references: [id], onDelete: Cascade)
   section TripFormSection  @relation("TripFormSectionQuestions", fields: [sectionId], references: [id], onDelete: Cascade)
@@ -619,10 +619,10 @@ model TripFormAnswer {
 }
 
 model Trip {
-  id          String         @id @default(auto()) @map("_id") @db.ObjectId
-  slug        String         @unique
-  tenantId    String         @db.ObjectId
-  createdBy   String         @db.ObjectId
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  slug      String @unique
+  tenantId  String @db.ObjectId
+  createdBy String @db.ObjectId
 
   title       String
   subtitle    String?
@@ -633,13 +633,13 @@ model Trip {
   endDate     DateTime
   timezone    String?
 
-  status      TripStatus     @default(draft)
+  status      TripStatus @default(draft)
   publishedAt DateTime?
   archivedAt  DateTime?
   cancelledAt DateTime?
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   calendarEvents TripCalendarEvent[]
   contacts       TripContact[]
@@ -649,6 +649,7 @@ model Trip {
   medias         TripMedia[]
   attachments    TripAttachment[]
   assets         TripAsset[]
+  itineraries    TransportItinerary[]
 
   @@index(fields: [tenantId])
   @@index(fields: [status])
@@ -658,9 +659,9 @@ model Trip {
 }
 
 model TripCalendarEvent {
-  id          String            @id @default(auto()) @map("_id") @db.ObjectId
-  tripId      String            @db.ObjectId
-  createdBy   String            @db.ObjectId
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String @db.ObjectId
+  createdBy String @db.ObjectId
 
   title       String
   category    TripEventCategory @default(general)
@@ -669,11 +670,11 @@ model TripCalendarEvent {
   location    String?
   description String?
 
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  trip        Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  medias      TripMedia[]
+  trip   Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  medias TripMedia[]
 
   @@index(fields: [tripId])
   @@index(fields: [startsAt])
@@ -681,8 +682,8 @@ model TripCalendarEvent {
 }
 
 model TripAsset {
-  id           String         @id @default(auto()) @map("_id") @db.ObjectId
-  tripId       String         @db.ObjectId
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  tripId       String  @db.ObjectId
   bucket       String
   key          String
   cdnUrl       String?
@@ -692,12 +693,12 @@ model TripAsset {
   access       String
   size         Int
 
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  trip         Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  media        TripMedia?
-  attachment   TripAttachment?
+  trip       Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  media      TripMedia?
+  attachment TripAttachment?
 
   @@index(fields: [tripId])
   @@index(fields: [tripId, createdAt(sort: Desc)])
@@ -712,21 +713,21 @@ enum TripMediaKind {
 }
 
 model TripMedia {
-  id              String             @id @default(auto()) @map("_id") @db.ObjectId
-  tripId          String             @db.ObjectId
-  calendarEventId String?            @db.ObjectId
-  createdBy       String             @db.ObjectId
-  assetId         String             @db.ObjectId
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  tripId          String  @db.ObjectId
+  calendarEventId String? @db.ObjectId
+  createdBy       String  @db.ObjectId
+  assetId         String  @db.ObjectId
 
-  kind            TripMediaKind      @default(OTHER)
-  caption         String?
+  kind    TripMediaKind @default(OTHER)
+  caption String?
 
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  trip            Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  calendarEvent   TripCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
-  asset           TripAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  trip          Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  calendarEvent TripCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  asset         TripAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@unique(fields: [assetId])
   @@index(fields: [tripId])
@@ -744,22 +745,22 @@ enum TripAttachmentType {
 }
 
 model TripAttachment {
-  id              String              @id @default(auto()) @map("_id") @db.ObjectId
-  tripId          String              @db.ObjectId
-  createdBy       String              @db.ObjectId
-  assetId         String?             @unique @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String  @db.ObjectId
+  createdBy String  @db.ObjectId
+  assetId   String? @unique @db.ObjectId
 
   title           String
-  type            TripAttachmentType  @default(OTHER)
+  type            TripAttachmentType @default(OTHER)
   contentMarkdown String?
   displayName     String?
-  required        Boolean             @default(false)
+  required        Boolean            @default(false)
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  trip            Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  asset           TripAsset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  trip  Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  asset TripAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index(fields: [tripId])
   @@index(fields: [type])
@@ -767,17 +768,17 @@ model TripAttachment {
 }
 
 model TripTraveler {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  tripId    String   @db.ObjectId
-  userId    String   @db.ObjectId
-  groupId   String?  @db.ObjectId
-  createdBy String   @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String  @db.ObjectId
+  userId    String  @db.ObjectId
+  groupId   String? @db.ObjectId
+  createdBy String  @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  user      User     @relation("TripTravelerUser", fields: [userId], references: [id])
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation("TripTravelerUser", fields: [userId], references: [id])
 
   @@unique([tripId, userId])
   @@index(fields: [tripId])
@@ -787,9 +788,9 @@ model TripTraveler {
 }
 
 model TenantContact {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  tenantId  String   @db.ObjectId
-  createdBy String   @db.ObjectId
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId  String @db.ObjectId
+  createdBy String @db.ObjectId
 
   firstName String
   lastName  String
@@ -799,12 +800,12 @@ model TenantContact {
   notes     String?
 
   deletedAt DateTime?
-  deletedBy String?  @db.ObjectId
+  deletedBy String?   @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  trips     TripContact[]
+  trips TripContact[]
 
   @@index(fields: [tenantId])
   @@index(fields: [tenantId, deletedAt])
@@ -812,12 +813,12 @@ model TenantContact {
 }
 
 model TripContact {
-  id        String        @id @default(auto()) @map("_id") @db.ObjectId
-  tripId    String        @db.ObjectId
-  contactId String        @db.ObjectId
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String @db.ObjectId
+  contactId String @db.ObjectId
 
-  trip      Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  contact   TenantContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  trip    Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  contact TenantContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([tripId, contactId])
   @@index(fields: [tripId])
@@ -832,12 +833,12 @@ enum TripInviteStatus {
 }
 
 model TripInvite {
-  id         String           @id @default(auto()) @map("_id") @db.ObjectId
-  tripId     String           @db.ObjectId
-  createdBy  String           @db.ObjectId
-  userId     String?          @db.ObjectId
-  email      String
-  tokenHash  String           @unique
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String  @db.ObjectId
+  createdBy String  @db.ObjectId
+  userId    String? @db.ObjectId
+  email     String
+  tokenHash String  @unique
 
   status     TripInviteStatus @default(INVITED)
   acceptedAt DateTime?
@@ -845,10 +846,10 @@ model TripInvite {
   revokedAt  DateTime?
   revokedBy  String?          @db.ObjectId
 
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  trip       Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@unique([tripId, email])
   @@index(fields: [tripId])
@@ -1241,16 +1242,19 @@ enum EnumFlightDirection {
 
 model TransportItinerary {
   id        String              @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String              @db.ObjectId
   name      String              @db.String
   direction EnumFlightDirection
 
   segments TransportFlightSegment[]
+  trip     Trip                     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   createdBy String?  @db.ObjectId
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.ObjectId
 
+  @@index(fields: [tripId])
   @@index(fields: [direction])
   @@index(fields: [createdAt])
   @@map("TransportItineraries")

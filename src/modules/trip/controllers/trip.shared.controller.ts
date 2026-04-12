@@ -286,7 +286,7 @@ export class TripSharedController {
         tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
-        const tenantId = '';
+        const tenantId = '69dbcb31a3da8ac66a1e5c42';
         return this.tripService.getTrip(tripId, tenantId);
     }
 

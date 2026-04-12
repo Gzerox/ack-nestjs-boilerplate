@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { TripFormModule } from '@modules/trip-form/trip-form.module';
 import { AwsModule } from '@common/aws/aws.module';
+import { TransportModule } from '@modules/transport/transport.module';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
@@ -13,7 +13,7 @@ import { TripTravelerService } from '@modules/trip/services/trip-traveler.servic
 import { TripUtil } from '@modules/trip/utils/trip.util';
 
 @Module({
-    imports: [AwsModule],
+    imports: [AwsModule, TransportModule],
     providers: [
         TripService,
         TripRepository,
@@ -26,7 +26,7 @@ import { TripUtil } from '@modules/trip/utils/trip.util';
         TripUtil,
         TripTravelerService,
     ],
-    exports: [TripService, TripTravelerService],
+    exports: [TripService, TripTravelerService, TripRepository],
     controllers: [],
 })
 export class TripModule {}

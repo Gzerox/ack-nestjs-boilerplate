@@ -17,6 +17,7 @@ export class ItineraryUtil {
     mapList(data: TransportItinerary[]): ItineraryResponseDto[] {
         return data.map(itinerary => ({
             id: itinerary.id,
+            tripId: itinerary.tripId,
             name: itinerary.name,
             direction: itinerary.direction,
             createdAt: itinerary.createdAt,
@@ -29,6 +30,7 @@ export class ItineraryUtil {
     ): ItineraryWithSegmentsResponseDto {
         return {
             id: itinerary.id,
+            tripId: itinerary.tripId,
             name: itinerary.name,
             direction: itinerary.direction,
             createdAt: itinerary.createdAt,

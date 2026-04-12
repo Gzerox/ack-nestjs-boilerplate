@@ -474,6 +474,7 @@ Invite-specific `ITripService` methods remain documented in [trip-invite.md](tri
 - `medias?: TripMediaCreateRequestDto[]` — `@IsArray @ValidateNested({ each: true }) @Type(() => TripMediaCreateRequestDto) @IsOptional`
 - `attachments?: TripAttachmentCreateRequestDto[]` — `@IsArray @ValidateNested({ each: true }) @Type(() => TripAttachmentCreateRequestDto) @IsOptional`
 - `contactIds?: string[]` — `@IsArray @IsMongoId({ each: true }) @IsOptional`
+- `itineraries?: TripItineraryCreateRequestDto[]` — `@IsArray @ValidateNested({ each: true }) @Type(() => TripItineraryCreateRequestDto) @IsOptional`
 
 Processing order note: `groups` must be materialized before `invites` and `calendarEvents` because child entities may reference `groupId` in the same payload.
 
@@ -509,6 +510,23 @@ All fields from `TripCreateDraftRequestDto` become optional, plus:
 - `description?: string` — `@IsString @IsOptional`
 - `groupId?: string` — `@IsMongoId @IsOptional`
 - `medias?: TripMediaCreateRequestDto[]` — `@IsArray @ValidateNested({ each: true }) @IsOptional`
+
+#### `TripItineraryCreateRequestDto`
+
+- `name: string` — `@IsString @MinLength(1) @MaxLength(255)`
+- `direction: EnumFlightDirection` — `@IsEnum(EnumFlightDirection)`
+- `segments: TripItinerarySegmentCreateRequestDto[]` — `@IsArray @ArrayMinSize(1) @ArrayMaxSize(ItineraryMaxSegments) @ValidateNested({ each: true }) @Type(() => TripItinerarySegmentCreateRequestDto)`
+
+#### `TripItinerarySegmentCreateRequestDto`
+
+- `flightNumber: string` — `@IsString @MinLength(1) @MaxLength(20)`
+- `airline?: string` — `@IsString @IsOptional @MaxLength(100)`
+- `departAirportId: string` — `@IsMongoId @IsNotEmpty`
+- `arriveAirportId: string` — `@IsMongoId @IsNotEmpty`
+- `departAt?: Date` — `@Type(() => Date) @IsDate @IsOptional`
+- `arriveAt?: Date` — `@Type(() => Date) @IsDate @IsOptional`
+- `bookingRef?: string` — `@IsString @IsOptional @MaxLength(30)`
+- `notes?: string` — `@IsString @IsOptional @MaxLength(500)`
 
 ### Response DTOs
 
@@ -597,7 +615,7 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 2. Service generates a slug from `trip.title`.
 3. Service creates `Trip` in `DRAFT` under the authenticated tenant, setting `createdBy` from JWT payload.
 4. If the payload includes `groups`, they are created first.
-5. Create may include connected `TripInvite`, `TripCalendarEvent`, `TripMedia`, and `TripAttachment` payloads in the same unit of work.
+5. Create may include connected `TripInvite`, `TripCalendarEvent`, `TripMedia`, `TripAttachment`, and `TransportItinerary` payloads in the same unit of work.
 6. `icon` and `coverImage` are uploaded separately through dedicated trip asset endpoints after the draft exists.
 7. Contact associations are submitted as existing `ObjectId[]` values and expanded by the service into `TripContact[]`.
 8. Trip forms are created separately through `POST /shared/trips/:idTrip/forms` after the trip exists.
@@ -608,7 +626,7 @@ export const TripAvailableStatus        = Object.values(TripStatus);
 1. Backend user calls `PUT /shared/trips/:idTrip`.
 2. Request body must include `updatedAt` matching the current trip `updatedAt`.
 3. Payload updates the trip aggregate and its connected entities.
-4. Aggregate updates may include contacts, media, attachments, new invites, and calendar events in the same request.
+4. Aggregate updates may include contacts, media, attachments, new invites, calendar events, and itineraries in the same request.
 5. `icon` and `coverImage` are replaced through dedicated trip asset upload endpoints, not through the aggregate update body.
 6. Contact associations may be replaced by resubmitting their `ObjectId[]` lists; the service replaces all existing links atomically.
 7. Trip forms are managed through dedicated trip-form endpoints rather than aggregate update payload fields.
@@ -866,6 +884,10 @@ Invite row validation details remain documented in [trip-invite.md](trip-invite.
 3. Unknown child ids are rejected instead of silently recreated.
 4. Contact associations may be submitted as lists of existing `ObjectId` values that the server expands into `TripContact[]`.
 5. Trip forms are created and managed through dedicated trip-form endpoints, not through `TripCreateDraftRequestDto` or `TripUpdateDraftRequestDto`.
+6. Persistence failures during `createDraft` and `updateDraft` are normalized to `InternalServerErrorException` (`http.serverError.internalServerError`) and include metadata in `data`:
+   - `operation`: `trip.createDraft` or `trip.updateDraft`
+   - `tenantId`
+   - `tripId` (generated id for create, route id for update)
 
 ## Authorization and Visibility
 

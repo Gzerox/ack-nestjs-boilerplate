@@ -1,15 +1,9 @@
 import {
-    IPaginationIn,
-    IPaginationQueryOffsetParams,
-} from '@common/pagination/interfaces/pagination.interface';
-import {
-    IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { HelperService } from '@common/helper/services/helper.service';
 import { AirportRepository } from '@modules/transport/airport/repositories/airport.repository';
 import { CreateItineraryRequestDto } from '@modules/transport/itinerary/dtos/request/create-itinerary.request.dto';
-import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
 import { EnumItineraryStatusCodeError } from '@modules/transport/itinerary/enums/itinerary-status-code.enum';
 import {
@@ -24,37 +18,21 @@ import { ItineraryUtil } from '@modules/transport/itinerary/utils/itinerary.util
 import {
     BadRequestException,
     Injectable,
+    InternalServerErrorException,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@generated/prisma-client';
 
 @Injectable()
 export class ItineraryService implements IItineraryService {
+    private readonly logger = new Logger(ItineraryService.name);
+
     constructor(
         private readonly itineraryRepository: ItineraryRepository,
         private readonly airportRepository: AirportRepository,
         private readonly itineraryUtil: ItineraryUtil,
         private readonly helperService: HelperService
     ) {}
-
-    async getListOffset(
-        pagination: IPaginationQueryOffsetParams<
-            Prisma.TransportItinerarySelect,
-            Prisma.TransportItineraryWhereInput
-        >,
-        direction?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<ItineraryResponseDto>> {
-        const { data, ...others } =
-            await this.itineraryRepository.findWithPaginationOffset(
-                pagination,
-                direction
-            );
-
-        return {
-            data: this.itineraryUtil.mapList(data),
-            ...others,
-        };
-    }
 
     async getOne(
         id: string
@@ -76,6 +54,15 @@ export class ItineraryService implements IItineraryService {
         dto: CreateItineraryRequestDto,
         createdBy: string
     ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
+        // Validate trip exists
+        const tripExists = await this.itineraryRepository.tripExists(dto.tripId);
+        if (!tripExists) {
+            throw new NotFoundException({
+                statusCode: EnumItineraryStatusCodeError.notFound,
+                message: 'itinerary.error.tripNotFound',
+            });
+        }
+
         const uniqueAirportIds = [
             ...new Set(
                 dto.segments.flatMap(s => [
@@ -150,15 +137,24 @@ export class ItineraryService implements IItineraryService {
             }
         }
 
-        const created = await this.itineraryRepository.createWithSegments(
-            {
-                name: dto.name,
-                direction: dto.direction,
-            },
-            segments,
-            createdBy
-        );
+        try {
+            const created = await this.itineraryRepository.createWithSegments(
+                {
+                    name: dto.name,
+                    direction: dto.direction,
+                    tripId: dto.tripId,
+                },
+                segments,
+                createdBy
+            );
 
-        return { data: this.itineraryUtil.mapOneWithSegments(created) };
+            return { data: this.itineraryUtil.mapOneWithSegments(created) };
+        } catch (error) {
+            this.logger.error(error, 'Failed to create itinerary');
+            throw new InternalServerErrorException({
+                message: 'itinerary.error.createFailed',
+                _error: error
+            });
+        }
     }
 }

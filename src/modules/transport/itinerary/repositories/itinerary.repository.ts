@@ -1,12 +1,6 @@
 import { DatabaseService } from '@common/database/services/database.service';
-import {
-    IPaginationIn,
-    IPaginationQueryOffsetParams,
-} from '@common/pagination/interfaces/pagination.interface';
-import { PaginationService } from '@common/pagination/services/pagination.service';
-import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { Injectable } from '@nestjs/common';
-import { Prisma, TransportItinerary } from '@generated/prisma-client';
+import { TransportItinerary } from '@generated/prisma-client';
 import { EnumFlightDirection } from '@modules/transport/itinerary/enums/itinerary.enum';
 import {
     ITransportFlightSegment,
@@ -16,31 +10,15 @@ import {
 @Injectable()
 export class ItineraryRepository {
     constructor(
-        private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService
+        private readonly databaseService: DatabaseService
     ) {}
 
-    async findWithPaginationOffset(
-        {
-            where,
-            ...params
-        }: IPaginationQueryOffsetParams<
-            Prisma.TransportItinerarySelect,
-            Prisma.TransportItineraryWhereInput
-        >,
-        direction?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<TransportItinerary>> {
-        return this.paginationService.offset<
-            TransportItinerary,
-            Prisma.TransportItinerarySelect,
-            Prisma.TransportItineraryWhereInput
-        >(this.databaseService.transportItinerary, {
-            ...params,
-            where: {
-                ...where,
-                ...direction,
-            },
+    async tripExists(tripId: string): Promise<boolean> {
+        const record = await this.databaseService.trip.findFirst({
+            where: { id: tripId },
+            select: { id: true },
         });
+        return record !== null;
     }
 
     async findOneById(id: string): Promise<TransportItinerary | null> {
@@ -70,6 +48,7 @@ export class ItineraryRepository {
         data: {
             name: string;
             direction: EnumFlightDirection;
+            tripId: string;
         },
         segments: ITransportFlightSegment[],
         createdBy: string

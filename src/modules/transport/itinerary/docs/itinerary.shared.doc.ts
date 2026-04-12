@@ -3,28 +3,11 @@ import {
     Doc,
     DocAuth,
     DocResponse,
-    DocResponsePaging,
 } from '@common/doc/decorators/doc.decorator';
 import {
-    ItineraryDefaultAvailableSearch,
     ItineraryMaxSegments,
 } from '@modules/transport/itinerary/constants/itinerary.list.constant';
-import { ItineraryResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary.response.dto';
 import { ItineraryWithSegmentsResponseDto } from '@modules/transport/itinerary/dtos/response/itinerary-with-segments.response.dto';
-
-export function ItinerarySharedListDoc(): MethodDecorator {
-    return applyDecorators(
-        Doc({
-            summary: 'Get list of itineraries',
-            description: `Retrieve a paginated list of flight itineraries with optional filtering by direction.`,
-        }),
-        DocAuth({ xApiKey: true, jwtAccessToken: true }),
-        DocResponsePaging<ItineraryResponseDto>('itinerary.list', {
-            dto: ItineraryResponseDto,
-            availableSearch: ItineraryDefaultAvailableSearch,
-        })
-    );
-}
 
 export function ItinerarySharedGetDoc(): MethodDecorator {
     return applyDecorators(

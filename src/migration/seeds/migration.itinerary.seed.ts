@@ -62,6 +62,26 @@ export class MigrationItinerarySeed
             }
         }
 
+        // Get or create a default trip for seeding
+        let trip = await this.databaseService.trip.findFirst({
+            where: { slug: 'seed-default-trip' },
+            select: { id: true },
+        });
+
+        if (!trip) {
+            trip = await this.databaseService.trip.create({
+                data: {
+                    slug: 'seed-default-trip',
+                    title: 'Default Seed Trip',
+                    startDate: new Date('2026-06-15'),
+                    endDate: new Date('2026-06-20'),
+                    tenantId: 'seed',
+                    createdBy: 'seed',
+                },
+                select: { id: true },
+            });
+        }
+
         const segments: Prisma.TransportFlightSegmentCreateWithoutItineraryInput[] =
             record.segments.map(seg => ({
                 flightNumber: seg.flightNumber,
@@ -100,6 +120,7 @@ export class MigrationItinerarySeed
                 data: {
                     name: record.name,
                     direction: record.direction,
+                    tripId: trip.id,
                     segments: { create: segments },
                 },
             });

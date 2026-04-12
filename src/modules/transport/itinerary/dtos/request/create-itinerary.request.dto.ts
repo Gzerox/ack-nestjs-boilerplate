@@ -4,6 +4,7 @@ import {
     ArrayMinSize,
     IsArray,
     IsEnum,
+    IsMongoId,
     IsString,
     MaxLength,
     MinLength,
@@ -14,6 +15,9 @@ import { EnumFlightDirection } from '@modules/transport/itinerary/enums/itinerar
 import { CreateSegmentRequestDto } from '@modules/transport/itinerary/dtos/request/create-segments.request.dto';
 
 export class CreateItineraryRequestDto {
+    @IsMongoId()
+    tripId: string;
+
     @IsString()
     @MinLength(1)
     @MaxLength(255)

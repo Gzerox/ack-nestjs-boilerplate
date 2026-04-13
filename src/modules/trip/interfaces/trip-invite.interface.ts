@@ -19,3 +19,10 @@ export type ITripInviteTripSummary = Pick<
 export interface ITripInviteWithTrip extends TripInvite {
     trip: ITripInviteTripSummary;
 }
+
+export interface ITripInviteToken {
+    email: string;
+    tokenHash: string;
+    rawToken: string;
+    expiresAt?: Date;
+}

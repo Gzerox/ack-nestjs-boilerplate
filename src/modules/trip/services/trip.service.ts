@@ -31,7 +31,6 @@ import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.rep
 import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
 import { TripAssetRepository } from '@modules/trip/repositories/trip-asset.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
-import { TripItineraryCreateRequestDto } from '@modules/trip/dtos/request/trip-itinerary.create.request.dto';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
 import { TripUtil } from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
@@ -39,6 +38,7 @@ import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.updat
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
+import { ITripInviteToken } from '@modules/trip/interfaces/trip-invite.interface';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
@@ -88,87 +88,13 @@ export class TripService implements ITripService {
 
         let trip: Trip;
         try {
-            trip = await this.tripRepository.create({
-                id: tripId,
-                slug,
+            trip = await this.tripRepository.createDraft(
+                dto,
                 tenantId,
                 createdBy,
-                title: dto.title,
-                subtitle: dto.subtitle ?? null,
-                description: dto.description ?? null,
-                icon: dto.icon ?? undefined,
-                coverImage: dto.coverImage ?? undefined,
-                startDate: dto.startDate,
-                endDate: dto.endDate,
-                timezone: dto.timezone ?? null,
-                status: TripStatus.draft,
-                ...(dto.calendarEvents?.length && {
-                    calendarEvents: {
-                        create: dto.calendarEvents.map(e => ({
-                            createdBy,
-                            title: e.title,
-                            category: e.category,
-                            startsAt: e.startsAt ?? null,
-                            endsAt: e.endsAt ?? null,
-                            location: e.location ?? null,
-                            description: e.description ?? null,
-                        })),
-                    },
-                }),
-                ...(dto.invites?.length && {
-                    invites: {
-                        create: dto.invites.map(invite => {
-                            // TODO: validate duplicate invite emails before persisting.
-                            const tokenHash = this.helperService.sha256Hash(
-                                this.helperService.randomString(32)
-                            );
-
-                            return {
-                                createdBy,
-                                email: invite.email,
-                                tokenHash,
-                                expiresAt: invite.expiresAt ?? null,
-                            };
-                        }),
-                    },
-                }),
-                ...(dto.medias?.length && {
-                    medias: {
-                        create: this.tripRepository.buildTripMediaCreateData(
-                            dto.medias,
-                            createdBy,
-                            tripId
-                        ),
-                    },
-                }),
-                ...(dto.attachments?.length && {
-                    attachments: {
-                        create:
-                            this.tripRepository.buildTripAttachmentCreateData(
-                                dto.attachments,
-                                createdBy,
-                                tripId
-                            ),
-                    },
-                }),
-                ...(dto.contactIds?.length && {
-                    contacts: {
-                        create: dto.contactIds.map(contactId => ({
-                            contact: {
-                                connect: { id: contactId },
-                            },
-                        })),
-                    },
-                }),
-                ...(dto.itineraries?.length && {
-                    itineraries: {
-                        create: this._buildItineraryCreateData(
-                            dto.itineraries,
-                            createdBy
-                        ),
-                    },
-                }),
-            });
+                slug,
+                tripId
+            );
         } catch (error: unknown) {
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
@@ -176,7 +102,6 @@ export class TripService implements ITripService {
                 data: {
                     operation: 'trip.createDraft',
                     tenantId,
-                    tripId,
                 },
                 _error: error,
             });
@@ -253,91 +178,12 @@ export class TripService implements ITripService {
         }
 
         try {
-            await this.tripRepository.update(tripId, {
-                title: dto.title,
-                subtitle: dto.subtitle ?? undefined,
-                description: dto.description ?? undefined,
-                icon: dto.icon ?? undefined,
-                coverImage: dto.coverImage ?? undefined,
-                startDate: dto.startDate,
-                endDate: dto.endDate,
-                timezone: dto.timezone ?? undefined,
-                ...(dto.itineraries !== undefined && {
-                    itineraries: {
-                        //TODO: Bad - everytime we delete all entries and re-create them.
-                        deleteMany: { tripId },
-                        ...(dto.itineraries.length > 0 && {
-                            create: this._buildItineraryCreateData(
-                                dto.itineraries,
-                                updatedBy
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.calendarEvents !== undefined && {
-                    calendarEvents: {
-                        //TODO: Bad - everytime we delete all entries and re-create them.
-                        deleteMany: { tripId },
-                        ...(dto.calendarEvents.length > 0 && {
-                            create: dto.calendarEvents.map(e => ({
-                                createdBy: updatedBy,
-                                title: e.title,
-                                category: e.category,
-                                startsAt: e.startsAt ?? null,
-                                endsAt: e.endsAt ?? null,
-                                location: e.location ?? null,
-                                description: e.description ?? null,
-                            })),
-                        }),
-                    },
-                }),
-                ...(dto.medias !== undefined && {
-                    medias: {
-                        //TODO: Bad - everytime we delete all entries and re-create them.
-                        deleteMany: { tripId },
-                        ...(dto.medias.length > 0 && {
-                            create: this.tripRepository.buildTripMediaCreateData(
-                                dto.medias,
-                                updatedBy,
-                                tripId
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.attachments !== undefined && {
-                    attachments: {
-                        //TODO: Bad - everytime we delete all entries and re-create them.
-                        deleteMany: { tripId },
-                        ...(dto.attachments.length > 0 && {
-                            create: this.tripRepository.buildTripAttachmentCreateData(
-                                dto.attachments,
-                                updatedBy,
-                                tripId
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.contactIds !== undefined && {
-                    contacts: {
-                        deleteMany: { tripId },
-                        ...(dto.contactIds.length > 0 && {
-                            create: dto.contactIds.map(contactId => ({
-                                contact: { connect: { id: contactId } },
-                            })),
-                        }),
-                    },
-                }),
-                ...(inviteTokens.length > 0 && {
-                    invites: {
-                        create: inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
-                            createdBy: updatedBy,
-                            email,
-                            tokenHash,
-                            ...(expiresAt !== undefined && { expiresAt }),
-                        })),
-                    },
-                }),
-            });
+            await this.tripRepository.updateDraft(
+                tripId,
+                dto,
+                updatedBy,
+                inviteTokens.length > 0 ? inviteTokens : undefined
+            );
         } catch (error: unknown) {
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
@@ -582,10 +428,7 @@ export class TripService implements ITripService {
             });
         }
 
-        if (
-            !isTraveler ||
-            tripDetail.status !== TripStatus.published
-        ) {
+        if (!isTraveler || tripDetail.status !== TripStatus.published) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.notFound,
                 message: 'trip.error.notFound',
@@ -723,45 +566,9 @@ export class TripService implements ITripService {
         return { data: undefined };
     }
 
-    private _buildItineraryCreateData(
-        itineraries: TripItineraryCreateRequestDto[],
-        createdBy: string
-    ): Prisma.TransportItineraryCreateWithoutTripInput[] {
-        //TODO: We shall validate the airportId exists
-        return itineraries.map(itinerary => ({
-            name: itinerary.name,
-            direction: itinerary.direction,
-            createdBy,
-            segments: {
-                create: itinerary.segments.map(seg => ({
-                    flightNumber: seg.flightNumber,
-                    airline: seg.airline ?? null,
-                    departAirport: {
-                        connect: { id: seg.departAirportId },
-                    },
-                    arriveAirport: {
-                        connect: { id: seg.arriveAirportId },
-                    },
-                    departAt: seg.departAt,
-                    arriveAt: seg.arriveAt,
-                    bookingRef: seg.bookingRef ?? null,
-                    notes: seg.notes ?? null,
-                    createdBy,
-                })),
-            },
-        }));
-    }
-
     private async _prepareInviteTokens(
         inviteDtos: TripInviteCreateRequestDto[]
-    ): Promise<
-        Array<{
-            email: string;
-            tokenHash: string;
-            rawToken: string;
-            expiresAt?: Date;
-        }>
-    > {
+    ): Promise<ITripInviteToken[]> {
         if (!inviteDtos.length) {
             return [];
         }
@@ -976,9 +783,8 @@ export class TripService implements ITripService {
 
         let medias;
         try {
-            medias = await this.tripAssetRepository.createMediaBatch(
-                batchItems
-            );
+            medias =
+                await this.tripAssetRepository.createMediaBatch(batchItems);
         } catch (err: unknown) {
             await this.deleteAssetsBestEffort(uploadedKeys);
             throw new InternalServerErrorException({
@@ -1090,7 +896,9 @@ export class TripService implements ITripService {
     }
 
     private async deleteAssetsBestEffort(keys: string[]): Promise<void> {
-        if (!keys.length) { return; }
+        if (!keys.length) {
+            return;
+        }
         try {
             await this.awsS3Service.deleteItems(keys);
         } catch (error: unknown) {

@@ -760,6 +760,7 @@ model TripAttachment {
   updatedAt DateTime @updatedAt
 
   trip  Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  //TODO: When `contentMarkdown` gets removed, `asset` should become mandatory & onDelete: Cascade
   asset TripAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index(fields: [tripId])

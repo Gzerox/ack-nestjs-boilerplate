@@ -7,9 +7,15 @@ import {
 } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
+import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
 import { TripAttachmentCreateRequestDto } from '@modules/trip/dtos/request/trip-attachment.create.request.dto';
 import { TripMediaCreateRequestDto } from '@modules/trip/dtos/request/trip-media.create.request.dto';
+import { TripCalendarEventCreateRequestDto } from '@modules/trip/dtos/request/trip-calendar-event.create.request.dto';
+import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
+import { TripItineraryCreateRequestDto } from '@modules/trip/dtos/request/trip-itinerary.create.request.dto';
 import { ITripDetail } from '@modules/trip/interfaces/trip.interface';
+import { ITripInviteToken } from '@modules/trip/interfaces/trip-invite.interface';
 import {
     Prisma,
     Trip,
@@ -26,8 +32,171 @@ export class TripRepository {
         private readonly helperService: HelperService
     ) {}
 
-    async create(data: Prisma.TripCreateInput): Promise<Trip> {
-        return this.databaseService.trip.create({ data });
+    async createDraft(
+        dto: TripCreateDraftRequestDto,
+        tenantId: string,
+        createdBy: string,
+        slug: string,
+        tripId: string
+    ): Promise<Trip> {
+        return this.databaseService.trip.create({
+            data: {
+                id: tripId,
+                slug,
+                tenantId,
+                createdBy,
+                title: dto.title,
+                subtitle: dto.subtitle ?? null,
+                description: dto.description ?? null,
+                icon: dto.icon ?? undefined,
+                coverImage: dto.coverImage ?? undefined,
+                startDate: dto.startDate,
+                endDate: dto.endDate,
+                timezone: dto.timezone ?? null,
+                status: TripStatus.draft,
+                ...(dto.calendarEvents?.length && {
+                    calendarEvents: {
+                        create: this._buildCalendarEventCreateData(
+                            dto.calendarEvents,
+                            createdBy
+                        ),
+                    },
+                }),
+                ...(dto.invites?.length && {
+                    invites: {
+                        create: this._buildInviteCreateData(
+                            dto.invites,
+                            createdBy
+                        ),
+                    },
+                }),
+                ...(dto.medias?.length && {
+                    medias: {
+                        create: this._buildMediaCreateData(
+                            dto.medias,
+                            tripId,
+                            createdBy
+                        ),
+                    },
+                }),
+                ...(dto.attachments?.length && {
+                    attachments: {
+                        create: this._buildAttachmentCreateData(
+                            dto.attachments,
+                            tripId,
+                            createdBy
+                        ),
+                    },
+                }),
+                ...(dto.contactIds?.length && {
+                    contacts: {
+                        create: dto.contactIds.map(contactId => ({
+                            contact: { connect: { id: contactId } },
+                        })),
+                    },
+                }),
+                ...(dto.itineraries?.length && {
+                    itineraries: {
+                        create: this._buildItineraryCreateData(
+                            dto.itineraries,
+                            createdBy
+                        ),
+                    },
+                }),
+            },
+        });
+    }
+
+    async updateDraft(
+        tripId: string,
+        dto: TripUpdateDraftRequestDto,
+        updatedBy: string,
+        inviteTokens?: ITripInviteToken[]
+    ): Promise<Trip> {
+        return this.databaseService.trip.update({
+            where: { id: tripId },
+            data: {
+                title: dto.title,
+                subtitle: dto.subtitle ?? undefined,
+                description: dto.description ?? undefined,
+                icon: dto.icon ?? undefined,
+                coverImage: dto.coverImage ?? undefined,
+                startDate: dto.startDate,
+                endDate: dto.endDate,
+                timezone: dto.timezone ?? undefined,
+                ...(dto.itineraries !== undefined && {
+                    itineraries: {
+                        deleteMany: { tripId },
+                        ...(dto.itineraries.length > 0 && {
+                            create: this._buildItineraryCreateData(
+                                dto.itineraries,
+                                updatedBy
+                            ),
+                        }),
+                    },
+                }),
+                ...(dto.calendarEvents !== undefined && {
+                    calendarEvents: {
+                        deleteMany: { tripId },
+                        ...(dto.calendarEvents.length > 0 && {
+                            create: this._buildCalendarEventCreateData(
+                                dto.calendarEvents,
+                                updatedBy
+                            ),
+                        }),
+                    },
+                }),
+                ...(dto.medias !== undefined && {
+                    medias: {
+                        deleteMany: { tripId },
+                        ...(dto.medias.length > 0 && {
+                            create: this._buildMediaCreateData(
+                                dto.medias,
+                                tripId,
+                                updatedBy
+                            ),
+                        }),
+                    },
+                }),
+                ...(dto.attachments !== undefined && {
+                    attachments: {
+                        deleteMany: { tripId },
+                        ...(dto.attachments.length > 0 && {
+                            create: this._buildAttachmentCreateData(
+                                dto.attachments,
+                                tripId,
+                                updatedBy
+                            ),
+                        }),
+                    },
+                }),
+                ...(dto.contactIds !== undefined && {
+                    contacts: {
+                        deleteMany: { tripId },
+                        ...(dto.contactIds.length > 0 && {
+                            create: dto.contactIds.map(contactId => ({
+                                contact: { connect: { id: contactId } },
+                            })),
+                        }),
+                    },
+                }),
+                ...(inviteTokens &&
+                    inviteTokens.length > 0 && {
+                        invites: {
+                            create: inviteTokens.map(
+                                ({ email, tokenHash, expiresAt }) => ({
+                                    createdBy: updatedBy,
+                                    email,
+                                    tokenHash,
+                                    ...(expiresAt !== undefined && {
+                                        expiresAt,
+                                    }),
+                                })
+                            ),
+                        },
+                    }),
+            },
+        });
     }
 
     async update(tripId: string, data: Prisma.TripUpdateInput): Promise<Trip> {
@@ -242,40 +411,71 @@ export class TripRepository {
         });
     }
 
-    buildTripMediaCreateData(
+    private _buildCalendarEventCreateData(
+        events: TripCalendarEventCreateRequestDto[],
+        createdBy: string
+    ): Prisma.TripCalendarEventCreateWithoutTripInput[] {
+        return events.map(e => ({
+            createdBy,
+            title: e.title,
+            category: e.category,
+            startsAt: e.startsAt ?? null,
+            endsAt: e.endsAt ?? null,
+            location: e.location ?? null,
+            description: e.description ?? null,
+        }));
+    }
+
+    private _buildInviteCreateData(
+        invites: TripInviteCreateRequestDto[],
+        createdBy: string
+    ): Prisma.TripInviteCreateWithoutTripInput[] {
+        return invites.map(invite => {
+            const tokenHash = this.helperService.sha256Hash(
+                this.helperService.randomString(32)
+            );
+
+            return {
+                createdBy,
+                email: invite.email,
+                tokenHash,
+                expiresAt: invite.expiresAt ?? null,
+            };
+        });
+    }
+
+    private _buildMediaCreateData(
         medias: TripMediaCreateRequestDto[],
-        createdBy: string,
-        tripId: string
+        tripId: string,
+        createdBy: string
     ): Prisma.TripMediaCreateWithoutTripInput[] {
         return medias.map(media => ({
             createdBy,
             kind: media.kind ?? TripMediaKind.OTHER,
             caption: media.caption ?? null,
-            ...(media.calendarEventId && {
-                calendarEvent: {
-                    connect: { id: media.calendarEventId },
+            calendarEventId: media.calendarEventId ?? undefined,
+            ...(media.file && {
+                asset: {
+                    create: {
+                        tripId,
+                        bucket: media.file.bucket,
+                        key: media.file.key,
+                        cdnUrl: media.file.cdnUrl ?? null,
+                        completedUrl: media.file.completedUrl,
+                        mime: media.file.mime,
+                        extension: media.file.extension,
+                        access: media.file.access,
+                        size: media.file.size,
+                    },
                 },
             }),
-            asset: {
-                create: {
-                    tripId,
-                    bucket: media.file.bucket,
-                    key: media.file.key,
-                    cdnUrl: media.file.cdnUrl ?? null,
-                    completedUrl: media.file.completedUrl,
-                    mime: media.file.mime,
-                    extension: media.file.extension,
-                    access: media.file.access,
-                    size: media.file.size,
-                },
-            },
         }));
     }
 
-    buildTripAttachmentCreateData(
+    private _buildAttachmentCreateData(
         attachments: TripAttachmentCreateRequestDto[],
-        createdBy: string,
-        tripId: string
+        tripId: string,
+        createdBy: string
     ): Prisma.TripAttachmentCreateWithoutTripInput[] {
         return attachments.map(attachment => ({
             createdBy,
@@ -299,6 +499,34 @@ export class TripRepository {
                     },
                 },
             }),
+        }));
+    }
+
+    private _buildItineraryCreateData(
+        itineraries: TripItineraryCreateRequestDto[],
+        createdBy: string
+    ): Prisma.TransportItineraryUncheckedCreateWithoutTripInput[] {
+        return itineraries.map(itinerary => ({
+            name: itinerary.name,
+            direction: itinerary.direction,
+            createdBy,
+            segments: {
+                create: itinerary.segments.map(seg => ({
+                    flightNumber: seg.flightNumber,
+                    airline: seg.airline ?? null,
+                    departAirport: {
+                        connect: { id: seg.departAirportId },
+                    },
+                    arriveAirport: {
+                        connect: { id: seg.arriveAirportId },
+                    },
+                    departAt: seg.departAt,
+                    arriveAt: seg.arriveAt,
+                    bookingRef: seg.bookingRef ?? null,
+                    notes: seg.notes ?? null,
+                    createdBy,
+                })),
+            },
         }));
     }
 }

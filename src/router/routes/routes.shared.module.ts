@@ -15,6 +15,8 @@ import { ItinerarySharedController } from '@modules/transport/itinerary/controll
 import { TransportModule } from '@modules/transport/transport.module';
 import { TripSharedController } from '@modules/trip/controllers/trip.shared.controller';
 import { TripModule } from '@modules/trip/trip.module';
+import { TenantContactSharedController } from '@modules/tenant-contact/controllers/tenant-contact.shared.controller';
+import { TenantContactModule } from '@modules/tenant-contact/tenant-contact.module';
 import { Module } from '@nestjs/common';
 
 /**
@@ -35,9 +37,10 @@ import { Module } from '@nestjs/common';
         AirportSharedController,
         ItinerarySharedController,
         TripSharedController,
+        TenantContactSharedController,
     ],
     providers: [],
     exports: [],
-    imports: [UserModule, PasswordHistoryModule, DeviceModule, TripFormModule, TransportModule, TripModule],
+    imports: [UserModule, PasswordHistoryModule, DeviceModule, TripFormModule, TransportModule, TripModule, TenantContactModule],
 })
 export class RoutesSharedModule {}

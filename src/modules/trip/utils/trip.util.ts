@@ -7,7 +7,7 @@ import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
-import { TenantContactResponseDto } from '@modules/trip/dtos/response/tenant-contact.response.dto';
+import { TenantContactResponseDto } from '@modules/tenant-contact/dtos/response/tenant-contact.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
 import {

@@ -28,7 +28,7 @@ import { ITripService } from '@modules/trip/interfaces/trip.service.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { TripTravelerRepository } from '@modules/trip/repositories/trip-traveler.repository';
 import { TripInviteRepository } from '@modules/trip/repositories/trip-invite.repository';
-import { TenantContactRepository } from '@modules/trip/repositories/tenant-contact.repository';
+import { TenantContactRepository } from '@modules/tenant-contact/repositories/tenant-contact.repository';
 import { TripAssetRepository } from '@modules/trip/repositories/trip-asset.repository';
 import { TripCalendarEventRepository } from '@modules/trip/repositories/trip-calendar-event.repository';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';

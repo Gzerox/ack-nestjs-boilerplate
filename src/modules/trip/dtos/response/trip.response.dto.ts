@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
-import { TenantContactResponseDto } from '@modules/trip/dtos/response/tenant-contact.response.dto';
+import { TenantContactResponseDto } from '@modules/tenant-contact/dtos/response/tenant-contact.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 

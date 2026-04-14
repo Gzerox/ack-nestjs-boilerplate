@@ -1,0 +1,13 @@
+{
+    "tenantContact": {
+        "list":   "Get contact list",
+        "get":    "Get contact detail",
+        "create": "Contact created",
+        "update": "Contact updated",
+        "delete": "Contact deleted"
+    },
+    "error": {
+        "notFound": "Contact not found",
+        "deleted":  "Contact has been deleted"
+    }
+}

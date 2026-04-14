@@ -796,7 +796,7 @@ model TenantContact {
   firstName String
   lastName  String
   category  String?
-  phoneE164 String?
+  phone     String?
   email     String?
   notes     String?
 
@@ -1142,6 +1142,9 @@ enum EnumActivityLogAction {
   adminTripArchive
   adminTripTravelerGet
   adminTripRevokeInvite
+
+  adminTenantContactCreate
+  adminTenantContactDelete
 }
 
 enum EnumDevicePlatform {

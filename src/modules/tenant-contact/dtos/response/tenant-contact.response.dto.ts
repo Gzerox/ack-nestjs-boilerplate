@@ -19,8 +19,12 @@ export class TenantContactResponseDto extends DatabaseDto {
     @ApiProperty({ example: 'Emergency', required: false })
     category: string | null;
 
-    @ApiProperty({ example: '+390612345678', required: false })
-    phoneE164: string | null;
+    @ApiProperty({
+        example: '+390612345678',
+        description: 'Phone number in E.164 format',
+        required: false,
+    })
+    phone: string | null;
 
     @ApiProperty({ example: 'support@example.com', required: false })
     email: string | null;

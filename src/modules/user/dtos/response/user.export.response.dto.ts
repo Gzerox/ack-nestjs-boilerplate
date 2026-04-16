@@ -15,37 +15,21 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
     @Transform(({ obj }) => obj.photo.completedUrl)
     photo: string;
 
-    @ApiProperty({
-        required: true,
-        description: 'Term of service flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: true })
     @Expose()
-    termPolicyTermsOfService: boolean;
+    termsOfServicePolicy: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Privacy flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: true })
     @Expose()
-    termPolicyPrivacy: boolean;
+    privacyPolicy: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Cookies flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: false })
     @Expose()
-    termPolicyCookies: boolean;
+    cookiesPolicy: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Marketing flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: false })
     @Expose()
-    termPolicyMarketing: boolean;
+    marketingPolicy: boolean;
 
     @ApiProperty({
         required: true,

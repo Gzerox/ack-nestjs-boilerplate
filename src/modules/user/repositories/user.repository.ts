@@ -55,7 +55,6 @@ import {
     EnumVerificationType,
     ForgotPassword,
     Prisma,
-    TermPolicyUserAcceptance,
     User,
     UserMobileNumber,
     Verification,
@@ -69,6 +68,50 @@ export class UserRepository {
         private readonly paginationService: PaginationService,
         private readonly helperService: HelperService
     ) {}
+
+    private getAcceptedTermPolicyTypes(
+        cookies = false,
+        marketing = false
+    ): EnumTermPolicyType[] {
+        return [
+            EnumTermPolicyType.termsOfService,
+            EnumTermPolicyType.privacy,
+            ...(cookies ? [EnumTermPolicyType.cookies] : []),
+            ...(marketing ? [EnumTermPolicyType.marketing] : []),
+        ];
+    }
+
+    private async findLatestPublishedTermPoliciesByTypes(
+        types: EnumTermPolicyType[]
+    ): Promise<Array<{ id: string; type: EnumTermPolicyType }>> {
+        const latestPolicyVersions =
+            await this.databaseService.termPolicy.groupBy({
+                by: ['type'],
+                where: {
+                    type: { in: types },
+                    status: EnumTermPolicyStatus.published,
+                },
+                _max: { version: true },
+            });
+
+        const latestVersionFilters = latestPolicyVersions.flatMap(
+            ({ type, _max }) => {
+                const version = _max.version;
+                return version === null ? [] : [{ type, version }];
+            }
+        );
+        if (latestVersionFilters.length === 0) {
+            return [];
+        }
+
+        return this.databaseService.termPolicy.findMany({
+            where: {
+                status: EnumTermPolicyStatus.published,
+                OR: latestVersionFilters,
+            },
+            select: { id: true, type: true },
+        });
+    }
 
     async findWithPaginationOffset(
         {
@@ -280,9 +323,7 @@ export class UserRepository {
                     },
                 },
             },
-        })) as unknown as
-            | (ForgotPassword & { user: IUser })
-            | null;
+        })) as unknown as (ForgotPassword & { user: IUser }) | null;
     }
 
     async findOneLatestByForgotPassword(
@@ -394,23 +435,13 @@ export class UserRepository {
         { ipAddress, userAgent, geoLocation }: IRequestLog,
         createdBy: string
     ): Promise<User> {
-        const termPolicies = await this.databaseService.termPolicy.findMany({
-            where: {
-                type: {
-                    in: [
-                        EnumTermPolicyType.termsOfService,
-                        EnumTermPolicyType.privacy,
-                    ],
-                },
-                status: EnumTermPolicyStatus.published,
-            },
-            select: {
-                id: true,
-            },
-        });
+        const latestPolicies =
+            await this.findLatestPublishedTermPoliciesByTypes(
+                this.getAcceptedTermPolicyTypes()
+            );
 
-        const [user] = await this.databaseService.$transaction([
-            this.databaseService.user.create({
+        return this.databaseService.$transaction(async tx => {
+            const user = await tx.user.create({
                 data: {
                     id: userId,
                     email,
@@ -426,10 +457,10 @@ export class UserRepository {
                     username,
                     isVerified: roleType === EnumRoleType.user ? false : true,
                     status: EnumUserStatus.active,
-                    termPolicyTermsOfService: true,
-                    termPolicyPrivacy: true,
-                    termPolicyCookies: false,
-                    termPolicyMarketing: false,
+                    termsOfServicePolicy: true,
+                    privacyPolicy: true,
+                    cookiesPolicy: false,
+                    marketingPolicy: false,
                     createdBy,
                     deletedAt: null,
                     passwordHistories: {
@@ -496,19 +527,20 @@ export class UserRepository {
                         },
                     },
                 },
-            }),
-            ...termPolicies.map(termPolicy =>
-                this.databaseService.termPolicyUserAcceptance.create({
-                    data: {
-                        userId,
-                        termPolicyId: termPolicy.id,
-                        createdBy,
-                    },
-                })
-            ),
-        ]);
+            });
 
-        return user;
+            if (latestPolicies.length > 0) {
+                await tx.termPolicyUserAcceptance.createMany({
+                    data: latestPolicies.map(({ id: termPolicyId }) => ({
+                        userId,
+                        termPolicyId,
+                        createdBy,
+                    })),
+                });
+            }
+
+            return user;
+        });
     }
 
     async updateStatusByAdmin(
@@ -1139,25 +1171,13 @@ export class UserRepository {
                 ? EnumUserSignUpWith.socialApple
                 : EnumUserSignUpWith.socialGoogle;
 
-        const termPolicies = await this.databaseService.termPolicy.findMany({
-            where: {
-                type: {
-                    in: [
-                        EnumTermPolicyType.termsOfService,
-                        EnumTermPolicyType.privacy,
-                        cookies ? EnumTermPolicyType.cookies : null,
-                        marketing ? EnumTermPolicyType.marketing : null,
-                    ].filter(Boolean) as EnumTermPolicyType[],
-                },
-                status: EnumTermPolicyStatus.published,
-            },
-            select: {
-                id: true,
-            },
-        });
+        const acceptedPolicies =
+            await this.findLatestPublishedTermPoliciesByTypes(
+                this.getAcceptedTermPolicyTypes(cookies, marketing)
+            );
 
-        const [user] = await this.databaseService.$transaction([
-            this.databaseService.user.create({
+        return this.databaseService.$transaction(async tx => {
+            const user = await tx.user.create({
                 data: {
                     id: userId,
                     email,
@@ -1169,10 +1189,10 @@ export class UserRepository {
                     username,
                     isVerified: true,
                     status: EnumUserStatus.active,
-                    termPolicyTermsOfService: true,
-                    termPolicyPrivacy: true,
-                    termPolicyCookies: cookies,
-                    termPolicyMarketing: marketing,
+                    termsOfServicePolicy: true,
+                    privacyPolicy: true,
+                    cookiesPolicy: cookies,
+                    marketingPolicy: marketing,
                     createdBy: userId,
                     deletedAt: null,
                     activityLogs: {
@@ -1213,19 +1233,20 @@ export class UserRepository {
                     role: true,
                     twoFactor: true,
                 },
-            }),
-            ...termPolicies.map(termPolicy =>
-                this.databaseService.termPolicyUserAcceptance.create({
-                    data: {
-                        userId,
-                        termPolicyId: termPolicy.id,
-                        createdBy: userId,
-                    },
-                })
-            ),
-        ]);
+            });
 
-        return user;
+            if (acceptedPolicies.length > 0) {
+                await tx.termPolicyUserAcceptance.createMany({
+                    data: acceptedPolicies.map(({ id: termPolicyId }) => ({
+                        userId,
+                        termPolicyId,
+                        createdBy: userId,
+                    })),
+                });
+            }
+
+            return user;
+        });
     }
 
     async verify(
@@ -1258,10 +1279,10 @@ export class UserRepository {
         {
             countryId,
             email,
-            marketing,
             name,
             from,
             cookies,
+            marketing,
         }: UserSignUpRequestDto,
         {
             passwordCreated,
@@ -1272,25 +1293,13 @@ export class UserRepository {
         { expiredAt, reference, hashedToken, type }: IUserVerificationCreate,
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<User> {
-        const termPolicies = await this.databaseService.termPolicy.findMany({
-            where: {
-                type: {
-                    in: [
-                        EnumTermPolicyType.termsOfService,
-                        EnumTermPolicyType.privacy,
-                        cookies ? EnumTermPolicyType.cookies : null,
-                        marketing ? EnumTermPolicyType.marketing : null,
-                    ].filter(Boolean) as EnumTermPolicyType[],
-                },
-                status: EnumTermPolicyStatus.published,
-            },
-            select: {
-                id: true,
-            },
-        });
+        const acceptedPolicies =
+            await this.findLatestPublishedTermPoliciesByTypes(
+                this.getAcceptedTermPolicyTypes(cookies, marketing)
+            );
 
-        const [user] = await this.databaseService.$transaction([
-            this.databaseService.user.create({
+        const user = await this.databaseService.$transaction(async tx => {
+            const created = await tx.user.create({
                 data: {
                     id: userId,
                     email,
@@ -1306,10 +1315,10 @@ export class UserRepository {
                     passwordExpired,
                     password: passwordHash,
                     passwordAttempt: 0,
-                    termPolicyTermsOfService: true,
-                    termPolicyPrivacy: true,
-                    termPolicyCookies: cookies,
-                    termPolicyMarketing: marketing,
+                    termsOfServicePolicy: true,
+                    privacyPolicy: true,
+                    cookiesPolicy: cookies,
+                    marketingPolicy: marketing,
                     passwordHistories: {
                         create: {
                             password: passwordHash,
@@ -1389,17 +1398,20 @@ export class UserRepository {
                 include: {
                     role: true,
                 },
-            }),
-            ...termPolicies.map(termPolicy =>
-                this.databaseService.termPolicyUserAcceptance.create({
-                    data: {
+            });
+
+            if (acceptedPolicies.length > 0) {
+                await tx.termPolicyUserAcceptance.createMany({
+                    data: acceptedPolicies.map(({ id: termPolicyId }) => ({
                         userId,
-                        termPolicyId: termPolicy.id,
+                        termPolicyId,
                         createdBy: userId,
-                    },
-                })
-            ),
-        ]);
+                    })),
+                });
+            }
+
+            return created;
+        });
 
         return user;
     }
@@ -1976,26 +1988,9 @@ export class UserRepository {
         { ipAddress, userAgent, geoLocation }: IRequestLog,
         createdBy: string
     ): Promise<User[]> {
-        const termPolicies = await this.databaseService.termPolicy.findMany({
-            where: {
-                type: {
-                    in: [
-                        EnumTermPolicyType.termsOfService,
-                        EnumTermPolicyType.privacy,
-                    ],
-                },
-                status: EnumTermPolicyStatus.published,
-            },
-            select: {
-                id: true,
-            },
-        });
-
         const users = await this.databaseService.$transaction(
             async (tx: Prisma.TransactionClient) => {
                 const usersToCreate: Prisma.PrismaPromise<User>[] = [];
-                const termPolicyUserAcceptancesToCreate: Prisma.PrismaPromise<TermPolicyUserAcceptance>[] =
-                    [];
 
                 for (const [index, { email, name }] of data.entries()) {
                     const userId = this.databaseUtil.createId();
@@ -2027,10 +2022,10 @@ export class UserRepository {
                                         ? false
                                         : true,
                                 status: EnumUserStatus.active,
-                                termPolicyTermsOfService: true,
-                                termPolicyPrivacy: true,
-                                termPolicyCookies: false,
-                                termPolicyMarketing: false,
+                                termsOfServicePolicy: true,
+                                privacyPolicy: true,
+                                cookiesPolicy: false,
+                                marketingPolicy: false,
                                 createdBy,
                                 deletedAt: null,
                                 passwordHistories: {
@@ -2101,23 +2096,9 @@ export class UserRepository {
                             },
                         })
                     );
-                    termPolicyUserAcceptancesToCreate.push(
-                        ...termPolicies.map(termPolicy =>
-                            tx.termPolicyUserAcceptance.create({
-                                data: {
-                                    userId,
-                                    termPolicyId: termPolicy.id,
-                                    createdBy,
-                                },
-                            })
-                        )
-                    );
                 }
 
-                const users = await Promise.all(usersToCreate);
-                await Promise.all(termPolicyUserAcceptancesToCreate);
-
-                return users;
+                return Promise.all(usersToCreate);
             }
         );
 

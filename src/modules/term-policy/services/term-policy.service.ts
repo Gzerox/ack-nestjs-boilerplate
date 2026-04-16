@@ -70,13 +70,6 @@ export class TermPolicyService implements ITermPolicyService {
             });
         }
 
-        const termPolicyMap = {
-            [EnumTermPolicyType.termsOfService]: __user.termPolicyTermsOfService,
-            [EnumTermPolicyType.privacy]: __user.termPolicyPrivacy,
-            [EnumTermPolicyType.cookies]: __user.termPolicyCookies,
-            [EnumTermPolicyType.marketing]: __user.termPolicyMarketing,
-        };
-
         const defaultTermPolicies = [
             EnumTermPolicyType.termsOfService,
             EnumTermPolicyType.privacy,
@@ -86,7 +79,14 @@ export class TermPolicyService implements ITermPolicyService {
                 ? defaultTermPolicies
                 : requiredTermPolicies;
 
-        if (!requiredTermPolicies.every(type => termPolicyMap[type])) {
+        const statusByType: Record<EnumTermPolicyType, boolean> = {
+            [EnumTermPolicyType.termsOfService]: __user.termsOfServicePolicy,
+            [EnumTermPolicyType.privacy]: __user.privacyPolicy,
+            [EnumTermPolicyType.cookies]: __user.cookiesPolicy,
+            [EnumTermPolicyType.marketing]: __user.marketingPolicy,
+        };
+
+        if (!requiredTermPolicies.every(type => statusByType[type])) {
             throw new ForbiddenException({
                 statusCode: EnumTermPolicyStatusCodeError.requiredInvalid,
                 message: 'termPolicy.error.requiredInvalid',

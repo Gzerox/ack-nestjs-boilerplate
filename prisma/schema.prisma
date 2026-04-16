@@ -101,32 +101,32 @@ model UserMobileNumber {
 }
 
 model User {
-  id                       String             @id @default(uuid()) @db.Uuid
-  name                     String?
-  username                 String
-  isVerified               Boolean            @default(false)
-  verifiedAt               DateTime?
-  email                    String
-  roleId                   String             @db.Uuid
-  password                 String?
-  passwordExpired          DateTime?
-  passwordCreated          DateTime?
-  passwordAttempt          Int?
-  signUpAt                 DateTime           @default(now())
-  signUpFrom               EnumUserSignUpFrom
-  signUpWith               EnumUserSignUpWith
-  status                   EnumUserStatus     @default(active)
-  gender                   EnumUserGender?
-  countryId                String             @db.Uuid
-  lastLoginAt              DateTime?
-  lastIPAddress            String?
-  lastLoginFrom            EnumUserLoginFrom?
-  lastLoginWith            EnumUserLoginWith?
-  termPolicyTermsOfService Boolean            @default(false)
-  termPolicyPrivacy        Boolean            @default(false)
-  termPolicyMarketing      Boolean            @default(false)
-  termPolicyCookies        Boolean            @default(false)
-  photo                    Json?
+  id                   String             @id @default(uuid()) @db.Uuid
+  name                 String?
+  username             String
+  isVerified           Boolean            @default(false)
+  verifiedAt           DateTime?
+  email                String
+  roleId               String             @db.Uuid
+  password             String?
+  passwordExpired      DateTime?
+  passwordCreated      DateTime?
+  passwordAttempt      Int?
+  signUpAt             DateTime           @default(now())
+  signUpFrom           EnumUserSignUpFrom
+  signUpWith           EnumUserSignUpWith
+  status               EnumUserStatus     @default(active)
+  gender               EnumUserGender?
+  countryId            String             @db.Uuid
+  lastLoginAt          DateTime?
+  lastIPAddress        String?
+  lastLoginFrom        EnumUserLoginFrom?
+  lastLoginWith        EnumUserLoginWith?
+  termsOfServicePolicy Boolean
+  privacyPolicy        Boolean
+  marketingPolicy      Boolean
+  cookiesPolicy        Boolean
+  photo                Json?
 
   // timestamps fields
   createdAt DateTime  @default(now())

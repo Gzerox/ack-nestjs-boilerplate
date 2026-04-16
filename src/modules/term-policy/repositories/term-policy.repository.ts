@@ -16,6 +16,7 @@ import {
     ITermPolicy,
     ITermPolicyUserAcceptance,
 } from '@modules/term-policy/interfaces/term-policy.interface';
+import { TERM_POLICY_USER_FIELD_MAP } from '@modules/term-policy/constants/term-policy.constant';
 import { IUser } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import {
@@ -194,23 +195,6 @@ export class TermPolicyRepository {
     ): Promise<ITermPolicyUserAcceptance> {
         const acceptedAt = this.helperService.dateCreate();
 
-        // TODO: Find a better way to handle user term policy updates type
-        const userTermPolicyUpdateData: Prisma.UserUpdateInput = {};
-        switch (type) {
-            case EnumTermPolicyType.termsOfService:
-                userTermPolicyUpdateData.termPolicyTermsOfService = true;
-                break;
-            case EnumTermPolicyType.privacy:
-                userTermPolicyUpdateData.termPolicyPrivacy = true;
-                break;
-            case EnumTermPolicyType.cookies:
-                userTermPolicyUpdateData.termPolicyCookies = true;
-                break;
-            case EnumTermPolicyType.marketing:
-                userTermPolicyUpdateData.termPolicyMarketing = true;
-                break;
-        }
-
         const [userAcceptance] = await this.databaseService.$transaction([
             this.databaseService.termPolicyUserAcceptance.create({
                 data: {
@@ -235,14 +219,15 @@ export class TermPolicyRepository {
                     status: 'active',
                 },
                 data: {
-                    ...userTermPolicyUpdateData,
+                    ...{ [TERM_POLICY_USER_FIELD_MAP[type]]: true },
                     activityLogs: {
                         create: {
                             action: EnumActivityLogAction.userAcceptTermPolicy,
                             ipAddress,
                             userAgent:
                                 this.databaseUtil.toPlainObject(userAgent),
-                            geoLocation: this.databaseUtil.toPlainObject(geoLocation),
+                            geoLocation:
+                                this.databaseUtil.toPlainObject(geoLocation),
                             createdBy: user.id,
                             metadata: {
                                 termPolicyType: type,
@@ -378,46 +363,33 @@ export class TermPolicyRepository {
         updatedBy: string
     ): Promise<ITermPolicy> {
         return this.databaseService.$transaction<ITermPolicy>(async tx => {
-            // TODO: Find a better way to handle user term policy updates type
-            const userTermPolicyUpdateData: Prisma.UserUpdateInput = {};
-            switch (type) {
-                case EnumTermPolicyType.termsOfService:
-                    userTermPolicyUpdateData.termPolicyTermsOfService = false;
-                    break;
-                case EnumTermPolicyType.privacy:
-                    userTermPolicyUpdateData.termPolicyPrivacy = false;
-                    break;
-                case EnumTermPolicyType.cookies:
-                    userTermPolicyUpdateData.termPolicyCookies = false;
-                    break;
-                case EnumTermPolicyType.marketing:
-                    userTermPolicyUpdateData.termPolicyMarketing = false;
-                    break;
+            for (const content of contents) {
+                await tx.termPolicyContent.update({
+                    where: {
+                        termPolicyId_language: {
+                            termPolicyId,
+                            language: content.language,
+                        },
+                    },
+                    data: {
+                        bucket: content.bucket,
+                        key: content.key,
+                        cdnUrl: content.cdnUrl,
+                        completedUrl: content.completedUrl,
+                        mime: content.mime,
+                        extension: content.extension,
+                        access: content.access,
+                        size: content.size,
+                    },
+                });
             }
-
-            await tx.termPolicyContent.deleteMany({
-                where: { termPolicyId },
-            });
-            await tx.termPolicyContent.createMany({
-                data: contents.map(content => ({
-                    termPolicyId,
-                    language: content.language,
-                    bucket: content.bucket,
-                    key: content.key,
-                    cdnUrl: content.cdnUrl,
-                    completedUrl: content.completedUrl,
-                    mime: content.mime,
-                    extension: content.extension,
-                    access: content.access,
-                    size: content.size,
-                })),
-            });
             await tx.user.updateMany({
                 where: {
-                    deletedAt: null,
-                    status: 'active',
+                    [TERM_POLICY_USER_FIELD_MAP[type]]: true,
                 },
-                data: userTermPolicyUpdateData,
+                data: {
+                    [TERM_POLICY_USER_FIELD_MAP[type]]: false,
+                },
             });
             return tx.termPolicy.update({
                 where: { id: termPolicyId },

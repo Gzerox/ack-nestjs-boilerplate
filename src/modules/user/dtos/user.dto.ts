@@ -1,9 +1,8 @@
 import { faker } from '@faker-js/faker';
 import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
-import { Exclude, Transform, Type } from 'class-transformer';
+import { Exclude, Type } from 'class-transformer';
 import { DatabaseDto } from '@common/database/dtos/database.dto';
 import {
-    EnumTermPolicyType,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -13,7 +12,6 @@ import {
 } from '@generated/prisma-client';
 import { AwsS3Dto } from '@common/aws/dtos/aws.s3.dto';
 import { RoleDto } from '@modules/role/dtos/role.dto';
-import { UserTermPolicyDto } from '@modules/user/dtos/user.term-policy.dto';
 import { UserTwoFactorDto } from '@modules/user/dtos/user.two-factor.dto';
 
 export class UserDto extends DatabaseDto {
@@ -150,17 +148,17 @@ export class UserDto extends DatabaseDto {
     })
     lastLoginWith?: EnumUserLoginWith;
 
-    @ApiProperty({
-        required: true,
-        type: UserTermPolicyDto,
-    })
-    @Transform(({ obj }) => ({
-        [EnumTermPolicyType.termsOfService]: obj.termPolicyTermsOfService,
-        [EnumTermPolicyType.privacy]: obj.termPolicyPrivacy,
-        [EnumTermPolicyType.cookies]: obj.termPolicyCookies,
-        [EnumTermPolicyType.marketing]: obj.termPolicyMarketing,
-    }))
-    termPolicy: UserTermPolicyDto;
+    @ApiProperty({ required: true, example: true })
+    termsOfServicePolicy: boolean;
+
+    @ApiProperty({ required: true, example: true })
+    privacyPolicy: boolean;
+
+    @ApiProperty({ required: true, example: false })
+    marketingPolicy: boolean;
+
+    @ApiProperty({ required: true, example: false })
+    cookiesPolicy: boolean;
 
     @ApiProperty({
         required: false,

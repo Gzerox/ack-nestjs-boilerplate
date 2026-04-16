@@ -31,24 +31,6 @@ export class UserSignUpRequestDto extends OmitType(UserCreateRequestDto, [
     password: string;
 
     @ApiProperty({
-        description: 'boolean marketing',
-        example: true,
-        required: true,
-    })
-    @IsNotEmpty()
-    @IsBoolean()
-    marketing: boolean;
-
-    @ApiProperty({
-        description: 'boolean cookies',
-        example: true,
-        required: true,
-    })
-    @IsNotEmpty()
-    @IsBoolean()
-    cookies: boolean;
-
-    @ApiProperty({
         description: 'enum user sign up from',
         example: EnumUserSignUpFrom.mobile,
         required: true,
@@ -58,4 +40,22 @@ export class UserSignUpRequestDto extends OmitType(UserCreateRequestDto, [
     @IsString()
     @IsEnum([EnumUserSignUpFrom.mobile, EnumUserSignUpFrom.website])
     from: EnumUserSignUpFrom;
+
+    @ApiProperty({
+        description: 'Accept cookies policy',
+        example: false,
+        required: true,
+    })
+    @IsNotEmpty()
+    @IsBoolean()
+    cookies: boolean;
+
+    @ApiProperty({
+        description: 'Accept marketing policy',
+        example: false,
+        required: true,
+    })
+    @IsNotEmpty()
+    @IsBoolean()
+    marketing: boolean;
 }

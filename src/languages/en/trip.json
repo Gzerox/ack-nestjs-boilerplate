@@ -11,8 +11,9 @@
         "uploadIcon":  "Trip icon uploaded",
         "uploadCoverImage": "Trip cover image uploaded",
         "publish":     "Trip published",
-        "cancel":      "Trip cancelled",
         "archive":     "Trip archived",
+        "delete":      "Trip deleted",
+        "unpublish":   "Trip unpublished"
         "createForm":  "Trip form created",
         "uploadMedia": "Trip media uploaded",
         "uploadAttachments": "Trip attachments uploaded"
@@ -26,6 +27,8 @@
         "notFound":             "Trip not found",
         "notDraft":             "Trip cannot be edited after leaving draft state",
         "notPublished":         "Trip is not published",
+        "notDeletable":         "Only draft trips can be deleted",
+        "notUpdatableFields": "Cannot update some of the fields after publishing",
         "alreadyCancelled":     "Trip is already cancelled",
         "alreadyArchived":      "Trip is already archived",
         "alreadyPublished":     "Trip is already published",

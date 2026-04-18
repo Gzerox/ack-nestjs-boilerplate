@@ -20,6 +20,7 @@ import {
     Prisma,
     Trip,
     TripAttachmentType,
+    TripInviteStatus,
     TripMediaKind,
     TripStatus,
 } from '@generated/prisma-client';
@@ -211,13 +212,13 @@ export class TripRepository {
         tenantId: string
     ): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
-            where: { id: tripId, tenantId },
+            where: { id: tripId, tenantId, deletedAt: null },
         });
     }
 
     async findOneById(tripId: string): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
-            where: { id: tripId },
+            where: { id: tripId, deletedAt: null },
         });
     }
 
@@ -226,7 +227,7 @@ export class TripRepository {
         tenantId: string
     ): Promise<ITripDetail | null> {
         return this.databaseService.trip.findFirst({
-            where: { id: tripId, tenantId },
+            where: { id: tripId, tenantId, deletedAt: null },
             include: {
                 calendarEvents: {
                     orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
@@ -265,7 +266,7 @@ export class TripRepository {
 
     async findDetailById(tripId: string): Promise<ITripDetail | null> {
         return this.databaseService.trip.findFirst({
-            where: { id: tripId },
+            where: { id: tripId, deletedAt: null },
             include: {
                 calendarEvents: {
                     orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
@@ -307,7 +308,7 @@ export class TripRepository {
         tenantId: string
     ): Promise<{ id: string; updatedAt: Date } | null> {
         return this.databaseService.trip.findFirst({
-            where: { id: tripId, tenantId },
+            where: { id: tripId, tenantId, deletedAt: null },
             select: { id: true, updatedAt: true },
         });
     }
@@ -337,6 +338,7 @@ export class TripRepository {
             where: {
                 ...pagination.where,
                 tenantId,
+                deletedAt: null,
                 ...status,
             },
         });
@@ -358,6 +360,7 @@ export class TripRepository {
             ...pagination,
             where: {
                 ...pagination.where,
+                deletedAt: null,
                 OR: [
                     { status: TripStatus.published },
                     { travelers: { some: { userId } } },
@@ -378,15 +381,26 @@ export class TripRepository {
         });
     }
 
-    async cancel(tripId: string, updatedBy?: string): Promise<Trip> {
-        return this.databaseService.trip.update({
-            where: { id: tripId },
-            data: {
-                status: TripStatus.cancelled,
-                cancelledAt: this.helperService.dateCreate(),
-                ...(updatedBy && { updatedBy }),
-            },
-        });
+    async softDeleteWithRevokeInvites(
+        id: string,
+        tenantId: string,
+        deletedBy: string,
+        now: Date
+    ): Promise<void> {
+        await this.databaseService.$transaction([
+            this.databaseService.trip.update({
+                where: { id, tenantId },
+                data: { deletedAt: now, deletedBy },
+            }),
+            this.databaseService.tripInvite.updateMany({
+                where: { tripId: id, status: TripInviteStatus.invited },
+                data: {
+                    status: TripInviteStatus.revoked,
+                    revokedAt: now,
+                    revokedBy: deletedBy,
+                },
+            }),
+        ]);
     }
 
     async archive(tripId: string, updatedBy?: string): Promise<Trip> {

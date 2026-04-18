@@ -145,11 +145,32 @@ export class TripService implements ITripService {
             });
         }
 
-        if (existing.status !== TripStatus.draft) {
+        if (
+            existing.status === TripStatus.archived ||
+            existing.status === TripStatus.cancelled
+        ) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.notDraft,
                 message: 'trip.error.notDraft',
             });
+        }
+
+        if (existing.status === TripStatus.published) {
+            const restrictedFields = [
+                'startDate',
+                'endDate',
+                'attachments',
+                'forms',
+            ] as const;
+            const hasRestricted = restrictedFields.some(
+                f => dto[f] !== undefined
+            );
+            if (hasRestricted) {
+                throw new ConflictException({
+                    statusCode: EnumTripStatusCodeError.notUpdatableFields,
+                    message: 'trip.error.notUpdatableFields',
+                });
+            }
         }
 
         if (dto.contactIds !== undefined) {
@@ -305,10 +326,10 @@ export class TripService implements ITripService {
         };
     }
 
-    async cancel(
+    async softDelete(
         tripId: string,
         tenantId: string,
-        updatedBy: string
+        deletedBy: string
     ): Promise<IResponseReturn<void>> {
         const trip = await this.tripRepository.findOneByIdAndTenant(
             tripId,
@@ -321,21 +342,19 @@ export class TripService implements ITripService {
             });
         }
 
-        if (trip.status === TripStatus.cancelled) {
+        if (trip.status !== TripStatus.draft) {
             throw new ConflictException({
-                statusCode: EnumTripStatusCodeError.alreadyCancelled,
-                message: 'trip.error.alreadyCancelled',
+                statusCode: EnumTripStatusCodeError.notDeletable,
+                message: 'trip.error.notDeletable',
             });
         }
 
-        if (trip.status === TripStatus.archived) {
-            throw new ConflictException({
-                statusCode: EnumTripStatusCodeError.alreadyArchived,
-                message: 'trip.error.alreadyArchived',
-            });
-        }
-
-        await this.tripRepository.cancel(tripId, updatedBy);
+        await this.tripRepository.softDeleteWithRevokeInvites(
+            tripId,
+            tenantId,
+            deletedBy,
+            this.helperService.dateCreate()
+        );
 
         return { data: undefined, metadataActivityLog: { tripId } };
     }

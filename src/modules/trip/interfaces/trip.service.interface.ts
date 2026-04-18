@@ -55,10 +55,10 @@ export interface ITripService {
         updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>>;
 
-    cancel(
+    softDelete(
         tripId: string,
         tenantId: string,
-        updatedBy: string
+        deletedBy: string
     ): Promise<IResponseReturn<void>>;
 
     archive(

@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     HttpCode,
     HttpStatus,
@@ -77,8 +78,8 @@ import {
 } from '@modules/trip/constants/trip.constant';
 import {
     TripSharedArchiveDoc,
-    TripSharedCancelDoc,
     TripSharedCreateDraftDoc,
+    TripSharedDeleteDoc,
     TripSharedGetDoc,
     TripSharedListDoc,
     TripSharedPublishDoc,
@@ -236,23 +237,23 @@ export class TripSharedController {
         return this.tripService.unpublish(tripId, tenantId, userId);
     }
 
-    @TripSharedCancelDoc()
-    @ActivityLog(EnumActivityLogAction.adminTripCancel)
+    @TripSharedDeleteDoc()
+    @ActivityLog(EnumActivityLogAction.adminTripDelete)
     @UserProtected()
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('trip')
     @ApiKeyProtected()
-    @Response('trip.cancel')
+    @Response('trip.delete')
     @HttpCode(HttpStatus.OK)
-    @Patch('/:idTrip/cancel')
-    async cancel(
+    @Delete('/:idTrip')
+    async softDelete(
         @AuthJwtPayload('userId') userId: string,
         @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<void>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
-        return this.tripService.cancel(tripId, tenantId, userId);
+        return this.tripService.softDelete(tripId, tenantId, userId);
     }
 
     @TripSharedArchiveDoc()

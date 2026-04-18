@@ -94,11 +94,11 @@ export function TripSharedUnpublishDoc(): MethodDecorator {
     );
 }
 
-export function TripSharedCancelDoc(): MethodDecorator {
+export function TripSharedDeleteDoc(): MethodDecorator {
     return applyDecorators(
-        Doc({ summary: 'cancel trip' }),
+        Doc({ summary: 'soft delete draft trip' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
-        DocResponse('trip.cancel')
+        DocResponse('trip.delete')
     );
 }
 

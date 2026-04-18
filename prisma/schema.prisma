@@ -637,6 +637,8 @@ model Trip {
   publishedAt DateTime?
   archivedAt  DateTime?
   cancelledAt DateTime?
+  deletedAt   DateTime?
+  deletedBy   String?   @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -655,6 +657,7 @@ model Trip {
   @@index(fields: [status])
   @@index(fields: [startDate])
   @@index(fields: [tenantId, status])
+  @@index(fields: [tenantId, deletedAt])
   @@map("Trips")
 }
 
@@ -1139,6 +1142,7 @@ enum EnumActivityLogAction {
   adminTripCreate
   adminTripPublish
   adminTripCancel
+  adminTripDelete
   adminTripArchive
   adminTripTravelerGet
   adminTripRevokeInvite

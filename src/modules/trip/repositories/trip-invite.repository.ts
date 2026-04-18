@@ -3,8 +3,16 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
-import { Prisma, TripInvite, TripInviteStatus } from '@generated/prisma-client';
-import { ITripInviteWithTrip } from '@modules/trip/interfaces/trip-invite.interface';
+import {
+    Prisma,
+    TripInvite,
+    TripInviteStatus,
+    TripStatus,
+} from '@generated/prisma-client';
+import {
+    ITripInviteIdentify,
+    ITripInviteWithTrip,
+} from '@modules/trip/interfaces/trip-invite.interface';
 
 @Injectable()
 export class TripInviteRepository {
@@ -26,6 +34,30 @@ export class TripInviteRepository {
     async findOneByTokenHash(tokenHash: string): Promise<TripInvite | null> {
         return this.databaseService.tripInvite.findUnique({
             where: { tokenHash },
+        });
+    }
+
+    async findOneByTripSlugAndEmail(
+        tripSlug: string,
+        email: string
+    ): Promise<ITripInviteIdentify | null> {
+        return this.databaseService.tripInvite.findFirst({
+            where: {
+                email,
+                trip: {
+                    slug: tripSlug,
+                    status: TripStatus.published,
+                    deletedAt: null,
+                },
+            },
+            select: {
+                id: true,
+                tripId: true,
+                email: true,
+                userId: true,
+                status: true,
+                expiresAt: true,
+            },
         });
     }
 

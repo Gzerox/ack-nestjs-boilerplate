@@ -39,18 +39,21 @@ import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/t
 import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
 import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
+import { TripInviteIdentifyRequestDto } from '@modules/trip/dtos/request/trip-invite-identify.request.dto';
 import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { ITripInviteToken } from '@modules/trip/interfaces/trip-invite.interface';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
+import { TripInviteIdentifyResponseDto } from '@modules/trip/dtos/response/trip-invite-identify.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripPublicResponseDto } from '@modules/trip/dtos/response/trip-public.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
+import { EnumTripInviteIdentifyNextStep } from '@modules/trip/enums/trip-invite-identify-next-step.enum';
 import {
     Prisma,
     Trip,
@@ -336,6 +339,8 @@ export class TripService implements ITripService {
                     email
                 );
             if (exists) {
+                //TODO: exists is true not necessary the invite has been already accepted.
+                //TODO: If invite for a given email already exists, we should just skip it for the createMany operations, not throw error.
                 throw new ConflictException({
                     statusCode: EnumTripStatusCodeError.inviteAlreadyAccepted,
                     message: 'trip.error.inviteAlreadyAccepted',
@@ -592,6 +597,91 @@ export class TripService implements ITripService {
         }
 
         return { data: this.tripUtil.mapPublicResponse(trip) };
+    }
+
+    async checkInvite(
+        tripSlug: string,
+        dto: TripInviteIdentifyRequestDto
+    ): Promise<IResponseReturn<TripInviteIdentifyResponseDto>> {
+        const invite =
+            await this.tripInviteRepository.findOneByTripSlugAndEmail(
+                tripSlug,
+                dto.email
+            );
+
+        if (!invite) {
+            this.logger.warn(
+                {
+                    operation: 'trip.checkInvite',
+                    reason: 'invite_not_found',
+                    tripSlug,
+                    email: dto.email,
+                },
+                'Trip invite check failed'
+            );
+
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.inviteNotFound,
+                message: 'trip.error.inviteNotFound',
+            });
+        }
+
+        if (invite.status === TripInviteStatus.revoked) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteRevoked,
+                message: 'trip.error.inviteRevoked',
+            });
+        }
+
+        if (invite.expiresAt && invite.expiresAt < new Date()) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.inviteExpired,
+                message: 'trip.error.inviteExpired',
+            });
+        }
+
+        if (invite.userId) {
+            return {
+                data: {
+                    nextStep: EnumTripInviteIdentifyNextStep.signIn,
+                },
+            };
+        }
+
+        if (
+            invite.status === TripInviteStatus.pending ||
+            invite.status === TripInviteStatus.invited
+        ) {
+            return {
+                data: {
+                    nextStep: EnumTripInviteIdentifyNextStep.signUp,
+                },
+            };
+        }
+
+        if (invite.status === TripInviteStatus.accepted) {
+            this.logger.warn(
+                {
+                    operation: 'trip.checkInvite',
+                    reason: 'accepted_without_user',
+                    tripSlug,
+                    email: dto.email,
+                    inviteId: invite.id,
+                },
+                'Trip invite identify detected inconsistent invite state'
+            );
+
+            return {
+                data: {
+                    nextStep: EnumTripInviteIdentifyNextStep.signIn,
+                },
+            };
+        }
+
+        throw new ConflictException({
+            statusCode: EnumTripStatusCodeError.inviteNotFound,
+            message: 'trip.error.inviteNotFound',
+        });
     }
 
     async getUserTripList(

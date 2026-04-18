@@ -10,11 +10,13 @@ import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.updat
 import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/trip-calendar-events-update.request.dto';
 import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
 import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
+import { TripInviteIdentifyRequestDto } from '@modules/trip/dtos/request/trip-invite-identify.request.dto';
 import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
+import { TripInviteIdentifyResponseDto } from '@modules/trip/dtos/response/trip-invite-identify.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripPublicResponseDto } from '@modules/trip/dtos/response/trip-public.response.dto';
@@ -127,6 +129,11 @@ export interface ITripService {
     getTripBySlug(
         tripSlug: string
     ): Promise<IResponseReturn<TripPublicResponseDto>>;
+
+    checkInvite(
+        tripSlug: string,
+        dto: TripInviteIdentifyRequestDto
+    ): Promise<IResponseReturn<TripInviteIdentifyResponseDto>>;
 
     acceptInvite(
         rawToken: string,

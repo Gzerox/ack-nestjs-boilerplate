@@ -1,4 +1,8 @@
-import { Trip, TripInvite } from '@generated/prisma-client';
+import {
+    Trip,
+    TripInvite,
+    TripInviteStatus,
+} from '@generated/prisma-client';
 
 export type ITripInviteTripSummary = Pick<
     Trip,
@@ -25,4 +29,13 @@ export interface ITripInviteToken {
     tokenHash: string;
     rawToken: string;
     expiresAt?: Date;
+}
+
+export interface ITripInviteIdentify {
+    id: string;
+    tripId: string;
+    email: string;
+    userId: string | null;
+    status: TripInviteStatus;
+    expiresAt: Date | null;
 }

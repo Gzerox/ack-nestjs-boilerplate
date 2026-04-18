@@ -25,7 +25,8 @@
     "invite": {
         "list": "Get trip invite list",
         "accept": "Invite accepted",
-        "revoke": "Invite revoked"
+        "revoke": "Invite revoked",
+        "check": "Invite checked"
     },
     "error": {
         "notFound":             "Trip not found",

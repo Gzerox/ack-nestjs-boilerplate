@@ -42,6 +42,7 @@ import {
 import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
 import { TripFormService } from '@modules/trip-form/services/trip-form.service';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
+import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
 import { TripFormAssignmentCreateRequestDto } from '@modules/trip-form/dtos/request/trip-form-assignment-create.request.dto';
 import { TripFormResponseDto } from '@modules/trip-form/dtos/response/trip-form.response.dto';
@@ -53,6 +54,7 @@ import {
     TripFormSharedArchiveDoc,
     TripFormSharedCreateAssignmentDoc,
     TripFormSharedCreateDraftDoc,
+    TripFormSharedCreateFromTemplateDoc,
     TripFormSharedDeleteDoc,
     TripFormSharedGetDoc,
     TripFormSharedListDoc,
@@ -73,6 +75,24 @@ import {
 @Controller({ version: '1', path: '/trips' })
 export class TripFormSharedController {
     constructor(private readonly tripFormService: TripFormService) {}
+
+    @TripFormSharedCreateFromTemplateDoc()
+    @ActivityLog(EnumActivityLogAction.adminTripFormCreate)
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip-form.createFromTemplate')
+    @HttpCode(HttpStatus.CREATED)
+    @Post('/:idTrip/forms/from-template')
+    async createFromTemplate(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        tripId: string,
+        @Body() body: TripFormCreateFromTemplateRequestDto
+    ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>> {
+        return this.tripFormService.createFromTemplate(body, tripId, userId);
+    }
 
     @TripFormSharedCreateDraftDoc()
     @ActivityLog(EnumActivityLogAction.adminTripFormCreate)

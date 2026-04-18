@@ -24,6 +24,7 @@ import {
 } from '@modules/trip-form/interfaces/trip-form.interface';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
+import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
 import { TripFormUtil } from '@modules/trip-form/utils/trip-form.util';
 
 @Injectable()
@@ -53,6 +54,38 @@ export class TripFormRepository {
                     dto.description,
                     dto.sections
                 ) as unknown as Prisma.InputJsonValue,
+                trip: { connect: { id: tripId } },
+                deletedAt: null,
+            },
+        });
+    }
+
+    async createFromTemplate(
+        dto: TripFormCreateFromTemplateRequestDto,
+        tripId: string,
+        createdBy: string
+    ): Promise<TripForm | null> {
+        const template = await this.databaseService.tenantFormTemplate.findFirst(
+            {
+                where: { id: dto.templateId, isActive: true },
+            }
+        );
+
+        if (!template) {
+            return null;
+        }
+
+        return this.databaseService.tripForm.create({
+            data: {
+                createdBy,
+                kind: template.kind,
+                title: template.title,
+                description: template.description ?? null,
+                closesAt: dto.closesAt ?? null,
+                notes: dto.notes ?? null,
+                status: EnumTripFormStatus.draft,
+                schemaSnapshot: template.templateSnapshot,
+                template: { connect: { id: template.id } },
                 trip: { connect: { id: tripId } },
                 deletedAt: null,
             },

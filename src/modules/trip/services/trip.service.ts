@@ -35,7 +35,11 @@ import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.en
 import { TripUtil } from '@modules/trip/utils/trip.util';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/trip-calendar-events-update.request.dto';
+import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
+import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
+import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { ITripInviteToken } from '@modules/trip/interfaces/trip-invite.interface';
@@ -156,12 +160,7 @@ export class TripService implements ITripService {
         }
 
         if (existing.status === TripStatus.published) {
-            const restrictedFields = [
-                'startDate',
-                'endDate',
-                'attachments',
-                'forms',
-            ] as const;
+            const restrictedFields = ['startDate', 'endDate'] as const;
             const hasRestricted = restrictedFields.some(
                 f => dto[f] !== undefined
             );
@@ -173,38 +172,8 @@ export class TripService implements ITripService {
             }
         }
 
-        if (dto.contactIds !== undefined) {
-            await this.assertValidContactIds(dto.contactIds, tenantId);
-        }
-
-        const inviteTokens = await this._prepareInviteTokens(dto.invites ?? []);
-
-        // Validate that new invite emails do not conflict with existing invites
-        if (inviteTokens.length) {
-            for (const { email } of inviteTokens) {
-                const exists =
-                    await this.tripInviteRepository.existsByTripAndEmail(
-                        tripId,
-                        email
-                    );
-                if (exists) {
-                    throw new ConflictException({
-                        statusCode:
-                            EnumTripStatusCodeError.inviteAlreadyAccepted,
-                        message: 'trip.error.inviteAlreadyAccepted',
-                        data: { email },
-                    });
-                }
-            }
-        }
-
         try {
-            await this.tripRepository.updateDraft(
-                tripId,
-                dto,
-                updatedBy,
-                inviteTokens.length > 0 ? inviteTokens : undefined
-            );
+            await this.tripRepository.updateDraft(tripId, dto,updatedBy);
         } catch (error: unknown) {
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
@@ -218,10 +187,6 @@ export class TripService implements ITripService {
             });
         }
 
-        if (dto.medias !== undefined || dto.attachments !== undefined) {
-            await this.tripAssetRepository.deleteOrphanByTrip(tripId);
-        }
-
         const updated = await this.tripRepository.findDetailByIdAndTenant(
             tripId,
             tenantId
@@ -233,6 +198,163 @@ export class TripService implements ITripService {
             });
         }
         return { data: this.tripUtil.mapResponse(updated) };
+    }
+
+    async updateCalendarEvents(
+        tripId: string,
+        tenantId: string,
+        dto: TripCalendarEventsUpdateRequestDto,
+        updatedBy: string
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        if (
+            trip.status === TripStatus.archived ||
+            trip.status === TripStatus.cancelled
+        ) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notDraft,
+                message: 'trip.error.notDraft',
+            });
+        }
+
+        await this.tripRepository.updateCalendarEvents(
+            tripId,
+            dto.calendarEvents,
+            updatedBy
+        );
+
+        const updated = await this.tripRepository.findDetailByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        return { data: this.tripUtil.mapResponse(updated!) };
+    }
+
+    async updateContacts(
+        tripId: string,
+        tenantId: string,
+        dto: TripContactsUpdateRequestDto
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        if (
+            trip.status === TripStatus.archived ||
+            trip.status === TripStatus.cancelled
+        ) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notDraft,
+                message: 'trip.error.notDraft',
+            });
+        }
+
+        await this.assertValidContactIds(dto.contactIds, tenantId);
+        await this.tripRepository.updateContacts(tripId, dto.contactIds);
+
+        const updated = await this.tripRepository.findDetailByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        return { data: this.tripUtil.mapResponse(updated!) };
+    }
+
+    async updateItineraries(
+        tripId: string,
+        tenantId: string,
+        dto: TripItinerariesUpdateRequestDto,
+        updatedBy: string
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        const trip = await this.tripRepository.findOneByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+        if (trip.status !== TripStatus.draft) {
+            throw new ConflictException({
+                statusCode: EnumTripStatusCodeError.notUpdatableFields,
+                message: 'trip.error.notUpdatableFields',
+            });
+        }
+
+        await this.tripRepository.updateItineraries(
+            tripId,
+            dto.itineraries,
+            updatedBy
+        );
+
+        const updated = await this.tripRepository.findDetailByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        return { data: this.tripUtil.mapResponse(updated!) };
+    }
+
+    async createInvites(
+        tripId: string,
+        tenantId: string,
+        dto: TripInvitesCreateRequestDto,
+        createdBy: string
+    ): Promise<IResponseReturn<void>> {
+        const trip = await this.tripRepository.existByIdAndTenant(
+            tripId,
+            tenantId
+        );
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        const inviteTokens = await this._prepareInviteTokens(dto.invites);
+        for (const { email } of inviteTokens) {
+            const exists =
+                await this.tripInviteRepository.existsByTripAndEmail(
+                    tripId,
+                    email
+                );
+            if (exists) {
+                throw new ConflictException({
+                    statusCode: EnumTripStatusCodeError.inviteAlreadyAccepted,
+                    message: 'trip.error.inviteAlreadyAccepted',
+                    data: { email },
+                });
+            }
+        }
+
+        await this.tripInviteRepository.createMany(
+            inviteTokens.map(({ email, tokenHash, expiresAt }) => ({
+                tripId,
+                createdBy,
+                email,
+                tokenHash,
+                status: TripInviteStatus.pending,
+                ...(expiresAt !== undefined ? { expiresAt } : {}),
+            }))
+        );
+
+        return { data: undefined };
     }
 
     async uploadIcon(
@@ -465,7 +587,7 @@ export class TripService implements ITripService {
         >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>> {
-        const result = await this.tripRepository.findManyByTravelerOrPublished(
+        const result = await this.tripRepository.findManyByTravelerAndStatus(
             userId,
             pagination,
             status

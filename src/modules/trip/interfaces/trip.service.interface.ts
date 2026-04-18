@@ -7,6 +7,10 @@ import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfa
 import { Prisma } from '@generated/prisma-client';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/trip-calendar-events-update.request.dto';
+import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
+import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
+import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
@@ -59,6 +63,33 @@ export interface ITripService {
         tripId: string,
         tenantId: string,
         deletedBy: string
+    ): Promise<IResponseReturn<void>>;
+
+    updateCalendarEvents(
+        tripId: string,
+        tenantId: string,
+        dto: TripCalendarEventsUpdateRequestDto,
+        updatedBy: string
+    ): Promise<IResponseReturn<TripResponseDto>>;
+
+    updateContacts(
+        tripId: string,
+        tenantId: string,
+        dto: TripContactsUpdateRequestDto
+    ): Promise<IResponseReturn<TripResponseDto>>;
+
+    updateItineraries(
+        tripId: string,
+        tenantId: string,
+        dto: TripItinerariesUpdateRequestDto,
+        updatedBy: string
+    ): Promise<IResponseReturn<TripResponseDto>>;
+
+    createInvites(
+        tripId: string,
+        tenantId: string,
+        dto: TripInvitesCreateRequestDto,
+        createdBy: string
     ): Promise<IResponseReturn<void>>;
 
     archive(

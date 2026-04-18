@@ -499,6 +499,7 @@ model TripForm {
   schemaSnapshot Json
   closesAt       DateTime?
   publishedAt    DateTime?
+  notes          String?
   tripId         String             @db.ObjectId
   templateId     String?            @db.ObjectId
 
@@ -619,10 +620,9 @@ model TripFormAnswer {
 }
 
 model Trip {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  slug      String @unique
-  tenantId  String @db.ObjectId
-  createdBy String @db.ObjectId
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  slug     String @unique
+  tenantId String @db.ObjectId
 
   title       String
   subtitle    String?
@@ -638,10 +638,12 @@ model Trip {
   archivedAt  DateTime?
   cancelledAt DateTime?
   deletedAt   DateTime?
-  deletedBy   String?   @db.ObjectId
+  deletedBy   String?    @db.ObjectId
 
   createdAt DateTime @default(now())
+  createdBy String   @db.ObjectId
   updatedAt DateTime @updatedAt
+  updatedBy String?  @db.ObjectId
 
   calendarEvents TripCalendarEvent[]
   contacts       TripContact[]
@@ -831,6 +833,7 @@ model TripContact {
 }
 
 enum TripInviteStatus {
+  pending
   invited
   accepted
   revoked

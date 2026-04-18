@@ -2,6 +2,7 @@ import { IPaginationIn, IPaginationQueryOffsetParams } from '@common/pagination/
 import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
+import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
 import { TripFormAssignmentCreateRequestDto } from '@modules/trip-form/dtos/request/trip-form-assignment-create.request.dto';
 import { TripFormSubmitRequestDto } from '@modules/trip-form/dtos/request/trip-form-submit.request.dto';
@@ -13,6 +14,11 @@ import { TripFormWithResponseResponseDto } from '@modules/trip-form/dtos/respons
 import { TripFormMetricsResponseDto } from '@modules/trip-form/dtos/response/trip-form-metrics.response.dto';
 
 export interface ITripFormService {
+    createFromTemplate(
+        dto: TripFormCreateFromTemplateRequestDto,
+        tripId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>>;
     createDraft(
         dto: TripFormCreateDraftRequestDto,
         tripId: string,

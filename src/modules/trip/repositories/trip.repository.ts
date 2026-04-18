@@ -15,7 +15,6 @@ import { TripCalendarEventCreateRequestDto } from '@modules/trip/dtos/request/tr
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
 import { TripItineraryCreateRequestDto } from '@modules/trip/dtos/request/trip-itinerary.create.request.dto';
 import { ITripDetail } from '@modules/trip/interfaces/trip.interface';
-import { ITripInviteToken } from '@modules/trip/interfaces/trip-invite.interface';
 import {
     Prisma,
     Trip,
@@ -111,8 +110,7 @@ export class TripRepository {
     async updateDraft(
         tripId: string,
         dto: TripUpdateDraftRequestDto,
-        updatedBy: string,
-        inviteTokens?: ITripInviteToken[]
+        updatedBy: string
     ): Promise<Trip> {
         return this.databaseService.trip.update({
             where: { id: tripId },
@@ -125,77 +123,65 @@ export class TripRepository {
                 startDate: dto.startDate,
                 endDate: dto.endDate,
                 timezone: dto.timezone ?? undefined,
-                ...(dto.itineraries !== undefined && {
-                    itineraries: {
-                        deleteMany: { tripId },
-                        ...(dto.itineraries.length > 0 && {
-                            create: this._buildItineraryCreateData(
-                                dto.itineraries,
-                                updatedBy
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.calendarEvents !== undefined && {
-                    calendarEvents: {
-                        deleteMany: { tripId },
-                        ...(dto.calendarEvents.length > 0 && {
-                            create: this._buildCalendarEventCreateData(
-                                dto.calendarEvents,
-                                updatedBy
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.medias !== undefined && {
-                    medias: {
-                        deleteMany: { tripId },
-                        ...(dto.medias.length > 0 && {
-                            create: this._buildMediaCreateData(
-                                dto.medias,
-                                tripId,
-                                updatedBy
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.attachments !== undefined && {
-                    attachments: {
-                        deleteMany: { tripId },
-                        ...(dto.attachments.length > 0 && {
-                            create: this._buildAttachmentCreateData(
-                                dto.attachments,
-                                tripId,
-                                updatedBy
-                            ),
-                        }),
-                    },
-                }),
-                ...(dto.contactIds !== undefined && {
-                    contacts: {
-                        deleteMany: { tripId },
-                        ...(dto.contactIds.length > 0 && {
-                            create: dto.contactIds.map(contactId => ({
-                                contact: { connect: { id: contactId } },
-                            })),
-                        }),
-                    },
-                }),
-                ...(inviteTokens &&
-                    inviteTokens.length > 0 && {
-                        invites: {
-                            create: inviteTokens.map(
-                                ({ email, tokenHash, expiresAt }) => ({
-                                    createdBy: updatedBy,
-                                    email,
-                                    tokenHash,
-                                    ...(expiresAt !== undefined && {
-                                        expiresAt,
-                                    }),
-                                })
-                            ),
-                        },
+                updatedBy: updatedBy,
+            },
+        });
+    }
+
+    async updateCalendarEvents(
+        tripId: string,
+        events: TripCalendarEventCreateRequestDto[],
+        updatedBy: string
+    ): Promise<void> {
+        await this.databaseService.trip.update({
+            where: { id: tripId },
+            data: {
+                calendarEvents: {
+                    deleteMany: { tripId },
+                    ...(events.length > 0 && {
+                        create: this._buildCalendarEventCreateData(
+                            events,
+                            updatedBy
+                        ),
                     }),
+                },
+            },
+        });
+    }
+
+    async updateContacts(tripId: string, contactIds: string[]): Promise<void> {
+        await this.databaseService.trip.update({
+            where: { id: tripId },
+            data: {
+                contacts: {
+                    deleteMany: { tripId },
+                    ...(contactIds.length > 0 && {
+                        create: contactIds.map(contactId => ({
+                            contact: { connect: { id: contactId } },
+                        })),
+                    }),
+                },
+            },
+        });
+    }
+
+    async updateItineraries(
+        tripId: string,
+        itineraries: TripItineraryCreateRequestDto[],
+        updatedBy: string
+    ): Promise<void> {
+        await this.databaseService.trip.update({
+            where: { id: tripId },
+            data: {
+                itineraries: {
+                    deleteMany: { tripId },
+                    ...(itineraries.length > 0 && {
+                        create: this._buildItineraryCreateData(
+                            itineraries,
+                            updatedBy
+                        ),
+                    }),
+                },
             },
         });
     }
@@ -344,7 +330,7 @@ export class TripRepository {
         });
     }
 
-    async findManyByTravelerOrPublished(
+    async findManyByTravelerAndStatus(
         userId: string,
         pagination: IPaginationQueryOffsetParams<
             Prisma.TripSelect,
@@ -361,10 +347,8 @@ export class TripRepository {
             where: {
                 ...pagination.where,
                 deletedAt: null,
-                OR: [
-                    { status: TripStatus.published },
-                    { travelers: { some: { userId } } },
-                ],
+                status: TripStatus.published,
+                travelers: { some: { userId } },
                 ...status,
             },
         });
@@ -393,7 +377,10 @@ export class TripRepository {
                 data: { deletedAt: now, deletedBy },
             }),
             this.databaseService.tripInvite.updateMany({
-                where: { tripId: id, status: TripInviteStatus.invited },
+                where: {
+                    tripId: id,
+                    status: { in: [TripInviteStatus.pending, TripInviteStatus.invited] },
+                },
                 data: {
                     status: TripInviteStatus.revoked,
                     revokedAt: now,
@@ -453,6 +440,7 @@ export class TripRepository {
                 createdBy,
                 email: invite.email,
                 tokenHash,
+                status: TripInviteStatus.pending,
                 expiresAt: invite.expiresAt ?? null,
             };
         });

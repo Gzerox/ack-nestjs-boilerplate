@@ -22,6 +22,7 @@ import { HelperService } from '@common/helper/services/helper.service';
 import { EnumTripFormStatusCodeError } from '@modules/trip-form/enums/trip-form.status-code.enum';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
+import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
 import { TripFormAssignmentCreateRequestDto } from '@modules/trip-form/dtos/request/trip-form-assignment-create.request.dto';
 import { TripFormSubmitRequestDto } from '@modules/trip-form/dtos/request/trip-form-submit.request.dto';
 import { TripFormResponseDto } from '@modules/trip-form/dtos/response/trip-form.response.dto';
@@ -48,6 +49,33 @@ export class TripFormService implements ITripFormService {
         private readonly tripFormUtil: TripFormUtil,
         private readonly helperService: HelperService
     ) {}
+
+    async createFromTemplate(
+        dto: TripFormCreateFromTemplateRequestDto,
+        tripId: string,
+        createdBy: string
+    ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>> {
+        const tripExists = await this.tripFormRepository.existTripById(tripId);
+        if (!tripExists) {
+            throw new NotFoundException({
+                statusCode: EnumTripFormStatusCodeError.tripNotFound,
+                message: 'trip-form.error.tripNotFound',
+            });
+        }
+
+        const form = await this.tripFormRepository.createFromTemplate(dto, tripId, createdBy);
+        if (!form) {
+            throw new NotFoundException({
+                statusCode: EnumTripFormStatusCodeError.templateNotFound,
+                message: 'trip-form.error.templateNotFound',
+            });
+        }
+
+        return {
+            data: { id: form.id },
+            metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(form.id),
+        };
+    }
 
     async createDraft(
         dto: TripFormCreateDraftRequestDto,

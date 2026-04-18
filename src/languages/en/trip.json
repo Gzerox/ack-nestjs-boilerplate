@@ -10,10 +10,14 @@
         "update":      "Trip updated",
         "uploadIcon":  "Trip icon uploaded",
         "uploadCoverImage": "Trip cover image uploaded",
-        "publish":     "Trip published",
-        "archive":     "Trip archived",
-        "delete":      "Trip deleted",
-        "unpublish":   "Trip unpublished"
+        "publish":         "Trip published",
+        "archive":         "Trip archived",
+        "delete":          "Trip deleted",
+        "unpublish":       "Trip unpublished",
+        "updateCalendarEvents": "Trip calendar events updated",
+        "updateContacts":  "Trip contacts updated",
+        "updateItineraries": "Trip itineraries updated",
+        "createInvites":   "Trip invites created",
         "createForm":  "Trip form created",
         "uploadMedia": "Trip media uploaded",
         "uploadAttachments": "Trip attachments uploaded"

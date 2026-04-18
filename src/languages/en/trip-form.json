@@ -2,6 +2,7 @@
     "trip-form": {
         "list": "Get trip form list",
         "get": "Get trip form detail",
+        "createFromTemplate": "Trip form created from template",
         "createDraft": "Trip form draft created",
         "update": "Trip form updated",
         "publish": "Trip form published",
@@ -34,6 +35,7 @@
         "responseAlreadySubmitted": "Trip form already submitted",
         "responseAlreadyExists": "User already has a response for this assignment",
         "responseQuestionDuplicate": "Duplicate answers for the same question are not allowed",
-        "questionNotFound": "Trip form question not found"
+        "questionNotFound": "Trip form question not found",
+        "templateNotFound": "Form template not found or inactive"
     }
 }

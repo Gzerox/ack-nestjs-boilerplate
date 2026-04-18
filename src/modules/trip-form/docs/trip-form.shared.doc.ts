@@ -13,8 +13,18 @@ import { TripFormAssignmentResponseDto } from '@modules/trip-form/dtos/response/
 import { TripFormResponseResponseDto } from '@modules/trip-form/dtos/response/trip-form-response.response.dto';
 import { TripFormMetricsResponseDto } from '@modules/trip-form/dtos/response/trip-form-metrics.response.dto';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
+import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
 import { TripFormAssignmentCreateRequestDto } from '@modules/trip-form/dtos/request/trip-form-assignment-create.request.dto';
+
+export function TripFormSharedCreateFromTemplateDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'create trip form from template' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripFormCreateFromTemplateRequestDto }),
+        DocResponse<TripFormCreateDraftResponseDto>('trip-form.createFromTemplate', { dto: TripFormCreateDraftResponseDto, httpStatus: HttpStatus.CREATED })
+    );
+}
 
 export function TripFormSharedCreateDraftDoc(): MethodDecorator {
     return applyDecorators(

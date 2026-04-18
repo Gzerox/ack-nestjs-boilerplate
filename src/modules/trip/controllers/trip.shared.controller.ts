@@ -59,6 +59,10 @@ import { ParseJsonArrayPipe } from '@common/request/pipes/request.parse-json-arr
 import { TripService } from '@modules/trip/services/trip.service';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/trip-calendar-events-update.request.dto';
+import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
+import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
+import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchItemRequestDto } from '@modules/trip/dtos/request/trip-media-batch-item.request.dto';
 import { TripAttachmentBatchItemRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-item.request.dto';
 import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.create-draft.response.dto';
@@ -79,13 +83,17 @@ import {
 import {
     TripSharedArchiveDoc,
     TripSharedCreateDraftDoc,
+    TripSharedCreateInvitesDoc,
     TripSharedDeleteDoc,
     TripSharedGetDoc,
     TripSharedListDoc,
     TripSharedPublishDoc,
     TripSharedRevokeInviteDoc,
     TripSharedUnpublishDoc,
+    TripSharedUpdateCalendarEventsDoc,
+    TripSharedUpdateContactsDoc,
     TripSharedUpdateDraftDoc,
+    TripSharedUpdateItinerariesDoc,
     TripSharedUploadAttachmentBatchDoc,
     TripSharedUploadCoverImageDoc,
     TripSharedUploadIconDoc,
@@ -141,6 +149,79 @@ export class TripSharedController {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
         return this.tripService.updateDraft(tripId, body, tenantId, userId);
+    }
+
+    @TripSharedUpdateCalendarEventsDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip.updateCalendarEvents')
+    @Put('/:idTrip/calendar-events')
+    async updateCalendarEvents(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @Body() body: TripCalendarEventsUpdateRequestDto
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.updateCalendarEvents(tripId, tenantId, body, userId);
+    }
+
+    @TripSharedUpdateContactsDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip.updateContacts')
+    @Put('/:idTrip/contacts')
+    async updateContacts(
+        @AuthJwtPayload('userId') _userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @Body() body: TripContactsUpdateRequestDto
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.updateContacts(tripId, tenantId, body);
+    }
+
+    @TripSharedUpdateItinerariesDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip.updateItineraries')
+    @Put('/:idTrip/itineraries')
+    async updateItineraries(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @Body() body: TripItinerariesUpdateRequestDto
+    ): Promise<IResponseReturn<TripResponseDto>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.updateItineraries(tripId, tenantId, body, userId);
+    }
+
+    @TripSharedCreateInvitesDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @Response('trip.createInvites')
+    @HttpCode(HttpStatus.CREATED)
+    @Post('/:idTrip/invites')
+    async createInvites(
+        @AuthJwtPayload('userId') userId: string,
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string,
+        @Body() body: TripInvitesCreateRequestDto
+    ): Promise<IResponseReturn<void>> {
+        // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
+        const tenantId = '';
+        return this.tripService.createInvites(tripId, tenantId, body, userId);
     }
 
     @TripSharedUploadIconDoc()

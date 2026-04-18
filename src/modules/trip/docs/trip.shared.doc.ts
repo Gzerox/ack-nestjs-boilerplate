@@ -15,6 +15,10 @@ import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
+import { TripCalendarEventsUpdateRequestDto } from '@modules/trip/dtos/request/trip-calendar-events-update.request.dto';
+import { TripContactsUpdateRequestDto } from '@modules/trip/dtos/request/trip-contacts-update.request.dto';
+import { TripItinerariesUpdateRequestDto } from '@modules/trip/dtos/request/trip-itineraries-update.request.dto';
+import { TripInvitesCreateRequestDto } from '@modules/trip/dtos/request/trip-invites-create.request.dto';
 import { TripMediaBatchUploadRequestDto } from '@modules/trip/dtos/request/trip-media-batch-upload.request.dto';
 import { TripAttachmentBatchUploadRequestDto } from '@modules/trip/dtos/request/trip-attachment-batch-upload.request.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
@@ -91,6 +95,42 @@ export function TripSharedUnpublishDoc(): MethodDecorator {
         Doc({ summary: 'unpublish trip' }),
         DocAuth({ xApiKey: true, jwtAccessToken: true }),
         DocResponse<TripResponseDto>('trip.unpublish', { dto: TripResponseDto })
+    );
+}
+
+export function TripSharedUpdateCalendarEventsDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'replace trip calendar events' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripCalendarEventsUpdateRequestDto }),
+        DocResponse<TripResponseDto>('trip.updateCalendarEvents', { dto: TripResponseDto })
+    );
+}
+
+export function TripSharedUpdateContactsDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'replace trip contacts' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripContactsUpdateRequestDto }),
+        DocResponse<TripResponseDto>('trip.updateContacts', { dto: TripResponseDto })
+    );
+}
+
+export function TripSharedUpdateItinerariesDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'replace trip itineraries' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripItinerariesUpdateRequestDto }),
+        DocResponse<TripResponseDto>('trip.updateItineraries', { dto: TripResponseDto })
+    );
+}
+
+export function TripSharedCreateInvitesDoc(): MethodDecorator {
+    return applyDecorators(
+        Doc({ summary: 'create trip invites' }),
+        DocAuth({ xApiKey: true, jwtAccessToken: true }),
+        DocRequest({ bodyType: EnumDocRequestBodyType.json, dto: TripInvitesCreateRequestDto }),
+        DocResponse('trip.createInvites', { httpStatus: HttpStatus.CREATED })
     );
 }
 

@@ -1,5 +1,6 @@
 export enum EnumTripFormStatusCodeError {
     tripNotFound             = 5299,
+    templateNotFound         = 5298,
     formNotFound             = 5300,
     formNotDraft             = 5301,
     formNotPublished         = 5302,

@@ -14,7 +14,10 @@ import { TripMediaCreateRequestDto } from '@modules/trip/dtos/request/trip-media
 import { TripCalendarEventCreateRequestDto } from '@modules/trip/dtos/request/trip-calendar-event.create.request.dto';
 import { TripInviteCreateRequestDto } from '@modules/trip/dtos/request/trip-invite.create.request.dto';
 import { TripItineraryCreateRequestDto } from '@modules/trip/dtos/request/trip-itinerary.create.request.dto';
-import { ITripDetail } from '@modules/trip/interfaces/trip.interface';
+import {
+    ITripDetail,
+    ITripPublicSummary,
+} from '@modules/trip/interfaces/trip.interface';
 import {
     Prisma,
     Trip,
@@ -54,6 +57,7 @@ export class TripRepository {
                 endDate: dto.endDate,
                 timezone: dto.timezone ?? null,
                 status: TripStatus.draft,
+                deletedAt: null,
                 ...(dto.calendarEvents?.length && {
                     calendarEvents: {
                         create: this._buildCalendarEventCreateData(
@@ -205,6 +209,26 @@ export class TripRepository {
     async findOneById(tripId: string): Promise<Trip | null> {
         return this.databaseService.trip.findFirst({
             where: { id: tripId, deletedAt: null },
+        });
+    }
+
+    async findOneBySlug(slug: string): Promise<ITripPublicSummary | null> {
+        return this.databaseService.trip.findFirst({
+            where: {
+                slug,
+                status: TripStatus.published,
+                deletedAt: null,
+            },
+            select: {
+                slug: true,
+                title: true,
+                subtitle: true,
+                icon: true,
+                coverImage: true,
+                startDate: true,
+                endDate: true,
+                timezone: true,
+            },
         });
     }
 

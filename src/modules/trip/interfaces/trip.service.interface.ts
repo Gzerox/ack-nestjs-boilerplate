@@ -17,6 +17,7 @@ import { TripCreateDraftResponseDto } from '@modules/trip/dtos/response/trip.cre
 import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
+import { TripPublicResponseDto } from '@modules/trip/dtos/response/trip-public.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
@@ -122,6 +123,10 @@ export interface ITripService {
         email: string,
         pagination: IPaginationQueryOffsetParams<Prisma.TripInviteSelect, Prisma.TripInviteWhereInput>
     ): Promise<IResponsePagingReturn<TripInviteListItemResponseDto>>;
+
+    getTripBySlug(
+        tripSlug: string
+    ): Promise<IResponseReturn<TripPublicResponseDto>>;
 
     acceptInvite(
         rawToken: string,

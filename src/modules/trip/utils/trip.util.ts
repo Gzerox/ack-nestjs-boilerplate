@@ -7,6 +7,7 @@ import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
+import { TripPublicResponseDto } from '@modules/trip/dtos/response/trip-public.response.dto';
 import { TenantContactResponseDto } from '@modules/tenant-contact/dtos/response/tenant-contact.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { EnumTripStatusCodeError } from '@modules/trip/enums/trip.status-code.enum';
@@ -20,6 +21,7 @@ import {
     ITripContactWithContact,
     ITripDetail,
     ITripMediaWithAsset,
+    ITripPublicSummary,
 } from '@modules/trip/interfaces/trip.interface';
 import { TripRepository } from '@modules/trip/repositories/trip.repository';
 import { plainToInstance } from 'class-transformer';
@@ -89,6 +91,19 @@ export class TripUtil {
             contacts: this.mapTripContactList(trip.contacts),
             medias: this.mapMediaList(trip.medias),
             attachments: this.mapAttachmentList(trip.attachments),
+        });
+    }
+
+    mapPublicResponse(trip: ITripPublicSummary): TripPublicResponseDto {
+        return plainToInstance(TripPublicResponseDto, {
+            slug: trip.slug,
+            title: trip.title,
+            subtitle: trip.subtitle,
+            iconUrl: trip.icon?.completedUrl ?? null,
+            coverImageUrl: trip.coverImage?.completedUrl ?? null,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            timezone: trip.timezone,
         });
     }
 

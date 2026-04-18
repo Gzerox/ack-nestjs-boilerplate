@@ -32,3 +32,15 @@ export interface ITripDetail extends Trip {
     medias: ITripMediaWithAsset[];
     attachments: ITripAttachmentWithAsset[];
 }
+
+export type ITripPublicSummary = Pick<
+    Trip,
+    | 'slug'
+    | 'title'
+    | 'subtitle'
+    | 'icon'
+    | 'coverImage'
+    | 'startDate'
+    | 'endDate'
+    | 'timezone'
+>;

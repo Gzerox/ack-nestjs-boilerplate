@@ -2,6 +2,7 @@ import { TripStatus } from '@generated/prisma-client';
 
 export const TRIP_TAG_SHARED = 'modules.shared.trip';
 export const TRIP_TAG_USER = 'modules.user.trip';
+export const TRIP_TAG_PUBLIC = 'modules.public.trip';
 
 export const TripDefaultAvailableSearch = ['title'];
 export const TripDefaultAvailableSort = ['createdAt', 'startDate', 'endDate', 'title'];

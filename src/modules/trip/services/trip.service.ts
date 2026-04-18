@@ -48,6 +48,7 @@ import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
 import { TripResponseDto } from '@modules/trip/dtos/response/trip.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
+import { TripPublicResponseDto } from '@modules/trip/dtos/response/trip-public.response.dto';
 import { TripMediaResponseDto } from '@modules/trip/dtos/response/trip-media.response.dto';
 import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
 import {
@@ -577,6 +578,20 @@ export class TripService implements ITripService {
         }
 
         return { data: this.tripUtil.mapResponse(tripDetail) };
+    }
+
+    async getTripBySlug(
+        tripSlug: string
+    ): Promise<IResponseReturn<TripPublicResponseDto>> {
+        const trip = await this.tripRepository.findOneBySlug(tripSlug);
+        if (!trip) {
+            throw new NotFoundException({
+                statusCode: EnumTripStatusCodeError.notFound,
+                message: 'trip.error.notFound',
+            });
+        }
+
+        return { data: this.tripUtil.mapPublicResponse(trip) };
     }
 
     async getUserTripList(

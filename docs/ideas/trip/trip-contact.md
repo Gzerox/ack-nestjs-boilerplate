@@ -1,82 +1,56 @@
-# Trip Contact Implementation
+# Trip Contact (Current)
 
 ## Scope
 
-This file owns the trip-specific contact linkage:
+`TripContact` is the junction/connection model between:
 
-1. `TripContact`
+1. `Trip`
+2. `TenantContact`
 
-The tenant-owned contact book itself is documented in [../tenant/tenant-contact.md](../tenant/tenant-contact.md).
+Each trip can reference one or many tenant contacts for operational reasons, for example:
 
-## Related Documents
+1. hotel assistance
+2. flight contact point
+3. pickup/transfer agent
+4. emergency local contact
 
-1. Trip domain (consolidated): [trip.md](trip.md)
-2. Tenant contact scope: [../tenant/tenant-contact.md](../tenant/tenant-contact.md)
+`TenantContact` records are tenant-owned and managed in the tenant-contact domain:
+[Tenant Contact](../tenant/tenant-contact.md).
 
-## Domain Model
+## Data Model
 
-1. `TripContact` is the link table between `Trip` and `TenantContact`.
-2. `TripContact` is used to expose support and assistance references inside trip details shown to travelers.
-3. The contact records remain tenant-owned and reusable across many trips.
+1. `TripContact` has `(tripId, contactId)` unique constraint.
+2. Contact rows remain tenant-owned; trips only reference them.
+3. `TripResponseDto.contacts` exposes mapped `TenantContactResponseDto[]` (not `TripContact` rows).
 
-## Prisma Draft Schema
+## Endpoints That Directly Impact `TripContact` (Paths After `/api/v1`)
 
-```prisma
-model TripContact {
-  id        String        @id @default(uuid())
-  tripId    String
-  contactId String
+There is no dedicated trip-contact controller; writes happen through trip endpoints.
 
-  trip      Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  contact   TenantContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+| Method | Path | Direct impact on `TripContact` |
+| --- | --- | --- |
+| `POST` | `/shared/trips` | Creates initial `TripContact` links from optional `contactIds` on draft creation. |
+| `PUT` | `/shared/trips/:idTrip/contacts` | Replaces all links for the trip (`deleteMany` + `create`). |
 
-  @@unique([tripId, contactId])
-  @@index([tripId])
-  @@index([contactId])
-}
-```
+## Validation
 
-## Entity Notes
+1. Submitted `contactIds` are validated against active tenant contacts.
+2. Missing or cross-tenant contacts fail with `contactNotFound`.
+3. Duplicate links are prevented by DB unique constraint.
 
-1. `TripContact` must only link a trip to contacts in the same tenant.
-2. `POST /shared/trips` receives contacts as a list of existing `TenantContact` `ObjectId` values.
-3. The service creates `TripContact[]` internally from that contact id list.
-4. `PUT /shared/trips/:idTrip` should sync the link table against the submitted list of contact ids.
-5. The `Trip` model exposes `contacts TripContact[]` on the aggregate root.
+## Lifecycle Behavior
 
-## Response DTOs
+| Event | Endpoint (after `/api/v1`) | What happens to `TripContact` links |
+| --- | --- | --- |
+| Backoffice deletes trip | `DELETE /shared/trips/:idTrip` | Trip is soft-deleted (`deletedAt`, `deletedBy`). `TripContact` rows are not physically deleted by this flow. Trip is excluded from normal reads, so linked contacts are not reachable through regular trip APIs. |
+| Backoffice deletes tenant contact | `DELETE /shared/contacts/:idContact` | Tenant contact is soft-deleted in tenant-contact module. `TripContact` rows are not physically deleted by this flow and are not auto-unlinked. |
 
-#### `TripContactResponseDto` (embedded in `TripResponseDto` and `TripUserResponseDto`)
+Current read implication:
 
-- `id: string` (TripContact id)
-- `contact: TenantContactResponseDto`
+1. Trip detail queries include linked `contact` records without an explicit `deletedAt: null` filter on the nested relation.
+2. A soft-deleted tenant contact may remain visible in trip contact payloads until trip contacts are replaced.
 
-## Write Flows
+Additional schema note:
 
-There is no dedicated `TripContact` controller.
-
-Trip linkage is handled inside trip write endpoints:
-
-1. `POST /shared/trips` validates all submitted contact ids against tenant-visible, non-deleted `TenantContact` records, then creates `TripContact[]`.
-2. `PUT /shared/trips/:idTrip` replaces or reconciles existing `TripContact[]` rows to match the current payload.
-
-## End-user Surface
-
-There are no dedicated end-user contact endpoints.
-
-Traveler clients receive trip contacts through:
-
-1. `GET /user/trips/:idTrip` (embedded in `TripUserResponseDto.contacts`)
-
-## Validation Rules
-
-1. `TripContact` must not connect a trip to a `TenantContact` owned by another tenant.
-2. Duplicate trip-contact links must be prevented by `(tripId, contactId)`.
-3. `POST /shared/trips` contact ids must all belong to `TenantContact` records visible in the current tenant (non-deleted).
-4. `PUT /shared/trips/:idTrip` must not retain links to soft-deleted contacts.
-
-## Authorization and Visibility
-
-1. `TripContact` writes are backend-user only because they happen through shared trip management endpoints.
-2. All links are tenant-scoped through both the parent `Trip` and the referenced `TenantContact`.
-3. End users only see contacts through trips they are allowed to access.
+1. `TripContact.trip` and `TripContact.contact` relations are defined with `onDelete: Cascade`.
+2. Cascade applies when a parent record is physically deleted at DB level, not when it is soft-deleted.

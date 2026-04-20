@@ -215,6 +215,11 @@ Path prefix: `/shared/trips`
 
 Backend users manage traveler data through the following endpoints.
 
+| Method | Path (after `/api/v1`) | Purpose |
+| --- | --- | --- |
+| `GET` | `/shared/trips/:idTrip/travelers` | List travelers for a trip (non-sensitive projection). |
+| `GET` | `/shared/trips/:idTrip/travelers/:idTraveler` | Get one traveler detail (sensitive fields allowed). |
+
 #### `GET /shared/trips/:idTrip/travelers`
 
 Load all `TripTraveler` rows for the trip, including document metadata with the non-sensitive projection only.

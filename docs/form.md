@@ -4,7 +4,7 @@ This documentation explains the features and usage of **Trip Form Module**: Loca
 
 ## Overview
 
-Trip Form Module provides a structured way for backend users to create trip-specific form instances, publish them, assign them to users, and collect final submissions.
+Trip Form Module provides a structured way for backoffice users to create trip-specific form instances, publish them, assign them to users, and collect final submissions.
 
 This feature was previously referred to as **survey** in the documentation. The current implementation supports multiple form kinds (survey, form, poll), and forms are now explicitly trip-scoped through the `TripForm` model.
 
@@ -16,6 +16,8 @@ At a high level, the feature works in four stages:
 - **Submission stage**: assigned users submit final answers
 
 This module is designed so form structure is flexible while being drafted, but immutable once it is published. Assignment and answer records are handled separately from the draft schema.
+
+Important: a form in `draft` status cannot be assigned.
 
 ## Related Documents
 
@@ -147,6 +149,8 @@ When a form creator creates an assignment:
 
 This means the recipient list is no longer part of the draft schema. It is managed as separate assignment data after publication.
 
+If assignment creation is attempted while the form is still `draft`, the request is rejected.
+
 ### Submission Stage
 
 Once a form is published and assigned, the user can open the form and submit answers.
@@ -188,16 +192,9 @@ Question definitions currently support:
 - `boolean`
 - `date`
 
-The question summary endpoint (`GET /trips/:idTrip/forms/:idForm/questions/:questionId/summary`) aggregates stored answers differently per type:
-
-- `singleSelect` / `multiSelect` - counts occurrences of each option value (frequency breakdown)
-- `boolean` - counts `true` and `false` responses separately
-- `number` - returns `min`, `max`, `avg`, and total response count
-- `text` / `date` - returns only the count of non-null responses; individual values are not surfaced
-
 Conceptually, `schemaSnapshot` is the editable blueprint for one trip-owned form instance. Once the form is published, that snapshot is materialized into persistent `TripFormSection` and `TripFormQuestion` records used by the published form.
 
-Post-publish endpoints (`GET .../questions/:questionId/summary` and answer submission) use the published `TripFormQuestion.id` ObjectId.
+Post-publish submission endpoints use the published `TripFormQuestion.id` ObjectId.
 
 In short:
 
@@ -231,7 +228,15 @@ Existing runtime form operations:
 - `DELETE /trips/:idTrip/forms/:idForm` - delete form
 - `GET /trips/:idTrip/forms/:idForm/metrics` - get assignment and submission metrics (`assignedCount`, `pendingCount`, `submittedCount`, `completionRate`)
 - `GET /trips/:idTrip/forms/:idForm/responses` - list assignment status and answers for a form
-- `GET /trips/:idTrip/forms/:idForm/questions/:questionId/summary` - aggregate answers for one question
+- `GET /trips/:idTrip/forms/:idForm/responses/export` - export assignment responses as CSV
+
+CSV export behavior:
+
+- one row per assignment
+- fixed metadata columns (`assignmentId`, `userId`, `status`, `required`, `startsAt`, `closesAt`, `submittedAt`)
+- one dynamic column per published question
+- question columns ordered by section position and question position
+- header row returned even when there are no assignments
 
 ### User Routes
 
@@ -289,7 +294,7 @@ sequenceDiagram
     Database-->>Creator: Form published and locked
     Creator->>Database: Create TripFormAssignment for target user
     Database->>Database: Initialize assignment status as pending
-    Creator->>Database: Read metrics / responses / question summary
+    Creator->>Database: Read metrics / responses / CSV export
 ```
 
 ### User Flow Diagram
@@ -349,9 +354,9 @@ The `isActive` field exists on `TripFormAssignment` in the schema but there is n
 
 Assignment `startsAt` is enforced on all user-facing endpoints. Users cannot view or submit a form before `startsAt` is reached. The form list also filters out assignments whose time window is not yet open.
 
-### Text and date question summaries return count only
+### No per-question summary endpoint
 
-The question summary endpoint does not surface individual text or date answer values. For `text` and `date` question types it returns only the count of non-null responses, not the actual submitted values.
+There is currently no endpoint under `TripFormSharedController` that returns a per-question aggregate summary.
 
 ### No form versioning
 

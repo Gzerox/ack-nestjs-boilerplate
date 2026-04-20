@@ -17,7 +17,10 @@ import {
     AuthJwtAccessProtected,
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
-import { FileUploadMultiple, FileUploadSingle } from '@common/file/decorators/file.decorator';
+import {
+    FileUploadMultiple,
+    FileUploadSingle,
+} from '@common/file/decorators/file.decorator';
 import { FileSizeInBytes } from '@common/file/constants/file.constant';
 import {
     EnumFileExtensionDocument,
@@ -166,7 +169,12 @@ export class TripSharedController {
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
-        return this.tripService.updateCalendarEvents(tripId, tenantId, body, userId);
+        return this.tripService.updateCalendarEvents(
+            tripId,
+            tenantId,
+            body,
+            userId
+        );
     }
 
     @TripSharedUpdateContactsDoc()
@@ -177,14 +185,14 @@ export class TripSharedController {
     @Response('trip.updateContacts')
     @Put('/:idTrip/contacts')
     async updateContacts(
-        @AuthJwtPayload('userId') _userId: string,
+        @AuthJwtPayload('userId') userId: string,
         @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripContactsUpdateRequestDto
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
-        return this.tripService.updateContacts(tripId, tenantId, body);
+        return this.tripService.updateContacts(tripId, tenantId, body, userId);
     }
 
     @TripSharedUpdateItinerariesDoc()
@@ -202,7 +210,12 @@ export class TripSharedController {
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
         const tenantId = '';
-        return this.tripService.updateItineraries(tripId, tenantId, body, userId);
+        return this.tripService.updateItineraries(
+            tripId,
+            tenantId,
+            body,
+            userId
+        );
     }
 
     @TripSharedCreateInvitesDoc()
@@ -468,7 +481,11 @@ export class TripSharedController {
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('trip')
     @ApiKeyProtected()
-    @FileUploadMultiple({ field: 'files', maxFiles: 20, fileSize: FileSizeInBytes })
+    @FileUploadMultiple({
+        field: 'files',
+        maxFiles: 20,
+        fileSize: FileSizeInBytes,
+    })
     @RequestTimeout('2m')
     @Response('trip.uploadMedia')
     @HttpCode(HttpStatus.CREATED)
@@ -505,7 +522,11 @@ export class TripSharedController {
     @AuthJwtAccessProtected()
     @FeatureFlagProtected('trip')
     @ApiKeyProtected()
-    @FileUploadMultiple({ field: 'files', maxFiles: 10, fileSize: FileSizeInBytes })
+    @FileUploadMultiple({
+        field: 'files',
+        maxFiles: 10,
+        fileSize: FileSizeInBytes,
+    })
     @RequestTimeout('2m')
     @Response('trip.uploadAttachments')
     @HttpCode(HttpStatus.CREATED)

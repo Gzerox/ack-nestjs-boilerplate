@@ -46,7 +46,7 @@ export class TripPublicController {
     @ApiKeyProtected()
     @Response('invite.check')
     @HttpCode(HttpStatus.OK)
-    @Post('/:tripSlug/invite/check')
+    @Post('/:tripSlug/invites/check')
     async checkInvite(
         @Param('tripSlug', RequestRequiredPipe) tripSlug: string,
         @Body() body: TripInviteIdentifyRequestDto

@@ -25,7 +25,10 @@ export class TripInviteRepository {
         await this.databaseService.tripInvite.createMany({ data });
     }
 
-    async findOneByIdAndTrip(inviteId: string, tripId: string): Promise<TripInvite | null> {
+    async findOneByIdAndTrip(
+        inviteId: string,
+        tripId: string
+    ): Promise<TripInvite | null> {
         return this.databaseService.tripInvite.findFirst({
             where: { id: inviteId, tripId },
         });
@@ -107,21 +110,32 @@ export class TripInviteRepository {
         });
     }
 
-    async accept(inviteId: string, userId: string, acceptedAt: Date): Promise<TripInvite> {
+    async accept(
+        inviteId: string,
+        userId: string,
+        acceptedAt: Date
+    ): Promise<TripInvite> {
         return this.databaseService.tripInvite.update({
             where: { id: inviteId },
             data: { status: TripInviteStatus.accepted, userId, acceptedAt },
         });
     }
 
-    async revoke(inviteId: string, revokedBy: string, revokedAt: Date): Promise<TripInvite> {
+    async revoke(
+        inviteId: string,
+        revokedBy: string,
+        revokedAt: Date
+    ): Promise<TripInvite> {
         return this.databaseService.tripInvite.update({
             where: { id: inviteId },
             data: { status: TripInviteStatus.revoked, revokedBy, revokedAt },
         });
     }
 
-    async existsByTripAndEmail(tripId: string, email: string): Promise<boolean> {
+    async existsByTripAndEmail(
+        tripId: string,
+        email: string
+    ): Promise<boolean> {
         const record = await this.databaseService.tripInvite.findFirst({
             where: { tripId, email },
             select: { id: true },
@@ -141,6 +155,7 @@ export class TripInviteRepository {
                 data: { status: TripInviteStatus.accepted, userId, acceptedAt },
             });
 
+            //TODO: existing == true should never happen, the tripTraveler is only created during the accept invite.
             const existing = await tx.tripTraveler.findFirst({
                 where: { tripId, userId },
                 select: { id: true },

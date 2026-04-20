@@ -161,7 +161,9 @@ export class TripRepository {
                     deleteMany: { tripId },
                     ...(contactIds.length > 0 && {
                         create: contactIds.map(contactId => ({
-                            contact: { connect: { id: contactId } },
+                            contact: {
+                                connect: { id: contactId },
+                            },
                         })),
                     }),
                 },
@@ -403,7 +405,12 @@ export class TripRepository {
             this.databaseService.tripInvite.updateMany({
                 where: {
                     tripId: id,
-                    status: { in: [TripInviteStatus.pending, TripInviteStatus.invited] },
+                    status: {
+                        in: [
+                            TripInviteStatus.pending,
+                            TripInviteStatus.invited,
+                        ],
+                    },
                 },
                 data: {
                     status: TripInviteStatus.revoked,

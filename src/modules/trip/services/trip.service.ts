@@ -177,7 +177,7 @@ export class TripService implements ITripService {
         }
 
         try {
-            await this.tripRepository.updateDraft(tripId, dto,updatedBy);
+            await this.tripRepository.updateDraft(tripId, dto, updatedBy);
         } catch (error: unknown) {
             throw new InternalServerErrorException({
                 statusCode: EnumAppStatusCodeError.unknown,
@@ -246,7 +246,8 @@ export class TripService implements ITripService {
     async updateContacts(
         tripId: string,
         tenantId: string,
-        dto: TripContactsUpdateRequestDto
+        dto: TripContactsUpdateRequestDto,
+        updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         const trip = await this.tripRepository.findOneByIdAndTenant(
             tripId,
@@ -333,11 +334,10 @@ export class TripService implements ITripService {
 
         const inviteTokens = await this._prepareInviteTokens(dto.invites);
         for (const { email } of inviteTokens) {
-            const exists =
-                await this.tripInviteRepository.existsByTripAndEmail(
-                    tripId,
-                    email
-                );
+            const exists = await this.tripInviteRepository.existsByTripAndEmail(
+                tripId,
+                email
+            );
             if (exists) {
                 //TODO: exists is true not necessary the invite has been already accepted.
                 //TODO: If invite for a given email already exists, we should just skip it for the createMany operations, not throw error.
@@ -731,7 +731,6 @@ export class TripService implements ITripService {
         const tokenHash = this.helperService.sha256Hash(rawToken);
         const invite =
             await this.tripInviteRepository.findOneByTokenHash(tokenHash);
-
         if (!invite) {
             throw new NotFoundException({
                 statusCode: EnumTripStatusCodeError.inviteTokenInvalid,
@@ -753,19 +752,21 @@ export class TripService implements ITripService {
             });
         }
 
-        if (invite.expiresAt && invite.expiresAt < new Date()) {
+        if (
+            invite.expiresAt &&
+            invite.expiresAt < this.helperService.dateCreate()
+        ) {
             throw new ConflictException({
                 statusCode: EnumTripStatusCodeError.inviteExpired,
                 message: 'trip.error.inviteExpired',
             });
         }
 
-        const now = this.helperService.dateCreate();
         await this.tripInviteRepository.acceptWithTraveler(
             invite.id,
             userId,
             invite.tripId,
-            now
+            this.helperService.dateCreate()
         );
 
         return { data: undefined };

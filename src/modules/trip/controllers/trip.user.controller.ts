@@ -8,18 +8,24 @@ import {
     Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthJwtAccessProtected, AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
+import {
+    AuthJwtAccessProtected,
+    AuthJwtPayload,
+} from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
-import { Response, ResponsePaging } from '@common/response/decorators/response.decorator';
-import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import {
+    Response,
+    ResponsePaging,
+} from '@common/response/decorators/response.decorator';
+import {
+    IResponsePagingReturn,
+    IResponseReturn,
+} from '@common/response/interfaces/response.interface';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { FeatureFlagProtected } from '@modules/feature-flag/decorators/feature-flag.decorator';
-import {
-    Prisma,
-    TripStatus,
-} from '@generated/prisma-client';
+import { Prisma, TripStatus } from '@generated/prisma-client';
 import {
     PaginationOffsetQuery,
     PaginationQueryFilterInEnum,
@@ -50,7 +56,7 @@ import {
 } from '@modules/trip/docs/trip.user.doc';
 
 @ApiTags(TRIP_TAG_USER)
-@Controller({ version: '1', path: '/user/trips' })
+@Controller({ version: '1', path: '/trips' })
 export class TripUserController {
     constructor(private readonly tripService: TripService) {}
 
@@ -105,7 +111,10 @@ export class TripUserController {
             availableOrderBy: TripDefaultAvailableSort,
             defaultPerPage: TripDefaultPerPage,
         })
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         @PaginationQueryFilterInEnum<TripStatus>('status', TripAvailableStatus)
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>> {
@@ -121,7 +130,8 @@ export class TripUserController {
     @Get('/:idTrip')
     async get(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe) tripId: string
+        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         return this.tripService.getTripForUser(tripId, userId);
     }

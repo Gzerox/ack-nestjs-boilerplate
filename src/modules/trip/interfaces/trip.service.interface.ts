@@ -3,7 +3,10 @@ import {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import { IFile } from '@common/file/interfaces/file.interface';
-import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import {
+    IResponsePagingReturn,
+    IResponseReturn,
+} from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
 import { TripCreateDraftRequestDto } from '@modules/trip/dtos/request/trip.create-draft.request.dto';
 import { TripUpdateDraftRequestDto } from '@modules/trip/dtos/request/trip.update-draft.request.dto';
@@ -78,7 +81,8 @@ export interface ITripService {
     updateContacts(
         tripId: string,
         tenantId: string,
-        dto: TripContactsUpdateRequestDto
+        dto: TripContactsUpdateRequestDto,
+        updatedBy: string
     ): Promise<IResponseReturn<TripResponseDto>>;
 
     updateItineraries(
@@ -107,23 +111,35 @@ export interface ITripService {
     ): Promise<IResponseReturn<TripResponseDto>>;
 
     getTripList(
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         tenantId: string,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>>;
 
-    getTripForUser(tripId: string, userId: string): Promise<IResponseReturn<TripResponseDto>>;
+    getTripForUser(
+        tripId: string,
+        userId: string
+    ): Promise<IResponseReturn<TripResponseDto>>;
 
     getUserTripList(
         userId: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.TripSelect, Prisma.TripWhereInput>,
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripSelect,
+            Prisma.TripWhereInput
+        >,
         status?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripListItemResponseDto>>;
 
     getUserInviteList(
         userId: string,
         email: string,
-        pagination: IPaginationQueryOffsetParams<Prisma.TripInviteSelect, Prisma.TripInviteWhereInput>
+        pagination: IPaginationQueryOffsetParams<
+            Prisma.TripInviteSelect,
+            Prisma.TripInviteWhereInput
+        >
     ): Promise<IResponsePagingReturn<TripInviteListItemResponseDto>>;
 
     getTripBySlug(

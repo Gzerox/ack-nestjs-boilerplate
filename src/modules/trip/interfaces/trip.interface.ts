@@ -33,14 +33,13 @@ export interface ITripDetail extends Trip {
     attachments: ITripAttachmentWithAsset[];
 }
 
-export type ITripPublicSummary = Pick<
-    Trip,
-    | 'slug'
-    | 'title'
-    | 'subtitle'
-    | 'icon'
-    | 'coverImage'
-    | 'startDate'
-    | 'endDate'
-    | 'timezone'
->;
+export interface ITripPublicSummary {
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    icon: TripAsset | null;
+    coverImage: TripAsset | null;
+    startDate: Date;
+    endDate: Date;
+    timezone: string | null;
+}

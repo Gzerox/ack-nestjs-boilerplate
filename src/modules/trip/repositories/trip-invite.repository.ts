@@ -79,7 +79,7 @@ export class TripInviteRepository {
             Prisma.TripInviteWhereInput
         >
     ): Promise<IResponsePagingReturn<ITripInviteWithTrip>> {
-        return this.paginationService.offset<
+        const result = await this.paginationService.offset<
             ITripInviteWithTrip,
             Prisma.TripInviteSelect,
             Prisma.TripInviteWhereInput
@@ -108,6 +108,7 @@ export class TripInviteRepository {
                 },
             },
         });
+        return result as unknown as IResponsePagingReturn<ITripInviteWithTrip>;
     }
 
     async accept(

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '@common/database/services/database.service';
+import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperService } from '@common/helper/services/helper.service';
 import {
     IPaginationIn,
@@ -32,7 +33,8 @@ export class TripRepository {
     constructor(
         private readonly databaseService: DatabaseService,
         private readonly paginationService: PaginationService,
-        private readonly helperService: HelperService
+        private readonly helperService: HelperService,
+        private readonly databaseUtil: DatabaseUtil
     ) {}
 
     async createDraft(
@@ -51,8 +53,12 @@ export class TripRepository {
                 title: dto.title,
                 subtitle: dto.subtitle ?? null,
                 description: dto.description ?? null,
-                icon: dto.icon as unknown as Prisma.InputJsonValue ?? undefined,
-                coverImage: dto.coverImage as unknown as Prisma.InputJsonValue ?? undefined,
+                icon: dto.icon
+                    ? this.databaseUtil.toPlainObject(dto.icon)
+                    : undefined,
+                coverImage: dto.coverImage
+                    ? this.databaseUtil.toPlainObject(dto.coverImage)
+                    : undefined,
                 startDate: dto.startDate,
                 endDate: dto.endDate,
                 timezone: dto.timezone ?? null,
@@ -122,8 +128,12 @@ export class TripRepository {
                 title: dto.title,
                 subtitle: dto.subtitle ?? undefined,
                 description: dto.description ?? undefined,
-                icon: dto.icon as unknown as Prisma.InputJsonValue ?? undefined,
-                coverImage: dto.coverImage as unknown as Prisma.InputJsonValue ?? undefined,
+                icon: dto.icon
+                    ? this.databaseUtil.toPlainObject(dto.icon)
+                    : undefined,
+                coverImage: dto.coverImage
+                    ? this.databaseUtil.toPlainObject(dto.coverImage)
+                    : undefined,
                 startDate: dto.startDate,
                 endDate: dto.endDate,
                 timezone: dto.timezone ?? undefined,
@@ -215,7 +225,7 @@ export class TripRepository {
     }
 
     async findOneBySlug(slug: string): Promise<ITripPublicSummary | null> {
-        return this.databaseService.trip.findFirst({
+        const result = await this.databaseService.trip.findFirst({
             where: {
                 slug,
                 status: TripStatus.published,
@@ -232,6 +242,8 @@ export class TripRepository {
                 timezone: true,
             },
         });
+
+        return result as unknown as ITripPublicSummary;
     }
 
     async findDetailByIdAndTenant(

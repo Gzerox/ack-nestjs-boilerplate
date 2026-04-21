@@ -3,8 +3,8 @@ import {
     IsDate,
     IsMongoId,
     IsNotEmpty,
-    IsString,
     IsOptional,
+    IsString,
     ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';

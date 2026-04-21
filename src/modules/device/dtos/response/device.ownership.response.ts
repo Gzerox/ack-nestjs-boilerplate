@@ -9,7 +9,7 @@ export class DeviceOwnershipResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
         description: 'Device ownership ID',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     deviceId: string;
 
@@ -24,7 +24,7 @@ export class DeviceOwnershipResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
         description: 'User ID who owns the device',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     userId: string;
 
@@ -45,7 +45,7 @@ export class DeviceOwnershipResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
         description: 'User ID who revoked the device ownership',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     revokedById?: string;
 

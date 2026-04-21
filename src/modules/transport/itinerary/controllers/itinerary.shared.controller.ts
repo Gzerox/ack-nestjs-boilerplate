@@ -19,7 +19,7 @@ import {
     Param,
     Post,
 } from '@nestjs/common';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -45,7 +45,7 @@ export class ItinerarySharedController {
     @ApiKeyProtected()
     @Get(':itineraryId')
     async get(
-        @Param('itineraryId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('itineraryId', RequestRequiredPipe, RequestIsValidUuidPipe)
         itineraryId: string
     ): Promise<IResponseReturn<ItineraryWithSegmentsResponseDto>> {
         return this.itineraryService.getOne(itineraryId);

@@ -1,9 +1,13 @@
 import { Request } from 'express';
 import { IAuthJwtAccessTokenPayload } from '@modules/auth/interfaces/auth.interface';
 import { IPaginationQuery } from '@common/pagination/interfaces/pagination.interface';
-import { ApiKey, GeoLocation, UserAgent } from '@generated/prisma-client';
+import { ApiKey } from '@generated/prisma-client';
 import { RoleAbilityDto } from '@modules/role/dtos/role.ability.dto';
 import { IUser } from '@modules/user/interfaces/user.interface';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 export interface IRequestApp<T = IAuthJwtAccessTokenPayload> extends Request {
     correlationId: string;

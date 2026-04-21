@@ -6,7 +6,7 @@ import {
     IPaginationIn,
     IPaginationQueryCursorParams,
 } from '@common/pagination/interfaces/pagination.interface';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -63,7 +63,7 @@ export class RoleSystemController {
     @ApiKeySystemProtected()
     @Get('/get/:roleId/abilities')
     async getAbilities(
-        @Param('roleId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('roleId', RequestRequiredPipe, RequestIsValidUuidPipe)
         roleId: string
     ): Promise<IResponseReturn<RoleAbilitiesResponseDto>> {
         return this.roleService.getAbilities(roleId);

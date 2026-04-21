@@ -11,7 +11,7 @@ import {
     RequestIPAddress,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -47,10 +47,12 @@ import { ApiTags } from '@nestjs/swagger';
 import {
     EnumActivityLogAction,
     EnumRoleType,
-    GeoLocation,
     Prisma,
-    UserAgent,
 } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 @ApiTags('modules.admin.user.session')
 @Controller({
@@ -86,7 +88,7 @@ export class SessionAdminController {
             Prisma.SessionSelect,
             Prisma.SessionWhereInput
         >,
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @PaginationQueryFilterEqualBoolean('isRevoked')
         isRevoked?: Record<string, IPaginationEqual>
@@ -118,9 +120,9 @@ export class SessionAdminController {
     @ApiKeyProtected()
     @Delete('/revoke/:sessionId')
     async revoke(
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
-        @Param('sessionId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('sessionId', RequestRequiredPipe, RequestIsValidUuidPipe)
         sessionId: string,
         @AuthJwtPayload('userId') revokedBy: string,
         @RequestIPAddress() ipAddress: string,

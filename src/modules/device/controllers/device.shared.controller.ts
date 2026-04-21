@@ -5,7 +5,7 @@ import {
     RequestIPAddress,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -15,7 +15,7 @@ import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
-import { GeoLocation, Prisma, UserAgent } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import {
     AuthJwtAccessProtected,
@@ -42,6 +42,10 @@ import {
     Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 @ApiTags('modules.shared.user.device')
 @Controller({
@@ -106,11 +110,7 @@ export class DeviceSharedController {
         @RequestIPAddress() ipAddress: string,
         @RequestUserAgent() userAgent: UserAgent,
         @RequestGeoLocation() geoLocation: GeoLocation | null,
-        @Param(
-            'deviceOwnershipId',
-            RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
-        )
+        @Param('deviceOwnershipId', RequestRequiredPipe, RequestIsValidUuidPipe)
         deviceOwnershipId: string
     ): Promise<IResponseReturn<void>> {
         return this.deviceService.remove(userId, deviceOwnershipId, {

@@ -13,7 +13,7 @@ import {
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import {
     Response,
     ResponsePaging,
@@ -130,7 +130,7 @@ export class TripUserController {
     @Get('/:idTrip')
     async get(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         return this.tripService.getTripForUser(tripId, userId);

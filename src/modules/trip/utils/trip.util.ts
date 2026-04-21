@@ -3,6 +3,7 @@ import { FileService } from '@common/file/services/file.service';
 import { HelperService } from '@common/helper/services/helper.service';
 import { TripCalendarEventResponseDto } from '@modules/trip/dtos/response/trip-calendar-event.response.dto';
 import { TripAttachmentResponseDto } from '@modules/trip/dtos/response/trip-attachment.response.dto';
+import { TripFileAssetResponseDto } from '@modules/trip/dtos/response/trip-file-asset.response.dto';
 import { TripInviteListItemResponseDto } from '@modules/trip/dtos/response/trip-invite.list-item.response.dto';
 import { TripInviteResponseDto } from '@modules/trip/dtos/response/trip-invite.response.dto';
 import { TripListItemResponseDto } from '@modules/trip/dtos/response/trip.list-item.response.dto';
@@ -99,8 +100,8 @@ export class TripUtil {
             slug: trip.slug,
             title: trip.title,
             subtitle: trip.subtitle,
-            iconUrl: trip.icon?.completedUrl ?? null,
-            coverImageUrl: trip.coverImage?.completedUrl ?? null,
+            iconUrl: (trip.icon as unknown as TripFileAssetResponseDto | null)?.completedUrl ?? null,
+            coverImageUrl: (trip.coverImage as unknown as TripFileAssetResponseDto | null)?.completedUrl ?? null,
             startDate: trip.startDate,
             endDate: trip.endDate,
             timezone: trip.timezone,

@@ -32,7 +32,7 @@ import { FileExtensionPipe } from '@common/file/pipes/file.extension.pipe';
 import { FileExtensionMultiplePipe } from '@common/file/pipes/file.extension-multiple.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { RequestTimeout } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import {
     Response,
     ResponsePaging,
@@ -145,7 +145,7 @@ export class TripSharedController {
     @Put('/:idTrip')
     async updateDraft(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripUpdateDraftRequestDto
     ): Promise<IResponseReturn<TripResponseDto>> {
@@ -163,7 +163,7 @@ export class TripSharedController {
     @Put('/:idTrip/calendar-events')
     async updateCalendarEvents(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripCalendarEventsUpdateRequestDto
     ): Promise<IResponseReturn<TripResponseDto>> {
@@ -186,7 +186,7 @@ export class TripSharedController {
     @Put('/:idTrip/contacts')
     async updateContacts(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripContactsUpdateRequestDto
     ): Promise<IResponseReturn<TripResponseDto>> {
@@ -204,7 +204,7 @@ export class TripSharedController {
     @Put('/:idTrip/itineraries')
     async updateItineraries(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripItinerariesUpdateRequestDto
     ): Promise<IResponseReturn<TripResponseDto>> {
@@ -228,7 +228,7 @@ export class TripSharedController {
     @Post('/:idTrip/invites')
     async createInvites(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @Body() body: TripInvitesCreateRequestDto
     ): Promise<IResponseReturn<void>> {
@@ -248,7 +248,7 @@ export class TripSharedController {
     @HttpCode(HttpStatus.OK)
     @Put('/:idTrip/icon')
     async uploadIcon(
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @UploadedFile(
             RequestRequiredPipe,
@@ -276,7 +276,7 @@ export class TripSharedController {
     @HttpCode(HttpStatus.OK)
     @Put('/:idTrip/cover-image')
     async uploadCoverImage(
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @UploadedFile(
             RequestRequiredPipe,
@@ -304,7 +304,7 @@ export class TripSharedController {
     @Patch('/:idTrip/publish')
     async publish(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -323,7 +323,7 @@ export class TripSharedController {
     @Patch('/:idTrip/unpublish')
     async unpublish(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -342,7 +342,7 @@ export class TripSharedController {
     @Delete('/:idTrip')
     async softDelete(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<void>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -361,7 +361,7 @@ export class TripSharedController {
     @Patch('/:idTrip/archive')
     async archive(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<void>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -377,7 +377,7 @@ export class TripSharedController {
     @Response('trip.get')
     @Get('/:idTrip')
     async get(
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string
     ): Promise<IResponseReturn<TripResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -396,9 +396,9 @@ export class TripSharedController {
     @Patch('/:idTrip/invites/:idInvite/revoke')
     async revokeInvite(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
-        @Param('idInvite', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idInvite', RequestIsValidUuidPipe, RequestRequiredPipe)
         inviteId: string
     ): Promise<IResponseReturn<void>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -419,7 +419,7 @@ export class TripSharedController {
     @ResponsePaging('trip.tripTraveler.list')
     @Get('/:idTrip/travelers')
     async listTravelers(
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @PaginationOffsetQuery()
         pagination: IPaginationQueryOffsetParams<
@@ -441,9 +441,9 @@ export class TripSharedController {
     @Response('trip.tripTraveler.get')
     @Get('/:idTrip/travelers/:idTraveler')
     async getTraveler(
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
-        @Param('idTraveler', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTraveler', RequestIsValidUuidPipe, RequestRequiredPipe)
         travelerId: string
     ): Promise<IResponseReturn<TripTravelerDetailResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -492,7 +492,7 @@ export class TripSharedController {
     @Post('/:idTrip/media')
     async uploadMediaBatch(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @UploadedFiles(
             FileExtensionMultiplePipe([
@@ -533,7 +533,7 @@ export class TripSharedController {
     @Post('/:idTrip/attachments')
     async uploadAttachmentBatch(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idTrip', RequestIsValidUuidPipe, RequestRequiredPipe)
         tripId: string,
         @UploadedFiles(
             FileExtensionMultiplePipe([EnumFileExtensionDocument.pdf])

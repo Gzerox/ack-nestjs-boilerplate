@@ -165,10 +165,7 @@ export class SessionRepository {
                                 ipAddress,
                                 userAgent:
                                     this.databaseUtil.toPlainObject(userAgent),
-                                geoLocation:
-                                    this.databaseUtil.toPlainObject(
-                                        geoLocation
-                                    ),
+                                geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                                 createdBy: userId,
                             },
                         },
@@ -204,10 +201,7 @@ export class SessionRepository {
                                 ipAddress,
                                 userAgent:
                                     this.databaseUtil.toPlainObject(userAgent),
-                                geoLocation:
-                                    this.databaseUtil.toPlainObject(
-                                        geoLocation
-                                    ),
+                                geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                                 createdBy: revokedBy,
                             },
                         },

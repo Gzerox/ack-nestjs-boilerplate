@@ -306,6 +306,7 @@ export class AuthUtil {
      * Creates access token payload from user and login data.
      * @param data - User entity
      * @param sessionId - Session identifier
+     * @param deviceOwnershipId
      * @param loginAt - Login timestamp
      * @param loginFrom - Login source/platform
      * @param loginWith - Authentication method

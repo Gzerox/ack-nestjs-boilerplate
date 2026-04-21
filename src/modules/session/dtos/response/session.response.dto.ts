@@ -9,7 +9,7 @@ import { Exclude, Type } from 'class-transformer';
 export class SessionResponseDto extends DatabaseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     userId: string;
 
@@ -70,7 +70,7 @@ export class SessionResponseDto extends DatabaseDto {
 
     @ApiProperty({
         required: false,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     revokedById?: string;
 

@@ -8,10 +8,17 @@ import { TermPolicyContentRequestDto } from '@modules/term-policy/dtos/request/t
 import { TermPolicyResponseDto } from '@modules/term-policy/dtos/response/term-policy.response.dto';
 import { TermPolicyUserAcceptanceResponseDto } from '@modules/term-policy/dtos/response/term-policy.user-acceptance.response.dto';
 import { TermContentDto } from '@modules/term-policy/dtos/term-policy.content.dto';
-import { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/term-policy.interface';
+import {
+    ITermPolicy,
+    ITermPolicyUserAcceptance,
+} from '@modules/term-policy/interfaces/term-policy.interface';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EnumTermPolicyType, Prisma, TermPolicy } from '@generated/prisma-client';
+import {
+    EnumTermPolicyType,
+    TermPolicy,
+    type TermPolicyContent,
+} from '@generated/prisma-client';
 import { plainToInstance } from 'class-transformer';
 
 @Injectable()
@@ -32,11 +39,11 @@ export class TermPolicyUtil {
         );
     }
 
-    mapList(termPolicies: TermPolicy[]): TermPolicyResponseDto[] {
+    mapList(termPolicies: ITermPolicy[]): TermPolicyResponseDto[] {
         return plainToInstance(TermPolicyResponseDto, termPolicies);
     }
 
-    mapOne(termPolicy: TermPolicy): TermPolicyResponseDto {
+    mapOne(termPolicy: ITermPolicy): TermPolicyResponseDto {
         return plainToInstance(TermPolicyResponseDto, termPolicy);
     }
 
@@ -80,15 +87,15 @@ export class TermPolicyUtil {
     }
 
     checkContentExist(
-        contents: Prisma.JsonArray,
+        contents: TermPolicyContent[],
         language: EnumMessageLanguage
     ): boolean {
-        return !!(contents as unknown as TermContentDto[]).find(
-            c => c.language === language
-        );
+        return !!contents.find(c => c.language === language);
     }
 
-    getContentPublicPath(termPolicy: TermPolicy): string {
+    getContentPublicPath(
+        termPolicy: Pick<ITermPolicy, 'type' | 'version'>
+    ): string {
         return this.contentPublicPath
             .replace('{type}', termPolicy.type)
             .replace('{version}', termPolicy.version.toString());
@@ -96,7 +103,7 @@ export class TermPolicyUtil {
 
     mapPublicContent(
         newItems: AwsS3Dto[],
-        contents: TermContentDto[]
+        contents: TermPolicyContent[]
     ): TermContentDto[] {
         return newItems.map(item => {
             const language = contents.find(
@@ -109,7 +116,7 @@ export class TermPolicyUtil {
         });
     }
 
-    mapActivityLogMetadata(termPolicy: TermPolicy): IActivityLogMetadata {
+    mapActivityLogMetadata(termPolicy: ITermPolicy): IActivityLogMetadata {
         return {
             termPolicyId: termPolicy.id,
             termPolicyType: termPolicy.type,
@@ -119,9 +126,9 @@ export class TermPolicyUtil {
     }
 
     getContentByLanguage(
-        contents: TermContentDto[],
+        contents: TermPolicyContent[],
         language: EnumMessageLanguage
-    ): TermContentDto | null {
+    ): TermPolicyContent | null {
         const content = contents.find(c => c.language === language);
         return content || null;
     }

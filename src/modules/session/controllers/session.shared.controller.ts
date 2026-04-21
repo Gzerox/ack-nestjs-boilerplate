@@ -5,7 +5,7 @@ import {
     RequestIPAddress,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -15,7 +15,7 @@ import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
-import { GeoLocation, Prisma, UserAgent } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import {
     AuthJwtAccessProtected,
@@ -32,6 +32,10 @@ import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/t
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { Controller, Delete, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 @ApiTags('modules.shared.user.session')
 @Controller({
@@ -69,7 +73,8 @@ export class SessionSharedController {
     @ApiKeyProtected()
     @Delete('/revoke/:sessionId')
     async revoke(
-        @Param('sessionId', RequestRequiredPipe, RequestIsValidObjectIdPipe) sessionId: string,
+        @Param('sessionId', RequestRequiredPipe, RequestIsValidUuidPipe)
+        sessionId: string,
         @AuthJwtPayload('userId') userId: string,
         @RequestIPAddress() ipAddress: string,
         @RequestUserAgent() userAgent: UserAgent,

@@ -12,7 +12,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { AuthJwtPayload } from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import {
     Response,
     ResponseFile,
@@ -90,7 +90,7 @@ export class TripFormSharedController {
     @Post('/:idTrip/forms/from-template')
     async createFromTemplate(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
         @Body() body: TripFormCreateFromTemplateRequestDto
     ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>> {
@@ -108,7 +108,7 @@ export class TripFormSharedController {
     @Post('/:idTrip/forms')
     async createDraft(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
         @Body() body: TripFormCreateDraftRequestDto
     ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>> {
@@ -123,7 +123,7 @@ export class TripFormSharedController {
     @ResponsePaging('trip-form.list')
     @Get('/:idTrip/forms')
     async list(
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
         @PaginationOffsetQuery({
             availableSearch: TripFormDefaultAvailableSearch,
@@ -160,9 +160,9 @@ export class TripFormSharedController {
     @Response('trip-form.get')
     @Get('/:idTrip/forms/:idForm')
     async get(
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseReturn<TripFormResponseDto>> {
         return this.tripFormService.getForm(tripId, idForm);
@@ -177,9 +177,9 @@ export class TripFormSharedController {
     @Patch('/:idTrip/forms/:idForm')
     async updateDraft(
         @AuthJwtPayload('userId') updatedBy: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string,
         @Body() body: TripFormUpdateDraftRequestDto
     ): Promise<IResponseReturn<TripFormResponseDto>> {
@@ -202,9 +202,9 @@ export class TripFormSharedController {
     @Patch('/:idTrip/forms/:idForm/publish')
     async publish(
         @AuthJwtPayload('userId') _userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseReturn<TripFormCreateDraftResponseDto>> {
         return this.tripFormService.publishForm(tripId, idForm);
@@ -221,9 +221,9 @@ export class TripFormSharedController {
     @Post('/:idTrip/forms/:idForm/assignments')
     async createAssignment(
         @AuthJwtPayload('userId') _userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string,
         @Body() body: TripFormAssignmentCreateRequestDto
     ): Promise<IResponseReturn<TripFormAssignmentResponseDto>> {
@@ -241,9 +241,9 @@ export class TripFormSharedController {
     @Patch('/:idTrip/forms/:idForm/archive')
     async archive(
         @AuthJwtPayload('userId') updatedBy: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseReturn<void>> {
         return this.tripFormService.archiveForm(tripId, idForm, updatedBy);
@@ -260,9 +260,9 @@ export class TripFormSharedController {
     @Delete('/:idTrip/forms/:idForm')
     async delete(
         @AuthJwtPayload('userId') deletedBy: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseReturn<void>> {
         return this.tripFormService.deleteForm(tripId, idForm, deletedBy);
@@ -276,9 +276,9 @@ export class TripFormSharedController {
     @Response('trip-form.metrics')
     @Get('/:idTrip/forms/:idForm/metrics')
     async metrics(
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseReturn<TripFormMetricsResponseDto>> {
         return this.tripFormService.getFormMetrics(tripId, idForm);
@@ -292,9 +292,9 @@ export class TripFormSharedController {
     @ResponsePaging('trip-form.response.list')
     @Get('/:idTrip/forms/:idForm/responses')
     async listResponses(
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string,
         @PaginationOffsetQuery()
         pagination: IPaginationQueryOffsetParams<
@@ -317,9 +317,9 @@ export class TripFormSharedController {
     @ResponseFile()
     @Get('/:idTrip/forms/:idForm/responses/export')
     async exportResponses(
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string
     ): Promise<IResponseFileReturn> {
         return this.tripFormService.exportFormResponsesCsv(tripId, idForm);

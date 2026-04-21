@@ -9,11 +9,14 @@ import {
     RequestTimeout,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { Response } from '@common/response/decorators/response.decorator';
 import { IResponseReturn } from '@common/response/interfaces/response.interface';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import {
     AuthJwtAccessProtected,
@@ -272,11 +275,7 @@ export class UserSharedController {
     @Put('/mobile-number/update/:mobileNumberId')
     async updateMobileNumber(
         @AuthJwtPayload('userId') userId: string,
-        @Param(
-            'mobileNumberId',
-            RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
-        )
+        @Param('mobileNumberId', RequestRequiredPipe, RequestIsValidUuidPipe)
         mobileNumberId: string,
         @Body()
         body: UserUpdateMobileNumberRequestDto,
@@ -305,11 +304,7 @@ export class UserSharedController {
     @Delete('/mobile-number/delete/:mobileNumberId')
     async deleteMobileNumber(
         @AuthJwtPayload('userId') userId: string,
-        @Param(
-            'mobileNumberId',
-            RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
-        )
+        @Param('mobileNumberId', RequestRequiredPipe, RequestIsValidUuidPipe)
         mobileNumberId: string,
         @RequestIPAddress() ipAddress: string,
         @RequestUserAgent() userAgent: UserAgent,

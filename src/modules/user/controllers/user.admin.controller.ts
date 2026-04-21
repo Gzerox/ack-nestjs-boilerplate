@@ -27,10 +27,12 @@ import {
     EnumActivityLogAction,
     EnumRoleType,
     EnumUserStatus,
-    GeoLocation,
     Prisma,
-    UserAgent,
 } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import {
     AuthJwtAccessProtected,
@@ -57,7 +59,7 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { UserListResponseDto } from '@modules/user/dtos/response/user.list.response.dto';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile.response.dto';
 import {
@@ -147,7 +149,7 @@ export class UserAdminController {
     @ApiKeyProtected()
     @Get('/get/:userId')
     async get(
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string
     ): Promise<IResponseReturn<UserProfileResponseDto>> {
         return this.userService.getOne(userId);
@@ -199,7 +201,7 @@ export class UserAdminController {
     @ApiKeyProtected()
     @Patch('/update/:userId/status')
     async updateStatus(
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @AuthJwtPayload('userId') updatedBy: string,
         @Body() body: UserUpdateStatusRequestDto,
@@ -233,7 +235,7 @@ export class UserAdminController {
     @ApiKeyProtected()
     @Put('/update/:userId/password')
     async updatePassword(
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @AuthJwtPayload('userId') updatedBy: string,
         @RequestIPAddress() ipAddress: string,
@@ -265,7 +267,7 @@ export class UserAdminController {
     @ApiKeyProtected()
     @Patch('/update/:userId/2fa/reset')
     async resetTwoFactorByAdmin(
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @AuthJwtPayload('userId') updatedBy: string,
         @RequestIPAddress() ipAddress: string,

@@ -15,7 +15,7 @@ import {
     AuthJwtPayload,
 } from '@modules/auth/decorators/auth.jwt.decorator';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import {
     Response,
     ResponsePaging,
@@ -85,7 +85,7 @@ export class TenantContactSharedController {
     @Response('tenantContact.get')
     @Get('/:idContact')
     async get(
-        @Param('idContact', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idContact', RequestIsValidUuidPipe, RequestRequiredPipe)
         contactId: string
     ): Promise<IResponseReturn<TenantContactResponseDto>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented
@@ -119,7 +119,7 @@ export class TenantContactSharedController {
     @Response('tenantContact.update')
     @Put('/:idContact')
     async update(
-        @Param('idContact', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idContact', RequestIsValidUuidPipe, RequestRequiredPipe)
         contactId: string,
         @Body() body: TenantContactUpdateRequestDto
     ): Promise<IResponseReturn<TenantContactResponseDto>> {
@@ -139,7 +139,7 @@ export class TenantContactSharedController {
     @Delete('/:idContact')
     async softDelete(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idContact', RequestIsValidObjectIdPipe, RequestRequiredPipe)
+        @Param('idContact', RequestIsValidUuidPipe, RequestRequiredPipe)
         contactId: string
     ): Promise<IResponseReturn<void>> {
         // TODO: Replace with actual tenantId from JWT payload when multi-tenancy is implemented

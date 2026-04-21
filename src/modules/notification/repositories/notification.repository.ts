@@ -746,8 +746,7 @@ export class NotificationRepository {
                             ipAddress,
                             userAgent:
                                 this.databaseUtil.toPlainObject(userAgent),
-                            geoLocation:
-                                this.databaseUtil.toPlainObject(geoLocation),
+                            geoLocation: this.databaseUtil.toPlainObject(geoLocation),
                             createdBy: userId,
                         },
                     },

@@ -40,7 +40,8 @@ import {
 } from '@common/request/decorators/request.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { IUser } from '@modules/user/interfaces/user.interface';
-import { GeoLocation, Prisma, UserAgent } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
+import { GeoLocation, UserAgent } from '@common/request/interfaces/request-metadata.interface';
 
 @ApiTags('modules.shared.user.termPolicy')
 @Controller({

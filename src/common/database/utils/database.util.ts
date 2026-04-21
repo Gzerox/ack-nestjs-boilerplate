@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@generated/prisma-client';
-import ObjectID from 'bson-objectid';
+import { randomUUID } from 'node:crypto';
+import { isUUID } from 'class-validator';
 
 /**
  * Database utility service providing common database operations.
  *
  * This injectable service provides utility methods for database-related operations,
- * including ID generation using BSON ObjectID format. The generated IDs are
- * compatible with MongoDB ObjectID format and provide unique identifiers
- * for database records.
+ * including ID generation and typed JSON serialization for JSON-backed fields.
  *
  * @class DatabaseUtil
  * @injectable
@@ -16,29 +15,22 @@ import ObjectID from 'bson-objectid';
 @Injectable()
 export class DatabaseUtil {
     /**
-     * Checks if the provided ID string is a valid BSON ObjectID.
-     *
-     * Utilizes the BSON ObjectID library's isValid method to determine
-     * if the given string conforms to the ObjectID format.
+     * Checks if the provided ID string is a valid UUID.
      *
      * @param {string} id - The ID string to validate
-     * @returns {boolean} True if the ID is a valid ObjectID, false otherwise
+     * @returns {boolean} True if the ID is a valid UUID, false otherwise
      */
     checkIdIsValid(id: string): boolean {
-        return ObjectID.isValid(id);
+        return isUUID(id, 'all');
     }
 
     /**
-     * Creates a new unique identifier using BSON ObjectID.
+     * Creates a new unique identifier using UUID format.
      *
-     * Generates a new ObjectID and converts it to a hexadecimal string format.
-     * The generated ID is unique and follows the BSON ObjectID specification,
-     * making it suitable for use as primary keys in database records.
-     *
-     * @returns {string} A 24-character hexadecimal string representing the ObjectID
+     * @returns {string} UUID string representation
      */
     createId(): string {
-        return ObjectID().toHexString();
+        return randomUUID();
     }
 
     /**
@@ -70,4 +62,5 @@ export class DatabaseUtil {
     toPlainArray<T, N = Prisma.JsonObject>(data: T): N[] {
         return structuredClone(data) as N[];
     }
+
 }

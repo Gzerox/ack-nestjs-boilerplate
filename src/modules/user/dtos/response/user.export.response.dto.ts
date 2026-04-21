@@ -1,17 +1,11 @@
-import { EnumTermPolicyType } from '@generated/prisma-client';
 import { UserListResponseDto } from '@modules/user/dtos/response/user.list.response.dto';
-import { UserTermPolicyDto } from '@modules/user/dtos/user.term-policy.dto';
-import { ApiHideProperty, ApiProperty, OmitType } from '@nestjs/swagger';
-import { Exclude, Expose, Transform } from 'class-transformer';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
+import { Expose, Transform } from 'class-transformer';
 
 export class UserExportResponseDto extends OmitType(UserListResponseDto, [
     'role',
     'photo',
 ]) {
-    @ApiHideProperty()
-    @Exclude()
-    termPolicy: UserTermPolicyDto;
-
     @ApiProperty({
         required: true,
         description: 'User photo URL',
@@ -21,41 +15,21 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
     @Transform(({ obj }) => obj.photo.completedUrl)
     photo: string;
 
-    @ApiProperty({
-        required: true,
-        description: 'Term of service flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: true })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.termsOfService])
-    termPolicyTermsOfService: boolean;
+    termsOfService: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Privacy flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: true })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.privacy])
-    termPolicyPrivacy: boolean;
+    privacy: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Cookies flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: false })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.cookies])
-    termPolicyCookies: boolean;
+    cookies: boolean;
 
-    @ApiProperty({
-        required: true,
-        description: 'Marketing flag',
-        example: true,
-    })
+    @ApiProperty({ required: true, example: false })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.marketing])
-    termPolicyMarketing: boolean;
+    marketing: boolean;
 
     @ApiProperty({
         required: true,

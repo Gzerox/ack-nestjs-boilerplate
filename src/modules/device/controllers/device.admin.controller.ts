@@ -11,7 +11,7 @@ import {
     RequestIPAddress,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -24,10 +24,12 @@ import {
 import {
     EnumActivityLogAction,
     EnumRoleType,
-    GeoLocation,
     Prisma,
-    UserAgent,
 } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { ActivityLog } from '@modules/activity-log/decorators/activity-log.decorator';
 import {
@@ -90,7 +92,7 @@ export class DeviceAdminController {
             Prisma.DeviceOwnershipSelect,
             Prisma.DeviceOwnershipWhereInput
         >,
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @PaginationQueryFilterEqualBoolean('isRevoked')
         isRevoked?: Record<string, IPaginationEqual>
@@ -127,13 +129,9 @@ export class DeviceAdminController {
         @RequestIPAddress() ipAddress: string,
         @RequestUserAgent() userAgent: UserAgent,
         @RequestGeoLocation() geoLocation: GeoLocation | null,
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
-        @Param(
-            'deviceOwnershipId',
-            RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
-        )
+        @Param('deviceOwnershipId', RequestRequiredPipe, RequestIsValidUuidPipe)
         deviceOwnershipId: string
     ): Promise<IResponseReturn<void>> {
         return this.deviceService.removeByAdmin(

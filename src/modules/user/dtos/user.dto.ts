@@ -12,7 +12,6 @@ import {
 } from '@generated/prisma-client';
 import { AwsS3Dto } from '@common/aws/dtos/aws.s3.dto';
 import { RoleDto } from '@modules/role/dtos/role.dto';
-import { UserTermPolicyDto } from '@modules/user/dtos/user.term-policy.dto';
 import { UserTwoFactorDto } from '@modules/user/dtos/user.two-factor.dto';
 
 export class UserDto extends DatabaseDto {
@@ -51,7 +50,7 @@ export class UserDto extends DatabaseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     roleId: string;
 
@@ -110,7 +109,7 @@ export class UserDto extends DatabaseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     countryId: string;
 
@@ -149,12 +148,17 @@ export class UserDto extends DatabaseDto {
     })
     lastLoginWith?: EnumUserLoginWith;
 
-    @ApiProperty({
-        required: true,
-        type: UserTermPolicyDto,
-    })
-    @Type(() => UserTermPolicyDto)
-    termPolicy: UserTermPolicyDto;
+    @ApiProperty({ required: true, example: true })
+    termsOfService: boolean;
+
+    @ApiProperty({ required: true, example: true })
+    privacy: boolean;
+
+    @ApiProperty({ required: true, example: false })
+    marketing: boolean;
+
+    @ApiProperty({ required: true, example: false })
+    cookies: boolean;
 
     @ApiProperty({
         required: false,

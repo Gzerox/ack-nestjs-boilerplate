@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import {
     Response,
     ResponsePaging,
@@ -64,7 +64,7 @@ export class TripFormUserController {
     @Get('/:idTrip/forms')
     async list(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
         @PaginationOffsetQuery()
         pagination: IPaginationQueryOffsetParams<
@@ -90,14 +90,14 @@ export class TripFormUserController {
     @Get('/:idTrip/forms/:idForm/assignments/:assignmentId')
     async get(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string,
         @Param(
             'assignmentId',
             RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
+            RequestIsValidUuidPipe
         )
         assignmentId: string
     ): Promise<IResponseReturn<TripFormWithResponseResponseDto>> {
@@ -115,14 +115,14 @@ export class TripFormUserController {
     @Post('/:idTrip/forms/:idForm/assignments/:assignmentId/submit')
     async submit(
         @AuthJwtPayload('userId') userId: string,
-        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidUuidPipe)
         tripId: string,
-        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('idForm', RequestRequiredPipe, RequestIsValidUuidPipe)
         idForm: string,
         @Param(
             'assignmentId',
             RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
+            RequestIsValidUuidPipe
         )
         assignmentId: string,
         @Body() dto: TripFormSubmitRequestDto

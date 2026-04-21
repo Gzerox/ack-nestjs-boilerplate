@@ -12,7 +12,10 @@ import { IResponsePagingReturn } from '@common/response/interfaces/response.inte
 import { TermPolicyCreateRequestDto } from '@modules/term-policy/dtos/request/term-policy.create.request.dto';
 import { TermPolicyRemoveContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
 import { TermContentDto } from '@modules/term-policy/dtos/term-policy.content.dto';
-import { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/term-policy.interface';
+import {
+    ITermPolicy,
+    ITermPolicyUserAcceptance,
+} from '@modules/term-policy/interfaces/term-policy.interface';
 import { IUser } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import {
@@ -21,7 +24,6 @@ import {
     EnumTermPolicyType,
     EnumUserStatus,
     Prisma,
-    TermPolicy,
 } from '@generated/prisma-client';
 
 @Injectable()
@@ -43,9 +45,9 @@ export class TermPolicyRepository {
         >,
         type?: Record<string, IPaginationIn>,
         status?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<TermPolicy>> {
+    ): Promise<IResponsePagingReturn<ITermPolicy>> {
         return this.paginationService.offset<
-            TermPolicy,
+            ITermPolicy,
             Prisma.TermPolicySelect,
             Prisma.TermPolicyWhereInput
         >(this.databaseService.termPolicy, {
@@ -54,6 +56,9 @@ export class TermPolicyRepository {
                 ...where,
                 ...type,
                 ...status,
+            },
+            include: {
+                contents: true,
             },
         });
     }
@@ -67,9 +72,9 @@ export class TermPolicyRepository {
             Prisma.TermPolicyWhereInput
         >,
         type?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<TermPolicy>> {
+    ): Promise<IResponsePagingReturn<ITermPolicy>> {
         return this.paginationService.cursor<
-            TermPolicy,
+            ITermPolicy,
             Prisma.TermPolicySelect,
             Prisma.TermPolicyWhereInput
         >(this.databaseService.termPolicy, {
@@ -78,6 +83,9 @@ export class TermPolicyRepository {
                 ...where,
                 ...type,
                 status: EnumTermPolicyStatus.published,
+            },
+            include: {
+                contents: true,
             },
         });
     }
@@ -102,13 +110,24 @@ export class TermPolicyRepository {
                 userId,
                 ...where,
             },
+            include: {
+                termPolicy: {
+                    include: {
+                        contents: true,
+                    },
+                },
+                user: true,
+            },
         });
     }
 
-    async findOneById(termPolicyId: string): Promise<TermPolicy | null> {
+    async findOneById(termPolicyId: string): Promise<ITermPolicy | null> {
         return this.databaseService.termPolicy.findUnique({
             where: {
                 id: termPolicyId,
+            },
+            include: {
+                contents: true,
             },
         });
     }
@@ -154,7 +173,6 @@ export class TermPolicyRepository {
         type: EnumTermPolicyType
     ): Promise<{
         id: string;
-        contents: Prisma.JsonArray;
         status: EnumTermPolicyStatus;
     } | null> {
         return this.databaseService.termPolicy.findFirst({
@@ -164,7 +182,6 @@ export class TermPolicyRepository {
             },
             select: {
                 id: true,
-                contents: true,
                 status: true,
             },
         });
@@ -177,6 +194,7 @@ export class TermPolicyRepository {
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<ITermPolicyUserAcceptance> {
         const acceptedAt = this.helperService.dateCreate();
+
         const [userAcceptance] = await this.databaseService.$transaction([
             this.databaseService.termPolicyUserAcceptance.create({
                 data: {
@@ -186,7 +204,11 @@ export class TermPolicyRepository {
                     createdBy: user.id,
                 },
                 include: {
-                    termPolicy: true,
+                    termPolicy: {
+                        include: {
+                            contents: true,
+                        },
+                    },
                     user: true,
                 },
             }),
@@ -194,12 +216,10 @@ export class TermPolicyRepository {
                 where: {
                     id: user.id,
                     deletedAt: null,
-                    status: EnumUserStatus.active,
+                    status: 'active',
                 },
                 data: {
-                    termPolicy: {
-                        [type]: true,
-                    },
+                    [type]: true,
                     activityLogs: {
                         create: {
                             action: EnumActivityLogAction.userAcceptTermPolicy,
@@ -225,47 +245,64 @@ export class TermPolicyRepository {
         { type, version }: TermPolicyCreateRequestDto,
         contents: TermContentDto[],
         createdBy: string
-    ): Promise<TermPolicy> {
+    ): Promise<ITermPolicy> {
         return this.databaseService.termPolicy.create({
             data: {
                 type,
                 version,
                 status: EnumTermPolicyStatus.draft,
-                contents: this.databaseUtil.toPlainArray(contents),
                 createdBy,
+                contents: {
+                    create: contents,
+                },
+            },
+            include: {
+                contents: true,
             },
         });
     }
 
-    async delete(termPolicyId: string): Promise<TermPolicy> {
+    async delete(termPolicyId: string): Promise<ITermPolicy> {
         return this.databaseService.termPolicy.delete({
             where: {
                 id: termPolicyId,
+            },
+            include: {
+                contents: true,
             },
         });
     }
 
     async updateContent(
         termPolicyId: string,
-        contents: TermContentDto[],
         content: TermContentDto,
         updatedBy: string
-    ): Promise<TermPolicy> {
-        const contentIndex = contents.findIndex(
-            c => c.language === content.language
-        );
-        if (contentIndex !== -1) {
-            contents[contentIndex] = content;
-        }
-
-        return this.databaseService.termPolicy.update({
-            where: {
-                id: termPolicyId,
-            },
-            data: {
-                contents: this.databaseUtil.toPlainArray(contents),
-                updatedBy,
-            },
+    ): Promise<ITermPolicy> {
+        return this.databaseService.$transaction<ITermPolicy>(async tx => {
+            await tx.termPolicyContent.update({
+                where: {
+                    termPolicyId_language: {
+                        termPolicyId,
+                        language: content.language,
+                    },
+                },
+                data: {
+                    language: content.language,
+                    bucket: content.bucket,
+                    key: content.key,
+                    cdnUrl: content.cdnUrl,
+                    completedUrl: content.completedUrl,
+                    mime: content.mime,
+                    extension: content.extension,
+                    access: content.access,
+                    size: content.size,
+                },
+            });
+            return tx.termPolicy.update({
+                where: { id: termPolicyId },
+                data: { updatedBy },
+                include: { contents: true },
+            });
         });
     }
 
@@ -273,42 +310,49 @@ export class TermPolicyRepository {
         termPolicyId: string,
         newContent: TermContentDto,
         updatedBy: string
-    ): Promise<TermPolicy> {
-        return this.databaseService.termPolicy.update({
-            where: {
-                id: termPolicyId,
-            },
-            data: {
-                contents: {
-                    push: this.databaseUtil.toPlainObject<
-                        TermContentDto,
-                        Prisma.TermPolicyContentCreateInput
-                    >(newContent),
+    ): Promise<ITermPolicy> {
+        return this.databaseService.$transaction<ITermPolicy>(async tx => {
+            await tx.termPolicyContent.create({
+                data: {
+                    termPolicyId,
+                    language: newContent.language,
+                    bucket: newContent.bucket,
+                    key: newContent.key,
+                    cdnUrl: newContent.cdnUrl,
+                    completedUrl: newContent.completedUrl,
+                    mime: newContent.mime,
+                    extension: newContent.extension,
+                    access: newContent.access,
+                    size: newContent.size,
                 },
-                updatedBy,
-            },
+            });
+            return tx.termPolicy.update({
+                where: { id: termPolicyId },
+                data: { updatedBy },
+                include: { contents: true },
+            });
         });
     }
 
     async removeContent(
         termPolicyId: string,
-        contents: TermContentDto[],
         { language }: TermPolicyRemoveContentRequestDto,
         updatedBy: string
-    ): Promise<TermPolicy> {
-        const contentIndex = contents.findIndex(c => c.language === language);
-        if (contentIndex !== -1) {
-            contents.splice(contentIndex, 1);
-        }
-
-        return this.databaseService.termPolicy.update({
-            where: {
-                id: termPolicyId,
-            },
-            data: {
-                contents: this.databaseUtil.toPlainArray(contents),
-                updatedBy,
-            },
+    ): Promise<ITermPolicy> {
+        return this.databaseService.$transaction<ITermPolicy>(async tx => {
+            await tx.termPolicyContent.delete({
+                where: {
+                    termPolicyId_language: {
+                        termPolicyId,
+                        language,
+                    },
+                },
+            });
+            return tx.termPolicy.update({
+                where: { id: termPolicyId },
+                data: { updatedBy },
+                include: { contents: true },
+            });
         });
     }
 
@@ -317,32 +361,45 @@ export class TermPolicyRepository {
         type: EnumTermPolicyType,
         contents: TermContentDto[],
         updatedBy: string
-    ): Promise<TermPolicy> {
-        const [termPolicy] = await this.databaseService.$transaction([
-            this.databaseService.termPolicy.update({
+    ): Promise<ITermPolicy> {
+        return this.databaseService.$transaction<ITermPolicy>(async tx => {
+            for (const content of contents) {
+                await tx.termPolicyContent.update({
+                    where: {
+                        termPolicyId_language: {
+                            termPolicyId,
+                            language: content.language,
+                        },
+                    },
+                    data: {
+                        bucket: content.bucket,
+                        key: content.key,
+                        cdnUrl: content.cdnUrl,
+                        completedUrl: content.completedUrl,
+                        mime: content.mime,
+                        extension: content.extension,
+                        access: content.access,
+                        size: content.size,
+                    },
+                });
+            }
+            await tx.user.updateMany({
                 where: {
-                    id: termPolicyId,
-                },
-                data: {
-                    status: EnumTermPolicyStatus.published,
-                    publishedAt: this.helperService.dateCreate(),
-                    contents,
-                    updatedBy,
-                },
-            }),
-            this.databaseService.user.updateMany({
-                where: {
+                    [type]: true,
                     deletedAt: null,
                     status: EnumUserStatus.active,
                 },
+                data: { [type]: false },
+            });
+            return tx.termPolicy.update({
+                where: { id: termPolicyId },
                 data: {
-                    termPolicy: {
-                        [type]: false,
-                    },
+                    status: EnumTermPolicyStatus.published,
+                    publishedAt: this.helperService.dateCreate(),
+                    updatedBy,
                 },
-            }),
-        ]);
-
-        return termPolicy;
+                include: { contents: true },
+            });
+        });
     }
 }

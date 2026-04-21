@@ -16,11 +16,12 @@ import {
     ActivityLogActionMetaKey,
     ActivityLogMetadataMetaKey,
 } from '@modules/activity-log/constants/activity-log.constant';
-import { EnumActivityLogAction, UserAgent } from '@generated/prisma-client';
+import { EnumActivityLogAction } from '@generated/prisma-client';
 import { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
 import { Response } from 'express';
 import { IResponseActivityLogReturn } from '@common/response/interfaces/response.interface';
 import geoIp from 'geoip-lite';
+import { UserAgent } from '@common/request/interfaces/request-metadata.interface';
 
 /**
  * Interceptor that automatically logs user activities to the database.

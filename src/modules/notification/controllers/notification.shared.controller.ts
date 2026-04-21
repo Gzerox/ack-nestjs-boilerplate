@@ -5,7 +5,7 @@ import {
     RequestIPAddress,
     RequestUserAgent,
 } from '@common/request/decorators/request.decorator';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -15,7 +15,7 @@ import {
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
-import { GeoLocation, Prisma, UserAgent } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import {
     AuthJwtAccessProtected,
@@ -46,6 +46,10 @@ import {
     Put,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 @ApiTags('modules.shared.notification')
 @Controller({
@@ -95,11 +99,7 @@ export class NotificationSharedController {
     @Patch('/update/read/:notificationId')
     async markAsRead(
         @AuthJwtPayload('userId') userId: string,
-        @Param(
-            'notificationId',
-            RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
-        )
+        @Param('notificationId', RequestRequiredPipe, RequestIsValidUuidPipe)
         notificationId: string
     ): Promise<IResponseReturn<void>> {
         return this.notificationService.markAsRead(userId, notificationId);

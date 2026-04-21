@@ -889,7 +889,7 @@ export class TripService implements ITripService {
             });
         }
 
-        const previousAsset = trip[field];
+        const previousAsset = trip[field] as unknown as TripFileAssetResponseDto | null;
         const extension = this.fileService.extractExtensionFromFilename(
             file.originalname
         ) as EnumFileExtensionImage;
@@ -909,7 +909,9 @@ export class TripService implements ITripService {
 
         try {
             const updateData: Prisma.TripUpdateInput =
-                field === 'icon' ? { icon: aws } : { coverImage: aws };
+                field === 'icon'
+                    ? { icon: aws as unknown as Prisma.InputJsonValue }
+                    : { coverImage: aws as unknown as Prisma.InputJsonValue };
 
             await this.tripRepository.update(trip.id, updateData);
         } catch (err: unknown) {

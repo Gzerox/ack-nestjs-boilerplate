@@ -20,7 +20,7 @@
         "contentExist": "This content already exists in the term policy.",
         "contentEmpty": "Term policy content cannot be empty.",
         "contentsLanguageMustBeUnique": "Each language can only be used once in term policy contents.",
-        "requiredInvalid": "Required field value is invalid.",
+        "requiredInvalid": "You are missing term policy acceptance to proceed.",
         "statusInvalid": "Term policy status is invalid."
     }
 }

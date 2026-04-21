@@ -12,7 +12,10 @@ import { DateObjectUnits, DateTime, Duration, DurationLikeObject } from 'luxon';
 import _ from 'lodash';
 import { EnumHelperDateDayOf } from '@common/helper/enums/helper.enum';
 import { hostname } from 'os';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
+import {
+    GeoLocation,
+    UserAgent,
+} from '@common/request/interfaces/request-metadata.interface';
 
 /**
  * Comprehensive utility service providing helper functions for common operations.

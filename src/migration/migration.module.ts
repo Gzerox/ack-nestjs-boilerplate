@@ -14,6 +14,8 @@ import { MigrationTemplateEmailNotificationSeed } from '@migration/seeds/migrati
 import { MigrationTemplateTermPolicySeed } from '@migration/seeds/migration.template-term-policy.seed';
 import { MigrationAirportSeed } from '@migration/seeds/migration.airport.seed';
 import { MigrationItinerarySeed } from '@migration/seeds/migration.itinerary.seed';
+import { MigrationTripSeed } from '@migration/seeds/migration.trip.seed';
+import { MigrationTenantContactSeed } from '@migration/seeds/migration.tenant-contact.seed';
 
 /**
  * Migration module that provides database seeding and removal functionality.
@@ -44,6 +46,8 @@ import { MigrationItinerarySeed } from '@migration/seeds/migration.itinerary.see
         MigrationAwsS3ConfigSeed,
         MigrationAirportSeed,
         MigrationItinerarySeed,
+        MigrationTenantContactSeed,
+        MigrationTripSeed,
     ],
     exports: [],
 })

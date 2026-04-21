@@ -62,9 +62,7 @@ export class MigrationCountrySeed
         this.logger.log('Removing back Countries...');
 
         try {
-            await this.databaseService.country.deleteMany({
-                where: {},
-            });
+            await this.databaseService.country.deleteMany();
         } catch (error: unknown) {
             this.logger.error(error, 'Error removing countries');
             throw error;

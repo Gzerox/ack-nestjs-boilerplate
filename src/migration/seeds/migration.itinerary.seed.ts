@@ -8,6 +8,10 @@ import { IMigrationSeed } from '@migration/interfaces/migration.seed.interface';
 import { Logger } from '@nestjs/common';
 import { Prisma } from '@generated/prisma-client';
 import { Command } from 'nest-commander';
+import {
+    SEED_TENANT_ID,
+    SEED_USER_EMAIL,
+} from '@migration/constants/migration.seed.constant';
 
 @Command({
     name: 'itinerary',
@@ -30,9 +34,21 @@ export class MigrationItinerarySeed
             `Found ${migrationItineraryData.length} Itineraries to seed.`
         );
 
+        const seedUser = await this.databaseService.user.findFirst({
+            where: { email: SEED_USER_EMAIL },
+            select: { id: true },
+        });
+
+        if (!seedUser) {
+            this.logger.error(
+                `Seed user "${SEED_USER_EMAIL}" not found — run the user seeder first.`
+            );
+            return;
+        }
+
         try {
             for (const record of migrationItineraryData) {
-                await this.seedOne(record);
+                await this.seedOne(record, seedUser.id);
             }
         } catch (error: unknown) {
             this.logger.error(error, 'Error seeding itineraries');
@@ -42,7 +58,10 @@ export class MigrationItinerarySeed
         this.logger.log('Itineraries seeded successfully.');
     }
 
-    private async seedOne(record: ItinerarySeedRecord): Promise<void> {
+    private async seedOne(
+        record: ItinerarySeedRecord,
+        createdBy: string
+    ): Promise<void> {
         const iataSet = new Set(
             record.segments.flatMap(s => [s.departIata, s.arriveIata])
         );
@@ -62,7 +81,7 @@ export class MigrationItinerarySeed
             }
         }
 
-        // Get or create a default trip for seeding
+        // Get or create the default seed trip
         let trip = await this.databaseService.trip.findFirst({
             where: { slug: 'seed-default-trip' },
             select: { id: true },
@@ -75,8 +94,8 @@ export class MigrationItinerarySeed
                     title: 'Default Seed Trip',
                     startDate: new Date('2026-06-15'),
                     endDate: new Date('2026-06-20'),
-                    tenantId: 'seed',
-                    createdBy: 'seed',
+                    tenantId: SEED_TENANT_ID,
+                    createdBy,
                 },
                 select: { id: true },
             });
@@ -121,6 +140,7 @@ export class MigrationItinerarySeed
                     name: record.name,
                     direction: record.direction,
                     tripId: trip.id,
+                    createdBy,
                     segments: { create: segments },
                 },
             });

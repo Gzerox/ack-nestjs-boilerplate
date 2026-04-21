@@ -276,7 +276,6 @@ export class MigrationUserSeed
         try {
             await this.databaseService.$transaction([
                 this.databaseService.twoFactor.deleteMany({}),
-                this.databaseService.session.deleteMany({}),
                 this.databaseService.userMobileNumber.deleteMany({}),
                 this.databaseService.verification.deleteMany({}),
                 this.databaseService.passwordHistory.deleteMany({}),

@@ -123,16 +123,10 @@ export class TripFormAssignmentRepository {
                   form: { status: EnumTripFormStatus.published },
                   AND: [
                       {
-                          OR: [
-                              { startsAt: null },
-                              { startsAt: { lte: now } },
-                          ],
+                          OR: [{ startsAt: null }, { startsAt: { lte: now } }],
                       },
                       {
-                          OR: [
-                              { closesAt: null },
-                              { closesAt: { gt: now } },
-                          ],
+                          OR: [{ closesAt: null }, { closesAt: { gt: now } }],
                       },
                   ],
               }
@@ -171,6 +165,16 @@ export class TripFormAssignmentRepository {
         });
     }
 
+    async findManyByFormWithAnswers(
+        formId: string
+    ): Promise<ITripFormAssignmentWithAnswers[]> {
+        return this.databaseService.tripFormAssignment.findMany({
+            where: { formId: formId },
+            orderBy: { createdAt: 'asc' },
+            include: { answers: true },
+        }) as Promise<ITripFormAssignmentWithAnswers[]>;
+    }
+
     async countByFormGroupedByStatus(
         formId: string
     ): Promise<{ status: EnumTripFormResponseStatus; _count: number }[]> {
@@ -181,5 +185,4 @@ export class TripFormAssignmentRepository {
         });
         return result.map(r => ({ status: r.status, _count: r._count }));
     }
-
 }

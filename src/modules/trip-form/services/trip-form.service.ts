@@ -11,6 +11,7 @@ import {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import {
+    IResponseFileReturn,
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
@@ -18,8 +19,11 @@ import { ITripFormService } from '@modules/trip-form/interfaces/trip-form.servic
 import { TripFormRepository } from '@modules/trip-form/repositories/trip-form.repository';
 import { TripFormAssignmentRepository } from '@modules/trip-form/repositories/trip-form-assignment.repository';
 import { TripFormUtil } from '@modules/trip-form/utils/trip-form.util';
+import { TripFormExportUtil } from '@modules/trip-form/utils/trip-form-export.util';
 import { HelperService } from '@common/helper/services/helper.service';
 import { EnumTripFormStatusCodeError } from '@modules/trip-form/enums/trip-form.status-code.enum';
+import { FileService } from '@common/file/services/file.service';
+import { EnumFileExtensionDocument } from '@common/file/enums/file.enum';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
 import { TripFormUpdateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-update-draft.request.dto';
 import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
@@ -37,6 +41,7 @@ import {
     Prisma,
 } from '@generated/prisma-client';
 import {
+    ITripFormAssignmentWithAnswers,
     ITripFormAssignmentWithRelations,
     ITripFormWithStructure,
 } from '@modules/trip-form/interfaces/trip-form.interface';
@@ -47,7 +52,9 @@ export class TripFormService implements ITripFormService {
         private readonly tripFormRepository: TripFormRepository,
         private readonly tripFormAssignmentRepository: TripFormAssignmentRepository,
         private readonly tripFormUtil: TripFormUtil,
-        private readonly helperService: HelperService
+        private readonly tripFormExportUtil: TripFormExportUtil,
+        private readonly helperService: HelperService,
+        private readonly fileService: FileService
     ) {}
 
     async createFromTemplate(
@@ -63,7 +70,11 @@ export class TripFormService implements ITripFormService {
             });
         }
 
-        const form = await this.tripFormRepository.createFromTemplate(dto, tripId, createdBy);
+        const form = await this.tripFormRepository.createFromTemplate(
+            dto,
+            tripId,
+            createdBy
+        );
         if (!form) {
             throw new NotFoundException({
                 statusCode: EnumTripFormStatusCodeError.templateNotFound,
@@ -73,7 +84,9 @@ export class TripFormService implements ITripFormService {
 
         return {
             data: { id: form.id },
-            metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(form.id),
+            metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(
+                form.id
+            ),
         };
     }
 
@@ -91,11 +104,17 @@ export class TripFormService implements ITripFormService {
         }
 
         try {
-            const form = await this.tripFormRepository.create(dto, tripId, createdBy);
+            const form = await this.tripFormRepository.create(
+                dto,
+                tripId,
+                createdBy
+            );
 
             return {
                 data: { id: form.id },
-                metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(form.id),
+                metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(
+                    form.id
+                ),
             };
         } catch (error: unknown) {
             throw new InternalServerErrorException({
@@ -132,7 +151,12 @@ export class TripFormService implements ITripFormService {
         }
 
         try {
-            const updatedForm = await this.tripFormRepository.update(formId, dto, updatedBy, form);
+            const updatedForm = await this.tripFormRepository.update(
+                formId,
+                dto,
+                updatedBy,
+                form
+            );
 
             return { data: this.tripFormUtil.mapFormOne(updatedForm) };
         } catch (error: unknown) {
@@ -185,7 +209,8 @@ export class TripFormService implements ITripFormService {
 
             return {
                 data: { id: formId },
-                metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(formId),
+                metadataActivityLog:
+                    this.tripFormUtil.mapActivityLogMetadata(formId),
             };
         } catch (error: unknown) {
             throw new InternalServerErrorException({
@@ -239,12 +264,11 @@ export class TripFormService implements ITripFormService {
         }
 
         try {
-            const assignment =
-                await this.tripFormAssignmentRepository.create(
-                    formId,
-                    tripId,
-                    dto
-                );
+            const assignment = await this.tripFormAssignmentRepository.create(
+                formId,
+                tripId,
+                dto
+            );
 
             return { data: this.tripFormUtil.mapAssignmentOne(assignment) };
         } catch (error: unknown) {
@@ -285,9 +309,8 @@ export class TripFormService implements ITripFormService {
             await this.tripFormRepository.archive(formId, updatedBy);
             return {
                 data: null,
-                metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(
-                    formId
-                ),
+                metadataActivityLog:
+                    this.tripFormUtil.mapActivityLogMetadata(formId),
             };
         } catch (error: unknown) {
             throw new InternalServerErrorException({
@@ -326,9 +349,8 @@ export class TripFormService implements ITripFormService {
             await this.tripFormRepository.softDelete(formId, deletedBy);
             return {
                 data: null,
-                metadataActivityLog: this.tripFormUtil.mapActivityLogMetadata(
-                    formId
-                ),
+                metadataActivityLog:
+                    this.tripFormUtil.mapActivityLogMetadata(formId),
             };
         } catch (error: unknown) {
             throw new InternalServerErrorException({
@@ -389,7 +411,9 @@ export class TripFormService implements ITripFormService {
     ): Promise<IResponseReturn<TripFormMetricsResponseDto>> {
         const [form, counts] = await Promise.all([
             this.tripFormRepository.existById(formId, tripId),
-            this.tripFormAssignmentRepository.countByFormGroupedByStatus(formId),
+            this.tripFormAssignmentRepository.countByFormGroupedByStatus(
+                formId
+            ),
         ]);
         if (!form) {
             throw new NotFoundException({
@@ -443,6 +467,60 @@ export class TripFormService implements ITripFormService {
         };
     }
 
+    async exportFormResponsesCsv(
+        tripId: string,
+        formId: string
+    ): Promise<IResponseFileReturn> {
+        const form = await this.tripFormRepository.findOneByIdAndCounts(
+            formId,
+            tripId
+        );
+        if (!form) {
+            throw new NotFoundException({
+                statusCode: EnumTripFormStatusCodeError.formNotFound,
+                message: 'trip-form.error.formNotFound',
+            });
+        }
+
+        try {
+            const assignments =
+                await this.tripFormAssignmentRepository.findManyByFormWithAnswers(
+                    formId
+                );
+            const orderedQuestions = this.tripFormExportUtil.orderQuestionsForExport(
+                form.questions ?? [],
+                form.sections ?? []
+            );
+            const rows = assignments.map(assignment =>
+                this.tripFormExportUtil.buildResponseExportRow(
+                    assignment,
+                    orderedQuestions
+                )
+            );
+            const csvString =
+                rows.length > 0
+                    ? this.fileService.writeCsv<Record<string, string>>(rows)
+                    : this.tripFormExportUtil.buildEmptyExportCsv(orderedQuestions);
+
+            return {
+                data: csvString,
+                extension: EnumFileExtensionDocument.csv,
+                filename: `trip-form-${formId}-responses.csv`,
+            };
+        } catch (error: unknown) {
+            throw new InternalServerErrorException({
+                statusCode: EnumAppStatusCodeError.unknown,
+                message: 'http.serverError.internalServerError',
+                data: {
+                    operation: 'trip-form.exportFormResponsesCsv',
+                    formId,
+                    tripId,
+                },
+                _error: error,
+            });
+        }
+    }
+
     // User-facing
     async getMyFormList(
         userId: string,
@@ -481,7 +559,9 @@ export class TripFormService implements ITripFormService {
             now
         );
 
-        return { data: this.tripFormUtil.mapFormWithResponse(form, assignment) };
+        return {
+            data: this.tripFormUtil.mapFormWithResponse(form, assignment),
+        };
     }
 
     async submitForm(
@@ -637,5 +717,4 @@ export class TripFormService implements ITripFormService {
 
         return { assignment, form };
     }
-
 }

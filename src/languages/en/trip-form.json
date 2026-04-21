@@ -16,7 +16,8 @@
         "list": "Get assignments"
     },
     "response": {
-        "list": "Get trip form responses"
+        "list": "Get trip form responses",
+        "export": "Export trip form responses"
     },
     "question": {
         "summary": "Question summary"

@@ -1,5 +1,12 @@
-import { IPaginationIn, IPaginationQueryOffsetParams } from '@common/pagination/interfaces/pagination.interface';
-import { IResponsePagingReturn, IResponseReturn } from '@common/response/interfaces/response.interface';
+import {
+    IPaginationIn,
+    IPaginationQueryOffsetParams,
+} from '@common/pagination/interfaces/pagination.interface';
+import {
+    IResponseFileReturn,
+    IResponsePagingReturn,
+    IResponseReturn,
+} from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
 import { TripFormCreateDraftRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-draft.request.dto';
 import { TripFormCreateFromTemplateRequestDto } from '@modules/trip-form/dtos/request/trip-form-create-from-template.request.dto';
@@ -74,6 +81,10 @@ export interface ITripFormService {
             Prisma.TripFormAssignmentWhereInput
         >
     ): Promise<IResponsePagingReturn<TripFormResponseResponseDto>>;
+    exportFormResponsesCsv(
+        tripId: string,
+        formId: string
+    ): Promise<IResponseFileReturn>;
 
     // User-facing
     getMyFormList(

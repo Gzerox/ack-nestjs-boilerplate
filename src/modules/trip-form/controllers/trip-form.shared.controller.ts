@@ -15,9 +15,11 @@ import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe
 import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
 import {
     Response,
+    ResponseFile,
     ResponsePaging,
 } from '@common/response/decorators/response.decorator';
 import {
+    IResponseFileReturn,
     IResponsePagingReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
@@ -61,6 +63,7 @@ import {
     TripFormSharedMetricsDoc,
     TripFormSharedPublishDoc,
     TripFormSharedResponsesDoc,
+    TripFormSharedResponsesExportDoc,
     TripFormSharedUpdateDraftDoc,
 } from '@modules/trip-form/docs/trip-form.shared.doc';
 import {
@@ -135,10 +138,18 @@ export class TripFormSharedController {
             TripFormAvailableStatus
         )
         status?: Record<string, IPaginationIn>,
-        @PaginationQueryFilterInEnum<EnumTripFormKind>('kind', TripFormAvailableKind)
+        @PaginationQueryFilterInEnum<EnumTripFormKind>(
+            'kind',
+            TripFormAvailableKind
+        )
         kind?: Record<string, IPaginationIn>
     ): Promise<IResponsePagingReturn<TripFormResponseDto>> {
-        return this.tripFormService.getFormList(pagination, tripId, status, kind);
+        return this.tripFormService.getFormList(
+            pagination,
+            tripId,
+            status,
+            kind
+        );
     }
 
     @TripFormSharedGetDoc()
@@ -172,7 +183,12 @@ export class TripFormSharedController {
         idForm: string,
         @Body() body: TripFormUpdateDraftRequestDto
     ): Promise<IResponseReturn<TripFormResponseDto>> {
-        return this.tripFormService.updateDraft(tripId, idForm, body, updatedBy);
+        return this.tripFormService.updateDraft(
+            tripId,
+            idForm,
+            body,
+            updatedBy
+        );
     }
 
     @TripFormSharedPublishDoc()
@@ -286,7 +302,26 @@ export class TripFormSharedController {
             Prisma.TripFormAssignmentWhereInput
         >
     ): Promise<IResponsePagingReturn<TripFormResponseResponseDto>> {
-        return this.tripFormService.getFormResponses(tripId, idForm, pagination);
+        return this.tripFormService.getFormResponses(
+            tripId,
+            idForm,
+            pagination
+        );
     }
 
+    @TripFormSharedResponsesExportDoc()
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @FeatureFlagProtected('trip')
+    @ApiKeyProtected()
+    @ResponseFile()
+    @Get('/:idTrip/forms/:idForm/responses/export')
+    async exportResponses(
+        @Param('idTrip', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        tripId: string,
+        @Param('idForm', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        idForm: string
+    ): Promise<IResponseFileReturn> {
+        return this.tripFormService.exportFormResponsesCsv(tripId, idForm);
+    }
 }

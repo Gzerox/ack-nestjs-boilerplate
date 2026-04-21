@@ -79,14 +79,7 @@ export class TermPolicyService implements ITermPolicyService {
                 ? defaultTermPolicies
                 : requiredTermPolicies;
 
-        const statusByType: Record<EnumTermPolicyType, boolean> = {
-            [EnumTermPolicyType.termsOfService]: __user.termsOfServicePolicy,
-            [EnumTermPolicyType.privacy]: __user.privacyPolicy,
-            [EnumTermPolicyType.cookies]: __user.cookiesPolicy,
-            [EnumTermPolicyType.marketing]: __user.marketingPolicy,
-        };
-
-        if (!requiredTermPolicies.every(type => statusByType[type])) {
+        if (!requiredTermPolicies.every(type => __user[type])) {
             throw new ForbiddenException({
                 statusCode: EnumTermPolicyStatusCodeError.requiredInvalid,
                 message: 'termPolicy.error.requiredInvalid',

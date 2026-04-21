@@ -16,13 +16,13 @@ import {
     ITermPolicy,
     ITermPolicyUserAcceptance,
 } from '@modules/term-policy/interfaces/term-policy.interface';
-import { TERM_POLICY_USER_FIELD_MAP } from '@modules/term-policy/constants/term-policy.constant';
 import { IUser } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import {
     EnumActivityLogAction,
     EnumTermPolicyStatus,
     EnumTermPolicyType,
+    EnumUserStatus,
     Prisma,
 } from '@generated/prisma-client';
 
@@ -219,7 +219,7 @@ export class TermPolicyRepository {
                     status: 'active',
                 },
                 data: {
-                    ...{ [TERM_POLICY_USER_FIELD_MAP[type]]: true },
+                    [type]: true,
                     activityLogs: {
                         create: {
                             action: EnumActivityLogAction.userAcceptTermPolicy,
@@ -385,11 +385,11 @@ export class TermPolicyRepository {
             }
             await tx.user.updateMany({
                 where: {
-                    [TERM_POLICY_USER_FIELD_MAP[type]]: true,
+                    [type]: true,
+                    deletedAt: null,
+                    status: EnumUserStatus.active,
                 },
-                data: {
-                    [TERM_POLICY_USER_FIELD_MAP[type]]: false,
-                },
+                data: { [type]: false },
             });
             return tx.termPolicy.update({
                 where: { id: termPolicyId },

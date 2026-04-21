@@ -165,10 +165,10 @@ export class MigrationUserSeed
                             status: EnumUserStatus.active,
                             username: this.userUtil.createRandomUsername(),
                             deletedAt: null,
-                            termsOfServicePolicy: true,
-                            privacyPolicy: true,
-                            marketingPolicy: false,
-                            cookiesPolicy: false,
+                            termsOfService: true,
+                            privacy: true,
+                            marketing: false,
+                            cookies: false,
                             passwordHistories: {
                                 create: {
                                     password: passwordHash,

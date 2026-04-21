@@ -122,10 +122,10 @@ model User {
   lastIPAddress        String?
   lastLoginFrom        EnumUserLoginFrom?
   lastLoginWith        EnumUserLoginWith?
-  termsOfServicePolicy Boolean
-  privacyPolicy        Boolean
-  marketingPolicy      Boolean
-  cookiesPolicy        Boolean
+  termsOfService Boolean
+  privacy        Boolean
+  marketing      Boolean
+  cookies        Boolean
   photo                Json?
 
   // timestamps fields

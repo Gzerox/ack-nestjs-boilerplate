@@ -17,19 +17,19 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
 
     @ApiProperty({ required: true, example: true })
     @Expose()
-    termsOfServicePolicy: boolean;
+    termsOfService: boolean;
 
     @ApiProperty({ required: true, example: true })
     @Expose()
-    privacyPolicy: boolean;
+    privacy: boolean;
 
     @ApiProperty({ required: true, example: false })
     @Expose()
-    cookiesPolicy: boolean;
+    cookies: boolean;
 
     @ApiProperty({ required: true, example: false })
     @Expose()
-    marketingPolicy: boolean;
+    marketing: boolean;
 
     @ApiProperty({
         required: true,

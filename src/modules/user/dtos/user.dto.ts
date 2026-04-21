@@ -149,16 +149,16 @@ export class UserDto extends DatabaseDto {
     lastLoginWith?: EnumUserLoginWith;
 
     @ApiProperty({ required: true, example: true })
-    termsOfServicePolicy: boolean;
+    termsOfService: boolean;
 
     @ApiProperty({ required: true, example: true })
-    privacyPolicy: boolean;
+    privacy: boolean;
 
     @ApiProperty({ required: true, example: false })
-    marketingPolicy: boolean;
+    marketing: boolean;
 
     @ApiProperty({ required: true, example: false })
-    cookiesPolicy: boolean;
+    cookies: boolean;
 
     @ApiProperty({
         required: false,

@@ -8,32 +8,32 @@ explicitly set at user-creation time).
 ## Current Setup
 
 The `User` model carries 4 boolean fields — no `@default` so every `user.create` call
-must provide an explicit value:
+must provide an explicit value. Field names match `EnumTermPolicyType` values exactly,
+so the type can be used as the field key directly:
 
 ```prisma
-termsOfServicePolicy Boolean   // required — true at sign-up / admin-create
-privacyPolicy        Boolean   // required — true at sign-up / admin-create
-marketingPolicy      Boolean   // required — false unless user opted in
-cookiesPolicy        Boolean   // required — false unless user opted in
+termsOfService Boolean   // required — true at sign-up / admin-create
+privacy        Boolean   // required — true at sign-up / admin-create
+marketing      Boolean   // required — false unless user opted in
+cookies        Boolean   // required — false unless user opted in
 ```
 
-`TERM_POLICY_USER_FIELD_MAP` (in `term-policy.constant.ts`) maps each
-`EnumTermPolicyType` to its field name and is used by:
-
-- `term-policy.repository.ts` `accept()` — sets the field to `true` on acceptance
-- `term-policy.repository.ts` `publish()` — resets all matching fields to `false`
-  via a bulk `updateMany` inside the publish transaction
+The repository uses `EnumTermPolicyType` directly as the dynamic field key:
 
 ```typescript
 // accept() — sets boolean to true
-{ [TERM_POLICY_USER_FIELD_MAP[type]]: true }
+{ [type]: true }
 
 // publish() — bulk reset on every new version
 await tx.user.updateMany({
-    where: { [TERM_POLICY_USER_FIELD_MAP[type]]: true },
-    data:  { [TERM_POLICY_USER_FIELD_MAP[type]]: false },
+    where: { [type]: true },
+    data:  { [type]: false },
 });
 ```
+
+The request DTOs (`UserSignUpRequestDto`, `UserCreateSocialRequestDto`) expose
+`cookies` and `marketing` as booleans, matching the entity field names directly —
+no mapping layer required.
 
 ## Problem with Booleans
 
@@ -48,10 +48,10 @@ Replace the 4 boolean fields on `User` with nullable FK UUIDs pointing to the ac
 
 | Current (boolean) | Proposed (FK UUID) |
 |---|---|
-| `termsOfServicePolicy Boolean` | `termsOfServicePolicyId String @db.Uuid` |
-| `privacyPolicy Boolean` | `privacyPolicyId String @db.Uuid` |
-| `marketingPolicy Boolean` | `marketingPolicyId String? @db.Uuid` |
-| `cookiesPolicy Boolean` | `cookiesPolicyId String? @db.Uuid` |
+| `termsOfService Boolean` | `termsOfServiceId String @db.Uuid` |
+| `privacy Boolean` | `privacyId String @db.Uuid` |
+| `marketing Boolean` | `marketingId String? @db.Uuid` |
+| `cookies Boolean` | `cookiesId String? @db.Uuid` |
 
 `termsOfServicePolicyId` and `privacyPolicyId` are **required** (non-nullable) — users
 cannot exist without having accepted these.
@@ -78,10 +78,10 @@ ID is the latest published version before creating the user:
 
 ```typescript
 // DTO
-termPolicyTermsOfServiceId: string;   // required
-termPolicyPrivacyId: string;          // required
-termPolicyCookiesId?: string;         // optional
-termPolicyMarketingId?: string;       // optional
+termsOfServiceId: string;   // required
+privacyId: string;          // required
+cookiesId?: string;         // optional
+marketingId?: string;       // optional
 ```
 
 ```typescript
@@ -113,21 +113,21 @@ const privacyId = await termPolicyRepository.findLatestPublishedId(
 
 ```prisma
 // Remove:
-termsOfServicePolicy Boolean
-privacyPolicy        Boolean
-marketingPolicy      Boolean
-cookiesPolicy        Boolean
+termsOfService Boolean
+privacy        Boolean
+marketing      Boolean
+cookies        Boolean
 
 // Add:
-termsOfServicePolicyId String  @db.Uuid
-privacyPolicyId        String  @db.Uuid
-marketingPolicyId      String? @db.Uuid
-cookiesPolicyId        String? @db.Uuid
+termsOfServiceId String  @db.Uuid
+privacyId        String  @db.Uuid
+marketingId      String? @db.Uuid
+cookiesId        String? @db.Uuid
 
-termsOfServicePolicy TermPolicy  @relation("UserTermPolicyTermsOfService", fields: [termsOfServicePolicyId], references: [id])
-privacyPolicy        TermPolicy  @relation("UserTermPolicyPrivacy", fields: [privacyPolicyId], references: [id])
-marketingPolicy      TermPolicy? @relation("UserTermPolicyMarketing", fields: [marketingPolicyId], references: [id])
-cookiesPolicy        TermPolicy? @relation("UserTermPolicyCookies", fields: [cookiesPolicyId], references: [id])
+termsOfService TermPolicy  @relation("UserTermPolicyTermsOfService", fields: [termsOfServiceId], references: [id])
+privacy        TermPolicy  @relation("UserTermPolicyPrivacy", fields: [privacyId], references: [id])
+marketing      TermPolicy? @relation("UserTermPolicyMarketing", fields: [marketingId], references: [id])
+cookies        TermPolicy? @relation("UserTermPolicyCookies", fields: [cookiesId], references: [id])
 ```
 
 ### TermPolicy model — back-relations
@@ -141,24 +141,13 @@ usersCookies        User[] @relation("UserTermPolicyCookies")
 
 ## Repository Changes
 
-**`TERM_POLICY_USER_FIELD_MAP`** (in `term-policy.constant.ts`) — update to ID field names:
-
-```typescript
-export const TERM_POLICY_USER_FIELD_MAP: Record<EnumTermPolicyType, string> = {
-    [EnumTermPolicyType.termsOfService]: 'termsOfServicePolicyId',
-    [EnumTermPolicyType.privacy]:        'privacyPolicyId',
-    [EnumTermPolicyType.cookies]:        'cookiesPolicyId',
-    [EnumTermPolicyType.marketing]:      'marketingPolicyId',
-};
-```
-
 **`accept()`** — store the policy ID instead of `true`:
 
 ```typescript
 // Before:
-{ [TERM_POLICY_USER_FIELD_MAP[type]]: true }
+{ [type]: true }
 // After:
-{ [TERM_POLICY_USER_FIELD_MAP[type]]: termPolicyId }
+{ [type]: termPolicyId }
 ```
 
 **`publish()`** — remove the `updateMany` block entirely. Users' stored IDs become
@@ -201,7 +190,7 @@ return id;
 | `term-policy.repository.ts` | Update field map; `accept()` stores ID; `publish()` removes `updateMany`; add `findLatestPublishedId()` |
 | `term-policy.service.ts` | `validateTermPolicyGuard()` compares IDs; add `validateIsLatestPublished()`; optionally add caching |
 | `user.service.ts` | Inject `TermPolicyService`; call `validateIsLatestPublished()` in `signUp()` and `loginWithSocial()` |
-| `user.sign-up.request.dto.ts` | Replace `cookies?/marketing?` booleans with 4 policy ID fields |
+| `user.sign-up.request.dto.ts` | Replace `cookies`/`marketing` booleans with 4 policy ID fields |
 | `user.create-social.request.dto.ts` | Inherits from `UserSignUpRequestDto` — no change needed |
 | `user.repository.ts` | `signUp()`/`createBySocial()` use provided IDs; `createByAdmin()`/`importByAdmin()` auto-fetch latest IDs |
 | `user.dto.ts` | `@Transform` uses null-check on ID fields |

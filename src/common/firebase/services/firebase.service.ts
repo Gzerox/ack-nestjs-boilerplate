@@ -2,6 +2,7 @@ import {
     FirebaseInvalidTokenCodes,
     FirebaseMaxSendPushBatchSize,
 } from '@common/firebase/constants/firebase.constant';
+import { EnumFirebaseAuthMethod } from '@common/firebase/enums/firebase.enum';
 import {
     IFirebasePushPayload,
     IFirebasePushResult,
@@ -19,6 +20,7 @@ import { Messaging } from 'firebase-admin/messaging';
 export class FirebaseService implements IFirebaseService, OnModuleInit {
     private readonly logger = new Logger(FirebaseService.name);
 
+    private readonly authMethod: EnumFirebaseAuthMethod | null;
     private readonly projectId: string | null;
     private readonly clientEmail: string | null;
     private privateKey: string | null;
@@ -30,6 +32,9 @@ export class FirebaseService implements IFirebaseService, OnModuleInit {
         private readonly configService: ConfigService,
         private readonly helperService: HelperService
     ) {
+        this.authMethod = this.configService.get<EnumFirebaseAuthMethod>(
+            'firebase.authMethod'
+        )!;
         this.projectId = this.configService.get<string | null>(
             'firebase.projectId'
         )!;
@@ -53,6 +58,50 @@ export class FirebaseService implements IFirebaseService, OnModuleInit {
     }
 
     async onModuleInit(): Promise<void> {
+        if (!this.authMethod) {
+            this.logger.warn(
+                'FIREBASE_AUTH_METHOD not configured. Push notifications will be disabled.'
+            );
+
+            return;
+        }
+
+        if (this.authMethod === EnumFirebaseAuthMethod.workloadIdentity) {
+            await this.initWithWorkloadIdentity();
+        } else {
+            await this.initWithServiceAccount();
+        }
+    }
+
+    private async initWithWorkloadIdentity(): Promise<void> {
+        if (!this.projectId) {
+            this.logger.warn(
+                'FIREBASE_PROJECT_ID not configured. Push notifications will be disabled.'
+            );
+
+            return;
+        }
+
+        try {
+            this.app = firebaseAdmin.initializeApp({
+                credential: firebaseAdmin.credential.applicationDefault(),
+                projectId: this.projectId,
+            });
+
+            this.messaging = firebaseAdmin.messaging(this.app);
+
+            this.logger.log(
+                'Firebase Admin SDK initialized (Workload Identity Federation)'
+            );
+        } catch (error: unknown) {
+            this.logger.error(
+                error,
+                'Failed to initialize Firebase Admin SDK (Workload Identity Federation)'
+            );
+        }
+    }
+
+    private async initWithServiceAccount(): Promise<void> {
         if (!this.projectId || !this.clientEmail || !this.privateKey) {
             this.logger.warn(
                 'Firebase credentials not configured. Push notifications will be disabled.'
@@ -72,7 +121,9 @@ export class FirebaseService implements IFirebaseService, OnModuleInit {
 
             this.messaging = firebaseAdmin.messaging(this.app);
 
-            this.logger.log('Firebase Admin SDK initialized successfully');
+            this.logger.log(
+                'Firebase Admin SDK initialized (Service Account)'
+            );
         } catch (error: unknown) {
             this.logger.error(error, 'Failed to initialize Firebase Admin SDK');
         }

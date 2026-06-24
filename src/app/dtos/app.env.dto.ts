@@ -15,9 +15,10 @@ import {
     ValidateIf,
 } from 'class-validator';
 import { EnumAppEnvironment } from '@app/enums/app.enum';
+import { EnumFirebaseAuthMethod } from '@common/firebase/enums/firebase.enum';
+import { EnumLoggerLevel } from '@common/logger/enums/logger.enum';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { EnumRequestTimezone } from '@common/request/enums/request.enum';
-import { EnumLoggerLevel } from '@common/logger/enums/logger.enum';
 
 /**
  * Validated shape of all application environment variables.
@@ -295,6 +296,11 @@ export class AppEnvDto {
     @IsOptional()
     @IsString()
     SENTRY_DSN?: string;
+
+    @IsOptional()
+    @IsString()
+    @IsEnum(EnumFirebaseAuthMethod)
+    FIREBASE_AUTH_METHOD: EnumFirebaseAuthMethod;
 
     @IsOptional()
     @IsString()

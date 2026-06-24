@@ -595,19 +595,27 @@ EMAIL_ADMIN=admin@mail.com
 > [!NOTE]
 > Firebase settings are optional. Required only if push notification features are enabled.
 
+**`FIREBASE_AUTH_METHOD`** *(optional)*  
+Firebase authentication method. Defaults to `serviceAccount`.
+- `serviceAccount` — authenticates using a service account key (`FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY` required).
+- `workloadIdentity` — authenticates via Application Default Credentials (ADC). Requires `GOOGLE_APPLICATION_CREDENTIALS` set to the path of a mounted WIF credential config JSON file. `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` are not used.
+```bash
+FIREBASE_AUTH_METHOD=serviceAccount
+```
+
 **`FIREBASE_PROJECT_ID`** *(optional/required for push notifications)*  
 Firebase project ID from your Firebase console.
 ```bash
 FIREBASE_PROJECT_ID=
 ```
 
-**`FIREBASE_CLIENT_EMAIL`** *(optional/required for push notifications)*  
+**`FIREBASE_CLIENT_EMAIL`** *(optional/required when `FIREBASE_AUTH_METHOD=serviceAccount`)*  
 Firebase service account client email.
 ```bash
 FIREBASE_CLIENT_EMAIL=
 ```
 
-**`FIREBASE_PRIVATE_KEY`** *(optional/required for push notifications)*  
+**`FIREBASE_PRIVATE_KEY`** *(optional/required when `FIREBASE_AUTH_METHOD=serviceAccount`)*  
 Firebase service account private key. Replace newlines with `\n` when storing in `.env`.
 ```bash
 FIREBASE_PRIVATE_KEY=

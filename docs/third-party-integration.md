@@ -106,19 +106,33 @@ AWS service errors use `EnumAwsStatusCodeError` located at `src/common/aws/enums
 **Packages:**
 - `firebase-admin`
 
-**Environment Variables:**
+**Authentication Methods:**
+
+Two credential strategies are supported, selected via `FIREBASE_AUTH_METHOD`.
+
+*Service Account (default):*
 ```dotenv
+FIREBASE_AUTH_METHOD=serviceAccount
 FIREBASE_PROJECT_ID=<your_firebase_project_id>
 FIREBASE_CLIENT_EMAIL=<your_firebase_client_email>
 FIREBASE_PRIVATE_KEY=<your_firebase_private_key>
 ```
+
+*Workload Identity Federation (recommended for Kubernetes):*
+```dotenv
+FIREBASE_AUTH_METHOD=workloadIdentity
+FIREBASE_PROJECT_ID=<your_firebase_project_id>
+GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/wif-credential.json
+```
+
+The WIF credential config JSON must be mounted into the pod. `GOOGLE_APPLICATION_CREDENTIALS` points to that file. `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` are not used in this mode.
 
 **Features:**
 - Push notification delivery via FCM
 - Batch send support
 - Invalid token detection and cleanup
 
-Leave `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` empty to disable Firebase in development.
+Leave `FIREBASE_PROJECT_ID` (and the relevant auth credentials) empty to disable Firebase in development.
 
 For notification details, see [Notification Documentation][ref-doc-notification].
 

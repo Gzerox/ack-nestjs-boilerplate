@@ -752,6 +752,13 @@ This configuration manages Firebase integration settings for push notification d
 
 #### Configuration Keys:
 
+**`authMethod`** - Firebase authentication method
+```typescript
+authMethod: EnumFirebaseAuthMethod  // 'serviceAccount' | 'workloadIdentity'
+```
+- `serviceAccount`: authenticates via service account key; `clientEmail` and `privateKey` are required.
+- `workloadIdentity`: authenticates via Application Default Credentials (ADC); `GOOGLE_APPLICATION_CREDENTIALS` must point to the WIF credential config JSON file mounted in the pod. `clientEmail` and `privateKey` are not used.
+
 **`projectId`** - Firebase project ID
 ```typescript
 projectId?: string              // Firebase project ID from Firebase console
@@ -759,16 +766,16 @@ projectId?: string              // Firebase project ID from Firebase console
 
 **`clientEmail`** - Firebase service account email
 ```typescript
-clientEmail?: string            // Firebase service account client email
+clientEmail?: string            // Required when authMethod is serviceAccount
 ```
 
 **`privateKey`** - Firebase service account private key
 ```typescript
-privateKey?: string             // Service account private key (PEM); escaped `\n` sequences are converted to real newlines at load
+privateKey?: string             // Required when authMethod is serviceAccount; escaped `\n` sequences are converted to real newlines at load
 ```
 
 > [!NOTE]
-> All Firebase config fields are optional. They are required only when push notification features are enabled. The `FirebaseConfig` is registered in `src/configs/index.ts` alongside other config modules.
+> All Firebase config fields are optional. They are required only when push notification features are enabled. `clientEmail` and `privateKey` are only needed when `authMethod` is `serviceAccount`. The `FirebaseConfig` is registered in `src/configs/index.ts` alongside other config modules.
 
 
 <!-- REFERENCES -->

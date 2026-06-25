@@ -9,7 +9,13 @@ services:
         ports:
             - 3000:3000
         volumes:
-            - ./:/app/
+            - ./src:/app/src
+            - ./prisma:/app/prisma
+            - "${HOME}/.config/gcloud/application_default_credentials.json:/tmp/adc.json:ro"
+        env_file:
+            - .env
+        environment:
+            GOOGLE_APPLICATION_CREDENTIALS: /tmp/adc.json
         restart: on-failure
         networks:
             - app-network

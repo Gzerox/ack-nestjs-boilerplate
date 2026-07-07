@@ -61,7 +61,7 @@ export class FeatureFlagRepository {
 
     async updateStatus(
         id: string,
-        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto
+        { isEnable, rolloutPercent, targetUserIds }: FeatureFlagUpdateStatusRequestDto
     ): Promise<FeatureFlag> {
         return this.databaseService.featureFlag.update({
             where: {
@@ -70,6 +70,7 @@ export class FeatureFlagRepository {
             data: {
                 isEnable,
                 rolloutPercent,
+                targetUserIds,
             },
         });
     }

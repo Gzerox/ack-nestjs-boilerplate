@@ -4,7 +4,7 @@ Detail lives in `docs/authorization.md`, `docs/response.md`, `docs/doc.md`, `doc
 
 ## Decorator order (HARD — exact, never reorder)
 
-NestJS applies decorators bottom-up, so the HTTP method is always last in source order.
+NestJS evaluates stacked decorators bottom-up, so the HTTP method is always last in source order. Guards run in that same direction: the decorator NEAREST the method executes FIRST, the one farthest executes last. In the list below a higher number runs earlier — execution flows #10 → #1. A guard that depends on state an earlier guard sets (e.g. one needing `request.user`, which `@AuthJwtAccessProtected` populates) must sit ABOVE that guard in source, so it runs after it.
 
 ```typescript
 @ExampleDoc()                          // 1.  Swagger doc factory
@@ -21,7 +21,7 @@ NestJS applies decorators bottom-up, so the HTTP method is always last in source
 @Get('/endpoint')                      // 12. HTTP method — always last
 ```
 
-Reordering is a defect even when the app still boots: the order encodes which gate rejects first, and a reshuffle changes which error a caller sees.
+Reordering is a defect even when the app still boots: the order encodes which gate rejects first — and because guards run bottom-up, the gate NEAREST the method rejects first (API key before JWT before role before policy before term policy). A reshuffle changes which error a caller sees.
 
 - A social-login guard (`@AuthSocialGoogleProtected()`) takes the JWT slot for that route.
 - `@ActivityLog` requires `@AuthJwtAccessProtected` — it logs both success and failure against a user. Metadata is set through `RequestStoreService.merge(ActivityLogMetadataStoreKey, ...)`, never returned in the response shape, and never carries a secret. See `docs/activity-log.md`.

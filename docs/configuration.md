@@ -423,13 +423,17 @@ cors: {
 > - **Credentials** are automatically allowed only for specific origins; wildcard (`*`) disables credentials
 > - Default headers include standard headers plus custom headers like `x-api-key`, `x-timezone`, `x-request-id`, etc.
 
-**`throttle`** - Rate limiting configuration
+**`throttle`** - Rate limiting configuration (Redis-backed, shares the cache connection)
 ```typescript
 throttle: {
   ttlInMs: number;                // Time window in milliseconds (default: 60000ms / 60s)
   limit: number;                  // Maximum requests per time window (default: 100)
+  keyPattern: string;             // Counter key (default: 'request:throttler:{name}:{tracker}')
+  blockKeyPattern: string;        // Block key (default: 'request:throttler:block:{name}:{tracker}')
 }
 ```
+
+> `{name}` is the throttler name (default `default`); `{tracker}` is the client IP, or the authenticated user id when `@RequestThrottleByUser()` is applied. See [Security and Middleware](security-and-middleware.md).
 
 ### Redis Configuration
 

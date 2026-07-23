@@ -606,14 +606,23 @@ async callExternalService(requestId: string) {
 
 ## Sentry Integration
 
-Sentry is initialized at bootstrap by `src/instrument.ts` using `loggerConfigs.sentry.dsn`. The logger itself does not forward log entries to Sentry.
+Sentry is initialized at bootstrap by `src/instrument.ts` using `loggerConfigs.sentry.dsn`. Two independent streams reach Sentry: log entries go to Sentry's Logs product, exceptions go to Sentry's Issues.
 
-Error reporting to Sentry is done by the exception filters:
+**Log entries (Sentry Logs).** With `enableLogs: true`, `Sentry.pinoIntegration` auto-forwards Pino log entries (every `logger.log` / `warn` / `error` / ...) to Sentry Logs through Node `diagnostics_channel`. No manual transport is wired. Forwarded levels are environment-aware:
+
+- **Production**: `warn`, `error`, `fatal`.
+- **Every other environment**: `trace`, `debug`, `info`, `warn`, `error`, `fatal`.
+
+Error-level logs are forwarded to Sentry Logs only; they are NOT duplicated as Sentry Issues.
+
+**Exceptions (Sentry Issues).** Exception reporting is done by the exception filters:
 
 - `AppBaseExceptionFilter`: reports `rawError ?? exception` for any `AppBaseException` with HTTP status >= 500.
 - `AppHttpFilter`: reports the `HttpException` for framework errors with HTTP status >= 500.
 - `AppGeneralFilter`: reports all unhandled exceptions (catch-all 500).
 - `QueueProcessorBase`: reports fatal queue job failures on the last retry attempt.
+
+A non-fatal `QueueException` is dropped in `beforeSend` and never becomes a Sentry Issue.
 
 ### Sentry Configuration
 

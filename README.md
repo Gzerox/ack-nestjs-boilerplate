@@ -67,6 +67,7 @@ This boilerplate is perfect for:
 - Stateful Authorization, using `redis-session` and `JWT`.
 - Must run MongoDB as a `replication set` for `database transactions`.
 - If you change the environment value of `APP_ENV` to `production`, it will disable Documentation.
+- In `production`, Sentry forwards only `warn`, `error`, and `fatal` logs to Sentry Logs; every other environment forwards all levels.
 - When using multiple protection decorators, they must be applied in the correct order:
     ```typescript
     @ExampleDoc()
@@ -219,7 +220,7 @@ Developer-friendly tooling and best practices.
 ### 📡 Integrations & Monitoring
 Enterprise-grade integrations for production readiness.
 
-- **Sentry** - Error tracking and performance monitoring
+- **Sentry** - Error tracking, performance monitoring, and Pino log forwarding to Sentry Logs (environment-scoped levels)
 - **AWS SES** - Transactional email delivery
 - **Activity Logging** - Comprehensive audit trail
 - **Health Checks** - System monitoring endpoints

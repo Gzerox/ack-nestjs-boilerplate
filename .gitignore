@@ -82,7 +82,15 @@ tmp/
 .claude/worktrees/
 .claude/todos.json
 .claude/scheduled-tasks/
-docs/superpowers
+
+## Superpowers skill output (specs, plans, sdd notes) — never docs/
+.superpowers/
+
+## PR descriptions and change notes
+.changes/
+
+## Graphify knowledge graph
+graphify-out/
 
 ## Cursor
 .cursorignore

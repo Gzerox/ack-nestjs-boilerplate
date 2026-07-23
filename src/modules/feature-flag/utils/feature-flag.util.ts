@@ -4,13 +4,14 @@ import { ResponseUtil } from '@common/response/utils/response.util';
 import { FeatureFlagResponseDto } from '@modules/feature-flag/dtos/response/feature-flag.response';
 import { IFeatureFlagMetadata } from '@modules/feature-flag/interfaces/feature-flag.interface';
 import { FeatureFlagRepository } from '@modules/feature-flag/repositories/feature-flag.repository';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FeatureFlag } from '@generated/prisma-client';
 import { Cache } from 'cache-manager';
 
 @Injectable()
 export class FeatureFlagUtil {
+    private readonly logger = new Logger(FeatureFlagUtil.name);
     private readonly cachePrefixKey: string;
     private readonly cacheTtlMs: number;
 
@@ -31,25 +32,32 @@ export class FeatureFlagUtil {
 
     async getCacheByKey(key: string): Promise<FeatureFlag | null> {
         const cacheKey = `${this.cachePrefixKey}:${key}`;
-        const cachedFeatureFlag =
-            await this.cacheManager.get<FeatureFlag>(cacheKey);
-        if (cachedFeatureFlag) {
-            return cachedFeatureFlag;
+        try {
+            const cachedFeatureFlag =
+                await this.cacheManager.get<FeatureFlag>(cacheKey);
+            return cachedFeatureFlag ?? null;
+        } catch (error: unknown) {
+            this.logger.error(error, 'Feature flag cache read failed');
+            return null;
         }
-
-        return null;
     }
 
     async setCacheByKey(key: string, featureFlag: FeatureFlag): Promise<void> {
         const cacheKey = `${this.cachePrefixKey}:${key}`;
-        await this.cacheManager.set(cacheKey, featureFlag, this.cacheTtlMs);
-        return;
+        try {
+            await this.cacheManager.set(cacheKey, featureFlag, this.cacheTtlMs);
+        } catch (error: unknown) {
+            this.logger.error(error, 'Feature flag cache write failed');
+        }
     }
 
     async deleteCacheByKey(key: string): Promise<void> {
         const cacheKey = `${this.cachePrefixKey}:${key}`;
-        await this.cacheManager.del(cacheKey);
-        return;
+        try {
+            await this.cacheManager.del(cacheKey);
+        } catch (error: unknown) {
+            this.logger.error(error, 'Feature flag cache delete failed');
+        }
     }
 
     mapList(featureFlags: FeatureFlag[]): FeatureFlagResponseDto[] {
@@ -95,12 +103,13 @@ export class FeatureFlagUtil {
         return true;
     }
 
-    /** Deterministic per-identifier bucketing: same identifier always lands in the same 0-99 slot. */
+    /** Deterministic bucketing salted by flag key so each flag buckets a user independently. */
     checkRolloutPercentage(
         rolloutPercent: number,
+        key: string,
         identifier: string
     ): boolean {
-        const hash = this.helperService.md5Hash(identifier);
+        const hash = this.helperService.md5Hash(`${key}:${identifier}`);
         const num = Number.parseInt(hash.slice(0, 8), 16);
         const percentage = num % 100;
 

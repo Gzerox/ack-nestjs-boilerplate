@@ -1,238 +1,172 @@
-# ACK NestJS Boilerplate — Claude Code Instructions
+# ACK NestJS Boilerplate
 
-> Read this file top to bottom. It is an execution order: §0 before you act → §1 guardrails → §2–8 while you code → §9 before you finish → §10 is the reject list. Rules only — all domain detail lives in `docs/*`.
+`ack-nestjs-boilerplate` — an opinionated, production-shaped NestJS starter. It is a BOILERPLATE: no external client depends on it, so breaking changes are cheap and the clean design always wins over the compatible one.
 
-**Stack:** NestJS v11 · TypeScript strict · Prisma → MongoDB (replica set) · Redis (cache `db:0` / BullMQ `db:1`) · PNPM only · Node ≥ 24.11 · JWT ES256/ES512 · Repository pattern.
+## Domains
 
----
+- **Identity & auth** — JWT (ES256/ES512, JWKS), social sign-in (Google / Apple), API keys, sessions, devices, password history, two-factor (TOTP + email/SMS challenge).
+- **Access control** — roles, CASL policy abilities, term-policy acceptance gating, feature flags with per-key salt rollout and user targeting.
+- **Platform** — notifications (email via SES, push via Firebase), file upload + S3 presign, activity log, analytics, i18n messages, health checks, country reference data.
 
-## 0. BEFORE YOU ACT (HARD — every task, no exception)
+## Stack & runtime
 
-Run these steps in order before writing code, suggesting a change, or answering a design question:
+- NestJS 11, TypeScript strict, Node >= 24.11, **PNPM only** (`npm` and `yarn` are blocked by `engines`).
+- Prisma 6 → **MongoDB 8 replica set** (a replica set is required — transactions do not work without one).
+- Redis: cache on `db:0`, BullMQ on `db:1`, shared through one connection.
+- Pino logging, Sentry instrumentation, Swagger docs, nest-commander migration CLI.
 
-1. **Scan `docs/*`.** List `docs/` and READ every doc relevant to the task. Detail is there, not here. **Always ignore `docs/superpowers/*`** when the task concerns this project's documentation. It is local-only planning (specs/plans), not project docs. Never read, update, or cite it as source of truth.
-2. **Read the real source.** Open the actual files. Never assume structure, signatures, or names.
-3. **Scope it.** Do only what is asked (YAGNI). If unsure, ASK — do not guess and build.
-4. **Plan against §2–8.** Confirm the change obeys the principles and rules below before typing.
+## Ports (docker-compose)
 
-### Docs index (`/docs`)
-`authentication` · `authorization` · `database` · `device` · `two-factor` · `activity-log` · `cache` · `queue` · `notification` · `response` · `request-validation` · `handling-error` · `message` · `pagination` · `file-upload` · `presign` · `feature-flag` · `term-policy` · `security-and-middleware` · `third-party-integration` · `logger` · `configuration` · `environment` · `installation` · `project-structure` · `doc` · `analytics`
-
-When in doubt about a behavior, the matching doc is the source of truth. Read it before touching the code. (`docs/superpowers/*` is excluded: local planning only, never project documentation.)
-
----
-
-## 1. GUARDRAILS (HARD — never cross without explicit user request)
-
-### Git — never touch the user's tree
-- Do NOT run `git commit`, `git add`, stage, or unstage commands on your own.
-- Leave the index exactly as the user arranged it. Already-staged files stay staged; unstaged stay unstaged.
-- Stage or commit ONLY when the user explicitly asks, and only the files they name.
-- When asked to commit: READ `.commitlintrc` first, then PROPOSE the commit message(s) and wait for approval. Never commit before the user accepts the message. The message must pass commitlint.
-- Commit message = single-line subject ONLY. No body, no bullet lists, no `Co-Authored-By` footer. Match the repo's convention (`type(scope): summary`). Keep it terse.
-
-### Prisma — schema is off-limits
-- Do NOT edit the Prisma schema.
-- Do NOT run schema/DB-mutating commands (`db:migrate`, `db:push`, `migration:*`, `db:generate`).
-- Need a schema change? Stop and tell the user — do not do it yourself.
+API 3000 · MongoDB 27017 · Redis 6379 · BullBoard 3010 · JWKS server 3011 · Vault 8200 · Swagger under the configured `doc.prefix`
 
 ---
 
-## 2. PRINCIPLES (HARD — apply on every line)
+## Repository layout
 
-All four below are mandatory. None optional. Reviewer rejects on violation.
+```
+src/
+├── main.ts             # HTTP bootstrap — global prefix, versioning, middleware, Swagger
+├── migration.ts        # nest-commander entrypoint — boots MigrationModule, runs seeders
+├── instrument.ts       # Sentry init (imported first by main.ts)
+├── swagger.ts          # Swagger/OpenAPI document builder
+├── app/                # framework layer — app.module + the global filter chain
+├── common/             # infrastructure kit shared by every module
+├── configs/            # registerAs config files + index.ts barrel
+├── languages/          # nestjs-i18n translation JSON, one file per module prefix
+├── migration/          # seeders — data/, seeds/, bases/, enums/, interfaces/
+├── modules/            # feature modules (repository pattern)
+├── queues/             # BullMQ framework layer + composition root
+└── router/             # route prefix modules
 
-- **SOLID**
-  - **S** — one class, one reason to change. Controller routes, Service business logic, Repository data access. Never blur.
-  - **O** — extend via new class/strategy/decorator, not by editing stable code with `if/switch` type-checks.
-  - **L** — a subclass/implementation must be drop-in for its base/interface. No narrowing behavior, no surprise throws.
-  - **I** — small focused interfaces. No fat interface forcing dead method implementations. Split by consumer need.
-  - **D** — depend on abstractions. Services depend on injected classes/interfaces, never on `DatabaseService` directly.
-- **DRY** — zero copy-paste logic. Extract to base class, util, or shared module. One source of truth for config, connections, constants. Written twice → refactor.
-- **KISS** — simplest solution that works. No clever one-liners, no needless layers, no premature generics. Readable > smart.
-- **YAGNI** — build only what the current task needs. No "future-proof" params, no unused flags, no speculative hooks, no dead branches. Delete unused code.
-
-**When they pull against each other, resolve in this order:**
-
-1. **Correctness & security** — first, always. Never trade security for brevity.
-2. **YAGNI + KISS** — decide whether structure is needed at all.
-3. **SOLID + DRY** — shape that structure well once it is justified.
-
-> Duplication beats the wrong abstraction. Do not abstract to satisfy DRY/SOLID against YAGNI/KISS.
-
-### Boilerplate — no backward-compat burden
-
-- No external client depends on this repo. Breaking changes are fine; never keep a worse design for compatibility.
-- Default to current community best practice. Pick the clean/correct shape over the existing one.
-- Use existing code only as a divergence check: when best practice clashes HARD with an established pattern, WARN the user before applying — do not apply silently. Minor/local divergence: just proceed.
-
----
-
-## 3. ARCHITECTURE (HARD)
-
-### Repository pattern
-- `Repository` → data access ONLY. Injects `DatabaseService` directly (no `@Inject`). No interface.
-- `Service` → business logic ONLY. Injects repository as a class. MUST implement an interface (`IUserService`).
-- **NEVER** inject `DatabaseService` into a service.
-- Repository owns `null → {}` normalization for filter params before Prisma — never in the caller.
-
-### Path aliases (ALWAYS — relative imports forbidden)
-- `@app/*` · `@common/*` · `@config` · `@configs/*` · `@modules/*` · `@queues/*` · `@routes/*` · `@router` · `@migration/*` · `@test/*` · `@generated/*` · `@package`
-- `@prisma/client` → `generated/prisma-client`
-
-### Module layout
-- Standard folder set per module. Read `docs/project-structure.md` before scaffolding — do not invent structure.
-
----
-
-## 4. NAMING (HARD)
-
-### 4.1 Files
-
-Pattern: `<module>.<noun-or-action>[.<sub>].<role>.ts`
-
-- Every file starts with the `<module>.` prefix. No exception.
-- Dot `.` separates segments; dash `-` ONLY inside a compound-noun segment (`user.mobile-number.dto.ts`, `notification.email.processor.ts`).
-- Folders: lowercase kebab-case.
-- Role suffix matches the artifact: `.service` `.repository` `.controller` `.guard` `.decorator` `.interceptor` `.dto` `.enum` `.constant` `.interface` `.doc` `.util` `.module` `.processor` `.filter`.
-- DTO files always end `.dto.ts` (request/response under `dtos/request/` and `dtos/response/`): `user.create.request.dto.ts`, `user.profile.response.dto.ts`.
-
-### 4.2 Identifiers
-
-| Type | Rule | Example (this project) |
-|---|---|---|
-| Class | PascalCase, module-prefixed | `UserService` |
-| Interface | `I` + PascalCase | `IUser`, `IUserService` |
-| Enum name | `Enum` + PascalCase | `EnumQueue`, `EnumRoleStatusCodeError` |
-| Enum keys/values | camelCase | `notFound`, `notificationEmail` |
-| Constants | PascalCase (objects AND primitives) | `AuthJwtAccessGuardKey` |
-| Methods / vars / fields | camelCase | `findById` |
-| Payload interface | `I` + `<Module>` + `<Action>` + `Payload` | `INotificationSendPushPayload` |
-| Request DTO | `<Module>...RequestDto` suffix | `UserCreateRequestDto` |
-| Response DTO | `<Module>...ResponseDto` suffix | `UserProfileResponseDto` |
-
-### 4.3 Rules
-
-- **All types start with `I`.** Interfaces, payload shapes, service contracts: `IUser`, `IUserService`, `INotificationVerificationEmailPayload`. No bare type name.
-- **Enums** — `Enum` prefix + PascalCase name; keys AND values camelCase (NOT UPPER_CASE). One enum concern per file. Error-code enums use numeric values.
-- **Constants** — PascalCase for everything: typed objects/arrays and single primitives alike. No UPPER_SNAKE_CASE.
-- **DI tokens** — rare; prefer direct class injection (repository as class). When a token IS needed, name it PascalCase and wrap the value in `Symbol()`.
-- **DTOs** — every DTO carries the `Dto` suffix on BOTH class name and file name (`*RequestDto`/`user.*.request.dto.ts`, `*ResponseDto`/`user.*.response.dto.ts`). There is no usecase layer.
-
----
-
-## 5. DECORATOR ORDER (HARD — exact, never reorder)
-
-```typescript
-@ExampleDoc()                          // 1. Swagger doc
-@TermPolicyAcceptanceProtected(...)    // 2. Term policy
-@PolicyAbilityProtected({...})         // 3. CASL policy
-@RoleProtected(...)                    // 4. Role
-@ActivityLog(...)                      // 5. Activity log
-@UserProtected()                       // 6. User status
-@AuthJwtAccessProtected()              // 7. JWT
-@FeatureFlagProtected(...)             // 8. Feature flag
-@ApiKeyProtected()                     // 9. API key
-@HttpCode(HttpStatus.OK)               // 10. HTTP status (only when needed)
-@Get('/endpoint')                      // 11. HTTP method (always last)
+prisma/                 # schema.prisma (OFF-LIMITS — see Mandatory rules)
+generated/              # prisma client output (generated, never hand-edited)
+docs/                   # durable project documentation
+test/                   # jest.json + specs mirroring src/
+scripts/ · ci/ · keys/
 ```
 
-- Guard/protection semantics → read `docs/authorization.md`.
-- `@ActivityLog` requires `@AuthJwtAccessProtected`. Logs both success and failure. Metadata is set via `RequestStoreService.merge(ActivityLogMetadataStoreKey, ...)`, never returned in the response shape. Never logs secrets. → `docs/activity-log.md`.
+**The shape is the repository pattern**: Controller → Service → Repository. Feature modules hold flat folder-per-concern directories (`controllers/`, `services/`, `repositories/`, `dtos/`, …). Keep that shape; do not invent a layered folder scheme on top of it.
+
+### `src/app/` — framework layer
+
+```
+src/app/
+├── app.module.ts       # root module; registers the APP_FILTER chain
+├── dtos/               # app.env.dto.ts
+├── enums/              # app.enum.ts, app.status-code.enum.ts (EnumAppStatusCodeError)
+├── exceptions/         # app.base.exception.ts (AppBaseException) + app.unknown.exception.ts
+├── filters/            # general · http · base-exception · validation · validation-import
+└── interfaces/         # app.interface.ts
+```
+
+`app.module.ts` registers the `APP_FILTER` providers in this array order: general → base-exception → http → validation → validation-import. NestJS evaluates them in reverse, so the most specific catch runs first.
+
+### `src/common/` — infrastructure kit
+
+Every folder is NestJS-coupled and/or performs I/O. It stays thin; it is not a parking lot.
+
+- **Persistence / transport** — `database/`, `redis/`, `cache/`, `pagination/`, `request/`, `response/`
+- **Cross-cutting** — `logger/`, `message/`, `helper/`, `file/`, `doc/`
+- **Integration** — `aws/` (S3, SES), `firebase/`
+- `common.module.ts` — the `forRoot()` composition that wires the global modules.
+
+### `src/modules/` — feature modules
+
+`activity-log` · `api-key` · `auth` · `country` · `device` · `feature-flag` · `health` · `hello` · `notification` · `password-history` · `policy` · `role` · `session` · `term-policy` · `user`
+
+No module carries every folder. Take only what the feature needs, from three tiers:
+
+```
+src/modules/<feature>/
+  # Core — present in almost every module
+  ├── constants/ · controllers/ · dtos/{request,response}/ · enums/
+  ├── exceptions/ · interfaces/ · repositories/ · services/ · utils/
+  # Common — when the feature needs them
+  ├── decorators/ · docs/ · guards/
+  # Specialized — a few modules only
+  └── factories/ · indicators/ · interceptors/ · processors/ · templates/ · validations/
+```
+
+Read `docs/project-structure.md` before scaffolding a new module — do not invent structure.
+
+### `src/queues/` — BullMQ framework layer
+
+```
+src/queues/
+├── bases/queue.processor.base.ts     # processor base
+├── constants/ · enums/queue.enum.ts  # EnumQueue + EnumQueuePriority
+├── decorators/queue.decorator.ts     # @QueueProcessor(EnumQueue.<x>)
+├── exceptions/ · interfaces/
+├── queue.module.ts                   # composition root — imports feature modules, provides processors
+└── queue.register.module.ts          # @Global(); every BullModule.registerQueue + job defaults
+```
+
+Processor **files** live in their owning feature module (`<feature>/processors/`); only their **registration** lives here.
+
+### `src/router/` — route prefixes
+
+`router.module.ts` plus `routes/routes.{admin,public,user,system,shared}.module.ts`. Controllers live in their feature module; the router registers them under a prefix.
 
 ---
 
-## 6. STRICT NULL TYPES (HARD)
+## Documentation
 
-- `undefined` is allowed ONLY at the input boundary (Request DTO body, Query DTO). Every deeper layer uses `null`.
+`docs/` is tracked, durable project documentation. It stands on its own for a reader with none of this tooling.
 
-| Layer | Convention |
+`activity-log` · `analytics` · `authentication` · `authorization` · `cache` · `configuration` · `database` · `device` · `doc` · `environment` · `feature-flag` · `file-upload` · `handling-error` · `installation` · `logger` · `message` · `notification` · `pagination` · `presign` · `project-structure` · `queue` · `readme` · `request-validation` · `response` · `security-and-middleware` · `term-policy` · `third-party-integration` · `two-factor` · `vault`
+
+**Read the doc matching the task before changing related code.** When a change makes a document stale, report which document and what now disagrees — documentation is repaired against the code by the `doc-drift` agent, not edited alongside the change.
+
+---
+
+## Commands
+
+```bash
+pnpm install
+pnpm db:generate         # prisma generate → generated/prisma-client
+pnpm db:migrate          # prisma db push (MongoDB has no migration files)
+pnpm migration:seed      # seed all modules; :remove, :fresh also exist
+pnpm start:dev | build | start:prod
+pnpm test                # TZ=UTC jest --config test/jest.json
+pnpm typecheck           # tsc --noEmit
+pnpm lint | lint:fix | format
+pnpm deadcode | spell
+pnpm db:studio
+docker-compose up -d     # MongoDB replica set + Redis + BullBoard + JWKS + Vault
+```
+
+Git hooks (`.husky/`): `pre-commit` runs lint-staged → typecheck → deadcode → spell → tests; `commit-msg` runs commitlint. Both are blocking.
+
+---
+
+## Workflow for a code change
+
+Four phases. The split is about capability, not ceremony:
+
+1. **Spec — main session.** `superpowers:brainstorming`, looping with the owner until the feature is unambiguous. A subagent cannot ask a question and wait for the answer, so this cannot be delegated. The spec is written to `.superpowers/specs/YYYY-MM-DD-<slug>.md`.
+2. **Plan — main session.** `superpowers:writing-plans`, turning the settled spec into an ordered plan at `.superpowers/plans/YYYY-MM-DD-<slug>.md`.
+3. **Execute — dispatched to the `coder` agent**, one task at a time, in parallel via `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development` when the tasks are independent. `coder` carries the rule set; implementation written anywhere else is written without it.
+4. **Verify — main session.** `pnpm typecheck`, `pnpm lint`, `pnpm spell`, the full `pnpm test`, and `pnpm start:dev` to confirm the app still boots. Boot is the only check that catches a DI or import cycle. Verification is these commands plus the `anti-pattern-gate` skill — it does NOT include dispatching a review agent.
+
+A narrow bugfix with no new behavior skips phases 1-2: `superpowers:systematic-debugging`, then dispatch.
+
+**Working artifacts never go to `docs/`.** `docs/` is tracked, durable project documentation. Everything an agent produces along the way is gitignored working space:
+
+| Artifact | Location |
 |---|---|
-| Request/Query DTO (input boundary) | `field?: Type` |
-| Response DTO — wrapper/structural | `field?: Type` |
-| Response DTO — domain data | `field: Type \| null` |
-| Domain interface — data | `field: Type \| null` |
-| Domain interface — request lifecycle / external spec (JWT, Prisma) | `field?: Type` |
-| Exception / options bag | `field?: Type` |
-| Config interface (`src/configs/`) | `field: Type \| null` |
-| Service/Repository — data param | `param: Type \| null` |
-| Service/Repository — filter param | `param: Type \| null` (additive service filter may use `?`) |
-| Prisma return | `Type \| null` |
+| Spec, plan, sdd note | `.superpowers/` |
+| PR description | `.changes/pr-<feature>.md` |
+| Knowledge graph | `graphify-out/` |
 
-- **NEVER** `field?: Type \| null` — ambiguous. Pick one.
-- Controller normalizes `undefined → null` before calling a service: `service.update(id, dto.bio ?? null)`.
-- No `any` (`noImplicitAny`). No ignored null checks (`strictNullChecks`).
+A `PreToolUse` hook in `.claude/settings.json` denies writes to `docs/superpowers/`, so getting this wrong fails loudly rather than quietly polluting the tracked tree.
 
----
+## Mandatory rules
 
-## 7. CODE STYLE (HARD)
-
-- **NestJS idiomatic.** Use the framework the Nest way — modules, DI, providers, guards, pipes, interceptors, decorators. No hand-rolled substitutes for what Nest already provides.
-- **No unit tests.** Do not write or scaffold tests unless the user explicitly asks.
-- **Minimal comments (strict).** The user dislikes comment noise. Default to ZERO comments. Add one ONLY when it is genuinely critical and the code cannot convey it: a tricky invariant, a security reason, a deliberate deviation. Never explain a cast, a type subset, an obvious call, or what the next line does. When in doubt, leave it out. Reviewer rejects on excess.
-- **Notes** — mark with `// @note <text>`. If the symbol already has a JSDoc block, put the note inside it instead — do not add a separate `// @note`.
-- **No trailing comments.** Never place a `//` comment to the right of or at the end of a line of code. Put the comment on its own line ABOVE the code; when it documents a declaration, make it a JSDoc block instead.
-- **JSDoc** — terse and to the point. State what matters, skip filler. Do not restate the signature or types the code already shows. Specific rules:
-  - Always place JSDoc directly ABOVE the symbol (class, method, function, const, property). Never below.
-  - When the symbol is decorated, JSDoc goes ABOVE the first decorator, never between a decorator and the declaration.
-  - One or two lines max. Describe WHAT, plus any non-obvious WHY (a security reason, a tricky invariant, a deliberate deviation, a notable throw condition).
-  - NO `@example`, `@param`, `@returns`, `@template`, `@throws`, `@private`, `@export`, `@class`, `@implements`, `@constraint`, `@remarks`. They restate the signature. Fold anything worth keeping into the prose sentence.
-  - Module classes with `forRoot()`/`forRootAsync()`: document the module ONCE at the class level; do NOT document the `forRoot` method separately.
-  - Interfaces get NO JSDoc, including per-field comments (the doc lives on the implementing service). Applies to data-shape, payload, options, AND service-contract interfaces. If a field carries a genuinely critical invariant or deliberate type override, convert it to a single terse `// @note` line instead.
-  - Not everything needs JSDoc. Symbols self-evident from name + signature (thin wrappers, trivial getters, lifecycle hooks with no surprising behavior, private helpers that just delegate) get NONE. Keep JSDoc only where it adds real value.
-  - Constants: at most a 1-line JSDoc, only when the value's rationale is non-obvious (e.g. a limit tied to an external cap). Self-evident constants (DI tokens, obvious names) get none. Enums: only when a value's meaning is non-obvious.
-  - DTOs: a 1-line class JSDoc if it helps; fields already covered by `@ApiProperty` need none.
-  - NO JSDoc at all in the `controllers/`, `docs/` (Swagger `*.doc.ts`), `repositories/`, and `services/` layers — their role is fixed by the pattern (route delegation, Swagger doc, data access, business logic) and is self-evident. Do not add it; remove any that exists. (`// @note` and `// TODO` line comments may stay.)
-- **No em-dash in `docs/*.md` prose.** Never use `—` in documentation prose. Use proper punctuation instead (period, comma, semicolon, colon, or parentheses). Plain hyphens in compound words (`dev-mode`, `in-memory`) are fine; do not overuse them. Exception: an existing structured list whose every entry already uses `—` as a separator — match it for consistency rather than breaking the pattern on one line.
-
----
-
-## 8. ERRORS · RESPONSES · CONFIG (rules; detail in docs)
-
-- **Errors** — throw Nest exceptions with `{ statusCode, message: '<i18n.key>', messageProperties?, data? }`. i18n keys are nested JSON, filename = prefix (`user.error.notFound` → `languages/en/user.json`). → `docs/handling-error.md`, `docs/message.md`.
-- **Responses** — use `@Response` / `@ResponsePaging`. Return `{ data, metadata? }`. → `docs/response.md`.
-- **Validation** — `class-validator` + `@Expose` on DTOs. → `docs/request-validation.md`.
-- **Config** — every `src/configs/*` file exports a TS interface alongside `registerAs`. → `docs/configuration.md`, `docs/environment.md`.
-- **Transactions** — array form for simple sequential, callback form for conditional logic. MongoDB replica set required. → `docs/database.md`.
-- **Logging** — `new Logger(ClassName.name)`, object first then message: `logger.error(error, 'msg')`. Secrets auto-redacted by Pino — never log them anyway.
-
----
-
-## 9. BEFORE YOU FINISH (HARD — verify, do not assume)
-
-Run in order and confirm each passes before claiming done:
-
-1. `pnpm typecheck` — must be clean (zero errors).
-2. `pnpm lint` — must be clean (use `pnpm lint:fix` for autofixable).
-3. `pnpm spell` — fix unknown words or add to `cspell.json`.
-4. Re-check the diff against §10. If any item matches, fix it.
-
-- Report failures honestly with the real output. Never claim a step passed without running it.
-- Mention any deliberate deviation (performance / matching existing code) in the reply.
-- Do NOT commit or stage (§1). Leave verification results for the user to commit.
-
----
-
-## 10. ANTI-PATTERNS (NEVER — reject list)
-
-- Commit, stage, or unstage without an explicit user request → leave the tree alone (§1).
-- Commit without proposing a commitlint-valid message and getting approval first → §1.
-- Edit the Prisma schema or run schema/DB commands → stop and tell the user (§1).
-- Inject `DatabaseService` into a service → use repository.
-- Relative imports → use path aliases.
-- Multiple Redis connections → share via `RedisCacheModule`.
-- Reorder protection decorators → follow §5 exactly.
-- Flat i18n keys → nested JSON.
-- Log secrets (password/token/apiKey) explicitly.
-- Skip session invalidation on password change/reset/logout/device removal.
-- `UPPER_SNAKE_CASE` enums → PascalCase name + camelCase keys.
-- Array transaction for conditional logic → callback form.
-- `any` type / ignored null checks.
-- `@Inject` for a repository → direct class injection.
-- `undefined` past the input boundary → `null`.
-- `field?: Type | null` → pick one.
-- Normalize filter params in the caller → repository owns it.
-- Write unit tests unprompted, or over-comment obvious code → see §7.
-- Non-idiomatic NestJS (hand-rolled what Nest provides) → §7.
-- Copy-paste logic / speculative params / premature abstraction → violates DRY, YAGNI, KISS.
-- Skip reading `docs/*` before acting → violates §0.
+1. **No `prisma/schema.prisma` edits, and no schema/DB commands** (`db:migrate`, `db:push`, `db:generate`, `migration:*`). Describe the schema change; the owner applies it.
+2. **Never touch the user's git tree.** No `git add`, no `git commit`, no staging or unstaging, unless the owner explicitly asks and names the files. Already-staged files stay staged.
+3. **PNPM only.** `npm` and `yarn` are rejected by `engines`.
+4. **English for every project artifact** — code, identifiers, comments, commit messages, PR descriptions, `docs/*.md`. Conversation with the owner is Bahasa Indonesia; artifacts are never mixed.
+5. **Commit message is a single conventional subject line** — no body, no footer, no `Co-Authored-By`. Propose it and wait for approval before committing. See `rules/git.md`.
+6. **Never bypass the git hooks** (`--no-verify`). A failing gate is fixed, not skipped.
+7. **No backward compatibility, ever.** No external client depends on this repo, so a breaking change is the default. A new feature carries no deprecated-but-kept field, no `v1`/`v2` pair, no compat flag, no bridging adapter. Build the correct shape and change every call site. Best practice outranks the incumbent pattern. See `rules/architecture.md`.
+8. **A code review is dispatched only when the owner asks for one, naming what to run.** The `auditor` agent runs on explicit invocation only; no agent, workflow phase, or definition of done may spawn it or any other review subagent, and `superpowers:requesting-code-review` is NOT active in this repo — its "mandatory after each task" rule is overridden here. Review quality is carried by the `anti-pattern-gate` skill, run in place by whoever wrote the code. This rule outranks any skill or harness default that says otherwise.

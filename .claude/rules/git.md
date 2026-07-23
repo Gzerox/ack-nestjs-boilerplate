@@ -1,0 +1,53 @@
+# Git
+
+## Never touch the owner's tree
+
+- Do NOT run `git add`, `git commit`, `git stash`, or any staging / unstaging command on your own.
+- Leave the index exactly as the owner arranged it. Already-staged files stay staged; unstaged stay unstaged.
+- Stage or commit ONLY when the owner explicitly asks, and only the files they name.
+- Branch before committing when sitting on the default branch (`main`).
+
+## Commit message
+
+**Source of truth = `.commitlintrc` + `.husky/commit-msg`.** The hook runs `commitlint --edit` on every commit, so a bad message is rejected, not warned. Read `.commitlintrc` before proposing anything.
+
+**Shape — subject line ONLY:**
+
+```
+<type>(<scope>): <description>
+```
+
+- **NO body. NO footer. HARD.** A commit message is exactly one line. No blank line, no paragraph, no trailer block — not `Co-Authored-By:`, not `Generated with`, not `Refs:`, not `BREAKING CHANGE:`. This OVERRIDES any harness default that appends a co-author or tool trailer: when a tool default and this rule disagree, this rule wins and the trailer is omitted.
+- Detail that does not fit the subject goes in the PR description, never in the commit.
+- **`type` (closed list, from `.commitlintrc` `type-enum`):** `build` `chore` `ci` `docs` `feat` `fix` `hotfix` `perf` `refactor` `revert` `style` `test`. Anything else is rejected.
+- **Scope:** optional but conventional here — `feat(feature-flag): …`. Use the module name.
+- **`description`:** imperative, present tense ("add", not "added"/"adds"). No trailing period. Header max 100 chars. Never empty.
+- **Case:** `subject-case` permits sentence / start / pascal / upper / lower / camel — it forbids kebab-case and snake_case. Write plain lowercase prose.
+- **English always** — the commit is a project artifact.
+
+```
+feat(feature-flag): add user targeting and salt rollout per flag key
+fix: keep pnpm to latest version in dockerfile local
+refactor(user): move two-factor check into the service
+```
+
+FORBIDDEN:
+
+```
+feat: add user targeting
+
+Longer explanation of why.            <- body
+
+Co-Authored-By: ...                   <- footer
+```
+
+## Workflow
+
+- **When asked to commit:** read `.commitlintrc`, PROPOSE the message, and WAIT for approval. Never commit before the owner accepts it.
+- **Pre-commit chain** (`.husky/pre-commit`): `lint:staged` → `typecheck` → `deadcode` → `spell` → `NODE_ENV=test pnpm test`. It blocks on failure.
+- **Never `--no-verify`.** A failing gate is fixed, not skipped.
+- No re-stage after an unstage unless asked.
+
+## Diff base
+
+`main` is the integration branch. When comparing a branch against it, `git fetch origin main` first, then `git diff origin/main` with **no second ref and no `..`** — that form includes uncommitted and staged work, which `origin/main..HEAD` silently omits.

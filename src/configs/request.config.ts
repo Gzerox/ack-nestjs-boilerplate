@@ -19,6 +19,8 @@ export interface IConfigRequest {
     throttle: {
         ttlInMs: number;
         limit: number;
+        keyPattern: string;
+        blockKeyPattern: string;
     };
 }
 
@@ -84,6 +86,8 @@ export default registerAs(
         throttle: {
             ttlInMs: ms('60s'),
             limit: 100,
+            keyPattern: 'request:throttler:{name}:{tracker}',
+            blockKeyPattern: 'request:throttler:block:{name}:{tracker}',
         },
     })
 );

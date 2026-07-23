@@ -1,8 +1,8 @@
 import { EnumNotificationPushProcess } from '@modules/notification/enums/notification.enum';
 import {
     INotificationNewDeviceLoginPayload,
-    INotificationPushWorkerCleanupTokenPayload,
-    INotificationPushWorkerPayload,
+    INotificationPushCleanupTokenQueuePayload,
+    INotificationPushQueuePayload,
     INotificationSendPushPayload,
     INotificationTemporaryPasswordPayload,
 } from '@modules/notification/interfaces/notification.interface';
@@ -32,7 +32,7 @@ export class NotificationPushUtil {
         sendPayload: INotificationSendPushPayload,
         data: INotificationTemporaryPasswordPayload
     ): Promise<void> {
-        const payload: INotificationPushWorkerPayload = {
+        const payload: INotificationPushQueuePayload = {
             send: sendPayload,
             data,
         };
@@ -54,7 +54,7 @@ export class NotificationPushUtil {
     async sendResetPassword(
         sendPayload: INotificationSendPushPayload
     ): Promise<void> {
-        const payload: INotificationPushWorkerPayload = {
+        const payload: INotificationPushQueuePayload = {
             send: sendPayload,
         };
 
@@ -75,7 +75,7 @@ export class NotificationPushUtil {
     async sendResetTwoFactorByAdmin(
         sendPayload: INotificationSendPushPayload
     ): Promise<void> {
-        const payload: INotificationPushWorkerPayload = {
+        const payload: INotificationPushQueuePayload = {
             send: sendPayload,
         };
 
@@ -97,7 +97,7 @@ export class NotificationPushUtil {
         sendPayload: INotificationSendPushPayload,
         data: INotificationNewDeviceLoginPayload
     ): Promise<void> {
-        const payload: INotificationPushWorkerPayload<INotificationNewDeviceLoginPayload> =
+        const payload: INotificationPushQueuePayload<INotificationNewDeviceLoginPayload> =
             {
                 send: sendPayload,
                 data,
@@ -122,7 +122,7 @@ export class NotificationPushUtil {
         failureTokens: string[]
     ): Promise<void> {
         if (failureTokens.length > 0) {
-            const payload: INotificationPushWorkerCleanupTokenPayload = {
+            const payload: INotificationPushCleanupTokenQueuePayload = {
                 data: { failureTokens, userId },
             };
 

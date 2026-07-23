@@ -1,0 +1,22 @@
+{
+    "permissions": {
+        "allow": [],
+        "additionalDirectories": ["/tmp"]
+    },
+    "enabledPlugins": {
+        "superpowers@claude-plugins-official": true
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-docs-superpowers.sh"
+                    }
+                ]
+            }
+        ]
+    }
+}

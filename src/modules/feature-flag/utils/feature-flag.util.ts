@@ -2,7 +2,10 @@ import { CacheMainProvider } from '@common/cache/constants/cache.constant';
 import { HelperService } from '@common/helper/services/helper.service';
 import { ResponseUtil } from '@common/response/utils/response.util';
 import { FeatureFlagResponseDto } from '@modules/feature-flag/dtos/response/feature-flag.response';
-import { IFeatureFlagMetadata } from '@modules/feature-flag/interfaces/feature-flag.interface';
+import {
+    IFeatureFlagMetadata,
+    IFeatureFlagMetadataValue,
+} from '@modules/feature-flag/interfaces/feature-flag.interface';
 import { FeatureFlagRepository } from '@modules/feature-flag/repositories/feature-flag.repository';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -89,18 +92,28 @@ export class FeatureFlagUtil {
             const newVal = newMetadata[key];
             const oldVal = oldMetadata[key];
 
-            if (typeof newVal !== typeof oldVal) {
+            if (this.metadataValueType(newVal) !== this.metadataValueType(oldVal)) {
                 return false;
             } else if (
                 newVal === undefined ||
                 newVal === null ||
-                newVal === ''
+                newVal === '' ||
+                (Array.isArray(newVal) && newVal.length === 0)
             ) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /** Distinguishes string[] from number[] so an array value cannot silently change element type on update. */
+    private metadataValueType(value: IFeatureFlagMetadataValue): string {
+        if (Array.isArray(value)) {
+            return value.length > 0 ? `array:${typeof value[0]}` : 'array';
+        }
+
+        return typeof value;
     }
 
     /** Deterministic bucketing salted by flag key so each flag buckets a user independently. */

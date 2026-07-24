@@ -142,9 +142,12 @@ Metadata provides granular control within a single feature flag:
 
 **Constraints:**
 - No nested objects allowed
-- Supports types: `boolean`, `number`, `string`
+- Supported value types: `boolean`, `number`, `string`, and homogeneous `string[]` or `number[]`
+- Arrays must be homogeneous. A mixed array (`[1, 'a']`), a nested array, and `boolean[]` are rejected
+- An array value is data only, never a gate value. A nested-key gate (below) must resolve to a boolean
+- Metadata keys must be camelCase, matching `/^[a-z][a-zA-Z0-9]*$/`
 - Metadata keys cannot be added/removed (schema consistency)
-- Only values can be modified
+- Only values can be modified. On update, an array value cannot change element type (`string[]` to `number[]` is rejected), and an empty array counts as an empty value and is rejected
 
 **Nested Key Access:**
 ```typescript

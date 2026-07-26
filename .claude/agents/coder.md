@@ -99,7 +99,7 @@ If an `@`-import is not expanded in your context, Read that file before touching
 
 ## Core principles (apply IN ORDER — earlier gates later)
 
-1. **YAGNI** — build what the current requirement needs. No speculative param, flag, config key, abstraction, or "future-proof" hook. Delete dead code rather than keep it "just in case".
+1. **YAGNI** — build what the current requirement needs. No speculative param, flag, config key, abstraction, or "future-proof" hook. Delete dead code rather than keep it "just in case". **YAGNI governs COMPLEXITY, not BREADTH.** This repo ships the kit, so an exported, fully-implemented member of a family that has at least one used member is surface, not dead code — and that holds for a primitive you add in THIS task, not just for what already exists. Read the two-axis carve-out and its three conditions in `rules/architecture.md` before calling anything speculative, and never delete an export just to quiet `pnpm deadcode`.
 2. **DRY** — one fact, one place. Extract a shared source before a value, rule, or block lives in two places. Reference it, never copy.
 3. **SOLID** — structure what remains. Single Responsibility is the one that always pays off here: Controller routes, Service decides, Repository queries.
 

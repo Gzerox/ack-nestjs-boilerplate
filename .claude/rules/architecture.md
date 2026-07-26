@@ -40,6 +40,40 @@ Controller ──▶ Service ──▶ Repository ──▶ DatabaseService (Pri
 
 **KISS + YAGNI gate SOLID and DRY.** Resolve conflicts in this order: correctness and security first, then YAGNI + KISS (is structure needed at all?), then SOLID + DRY (shape the structure that survived). Duplication beats the wrong abstraction — do not abstract to satisfy DRY against YAGNI.
 
+### YAGNI governs complexity, not breadth — the two never overlap
+
+**This repo's deliverable is the kit itself.** A consumer starts from it and deletes what they do not need, so a complete primitive family IS the requirement. Zero call sites inside `src/` proves nothing on its own, and never has.
+
+The rule above and this one answer different questions. Read them on separate axes and the apparent conflict disappears:
+
+| Axis | Question | Governed by |
+|---|---|---|
+| **Complexity** — layers, indirection, abstraction, config knobs, branches | Is this structure needed AT ALL? | YAGNI + KISS |
+| **Breadth** — how many members an exported primitive family offers | Is this surface part of the kit? | This section |
+
+YAGNI never had jurisdiction over breadth. A flat, fully-implemented sibling added beside working siblings introduces no structure to justify, so there is nothing for YAGNI to reject.
+
+**This applies to NEW work exactly as it applies to what already exists.** Deliberately preparing a primitive nobody calls yet is normal here, and a reviewer must not treat "added in this PR" as making it speculative.
+
+An export sits on the breadth axis — legitimate, present or future — when ALL hold:
+
+1. It is **exported** from its module: public surface a consumer reaches for, not a private helper nothing can call.
+2. It **belongs to a family that exists and has at least one used member**. `PaginationQueryFilterNotEqual` beside a used `PaginationQueryFilterEqualString`; `DocAllOf` beside a used `DocAnyOf`; `@RequestThrottleByUser()` beside the used IP throttler; `FileUploadMultiple` beside the used single-file upload.
+3. It is **complete and correct on its own terms** — real implementation, real tests where the layer is covered (`rules/testing.md`), same rules as any shipped code. Not a stub, not a sketch.
+
+It falls back onto the complexity axis, where YAGNI DOES reject it, when any of these is true:
+
+- It **starts a family with no used member** — nothing anchors it to a real requirement, so it is a guess about what a consumer will want.
+- It is **private or unexported**, or an internal branch no route reaches. Not surface at all.
+- It **buys breadth by adding structure**: a new abstract base, a DI token, an interface with no consumer, a config knob, or an `if (type === 'x')` branch threaded through existing code. The complexity is the finding, not the unused member.
+- It is **half-wired**: a decorator with no guard behind it, a method that throws `not implemented`, a folder kept empty "for later". Fails condition 3.
+
+**Consequences, so this is not re-litigated:**
+
+- `pnpm deadcode` (`ts-prune`) reports the whole kit surface by design. Its output is **not** a defect list, and the pre-commit chain does not block on it. Do not delete an export to quiet it, and do not report its entries as findings.
+- Do not raise "unused / dead code / YAGNI violation" against an export meeting the three conditions — in a review, a PR description, an audit, or a plan. If it fails one, name WHICH one and argue that. "It has no call sites" is not a finding, and neither is "it is new".
+- When the two axes genuinely both apply, **complexity wins**: reject the structure, keep the breadth. The answer is a flatter sibling, never a dropped one.
+
 ## Path aliases — relative imports are forbidden
 
 ```

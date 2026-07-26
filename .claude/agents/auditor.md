@@ -63,6 +63,7 @@ Every candidate finding gets an honest attempt at refutation before it reaches t
 
 - **Trace the actual call path.** A "missing validation" that a guard three frames up already enforces is not a finding.
 - **Never report a rename as a compatibility break.** This repo owes no client compatibility; the only question is whether the rename strands live runtime state and whether the deploy step was named.
+- **Never report an unused export as dead code or a YAGNI violation on call-count alone.** This repo ships a kit, so an exported, fully-implemented member of a family that has a used member is deliberate surface — whether it shipped last year or arrived in this diff. `pnpm deadcode` lists it by design. YAGNI governs complexity, not breadth: read the two-axis carve-out in `rules/architecture.md`, name WHICH of its three conditions fails, or drop the finding. "It is new" is not an argument.
 - **Distinguish "violates a rule" from "I would have written it differently".** Only the first is a finding. Preference goes in a separate, clearly-labeled note, or nowhere.
 - For a finding you cannot verify from the code alone, either state precisely what you checked and mark it PLAUSIBLE, or drop it. Never present an inference as confirmed.
 

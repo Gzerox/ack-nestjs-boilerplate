@@ -38,7 +38,9 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | A layered folder scheme invented inside a feature module instead of the flat folder-per-concern set | Module wiring — `rules/architecture.md` |
 | A shape with a clear owner module promoted into `src/common/` because "many modules import it" | Placement — `rules/architecture.md` |
 | `src/common/` importing a feature's runtime code, or binding a feature type as a generic default | Placement — `rules/architecture.md` |
-| A config key with a single hardcoded value; an abstract base with one subclass; a folder kept empty "for later" | YAGNI — `rules/architecture.md` |
+| A config key with a single hardcoded value; an abstract base with one subclass; a folder kept empty "for later"; a family with no used member | YAGNI — `rules/architecture.md` |
+| A new family member bought by adding an abstract base, a DI token, a config knob, or an `if (type === 'x')` branch | Complexity, not breadth — `rules/architecture.md` |
+| **NOT a smell:** an exported, fully-implemented primitive with zero call sites whose family has a used member (`PaginationQueryFilterNotEqual`, `DocAllOf`, `@RequestThrottleByUser`) — new or old — or anything `pnpm deadcode` lists | Kit surface — `rules/architecture.md` |
 | Copy-pasted logic in two services instead of one shared helper | DRY — `rules/architecture.md` |
 
 ## Strict nulls / types — `rules/null-safety.md`

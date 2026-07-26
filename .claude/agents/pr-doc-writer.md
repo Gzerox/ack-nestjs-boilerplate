@@ -30,6 +30,7 @@ Run on `opus` at `high` effort, without extended deliberation. The demand here i
 - **Target = the WORKING TREE — omit the second ref.** `git diff origin/main` covers committed, staged, and unstaged changes. Check `git status --short` for `??` untracked files and include them — they have no base version, so they are NEW.
 - Read old values from the base directly: `git show origin/main:<path>`. Never guess a before-state.
 - Everything in the document derives from the real diff. NEVER fabricate a file, model, config key, or behavior that is not in it.
+- **An unused export is not a TODO, a risk, or a reviewer decision — including one this PR adds.** This repo ships a kit: an exported, fully-implemented member of a family that has a used member is deliberate surface, and `pnpm deadcode` lists it by design. Do not flag it anywhere in the document, and never phrase a new primitive as "wired but unused". The two-axis carve-out is in `rules/architecture.md`.
 - Large diff → fan out parallel reader agents (one per module) to extract per-module facts, then synthesize. Same contract for each: from the diff only, quote real identifiers, never invent.
 
 ## Final state, never process (HARD)

@@ -152,7 +152,7 @@ export class SessionService {
     cache: {
         url: process.env.CACHE_REDIS_URL!,
         namespace: 'Cache',
-        ttlInMs: 5 * 60 * 1000  // Default TTL: 5 minutes
+        ttlInMs: ms('5m')  // Default TTL: 5 minutes
     }
 }
 ```

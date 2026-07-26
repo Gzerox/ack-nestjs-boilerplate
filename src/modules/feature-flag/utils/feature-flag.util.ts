@@ -15,8 +15,8 @@ import { Cache } from 'cache-manager';
 @Injectable()
 export class FeatureFlagUtil {
     private readonly logger = new Logger(FeatureFlagUtil.name);
-    private readonly cachePrefixKey: string;
-    private readonly cacheTtlMs: number;
+    private readonly keyPattern: string;
+    private readonly cacheTtlInMs: number;
 
     constructor(
         @Inject(CacheMainProvider) private readonly cacheManager: Cache,
@@ -25,16 +25,16 @@ export class FeatureFlagUtil {
         private readonly helperService: HelperService,
         private readonly responseUtil: ResponseUtil
     ) {
-        this.cachePrefixKey = this.configService.get<string>(
-            'featureFlag.cachePrefixKey'
+        this.keyPattern = this.configService.get<string>(
+            'featureFlag.keyPattern'
         )!;
-        this.cacheTtlMs = this.configService.get<number>(
-            'featureFlag.cacheTtlMs'
+        this.cacheTtlInMs = this.configService.get<number>(
+            'featureFlag.cacheTtlInMs'
         )!;
     }
 
     async getCacheByKey(key: string): Promise<FeatureFlag | null> {
-        const cacheKey = `${this.cachePrefixKey}:${key}`;
+        const cacheKey = this.keyPattern.replace('{key}', key);
         try {
             const cachedFeatureFlag =
                 await this.cacheManager.get<FeatureFlag>(cacheKey);
@@ -46,16 +46,20 @@ export class FeatureFlagUtil {
     }
 
     async setCacheByKey(key: string, featureFlag: FeatureFlag): Promise<void> {
-        const cacheKey = `${this.cachePrefixKey}:${key}`;
+        const cacheKey = this.keyPattern.replace('{key}', key);
         try {
-            await this.cacheManager.set(cacheKey, featureFlag, this.cacheTtlMs);
+            await this.cacheManager.set(
+                cacheKey,
+                featureFlag,
+                this.cacheTtlInMs
+            );
         } catch (error: unknown) {
             this.logger.error(error, 'Feature flag cache write failed');
         }
     }
 
     async deleteCacheByKey(key: string): Promise<void> {
-        const cacheKey = `${this.cachePrefixKey}:${key}`;
+        const cacheKey = this.keyPattern.replace('{key}', key);
         try {
             await this.cacheManager.del(cacheKey);
         } catch (error: unknown) {

@@ -97,7 +97,7 @@ SENTRY_DSN=<your_sentry_dsn>
 | `auto` | Enable automatic HTTP request/response logging | `false` |
 | `prettier` | Enable pretty-printing in console | `false` |
 | `sentry.dsn` | Sentry DSN for error tracking | `undefined` |
-| `sentry.timeout` | Sentry request timeout | `10000ms` (10s) |
+| `sentry.timeoutInMs` | Sentry request timeout | `ms('10s')` |
 
 ## Usage
 

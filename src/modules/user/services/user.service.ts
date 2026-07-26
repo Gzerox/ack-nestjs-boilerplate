@@ -1365,7 +1365,7 @@ export class UserService implements IUserService {
         const expiredAt = this.helperService.dateForward(
             loginAt,
             Duration.fromObject({
-                seconds: this.authUtil.jwtRefreshTokenExpirationTimeInSeconds,
+                milliseconds: this.authUtil.jwtRefreshTokenExpirationTimeInMs,
             })
         );
 

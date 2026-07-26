@@ -27,7 +27,7 @@ AWS S3 presigned URLs for downloads enable secure, temporary access to private S
 1. Client requests a presigned URL from the backend with the file key
 2. Backend validates user authorization and generates a time-limited presigned URL
 3. Client downloads the file directly from S3 using the presigned URL via HTTP GET
-4. URL expires after the configured time period (default: **30 minutes**, hardcoded as `presignExpiredInSeconds: 30 * 60` in `aws.config.ts`)
+4. URL expires after the configured time period (default: **30 minutes**, `presignExpiredInMs: ms('30m')` in `aws.config.ts`; the signer receives seconds via `Math.floor(value / 1000)`)
 
 ### Implementation
 
@@ -242,7 +242,7 @@ AWS S3 presigned URLs enable secure client-side direct uploads to S3 without exp
 5. Backend saves file reference to database with audit trail
 
 > [!NOTE]
-> **Default expiration:** 30 minutes (`presignExpiredInSeconds: 30 * 60` seconds, hardcoded in `aws.config.ts`). Override per-call via the `expiredInSeconds` option.
+> **Default expiration:** 30 minutes (`presignExpiredInMs: ms('30m')` in `aws.config.ts`; the signer receives seconds via `Math.floor(value / 1000)`). Override per-call via the `expiredInSeconds` option.
 
 ### Implementation
 

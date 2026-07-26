@@ -323,7 +323,7 @@ class UserImportDto {
 async importUsers(
   @UploadedFile(
     FileCsvParsePipe,
-    new FileCsvValidationPipe(UserImportDto)
+    FileCsvValidationPipe(UserImportDto)
   )
   data: UserImportDto[]
 ) {

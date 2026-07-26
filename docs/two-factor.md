@@ -63,14 +63,14 @@ Located in `src/configs/auth.config.ts`:
 |---------|-------|-------------|
 | `issuer` | `YourAppName` | Displayed in authenticator apps |
 | `digits` | `6` | TOTP code length (standard) |
-| `periodInSeconds` | `30` | Time window in seconds |
+| `periodInMs` | `ms('30s')` | TOTP time window, stored in ms; otplib receives seconds |
 | `window` | `1` | Clock skew tolerance (±30 seconds) |
 | `secretLength` | `32` | Base32 secret length |
 | `challengeTtlInMs` | `300000` | Challenge token TTL (5 minutes) |
 | `backupCodes.count` | `8` | Number of backup codes generated |
 | `backupCodes.length` | `10` | Characters per backup code (A-Z, 0-9) |
 | `maxAttempt` | `5` | Maximum failed verification attempts before lock |
-| `lockAttemptDuration` | `120000` | Base lock duration in milliseconds (2 minutes) |
+| `lockAttemptDurationInMs` | `ms('2m')` | Base lock duration in milliseconds (2 minutes) |
 
 ## Security Features
 
@@ -114,8 +114,8 @@ When a user reaches the maximum allowed attempts (5 failed verifications), the s
 - User receives HTTP 429 on **next** attempt (not the 5th)
 
 **Lock duration calculation:**
-- Formula: `TTL = 2^(attempt / maxAttempt) × lockAttemptDuration`
-- Base lock duration: 2 minutes (configurable via `lockAttemptDuration`)
+- Formula: `TTL = 2^(attempt / maxAttempt) × lockAttemptDurationInMs`
+- Base lock duration: 2 minutes (configurable via `lockAttemptDurationInMs`)
 
 **Lock duration examples:**
 ```

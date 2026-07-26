@@ -208,8 +208,8 @@ Runs only when the request has a user who is not in `targetUserIds`.
 Feature flags are cached for performance. Configuration in `src/configs/feature-flag.config.ts`:
 ```typescript
 {
-  cachePrefixKey: 'FeatureFlag',
-  cacheTtlMs: 3600000  // 1 hour
+  keyPattern: 'FeatureFlag:{key}',
+  cacheTtlInMs: ms('1h')
 }
 ```
 

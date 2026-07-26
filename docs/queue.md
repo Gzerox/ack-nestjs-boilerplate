@@ -106,7 +106,7 @@ export class NotificationPushUtil {
 
 ### Job Options
 
-Each queue sets its own default job options in `queue.register.module.ts`. They share `attempts: 3`, `removeOnComplete: 50`, and `removeOnFail: 100`, but differ in the exponential backoff `delay`:
+Default job options come from `queue.config.ts` (interface `IConfigQueue`) and are applied by `queue.register.module.ts`. Every queue shares `attempts: 3`, `removeOnComplete: 50`, and `removeOnFail: 100`, but differs in the exponential backoff `delay`:
 
 | Queue | backoff delay |
 |-------|---------------|

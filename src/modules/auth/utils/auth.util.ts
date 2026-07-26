@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LoginTicket, OAuth2Client, TokenPayload } from 'google-auth-library';
 import { Algorithm } from 'jsonwebtoken';
+import ms from 'ms';
 import {
     IAuthAccessTokenGenerate,
     IAuthJwtAccessTokenPayload,
@@ -35,13 +36,13 @@ export class AuthUtil {
     private readonly jwtAccessTokenKid: string;
     private readonly jwtAccessTokenPrivateKey: string;
     private readonly jwtAccessTokenPublicKey: string;
-    private readonly jwtAccessTokenExpirationTimeInSeconds: number;
+    private readonly jwtAccessTokenExpirationTimeInMs: number;
     private readonly jwtAccessTokenAlgorithm: Algorithm;
 
     private readonly jwtRefreshTokenKid: string;
     private readonly jwtRefreshTokenPrivateKey: string;
     private readonly jwtRefreshTokenPublicKey: string;
-    readonly jwtRefreshTokenExpirationTimeInSeconds: number;
+    readonly jwtRefreshTokenExpirationTimeInMs: number;
     private readonly jwtRefreshTokenAlgorithm: Algorithm;
 
     private readonly jwtPrefix: string;
@@ -58,10 +59,10 @@ export class AuthUtil {
     private readonly googlePrefix: string;
 
     // password
-    private readonly passwordExpiredInSeconds: number;
-    private readonly passwordExpiredTemporaryInSeconds: number;
+    private readonly passwordExpiredInMs: number;
+    private readonly passwordExpiredTemporaryInMs: number;
     private readonly passwordSaltLength: number;
-    private readonly passwordPeriodInSeconds: number;
+    private readonly passwordPeriodInMs: number;
     private readonly passwordAttempt: boolean;
     private readonly passwordMaxAttempt: number;
 
@@ -81,17 +82,15 @@ export class AuthUtil {
         this.jwtAccessTokenKid = this.configService.get<string>(
             'auth.jwt.accessToken.kid'
         )!;
-        this.jwtAccessTokenExpirationTimeInSeconds =
-            this.configService.get<number>(
-                'auth.jwt.accessToken.expirationTimeInSeconds'
-            )!;
+        this.jwtAccessTokenExpirationTimeInMs = this.configService.get<number>(
+            'auth.jwt.accessToken.expirationTimeInMs'
+        )!;
         this.jwtRefreshTokenKid = this.configService.get<string>(
             'auth.jwt.refreshToken.kid'
         )!;
-        this.jwtRefreshTokenExpirationTimeInSeconds =
-            this.configService.get<number>(
-                'auth.jwt.refreshToken.expirationTimeInSeconds'
-            )!;
+        this.jwtRefreshTokenExpirationTimeInMs = this.configService.get<number>(
+            'auth.jwt.refreshToken.expirationTimeInMs'
+        )!;
 
         this.jwtAccessTokenPrivateKey = this.parseRequiredBase64DerPrivateKey(
             'auth.jwt.accessToken.privateKey'
@@ -127,17 +126,17 @@ export class AuthUtil {
             this.configService.get<string>('auth.google.prefix')!;
 
         // password
-        this.passwordExpiredInSeconds = this.configService.get<number>(
-            'auth.password.expiredInSeconds'
+        this.passwordExpiredInMs = this.configService.get<number>(
+            'auth.password.expiredInMs'
         )!;
-        this.passwordExpiredTemporaryInSeconds = this.configService.get<number>(
-            'auth.password.expiredTemporaryInSeconds'
+        this.passwordExpiredTemporaryInMs = this.configService.get<number>(
+            'auth.password.expiredTemporaryInMs'
         )!;
         this.passwordSaltLength = this.configService.get<number>(
             'auth.password.saltLength'
         )!;
-        this.passwordPeriodInSeconds = this.configService.get<number>(
-            'auth.password.periodInSeconds'
+        this.passwordPeriodInMs = this.configService.get<number>(
+            'auth.password.periodInMs'
         )!;
         this.passwordAttempt = this.configService.get<boolean>(
             'auth.password.attempt'
@@ -221,7 +220,7 @@ export class AuthUtil {
     ): string {
         return this.jwtService.sign(payload, {
             privateKey: this.jwtAccessTokenPrivateKey,
-            expiresIn: this.jwtAccessTokenExpirationTimeInSeconds,
+            expiresIn: Math.floor(this.jwtAccessTokenExpirationTimeInMs / 1000),
             audience: this.jwtAudience,
             issuer: this.jwtIssuer,
             subject,
@@ -231,7 +230,7 @@ export class AuthUtil {
         } as JwtSignOptions);
     }
 
-    /** Signs a refresh token with the refresh private key; expiresIn overrides the configured default. */
+    /** Signs a refresh token with the refresh private key; expiresIn (seconds) overrides the configured default. */
     createRefreshToken(
         subject: string,
         jti: string,
@@ -240,7 +239,9 @@ export class AuthUtil {
     ): string {
         return this.jwtService.sign(payload, {
             privateKey: this.jwtRefreshTokenPrivateKey,
-            expiresIn: expiresIn ?? this.jwtRefreshTokenExpirationTimeInSeconds,
+            expiresIn:
+                expiresIn ??
+                Math.floor(this.jwtRefreshTokenExpirationTimeInMs / 1000),
             audience: this.jwtAudience,
             issuer: this.jwtIssuer,
             subject,
@@ -357,16 +358,16 @@ export class AuthUtil {
         const passwordExpired: Date = this.helperService.dateForward(
             today,
             this.helperService.dateCreateDuration({
-                seconds: options?.temporary
-                    ? this.passwordExpiredTemporaryInSeconds
-                    : this.passwordExpiredInSeconds,
+                milliseconds: options?.temporary
+                    ? this.passwordExpiredTemporaryInMs
+                    : this.passwordExpiredInMs,
             })
         );
         const passwordHash = this.helperService.bcryptHash(password, salt);
         const passwordPeriodExpired: Date = this.helperService.dateForward(
             today,
             this.helperService.dateCreateDuration({
-                seconds: this.passwordPeriodInSeconds,
+                milliseconds: this.passwordPeriodInMs,
             })
         );
         const passwordEncrypted: string = this.encryptPassword(
@@ -508,7 +509,7 @@ export class AuthUtil {
         const tokens: AuthTokenResponseDto = {
             tokenType: this.jwtPrefix,
             roleType: user.role.type,
-            expiresIn: this.jwtAccessTokenExpirationTimeInSeconds,
+            expiresIn: Math.floor(this.jwtAccessTokenExpirationTimeInMs / 1000),
             accessToken,
             refreshToken,
         };
@@ -578,7 +579,7 @@ export class AuthUtil {
         const tokens: AuthTokenResponseDto = {
             tokenType: this.jwtPrefix,
             roleType: user.role.type,
-            expiresIn: this.jwtAccessTokenExpirationTimeInSeconds,
+            expiresIn: Math.floor(this.jwtAccessTokenExpirationTimeInMs / 1000),
             accessToken,
             refreshToken: newRefreshToken,
         };
@@ -605,8 +606,8 @@ export class AuthUtil {
         return null;
     }
 
-    /** Converts the configured password reuse period from seconds to whole days. */
+    /** Converts the configured password reuse period from ms to whole days. */
     getPasswordPeriodInDays(): number {
-        return Math.floor(this.passwordPeriodInSeconds / (60 * 60 * 24));
+        return Math.floor(this.passwordPeriodInMs / ms('1d'));
     }
 }

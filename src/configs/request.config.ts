@@ -86,8 +86,8 @@ export default registerAs(
         throttle: {
             ttlInMs: ms('60s'),
             limit: 100,
-            keyPattern: 'request:throttler:{name}:{tracker}',
-            blockKeyPattern: 'request:throttler:block:{name}:{tracker}',
+            keyPattern: 'Request:Throttler:{name}:{tracker}',
+            blockKeyPattern: 'Request:Throttler:Block:{name}:{tracker}',
         },
     })
 );

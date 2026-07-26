@@ -266,7 +266,7 @@ export class UserAdminController {
             RequestRequiredPipe,
             FileExtensionPipe([EnumFileExtensionDocument.csv]),
             FileCsvParsePipe,
-            new FileCsvValidationPipe(UserImportRequestDto)
+            FileCsvValidationPipe(UserImportRequestDto)
         )
         data: UserImportRequestDto[]
     ): Promise<void> {

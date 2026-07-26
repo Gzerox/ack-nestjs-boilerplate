@@ -57,6 +57,14 @@ Everything on the wire and in the code is **camelCase** — request DTO fields, 
 
 Types stay PascalCase; enum types keep the `Enum` prefix.
 
+### Redis keys — a config pattern, not a prefix append
+
+A Redis key is a full `keyPattern` string in a config file, with `{placeholder}` tokens the consumer fills via `.replace('{token}', value)`. The canonical form is `session.config`'s `'User:{userId}:Session:{sessionId}'`.
+
+- **Every segment is `PascalCase`.** `User:{userId}:Session:{sessionId}`, never `user:...:session:...` and never an inline lowercase segment like `` `${prefix}:lock:${id}` ``.
+- **No prefix-append.** A `cachePrefixKey: 'TwoFactor'` glued with `` `${prefix}:${x}` `` in the consumer hides the real key shape and invites an ad-hoc lowercase segment. Store the whole pattern in config; when one prefix backs two shapes, store two patterns (`challengeKeyPattern`, `lockKeyPattern`).
+- Keyv / BullMQ library `namespace` options (`'Cache'`, `'Queue'`) are not app-built keys — leave them.
+
 ## Everything is renameable — best practice wins
 
 **There is no frozen surface in this repo.** No external client depends on it, so a breaking rename is never a reason to keep a worse name. If the current name is wrong, rename it. Compatibility is not a design input here.

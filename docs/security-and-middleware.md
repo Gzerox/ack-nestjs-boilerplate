@@ -103,8 +103,8 @@ async endpoint() {}
 
 **Redis keys** follow the configured patterns, with `{name}` the throttler name (default `default`) and `{tracker}` the IP or userId:
 ```
-request:throttler:{name}:{tracker}         # counter
-request:throttler:block:{name}:{tracker}   # active block
+Request:Throttler:{name}:{tracker}         # counter
+Request:Throttler:Block:{name}:{tracker}   # active block
 ```
 
 **Fail-open (uniform):** any Redis trouble (connection failure, a malformed or non-array reply, a non-numeric value, or any caught error) is logged and the request is ALLOWED. Throttling never returns a 500. Availability wins over enforcement when Redis is unreachable.

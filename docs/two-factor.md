@@ -65,15 +65,16 @@ Located in `src/configs/auth.config.ts`:
 | `algorithm` | `sha1` | HMAC algorithm passed to `otplib` |
 | `issuer` | from `AUTH_TWO_FACTOR_ISSUER`, no code default | Displayed in authenticator apps |
 | `digits` | `6` | TOTP code length (standard) |
-| `periodInSeconds` | `30` | Time window in seconds |
-| `window` | `1` | Backward-only tolerance: `epochTolerance` is `[window × periodInSeconds, 0]`, so one 30 second step in the past is accepted and none in the future |
+| `periodInMs` | `ms('30s')` | TOTP time window, stored in ms; otplib receives seconds |
+| `window` | `1` | Backward-only tolerance: `epochTolerance` is `[window × (periodInMs / 1000), 0]`, so one 30 second step in the past is accepted and none in the future |
 | `secretLength` | `32` | Base32 secret length |
-| `challengeTtlInMs` | `300000` | Challenge token TTL (5 minutes) |
-| `cachePrefixKey` | `TwoFactor` | Redis key prefix for challenge tokens and attempt locks |
+| `challengeTtlInMs` | `ms('5m')` | Challenge token TTL (5 minutes) |
+| `challengeKeyPattern` | `TwoFactor:Challenge:{token}` | Redis key pattern for challenge tokens |
+| `lockKeyPattern` | `TwoFactor:Lock:{userId}` | Redis key pattern for attempt locks |
 | `backupCodes.count` | `8` | Number of backup codes generated |
 | `backupCodes.length` | `10` | Characters per backup code (A-Z, 0-9) |
 | `maxAttempt` | `5` | Maximum failed verification attempts before lock |
-| `lockAttemptDuration` | `120000` | Base lock duration in milliseconds (2 minutes) |
+| `lockAttemptDurationInMs` | `ms('2m')` | Base lock duration in milliseconds (2 minutes) |
 
 ## Security Features
 
@@ -117,8 +118,8 @@ When a user reaches the maximum allowed attempts (5 failed verifications), the s
 - User receives HTTP 429 on **next** attempt (not the 5th)
 
 **Lock duration calculation:**
-- Formula: `TTL = 2^(attempt / maxAttempt) × lockAttemptDuration`
-- Base lock duration: 2 minutes (configurable via `lockAttemptDuration`)
+- Formula: `TTL = 2^(attempt / maxAttempt) × lockAttemptDurationInMs`
+- Base lock duration: 2 minutes (configurable via `lockAttemptDurationInMs`)
 
 **Lock duration examples:**
 ```

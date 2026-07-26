@@ -15,9 +15,9 @@ export class HelloService implements IHelloService {
 
     private readonly authPasswordAttempt: boolean;
     private readonly authPasswordMaxAttempt: number;
-    private readonly authPasswordExpiredInSeconds: number;
-    private readonly authPasswordExpiredTemporaryInSeconds: number;
-    private readonly authPasswordPeriodInSeconds: number;
+    private readonly authPasswordExpiredInMs: number;
+    private readonly authPasswordExpiredTemporaryInMs: number;
+    private readonly authPasswordPeriodInMs: number;
 
     private readonly messageAvailableLanguage: EnumMessageLanguage[];
     private readonly messageDefaultLanguage: EnumMessageLanguage;
@@ -45,15 +45,14 @@ export class HelloService implements IHelloService {
         this.authPasswordMaxAttempt = this.configService.get<number>(
             'auth.password.maxAttempt'
         )!;
-        this.authPasswordExpiredInSeconds = this.configService.get<number>(
-            'auth.password.expiredInSeconds'
+        this.authPasswordExpiredInMs = this.configService.get<number>(
+            'auth.password.expiredInMs'
         )!;
-        this.authPasswordExpiredTemporaryInSeconds =
-            this.configService.get<number>(
-                'auth.password.expiredTemporaryInSeconds'
-            )!;
-        this.authPasswordPeriodInSeconds = this.configService.get<number>(
-            'auth.password.periodInSeconds'
+        this.authPasswordExpiredTemporaryInMs = this.configService.get<number>(
+            'auth.password.expiredTemporaryInMs'
+        )!;
+        this.authPasswordPeriodInMs = this.configService.get<number>(
+            'auth.password.periodInMs'
         )!;
 
         this.messageAvailableLanguage = this.configService.get<
@@ -109,10 +108,10 @@ export class HelloService implements IHelloService {
                 auth: {
                     passwordAttempt: this.authPasswordAttempt,
                     passwordMaxAttempt: this.authPasswordMaxAttempt,
-                    passwordExpiredInSeconds: this.authPasswordExpiredInSeconds,
-                    passwordExpiredTemporaryInSeconds:
-                        this.authPasswordExpiredTemporaryInSeconds,
-                    passwordPeriodInSeconds: this.authPasswordPeriodInSeconds,
+                    passwordExpiredInMs: this.authPasswordExpiredInMs,
+                    passwordExpiredTemporaryInMs:
+                        this.authPasswordExpiredTemporaryInMs,
+                    passwordPeriodInMs: this.authPasswordPeriodInMs,
                 },
                 message: {
                     availableLanguage: this.messageAvailableLanguage,

@@ -104,15 +104,15 @@ export default registerAs(
             // Number of bcrypt salt rounds used for password hashing
             saltLength: 12,
             
-            // Password expiration time in seconds (182 days = 15724800 seconds)
-            expiredInSeconds: ms('182d') / 1000,
+            // Password expiration (182 days), stored in milliseconds
+            expiredInMs: ms('182d'),
             
-            // Temporary password expiration time in seconds (3 days = 259200 seconds)
-            expiredTemporaryInSeconds: ms('3d') / 1000,
+            // Temporary password expiration (3 days), stored in milliseconds
+            expiredTemporaryInMs: ms('3d'),
             
-            // Password reuse window in seconds (90 days = 7776000 seconds)
+            // Password reuse window (90 days), stored in milliseconds
             // A password kept in history for this long cannot be set again
-            periodInSeconds: ms('90d') / 1000,
+            periodInMs: ms('90d'),
         },
     })
 );
@@ -179,9 +179,9 @@ export default registerAs(
                 // Public key, used by AuthUtil's direct verify helpers
                 publicKey: process.env.AUTH_JWT_ACCESS_TOKEN_PUBLIC_KEY,
                 
-                // Parsed from AUTH_JWT_ACCESS_TOKEN_EXPIRED (e.g. '1h' = 3600 seconds)
-                expirationTimeInSeconds:
-                    ms(process.env.AUTH_JWT_ACCESS_TOKEN_EXPIRED) / 1000,
+                // Access token expiration, stored in milliseconds (from AUTH_JWT_ACCESS_TOKEN_EXPIRED)
+                // The JWT signer receives seconds (Math.floor(value / 1000))
+                expirationTimeInMs: ms(process.env.AUTH_JWT_ACCESS_TOKEN_EXPIRED),
             },
 
             refreshToken: {
@@ -200,10 +200,9 @@ export default registerAs(
                 // Public key, used by AuthUtil's direct verify helpers
                 publicKey: process.env.AUTH_JWT_REFRESH_TOKEN_PUBLIC_KEY,
                 
-                // Parsed from AUTH_JWT_REFRESH_TOKEN_EXPIRED (e.g. '30d' = 2592000 seconds)
+                // Refresh token expiration, stored in milliseconds (from AUTH_JWT_REFRESH_TOKEN_EXPIRED)
                 // This value also determines the initial session expiry and Redis TTL
-                expirationTimeInSeconds:
-                    ms(process.env.AUTH_JWT_REFRESH_TOKEN_EXPIRED) / 1000,
+                expirationTimeInMs: ms(process.env.AUTH_JWT_REFRESH_TOKEN_EXPIRED),
             },
 
             // JWT audience claim (identifies intended recipients)
@@ -807,17 +806,18 @@ export default registerAs(
             algorithm: 'sha1',         // Hash algorithm (sha1)
             issuer: process.env.AUTH_TWO_FACTOR_ISSUER,
             digits: 6,
-            periodInSeconds: 30,       // Token validity window in seconds
+            periodInMs: ms('30s'),     // Token validity window; otplib receives seconds (value / 1000)
             window: 1,
             secretLength: 32,
             challengeTtlInMs: ms('5m'),
-            cachePrefixKey: 'TwoFactor',
+            challengeKeyPattern: 'TwoFactor:Challenge:{token}',
+            lockKeyPattern: 'TwoFactor:Lock:{userId}',
             backupCodes: {
                 count: 8,
                 length: 10,
             },
             maxAttempt: 5,
-            lockAttemptDuration: ms('2m'),
+            lockAttemptDurationInMs: ms('2m'),
             encryption: {
                 key: process.env.AUTH_TWO_FACTOR_ENCRYPTION_KEY,
             },
@@ -830,13 +830,15 @@ export default registerAs(
 - `strategy`: OTP strategy — `totp` (time-based)
 - `algorithm`: Hash algorithm used for TOTP generation — `sha1`
 - `issuer`: Label shown in the authenticator app, from `AUTH_TWO_FACTOR_ISSUER`
-- `periodInSeconds`: Token validity window in seconds (default: `30`)
+- `periodInMs`: Token validity window, stored in milliseconds (default: `ms('30s')`); otplib receives seconds
 - `digits`: Number of digits in the OTP code (default: `6`)
-- `window`: Number of time steps to allow before/after current period for clock drift tolerance (default: `1`)
+- `window`: Backward-only time steps tolerated; `epochTolerance` is `[window × (periodInMs / 1000), 0]`, so a past step is accepted and a future one is not (default: `1`)
 - `secretLength`: Length of the generated secret (default: `32`)
 - `challengeTtlInMs`: TTL for the challenge token in cache (default: `5m`)
+- `challengeKeyPattern`: Cache key pattern for the challenge token (`TwoFactor:Challenge:{token}`)
+- `lockKeyPattern`: Cache key pattern for the lockout entry (`TwoFactor:Lock:{userId}`)
 - `maxAttempt`: Max failed TOTP attempts before lockout (default: `5`)
-- `lockAttemptDuration`: Lockout duration after max attempts exceeded (default: `2m`)
+- `lockAttemptDurationInMs`: Lockout duration after max attempts exceeded (default: `2m`)
 - `backupCodes.count`: Number of backup codes generated (default: `8`)
 - `backupCodes.length`: Length of each backup code (default: `10`)
 
@@ -881,7 +883,7 @@ export default registerAs(
     (): IConfigAuth => ({
         xApiKey: {
             header: 'x-api-key',
-            cachePrefixKey: 'ApiKey',
+            keyPattern: 'ApiKey:{key}',
         },
     })
 );
@@ -889,7 +891,7 @@ export default registerAs(
 
 **Configuration Options:**
 - `header`: Header name for API key (`x-api-key`)
-- `cachePrefixKey`: Redis cache prefix for API key caching
+- `keyPattern`: Redis cache key pattern for API key caching (`{key}` is replaced with the key)
 
 ### API Key Types
 

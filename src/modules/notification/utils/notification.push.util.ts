@@ -18,6 +18,8 @@ import { EnumQueue, EnumQueuePriority } from '@queues/enums/queue.enum';
 @Injectable()
 export class NotificationPushUtil {
     private readonly defTz: string;
+    private readonly cleanupDedupTtlInMs: number;
+    private readonly cleanupStaleTokensCron: string;
 
     constructor(
         @InjectQueue(EnumQueue.notificationPush)
@@ -25,6 +27,12 @@ export class NotificationPushUtil {
         private readonly configService: ConfigService
     ) {
         this.defTz = this.configService.get<string>('app.timezone')!;
+        this.cleanupDedupTtlInMs = this.configService.get<number>(
+            'notification.push.cleanupDedupTtlInMs'
+        )!;
+        this.cleanupStaleTokensCron = this.configService.get<string>(
+            'notification.push.cleanupStaleTokensCron'
+        )!;
     }
 
     /** Enqueues the admin-issued temporary password push. */
@@ -133,7 +141,7 @@ export class NotificationPushUtil {
                     priority: EnumQueuePriority.low,
                     deduplication: {
                         id: `${EnumNotificationPushProcess.cleanupTokens}-${userId}`,
-                        ttl: 1000 * 60 * 60,
+                        ttl: this.cleanupDedupTtlInMs,
                     },
                 }
             );
@@ -148,7 +156,7 @@ export class NotificationPushUtil {
             {
                 priority: EnumQueuePriority.low,
                 repeat: {
-                    pattern: '0 0 * * *',
+                    pattern: this.cleanupStaleTokensCron,
                     tz: this.defTz,
                 },
             }

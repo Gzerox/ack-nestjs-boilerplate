@@ -358,7 +358,7 @@ async import(
     RequestRequiredPipe,
     FileExtensionPipe([EnumFileExtensionDocument.csv]),
     FileCsvParsePipe,
-    new FileCsvValidationPipe(UserImportRequestDto)
+    FileCsvValidationPipe(UserImportRequestDto)
   )
   data: UserImportRequestDto[]
 ): Promise<void> {

@@ -10,6 +10,7 @@ Controller ──▶ Service ──▶ Repository ──▶ DatabaseService (Pri
 
 - **Data access ONLY.** Prisma queries, `select`, `where`, `orderBy`, pagination calls. No business rules, no HTTP concepts, no i18n.
 - Injects `DatabaseService` directly as a class. No `@Inject`, no token, no interface — a repository has exactly one implementation and inventing a port for it is speculative abstraction.
+- **Model access goes through `databaseService.client`** (the audited extended Prisma client), which stamps `createdBy` / `updatedBy` / `deletedBy` from the CLS request actor. Soft delete is `client.<model>.softDelete(...)`, restore is `client.<model>.restore(...)`. See `rules/database.md`.
 - **The repository owns `null → {}` normalization** for filter params before they reach Prisma. Never in the caller. A service that spreads `filter ?? {}` into a repository call has taken over the repository's job.
 - Returns Prisma models or the module's `I<Module>*` interfaces. It does not return DTOs.
 - May inject `PaginationService`, `DatabaseUtil`, and other repositories' utils where the query genuinely needs them.

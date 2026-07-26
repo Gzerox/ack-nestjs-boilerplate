@@ -103,7 +103,9 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | A literal message string passed to `@Response()` instead of an i18n path | Responses — `rules/http.md` |
 | An endpoint with no matching `*.doc.ts` factory | Swagger docs — `rules/http.md` |
 | An inline `@ApiQuery` / `@ApiParam` array literal inside a doc call | Swagger docs — `rules/http.md` |
-| JSDoc added to a file under `controllers/`, `docs/`, `repositories/`, or `services/` | JSDoc — `rules/operational.md` |
+| A method with no JSDoc block above it, in any folder | JSDoc — `rules/operational.md` |
+| A line comment that is not `// @note`, `// TODO`, or `// FIXME` | Comments — `rules/operational.md` |
+| A `// @note` that explains the whole method instead of one line inside it | Comments — `rules/operational.md` |
 
 ## DTOs / validation — `rules/validation.md`
 

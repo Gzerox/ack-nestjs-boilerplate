@@ -58,12 +58,15 @@ export class UserUtil {
         private readonly fileService: FileService,
         private readonly responseUtil: ResponseUtil
     ) {
-        this.usernamePrefix =
-            this.configService.get<string>('user.usernamePrefix')!;
-        this.usernamePattern =
-            this.configService.get<RegExp>('user.usernamePattern')!;
-        this.uploadPhotoProfilePath =
-            this.configService.get<string>('user.uploadPhotoProfilePath')!;
+        this.usernamePrefix = this.configService.get<string>(
+            'user.usernamePrefix'
+        )!;
+        this.usernamePattern = this.configService.get<RegExp>(
+            'user.usernamePattern'
+        )!;
+        this.uploadPhotoProfilePath = this.configService.get<string>(
+            'user.uploadPhotoProfilePath'
+        )!;
 
         this.homeUrl = this.configService.get<string>('home.url')!;
 

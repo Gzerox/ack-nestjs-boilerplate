@@ -96,9 +96,9 @@ This project uses **TypeScript** with strict mode. Please follow these standards
   ```bash
   pnpm test
   ```
-- No `any` types unless absolutely unavoidable — justify it in a comment
+- No `any` types, ever — not as a param type, cast, or generic argument. Where a shape is genuinely unknown, use `unknown` plus a narrowing check
 - All public methods/functions should have proper TypeScript typings
-- **Strict null convention** — `undefined` is only allowed at the input boundary (Request DTO body/form, Query DTO); all other layers use `T | null`. Exceptions: request lifecycle fields (`__user?`, `__apiKey?`), external spec fields (JWT claims, Prisma generated types), exception/options interfaces (e.g. `IAppException`), response DTO structural/wrapper fields (e.g. `data?` on `ResponseDto<T>`), and service/util additive filter params
+- **Strict null convention** — `undefined` is only allowed at the input boundary (Request DTO body/form, Query DTO); all other layers use `T | null`. Exceptions: request lifecycle fields (`user?` on `IRequestApp`), external spec fields (JWT claims, Prisma generated types), exception/options interfaces (e.g. `IAppBaseExceptionOptions`), response DTO structural/wrapper fields (e.g. `data?` on `ResponseDto<T>`), and service/util additive filter params
 - Never use `variable?: string | null` — ambiguous; use `?: string` for input boundary or `string | null` for internal layers
 - Response DTO **domain data fields** must use `field: Type | null`, not `field?: Type`. Only structural/wrapper fields (e.g. `data?`, `errors?` on response wrappers) may use `?:`
 - Repository filter params use `Type | null` — normalization `null → {}` is done inside the repository before Prisma, not at the caller
@@ -121,18 +121,21 @@ This project follows [Conventional Commits][ref-conventional-commits]:
 | `feat` | New feature |
 | `fix` | Bug fix |
 | `hotfix` | Urgent production fix |
-| `doc` | Documentation changes |
+| `docs` | Documentation changes |
 | `refactor` | Code refactor (no feature/fix) |
 | `test` | Adding or updating tests |
 | `ci` | CI/CD pipeline changes |
 | `chore` | Build process, dependencies |
+| `build` | Build system changes |
+| `perf` | Performance improvement |
+| `style` | Code style/formatting (no logic change) |
 | `revert` | Revert a previous commit |
 
 **Examples:**
 ```
 feat(auth): add refresh token rotation
 fix(user): resolve pagination offset issue
-doc(readme): update docker setup instructions
+docs(readme): update docker setup instructions
 ```
 
 ---

@@ -31,6 +31,7 @@ Feature flags provided in `src/migration/data/migration.feature-flag.data.ts`:
 | Key | Description | Rollout | Metadata |
 |-----|-------------|---------|----------|
 | `loginWithGoogle` | Enable login with Google | 100% | `signUpAllowed: true` |
+| `loginWithApple` | Enable login with Apple | 100% | `signUpAllowed: true` |
 | `loginWithCredential` | Enable login with Credential | 100% | - |
 | `signUp` | Enable user sign up | 100% | - |
 | `changePassword` | Enable change password feature | 100% | `forgotAllowed: true` |
@@ -45,19 +46,19 @@ flowchart TD
     B --> C[Extract keyPath from metadata]
     C --> D{Split keyPath by '.'}
     D --> E{Keys length = 0?}
-    E -->|Yes| F[Throw: PREDEFINED_KEY_EMPTY]
+    E -->|Yes| F[Throw: predefinedKeyEmpty]
     E -->|No| G{Keys length > 2?}
-    G -->|Yes| H[Throw: PREDEFINED_KEY_LENGTH_EXCEEDED]
+    G -->|Yes| H[Throw: predefinedKeyLengthExceeded]
     G -->|No| I[Get feature flag by key with cache]
     I --> J{Feature flag exists?}
-    J -->|No| K[Throw: SERVICE_UNAVAILABLE]
+    J -->|No| K[Throw: serviceUnavailable]
     J -->|Yes| L{isEnable = true?}
     L -->|No| K
     L -->|Yes| M{Keys length > 1?}
     M -->|No| N[Per-user resolution]
     M -->|Yes| O[Get metadata value by key]
     O --> P{Metadata type = boolean?}
-    P -->|No| Q[Throw: PREDEFINED_KEY_TYPE_INVALID]
+    P -->|No| Q[Throw: predefinedKeyTypeInvalid]
     P -->|Yes| R{Metadata value = true?}
     R -->|No| K
     R -->|Yes| N

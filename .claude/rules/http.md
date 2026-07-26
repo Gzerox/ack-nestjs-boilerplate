@@ -64,4 +64,4 @@ The argument is the i18n message path, not a literal message. The handler's retu
 - Every endpoint has a matching decorator factory in `<module>/docs/<module>.<scope>.doc.ts`, composed with `applyDecorators` from the `Doc*` primitives (`Doc`, `DocAuth`, `DocGuard`, `DocRequest`, `DocRequestFile`, `DocResponse`, `DocResponsePaging`).
 - `@ApiQuery` / `@ApiParam` arrays live as PascalCase constants in `<module>/constants/<module>.doc.constant.ts` (`UserDocParamsMobileNumberId`) and are referenced by the doc function. **Never an inline array literal inside the doc call**, and never generated from the request DTO.
 - The doc file mirrors the controller: one exported factory per endpoint, named `<Module><Scope><Action>Doc`.
-- **No JSDoc in `docs/` (`*.doc.ts`) files** — see `rules/operational.md`.
+- **Every exported doc factory carries a one-line JSDoc**, like every other method — see `rules/operational.md`.

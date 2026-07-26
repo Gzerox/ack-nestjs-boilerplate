@@ -56,10 +56,9 @@ export class HelloService implements IHelloService {
             'auth.password.periodInSeconds'
         )!;
 
-        this.messageAvailableLanguage =
-            this.configService.get<EnumMessageLanguage[]>(
-                'message.availableLanguage'
-            )!;
+        this.messageAvailableLanguage = this.configService.get<
+            EnumMessageLanguage[]
+        >('message.availableLanguage')!;
         this.messageDefaultLanguage =
             this.configService.get<EnumMessageLanguage>('message.language')!;
 

@@ -21,30 +21,40 @@ This applies in `src/common/`, `src/app/`, `src/queues/`, and feature modules al
 
 > **Live state:** the repo currently carries 25 `*.service.interface.ts` files and 27 `implements I*Service` clauses, and **zero** injections typed by any of them — every service is injected as its concrete class. Under this rule they are all deletable. Removing them is a separate task the owner schedules; do not delete them as a side effect of an unrelated change, and do not add a new one.
 
-## Comments — default ZERO
+## Two comment forms, and only two
 
-The owner dislikes comment noise, and the reviewer rejects on excess.
+There is exactly one place for prose about a symbol (a JSDoc block above it) and exactly one place for prose about a line (`// @note`). Anything else is noise.
 
-- Add a comment ONLY when it is genuinely critical and the code cannot convey it: a tricky invariant, a security reason, a deliberate deviation.
-- **Never** explain a cast, a type subset, an obvious call, or what the next line does. When in doubt, leave it out.
-- **No trailing comments.** Never place `//` to the right of code. Put it on its own line ABOVE; when it documents a declaration, make it a JSDoc block instead.
-- Notes use `// @note <text>`. If the symbol already has a JSDoc block, fold the note INTO it rather than adding a separate line.
-- `TODO` / `FIXME` are for their canonical purpose only.
-- **Preserve an existing rule-compliant comment verbatim** during a refactor. It moves with its code; delete it only when its subject is provably gone, and never rephrase it.
+| Form | Where it goes | How often |
+|---|---|---|
+| JSDoc block | above every method | ALWAYS |
+| `// @note <text>` | own line, above the line it explains | VERY RARE |
 
-## JSDoc — terse, and often absent
+## JSDoc — required on every method
 
-State what matters; skip filler. Do not restate the signature or the types the code already shows.
+**Every method carries a JSDoc block. Public and private, every folder, no exception** — including `controllers/`, `docs/` (`*.doc.ts`), `repositories/`, and `services/`. The old per-folder ban is gone: a role being obvious from the folder does not tell a reader what THIS method does.
 
+Terse is still the standard. Required does not mean verbose.
+
+- **One or two lines. Never more.** WHAT it does, plus a non-obvious WHY when there is one (a security reason, a tricky invariant, a deliberate deviation, a notable throw condition).
+- **Do not restate the signature.** `getUserById` does not need "gets a user by id" — say what a reader cannot see: which exception it throws, what it excludes, what it assumes. If the honest sentence really is a restatement, write it anyway and keep it to one line.
 - Always ABOVE the symbol. When the symbol is decorated, JSDoc goes above the FIRST decorator — never between a decorator and the declaration.
-- One or two lines maximum. WHAT, plus a non-obvious WHY (a security reason, a tricky invariant, a deliberate deviation, a notable throw condition).
 - **Banned tags:** `@example` `@param` `@returns` `@template` `@throws` `@private` `@export` `@class` `@implements` `@constraint` `@remarks`. They restate the signature. Fold anything worth keeping into the prose sentence.
-- **Not everything needs JSDoc.** A symbol self-evident from name and signature gets none — thin wrappers, trivial getters, lifecycle hooks with no surprising behavior, private helpers that just delegate.
-- **Interfaces get NO JSDoc at all**, including per-field comments. This covers data shapes, payloads, and option bags. A genuinely critical invariant becomes one terse `// @note` line instead.
-- **Modules with `forRoot()` / `forRootAsync()`:** document the module once at the class level; never the `forRoot` method separately.
+- **Interfaces get NO JSDoc at all**, including per-field comments. This covers data shapes, payloads, and option bags. An interface has no methods to document; a genuinely critical invariant becomes one `// @note` line.
+- **Modules with `forRoot()` / `forRootAsync()`:** document the module once at the class level; never the `forRoot` method separately. This is the one method that is exempt.
 - **Constants:** at most one line, only when the value's rationale is non-obvious (a limit tied to an external cap). DI tokens and self-evident names get none. **Enums:** only when a value's meaning is non-obvious.
 - **DTOs:** a one-line class JSDoc if it helps. Fields already covered by `@ApiProperty` need none.
-- **NO JSDoc at all in `controllers/`, `docs/` (`*.doc.ts`), `repositories/`, and `services/`.** Their role is fixed by the pattern — route delegation, Swagger doc, data access, business logic — and is self-evident. Do not add it; REMOVE any that exists. (`// @note` and `// TODO` line comments may stay.)
+
+## `// @note` — the only line comment, and it should be rare
+
+A `@note` marks something a reader would otherwise get wrong: a tricky invariant, a security reason, a deliberate deviation, a framework constraint that looks like a mistake. It is not a place to narrate.
+
+- **Every line comment is `// @note <text>`.** A bare `//` explanation is not a form this codebase has.
+- **Reaching for `@note` often means the JSDoc should have carried it.** If the note explains the method rather than one line inside it, fold it into the method's JSDoc block and delete the note.
+- **Never** explain a cast, a type subset, an obvious call, or what the next line does. When in doubt, leave it out.
+- **No trailing comments.** Never place `//` to the right of code.
+- `TODO` / `FIXME` keep their own prefixes and are for their canonical purpose only.
+- **Preserve an existing rule-compliant comment verbatim** during a refactor. It moves with its code; delete it only when its subject is provably gone, and never rephrase it.
 
 ## Logging
 

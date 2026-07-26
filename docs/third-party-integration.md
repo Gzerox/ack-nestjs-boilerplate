@@ -162,7 +162,6 @@ QUEUE_REDIS_URL=redis://localhost:6379/1
 **Use Cases:**
 - Application caching (DB 0)
 - Background job queues (DB 1)
-- Session storage
 - Rate limiting data
 
 For cache implementation, see [Cache][ref-doc-cache]. For queue details, see [Queue][ref-doc-queue].

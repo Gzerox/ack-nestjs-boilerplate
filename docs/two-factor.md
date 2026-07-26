@@ -61,12 +61,15 @@ Located in `src/configs/auth.config.ts`:
 
 | Setting | Value | Description |
 |---------|-------|-------------|
-| `issuer` | `YourAppName` | Displayed in authenticator apps |
+| `strategy` | `totp` | OTP strategy passed to `otplib` |
+| `algorithm` | `sha1` | HMAC algorithm passed to `otplib` |
+| `issuer` | from `AUTH_TWO_FACTOR_ISSUER`, no code default | Displayed in authenticator apps |
 | `digits` | `6` | TOTP code length (standard) |
 | `periodInSeconds` | `30` | Time window in seconds |
-| `window` | `1` | Clock skew tolerance (±30 seconds) |
+| `window` | `1` | Backward-only tolerance: `epochTolerance` is `[window × periodInSeconds, 0]`, so one 30 second step in the past is accepted and none in the future |
 | `secretLength` | `32` | Base32 secret length |
 | `challengeTtlInMs` | `300000` | Challenge token TTL (5 minutes) |
+| `cachePrefixKey` | `TwoFactor` | Redis key prefix for challenge tokens and attempt locks |
 | `backupCodes.count` | `8` | Number of backup codes generated |
 | `backupCodes.length` | `10` | Characters per backup code (A-Z, 0-9) |
 | `maxAttempt` | `5` | Maximum failed verification attempts before lock |
@@ -167,7 +170,7 @@ After 7th failed attempt (attempt=7):
 - `POST /public/user/login/2fa/enable` - Complete forced 2FA setup during login
 
 **Password Recovery (require 2FA if enabled):**
-- `PUT /public/user/password/reset` - **Reset password (requires 2FA verification if enabled)**
+- `PATCH /public/user/password/reset` - **Reset password (requires 2FA verification if enabled)**
 
 ### Admin Endpoints
 - `PATCH /admin/user/update/:userId/2fa/reset` - Force reset user's 2FA (clears lock and resets attempts)
@@ -196,8 +199,7 @@ sequenceDiagram
     API->>API: Decrypt secret & verify code
     API->>API: Generate 8 backup codes
     API->>Database: Hash & save backup codes
-    API->>Database: Set enabled=true, confirmedAt=now
-    API->>Database: Set attempt=0
+    API->>Database: Set enabled=true, confirmedAt=now, lastUsedAt=now
     API->>User: Return backup codes
 ```
 
@@ -217,7 +219,7 @@ sequenceDiagram
     API->>API: Generate challenge token
     API->>Cache: Store challenge (5min TTL)
     API->>User: Return challengeToken
-    User->>API: POST /user/login/2fa/verify {challengeToken, code}
+    User->>API: PATCH /user/login/2fa/verify {challengeToken, code}
     API->>Cache: Validate challenge
     API->>Cache: Check if user is locked
     alt User Locked
@@ -225,7 +227,7 @@ sequenceDiagram
         API->>User: Error: Temporarily locked (429)<br/>retryAfterSeconds: X
     else Not Locked
         API->>Database: Get & decrypt secret
-        API->>API: Verify TOTP code (±30s tolerance)
+        API->>API: Verify TOTP code (one 30s step backward tolerance)
         alt Code Valid
             API->>Database: Reset attempt to 0
             API->>API: Generate JWT tokens
@@ -246,7 +248,7 @@ sequenceDiagram
 
 ### Admin Force Setup Flow
 
-Admin forces user to setup 2FA on next login:
+Admin forces a user who already has 2FA enabled to set it up again on next login. The endpoint rejects a user whose 2FA is not enabled (`twoFactorNotEnabled`) and rejects the admin resetting their own account (`notSelf`).
 ```mermaid
 sequenceDiagram
     participant Admin
@@ -254,9 +256,10 @@ sequenceDiagram
     participant Database
     participant User
 
-    Admin->>API: PATCH /user/update/:userId/2fa/reset
-    API->>Database: Set enabled=true, requiredSetup=true
+    Admin->>API: PATCH /admin/user/update/:userId/2fa/reset
+    API->>Database: Set requiredSetup=true, clear secret + IV + backup codes
     API->>Database: Revoke all user sessions
+    API->>User: Send reset notification email
     
     Note over User: User Next Login
     User->>API: POST /user/login/credential
@@ -268,7 +271,7 @@ sequenceDiagram
     API->>Database: Verify & save backup codes
     API->>Database: Set requiredSetup=false, attempt=0
     API->>User: Return backup codes
-    User->>API: POST /user/login/2fa/verify {challengeToken, code}
+    User->>API: PATCH /user/login/2fa/verify {challengeToken, code}
     API->>User: Return tokens
 ```
 
@@ -282,7 +285,7 @@ sequenceDiagram
     participant Cache
     participant Database
 
-    User->>API: POST /user/login/2fa/verify {backupCode}
+    User->>API: PATCH /user/login/2fa/verify {backupCode}
     API->>Cache: Check if user is locked
     alt User Locked
         API->>Cache: Get TTL (remaining lock time)
@@ -294,10 +297,8 @@ sequenceDiagram
             API->>Database: Remove used backup code
             API->>Database: Reset attempt to 0
             API->>Database: Update lastUsedAt
-            API->>User: Return tokens + backupCodesRemaining
-            alt No Codes Left
-                API->>User: Warning: Regenerate backup codes
-            end
+            API->>User: Return access + refresh tokens
+            Note over User: The response carries tokens only.<br/>Remaining backup codes are read from<br/>GET /shared/user/2fa/status
         else Backup Code Invalid
             API->>Database: Increment attempt counter
             API->>Database: Get updated attempt count
@@ -320,7 +321,7 @@ sequenceDiagram
     participant Cache
     participant Database
 
-    User->>API: POST /user/login/2fa/verify {code}
+    User->>API: PATCH /user/login/2fa/verify {code}
     API->>Cache: Check if user is locked
     
     alt User Already Locked
@@ -377,7 +378,7 @@ sequenceDiagram
     API->>User: Return secret + otpauthUrl + challengeToken
     User->>API: POST /user/login/2fa/enable {code}
     API->>Database: Complete setup, attempt=0
-    User->>API: POST /user/login/2fa/verify {code}
+    User->>API: PATCH /user/login/2fa/verify {code}
     API->>User: Return tokens
 ```
 
@@ -433,7 +434,7 @@ sequenceDiagram
     participant Cache
     participant Database
 
-    User->>API: PUT /public/user/password/reset<br/>{token, newPassword, code/backupCode, method}
+    User->>API: PATCH /public/user/password/reset<br/>{token, newPassword, code/backupCode, method}
     API->>Database: Verify reset token
     alt Token Invalid
         API->>User: Error: Token invalid (404)
@@ -489,6 +490,7 @@ sequenceDiagram
             API->>Database: Reset attempt to 0
             API->>Database: Disable 2FA
             API->>Database: Clear secret, IV, backup codes
+            API->>Database: Revoke all sessions
             API->>User: Success
         end
     end
@@ -504,6 +506,8 @@ sequenceDiagram
 | 400 | `twoFactorAlreadyEnabled` | 2FA already active |
 | 400 | `twoFactorRequiredSetup` | Must complete setup first |
 | 400 | `twoFactorNotRequiredSetup` | Setup already completed |
+| 400 | `twoFactorSetupRequired` | `POST /shared/user/2fa/setup` has not been called, so no secret or IV is stored yet |
+| 400 | `twoFactorMethodRequired` | `method` missing on a request that must verify 2FA |
 | 401 | `twoFactorInvalid` | Invalid TOTP code or backup code |
 | 401 | `twoFactorChallengeInvalid` | Challenge token expired or invalid |
 | 429 | `twoFactorAttemptTemporaryLock` | Too many failed attempts, temporarily locked with `retryAfterSeconds` |

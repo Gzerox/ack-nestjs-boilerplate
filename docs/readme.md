@@ -2,7 +2,7 @@
 
 ## Disclaimer
 
-The documentation in this directory was written with the assistance of **GitHub Copilot** (powered by **Claude Sonnet 4.6**).
+The documentation in this directory was written with the assistance of **GitHub Copilot**.
 
 Every document has been **manually reviewed and verified** against the actual implementation to ensure accuracy and correctness.
 If you find any discrepancies, please open an issue or submit a pull request.
@@ -24,7 +24,7 @@ This project aligns with the [Twelve-Factor App][ref-12factor] methodology — a
 | Backing Services | MongoDB, Redis, AWS S3/SES, Firebase — treated as attached resources via env config |
 | Build, Release, Run | Build (`pnpm build`) is strictly separated from runtime |
 | Processes | Stateless app processes — session and cache state stored in Redis, not in-memory |
-| Port Binding | App self-contained via NestJS HTTP server, port exposed via `APP_PORT` env |
+| Port Binding | App self-contained via NestJS HTTP server, port exposed via `HTTP_PORT` env |
 | Concurrency | Horizontal scaling supported — stateless processes, shared Redis for sessions |
 | Disposability | Fast startup, graceful shutdown — no sticky sessions or local state |
 | Dev/Prod Parity | Same stack (Docker Compose) for local dev and production |
@@ -38,7 +38,7 @@ This project aligns with the [Twelve-Factor App][ref-12factor] methodology — a
 | JWT Access Token | ES256 — ECDSA + SHA-256 ([RFC 7518][ref-rfc-7518], [RFC 7519][ref-rfc-7519]) |
 | JWT Refresh Token | ES512 — ECDSA + SHA-512 ([RFC 7518][ref-rfc-7518], [RFC 7519][ref-rfc-7519]) |
 | Two-Factor Auth | TOTP — SHA-1, 6 digits, 30s period ([RFC 6238][ref-rfc-6238]) |
-| Password Hashing | bcrypt — 8 salt rounds |
+| Password Hashing | bcrypt — 12 salt rounds |
 | Encryption at Rest | AES-256-CBC (2FA secrets), AES-CBC + PKCS7 (general data) |
 | HTTP Security Headers | [Helmet][ref-helmet] v8 — CSP, Strict-Transport-Security, X-Frame-Options, etc. |
 | CORS | Configurable allowlist with wildcard subdomain support, preflight max-age 24h |

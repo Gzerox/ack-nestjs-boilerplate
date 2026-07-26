@@ -88,7 +88,7 @@ export class NotificationPushUtil {
         private readonly notificationPushQueue: Queue
     ) {}
 
-    async sendNewDeviceLogin(payload: INotificationPushWorkerPayload): Promise<void> {
+    async sendNewDeviceLogin(payload: INotificationPushQueuePayload): Promise<void> {
         await this.notificationPushQueue.add(
             EnumNotificationPushProcess.newDeviceLogin,
             payload,
@@ -189,7 +189,7 @@ export class NotificationPushProcessor extends QueueProcessorBase {
             switch (job.name) {
                 case EnumNotificationPushProcess.newDeviceLogin:
                     return this.notificationPushProcessorService.processNewDeviceLogin(
-                        job as Job<INotificationPushWorkerPayload, IQueueResponse>
+                        job as Job<INotificationPushQueuePayload, IQueueResponse>
                     );
                 default:
                     return { message: `No processor found for job ${job.name}` };

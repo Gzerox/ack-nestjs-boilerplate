@@ -210,8 +210,8 @@ twoFactor: {
 apple: {
   header: string;                 // HTTP header for Apple auth
   prefix: string;                 // Token prefix for Apple auth
-  clientId?: string;              // Apple OAuth client ID
-  signInClientId?: string;        // Apple Sign In client ID
+  clientId: string | null;        // Apple OAuth client ID
+  signInClientId: string | null;  // Apple Sign In client ID
 }
 ```
 
@@ -220,8 +220,8 @@ apple: {
 google: {
   header: string;                 // HTTP header for Google auth
   prefix: string;                 // Token prefix for Google auth
-  clientId?: string;              // Google OAuth client ID
-  clientSecret?: string;          // Google OAuth client secret
+  clientId: string | null;        // Google OAuth client ID
+  clientSecret: string | null;    // Google OAuth client secret
 }
 ```
 
@@ -272,24 +272,24 @@ s3: {
   presignExpiredInSeconds: number; // Presigned URL expiration time in seconds (default: 1800)
   maxAttempts: number;            // Maximum retry attempts for S3 operations (default: 3)
   timeoutInMs: number;            // Request timeout in milliseconds (default: 30000ms)
-  region?: string;                // AWS region for S3
+  region: string | null;          // AWS region for S3
   iam: {
-    key?: string;                 // AWS IAM access key ID
-    secret?: string;              // AWS IAM secret access key
-    arn?: string;                 // AWS IAM Role ARN for role-based access
+    key: string | null;           // AWS IAM access key ID
+    secret: string | null;        // AWS IAM secret access key
+    arn: string | null;           // AWS IAM Role ARN for role-based access
   };
   config: {
     public: {
-      bucket?: string;            // Public S3 bucket name
-      arn?: string;               // Public S3 bucket ARN
-      baseUrl?: string;           // S3 base URL (auto-generated)
-      cdnUrl?: string;            // CDN URL if available
+      bucket: string | null;      // Public S3 bucket name
+      arn: string | null;         // Public S3 bucket ARN
+      baseUrl: string | null;     // S3 base URL (auto-generated)
+      cdnUrl: string | null;      // CDN URL if available
     };
     private: {
-      bucket?: string;            // Private S3 bucket name
-      arn?: string;               // Private S3 bucket ARN
-      baseUrl?: string;           // S3 base URL (auto-generated)
-      cdnUrl?: string;            // CDN URL if available
+      bucket: string | null;      // Private S3 bucket name
+      arn: string | null;         // Private S3 bucket ARN
+      baseUrl: string | null;     // S3 base URL (auto-generated)
+      cdnUrl: string | null;      // CDN URL if available
     };
   };
 }
@@ -307,11 +307,11 @@ s3: {
 ```typescript
 ses: {
   iam: {
-    key?: string;                 // AWS IAM access key ID for SES
-    secret?: string;              // AWS IAM secret access key for SES
-    arn?: string;                 // AWS IAM Role ARN for SES operations
+    key: string | null;           // AWS IAM access key ID for SES
+    secret: string | null;        // AWS IAM secret access key for SES
+    arn: string | null;           // AWS IAM Role ARN for SES operations
   };
-  region?: string;                // AWS region for SES
+  region: string | null;          // AWS region for SES
 }
 ```
 
@@ -556,17 +556,17 @@ This configuration manages default email addresses for system communications. Em
 
 **`noreply`** - No-reply email address
 ```typescript
-noreply: string                 // No-reply email address for system emails
+noreply: string | null          // No-reply email address for system emails
 ```
 
 **`support`** - Support email address
 ```typescript
-support: string                 // Support/contact email address
+support: string | null          // Support/contact email address
 ```
 
 **`admin`** - Admin email address
 ```typescript
-admin: string                   // Administrator email address
+admin: string | null            // Administrator email address
 ```
 
 **`batchSize`** - Email batch size
@@ -758,17 +758,17 @@ This configuration manages Firebase integration settings for push notification d
 
 **`projectId`** - Firebase project ID
 ```typescript
-projectId?: string              // Firebase project ID from Firebase console
+projectId: string | null        // Firebase project ID from Firebase console
 ```
 
 **`clientEmail`** - Firebase service account email
 ```typescript
-clientEmail?: string            // Firebase service account client email
+clientEmail: string | null      // Firebase service account client email
 ```
 
 **`privateKey`** - Firebase service account private key
 ```typescript
-privateKey?: string             // Service account private key (PEM); escaped `\n` sequences are converted to real newlines at load
+privateKey: string | null       // Service account private key (PEM); escaped `\n` sequences are converted to real newlines at load
 ```
 
 > [!NOTE]

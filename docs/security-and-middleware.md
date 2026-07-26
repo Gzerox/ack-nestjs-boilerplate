@@ -272,9 +272,12 @@ Prevents long-running requests.
 
 **Implementation:** `RequestTimeoutInterceptor`
 
-**Global Registration:**
+**Global Registration:** provided as an `APP_INTERCEPTOR` by `RequestModule.forRoot()`, alongside `RequestActorInterceptor` and the global `ValidationPipe`.
 ```typescript
-app.useGlobalInterceptors(new RequestTimeoutInterceptor(configService, reflector));
+{
+  provide: APP_INTERCEPTOR,
+  useClass: RequestTimeoutInterceptor,
+}
 ```
 
 **Custom Timeout:**
@@ -301,6 +304,7 @@ Per-request ambient metadata is carried in the generic `RequestStoreService` (`s
 | `RequestVersionStoreKey` | `RequestUrlVersionMiddleware` | resolved API version |
 | `RequestIdStoreKey` | `RequestRequestIdMiddleware` | `req.id` (dual-write) |
 | `RequestCorrelationIdStoreKey` | `RequestRequestIdMiddleware` | `req.correlationId` (dual-write) |
+| `RequestActorStoreKey` | `RequestActorInterceptor` | `req.user.userId`, set only when the request is authenticated |
 
 **Request log (`RequestLogStoreKey`):** `userAgent`, `ipAddress`, and `geoLocation` are resolved once per request by the injectable `RequestUtil.buildRequestLog(req)` (`src/common/request/utils/request.util.ts`), called from `RequestRequestLogMiddleware`. `ActivityLogInterceptor` reads `get<IRequestLog>(RequestLogStoreKey)!` directly; audit services read the same key and pass the `IRequestLog` to their repository. Reads use a non-null assertion (no fallback object), since the middleware always populates the key before any handler runs. Nothing recomputes ua/ip/geo. The `@RequestIPAddress()` / `@RequestGeoLocation()` / `@RequestUserAgent()` param decorators still exist, but are now thin store-readers: each returns the matching field from `get<IRequestLog>(RequestLogStoreKey)?.<field> ?? null`.
 

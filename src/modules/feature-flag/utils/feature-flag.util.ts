@@ -92,7 +92,10 @@ export class FeatureFlagUtil {
             const newVal = newMetadata[key];
             const oldVal = oldMetadata[key];
 
-            if (this.metadataValueType(newVal) !== this.metadataValueType(oldVal)) {
+            if (
+                this.metadataValueType(newVal) !==
+                this.metadataValueType(oldVal)
+            ) {
                 return false;
             } else if (
                 newVal === undefined ||

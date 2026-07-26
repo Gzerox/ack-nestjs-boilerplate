@@ -114,7 +114,9 @@ export class RequestThrottlerStorageService implements ThrottlerStorage {
 
             if (!Array.isArray(results) || results.length < 4) {
                 this.logger.error(
-                    new Error(`Invalid Redis response: ${JSON.stringify(results)}`),
+                    new Error(
+                        `Invalid Redis response: ${JSON.stringify(results)}`
+                    ),
                     `Throttler got an invalid response, allowing request. Key: ${key}`
                 );
                 return {
@@ -128,7 +130,9 @@ export class RequestThrottlerStorageService implements ThrottlerStorage {
             const parsed = (results as unknown[]).map(r => Number(r));
             if (parsed.some(n => isNaN(n))) {
                 this.logger.error(
-                    new Error(`Invalid number from Redis: ${JSON.stringify(results)}`),
+                    new Error(
+                        `Invalid number from Redis: ${JSON.stringify(results)}`
+                    ),
                     `Throttler got a non-numeric value, allowing request. Key: ${key}`
                 );
                 return {
@@ -147,7 +151,8 @@ export class RequestThrottlerStorageService implements ThrottlerStorage {
                 timeToBlockExpire: blockTtlNum > 0 ? blockTtlNum : 0,
             };
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+                error instanceof Error ? error.message : String(error);
             this.logger.error(
                 error instanceof Error ? error : new Error(message),
                 `Redis unavailable for throttling, allowing request. Key: ${key}`

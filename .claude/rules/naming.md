@@ -48,7 +48,7 @@ Anything else is invalid.
 - **One enum concern per file**, named `<module>.<concern>.enum.ts`. Status-code enums always get their own file: `<module>.status-code.enum.ts`.
 - **Constants are PascalCase for everything** — typed objects, arrays, and lone primitives alike. No `UPPER_SNAKE_CASE`, no `camelCase`.
 - **DI tokens are rare.** Prefer direct class injection (a repository is injected as a class, never behind `@Inject`). When a token genuinely IS needed, name it PascalCase and wrap the value in `Symbol()`.
-- **`Dto` suffix goes on BOTH the class name and the file name.** There is no usecase layer, so a DTO is the only request/response shape.
+- **`Dto` suffix goes on BOTH the class name and the file name.** A DTO is the module's request/response transport shape.
 - **Payload interface names put the KIND last:** `INotificationSendPushPayload`, never `INotificationPayloadSendPush`.
 
 ## Case convention

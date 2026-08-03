@@ -8,7 +8,7 @@ Detail in `docs/database.md` (seeding section). This file is the rule set.
 
 - **MongoDB has NO migration files.** Schema shape is applied by `prisma db push` (`db:migrate`), not by versioned migration scripts. So there is no "write a migration" here — there is only "seed initial data".
 - **Not a data-backfill tool.** A one-off production data fix, a column re-compute, a historical import — none of those belong here. A seed populates the baseline an install starts from; it is re-runnable bootstrap, not a dated change record.
-- **Not a place for business logic.** A seed writes rows through a module's service/repository or `DatabaseService`; it does not compute domain decisions.
+- **Not a place for business logic.** A seed writes rows; it does not compute business decisions.
 
 ## Anatomy of a seed
 
@@ -24,15 +24,20 @@ src/migration/
 - A seed is `<module>.<concern>.seed.ts`, class `Migration<Module>Seed`, decorated `@Command({ name: '<module>' })`, and **extends `MigrationSeedBase`** — never `CommandRunner` directly. The base owns the `--type seed|remove` dispatch; a seed only implements `seed()` and `remove()`.
 - **Every `seed()` has a matching `remove()`.** Seeding without a clean teardown leaves `migration:remove` unable to undo it. The pair is mandatory, not optional.
 - **Static seed rows live in `data/` as a PascalCase const** (`<module>.<concern>.data.ts`), imported by the seed. A seed whose data is built inline (no external key/reference) needs no `data/` file — do not invent one to be symmetric.
-- Registration is a provider entry in `migration.module.ts`. The module imports the feature modules whose services the seeds call (`UserModule`, `CountryModule`, `AwsModule`, …) — it does not reach into repositories directly.
+- Registration is a provider entry in `migration.module.ts`. Seeds may inject **`DatabaseService`** (sanctioned — most data seeds do this today) or a feature service (template / aws seeds). Prefer the existing pattern in the sibling seed you are extending; do not invent a second access path for the same collection.
 
 ## Order is in the script, not the module
 
-The run order is defined by the **`package.json` scripts**, not by the `providers` array in `migration.module.ts`:
+The run order is defined by the **`package.json` scripts**, not by the `providers` array in `migration.module.ts`. Quote the live scripts when editing — they are the source of truth.
 
-- `migration:seed` runs each command in dependency order (`apiKey → country → featureFlag → role → termPolicy → user`) — a seed that references another's rows runs after it (`user` last, it needs `role`).
-- `migration:remove` runs the **reverse** (`user` first) so a referenced row is never deleted out from under a referrer.
-- Adding a seed with a dependency means placing it correctly in **both** scripts. The `providers` array order is irrelevant to execution and must not be treated as the ordering source.
+Bundled today:
+
+- `migration:seed` — `apiKey → country → featureFlag → role → termPolicy → user`
+- `migration:remove` — `user → apiKey → featureFlag → country → role → termPolicy` (**not** a strict reverse of seed; do not invent a reverse that is not in the script)
+
+Extra seeds exist and are registered (`template-email-notification`, `template-termPolicy`, `aws-s3-config`, …) but are **not** part of `migration:seed` / `migration:remove` — run them as separate `migration` commands when needed.
+
+Adding a seed with a dependency means placing it correctly in **both** bundled scripts when it belongs in the bundled flow. The `providers` array order is irrelevant to execution.
 
 ## Idempotency
 

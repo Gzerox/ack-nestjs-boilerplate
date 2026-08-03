@@ -1,6 +1,6 @@
 ---
 name: anti-pattern-gate
-description: Pre-finalize review gate for ack-nestjs-boilerplate application code — an index that maps a visible code smell to the project rule it violates. Use this before declaring ANY code change done, complete, ready, or ready-to-commit, and whenever reviewing a diff, a PR, or code you did not write yourself. Also use it when something in the code "feels off" but you cannot name which rule it breaks. It indexes smells to rules; it never restates the rules themselves.
+description: Pre-finalize review gate for ack-nestjs-boilerplate feature code — an index that maps a visible code smell to the project rule it violates. Use this before declaring ANY code change done, complete, ready, or ready-to-commit, and whenever reviewing a diff, a PR, or code you did not write yourself. Also use it when something in the code "feels off" but you cannot name which rule it breaks. It indexes smells to rules; it never restates the rules themselves.
 ---
 
 # Anti-pattern gate
@@ -11,13 +11,15 @@ This is the last pass before code is called done. Its job is recognition, not ad
 
 ## How to run the gate
 
-1. Get the diff of what you changed: `git diff` (uncommitted) or `git diff origin/main` (the whole branch).
+1. Get the diff of what you changed **inside the surface you were given**. Prefer, in order: the SCOPE paths from the skill (when present), then dirty files on this checkout (`git status --short`, `git diff -- <paths>`, `git diff --cached -- <paths>`). **Do not** invent a surface with `git diff main` / `git diff origin/...` / `git diff development` when a skill already handed you SCOPE — those compare other branches and fight `coding` / `reviewer-flow`. Outside a scoped skill run, still prefer path-limited diffs over a whole-branch base.
 2. Walk the sections below that match what the diff touched. Skip sections with no touched files.
 3. For each smell you recognize, **read the canonical rule** in the file named beside it. Decide there, not here.
 4. Fix, or state explicitly why the rule does not apply. A hit you cannot justify is a defect, not a judgement call.
 5. Report what fired and what you did. Silence about a hit reads as "clean" and is worse than a fix you did not make.
 
 Two things to keep in mind while scanning. First, the smell list is not exhaustive — it catches the failures that actually recur here, so an absence of hits is not proof of correctness. Second, several of these fail only at RUNTIME (missing `@Expose`, route-param mismatch, queue payload rename, i18n key typo); `tsc` staying green means nothing for that class.
+
+When the diff touches controllers, services, repositories, or module wiring, also run `repository-pattern-gate` — that skill holds placement order and traps; this index only flags the visible smells.
 
 ---
 
@@ -29,13 +31,15 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | A service building a Prisma `where` / `select` / `orderBy` | Repository pattern — `rules/architecture.md` |
 | A repository throwing a module exception, or building an i18n `messagePath` | Repository pattern — `rules/architecture.md` |
 | A controller reaching a repository, or holding a business rule | Controller role — `rules/architecture.md` |
-| A new `I<Xxx>Service` header interface added beside its only implementor, injected by nobody | No header interfaces — `rules/operational.md` |
+| A new `I<Xxx>Service` missing beside its service class, or a service that does not `implements` it | Service interface required — `rules/operational.md` |
+| A new `I<Xxx>Repository` header beside its only repository class | Repository interface forbidden — `rules/operational.md` |
 | `@Inject(TOKEN)` used for a repository instead of direct class injection | Service role — `rules/architecture.md` |
 | Filter params normalized (`?? {}`) in the service instead of the repository | Repository role — `rules/architecture.md` |
 | A relative import (`../`) anywhere in `src/` | Path aliases — `rules/architecture.md` |
 | `forwardRef` between two feature modules | Module wiring — `rules/architecture.md` |
 | A second Redis connection created outside the shared cache/queue modules | Module wiring — `rules/architecture.md` |
 | A layered folder scheme invented inside a feature module instead of the flat folder-per-concern set | Module wiring — `rules/architecture.md` |
+| A controller or processor registered as a provider of its own feature module instead of router / `queue.module` | Module wiring — `rules/architecture.md` |
 | A shape with a clear owner module promoted into `src/common/` because "many modules import it" | Placement — `rules/architecture.md` |
 | `src/common/` importing a feature's runtime code, or binding a feature type as a generic default | Placement — `rules/architecture.md` |
 | A config key with a single hardcoded value; an abstract base with one subclass; a folder kept empty "for later"; a family with no used member | YAGNI — `rules/architecture.md` |
@@ -76,16 +80,16 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 
 | Smell | Canonical rule |
 |---|---|
-| `throw new Error(...)` from application code | Throwing rules — `rules/exceptions.md` |
+| `throw new Error(...)` from feature code | Throwing rules — `rules/exceptions.md` |
 | A NestJS `BadRequestException` / `NotFoundException` / `ForbiddenException` thrown by a service or guard | Throwing rules — `rules/exceptions.md` |
 | More than one exception class in a file, or a barrel of exceptions | One per file — `rules/exceptions.md` |
 | A numeric literal used as `statusCode` instead of the enum member | Status codes — `rules/exceptions.md` |
 | `statusCodeKey` hardcoded as a string instead of the reverse lookup | Status codes — `rules/exceptions.md` |
-| A new status-code member added without going through the `status-code` skill | Status codes — `rules/exceptions.md` |
-| A gap left in a module's status-code sequence, or a member removed without accounting for the shift | Status codes — `rules/exceptions.md` |
+| A new status-code member or block claimed without following `rules/status-code.md` (5-digit new codes; claim noted in `generated/docs/report-coder-*.md`) | Status codes — `rules/status-code.md` |
+| A gap left in a module's status-code sequence, or a member removed without accounting for the shift | Status codes — `rules/status-code.md` |
 | A flat i18n key (`"error.notFound": "..."`) instead of nested JSON | i18n — `rules/exceptions.md` |
 | A `messagePath` with no matching key in `src/languages/*` | i18n — `rules/exceptions.md` |
-| A controller catching an application exception and reshaping it | Throwing rules — `rules/exceptions.md` |
+| A controller catching a module exception and reshaping it | Throwing rules — `rules/exceptions.md` |
 | An error message string asserted in a spec instead of the exception class | `rules/testing.md` |
 
 ## HTTP / controllers / docs — `rules/http.md`
@@ -105,9 +109,9 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | A literal message string passed to `@Response()` instead of an i18n path | Responses — `rules/http.md` |
 | An endpoint with no matching `*.doc.ts` factory | Swagger docs — `rules/http.md` |
 | An inline `@ApiQuery` / `@ApiParam` array literal inside a doc call | Swagger docs — `rules/http.md` |
-| A method with no JSDoc block above it, in any folder | JSDoc — `rules/operational.md` |
-| A line comment that is not `// @note`, `// TODO`, or `// FIXME` | Comments — `rules/operational.md` |
-| A `// @note` that explains the whole method instead of one line inside it | Comments — `rules/operational.md` |
+| Method JSDoc on a service / repository / controller / seed handler | Comments — `rules/authoring.md` |
+| A line comment that is not `// @note:`, `// TODO`, or `// FIXME` | Comments — `rules/authoring.md` |
+| A `// @note` without the colon, or one that narrates WHAT / defends a rule | Comments — `rules/authoring.md` |
 
 ## DTOs / validation — `rules/validation.md`
 
@@ -175,19 +179,26 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | A new per-module CLS store instead of a key on the shared `RequestStoreService` | Request store — `rules/security.md` |
 | Geo-location or user-agent re-parsed downstream instead of read from the request store | Request store — `rules/security.md` |
 
-## Style / comments / config — `rules/operational.md`
+## Migration seeds — `rules/migration.md`
 
 | Smell | Canonical rule |
 |---|---|
-| A comment explaining a cast, an obvious call, or what the next line does | Comments — `rules/operational.md` |
-| A trailing `//` comment to the right of code | Comments — `rules/operational.md` |
-| JSDoc containing `@param` / `@returns` / `@example` / `@throws` | JSDoc — `rules/operational.md` |
-| JSDoc on an interface, including a per-field comment | JSDoc — `rules/operational.md` |
-| JSDoc placed between a decorator and the declaration | JSDoc — `rules/operational.md` |
-| A `forRoot()` method documented separately from its module class | JSDoc — `rules/operational.md` |
-| An existing rule-compliant comment deleted or rephrased during a refactor | Comments — `rules/operational.md` |
+| A seed without a matching `remove()`, or extending `CommandRunner` directly | Anatomy — `rules/migration.md` |
+| Blind `create` with no existence guard / upsert | Idempotency — `rules/migration.md` |
+| Bundled seed added to only one of `migration:seed` / `migration:remove` | Order — `rules/migration.md` |
+| An agent running `migration:*` / `db:*` / `migration:fresh` | Off-limits — `rules/migration.md` |
+
+## Style / comments / config — `rules/authoring.md` + `rules/operational.md`
+
+| Smell | Canonical rule |
+|---|---|
+| A comment explaining a cast, an obvious call, or what the next line does | Comments — `rules/authoring.md` |
+| A trailing `//` comment to the right of code | Comments — `rules/authoring.md` |
+| Method JSDoc on internal code, or JSDoc with `@param` / `@returns` / `@example` / `@throws` | Comments — `rules/authoring.md` |
+| JSDoc on an interface, including a per-field comment | Comments — `rules/authoring.md` |
+| An existing rule-compliant comment deleted or rephrased during a refactor | Comments — `rules/authoring.md` |
 | `logger.error('message', error)` — message first | Logging — `rules/operational.md` |
-| `process.env` read directly in application code | Config — `rules/operational.md` |
+| `process.env` read directly in feature code | Config — `rules/operational.md` |
 | A new env var added without the config file, interface, `.env.example`, and `docs/environment.md` | Config — `rules/operational.md` |
 | A hand-rolled substitute for something Nest already provides | NestJS idiomatic — `rules/operational.md` |
 | An em-dash (`—`) in `docs/*.md` prose | Documentation prose — `rules/operational.md` |
@@ -197,11 +208,12 @@ Two things to keep in mind while scanning. First, the smell list is not exhausti
 | Smell | Canonical rule |
 |---|---|
 | A spec colocated in `src/` instead of mirrored under `test/` | Where specs live — `rules/testing.md` |
-| Production code changed to make a spec pass | Hard boundaries — `rules/testing.md` |
+| Production code changed to make a backfill spec pass (`spec-coverage`) | Hard boundaries — `rules/testing.md` (under `coding`, red→green `src/` changes are required) |
 | A failing spec deleted, `.skip`-ed, or weakened to reach green | Hard boundaries — `rules/testing.md` |
 | The coverage threshold lowered, or a file excluded from `collectCoverageFrom` | Hard boundaries — `rules/testing.md` |
 | 100% coverage reached with happy paths only, every guard clause untested | What is covered — `rules/testing.md` |
 | A new spec added for a controller or repository | What is covered — `rules/testing.md` |
+| Feature TDD delegated to `unit-test-writer` / `spec-coverage` instead of `coder` writing the failing spec first | Hard boundaries — `rules/testing.md` |
 | `jest.mock()` placed before imports | Local jest facts — `rules/testing.md` |
 | A shared mutable fixture across specs | Writing the spec — `rules/testing.md` |
 

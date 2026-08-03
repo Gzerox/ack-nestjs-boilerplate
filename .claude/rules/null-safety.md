@@ -3,29 +3,28 @@
 TypeScript runs with `strict`, `strictNullChecks`, and `noImplicitAny`. Two rules carry all the weight:
 
 1. **`undefined` is allowed ONLY at the input boundary.** Request DTO body, Query DTO. Every layer deeper speaks `null`.
-2. **NEVER `field?: Type | null`.** It is ambiguous — a caller cannot tell whether omitting the field and passing `null` mean the same thing. Pick one.
+2. **Do not invent `field?: Type | null` on new code.** It is ambiguous — a caller cannot tell whether omitting the field and passing `null` mean the same thing. Pick one. A few call sites already carry the union (utils / JWT / geo bags); do not spread the pattern, and clean them when you touch the file.
 
 ## Where each convention applies
 
 | Layer | Convention |
 |---|---|
 | Request / Query DTO (input boundary) | `field?: Type` |
-| Response DTO — wrapper / structural field | `field?: Type` |
-| Response DTO — domain data | `field: Type \| null` |
-| Domain interface — data | `field: Type \| null` |
-| Domain interface — request lifecycle or external spec (JWT, Prisma) | `field?: Type` |
+| Response DTO | `field?: Type` with `@Expose()` when optional; `field: Type \| null` when the value is always present-or-null |
+| Module `I*` interface — data | `field: Type \| null` |
+| Module `I*` interface — request lifecycle or external spec (JWT, Prisma) | `field?: Type` |
 | Exception options / options bag | `field?: Type` |
 | Config interface (`src/configs/`) | `field: Type \| null` |
 | Service / Repository — data param | `param: Type \| null` |
 | Service / Repository — filter param | `param: Type \| null` (an additive service-level filter may use `?`) |
 | Prisma return | `Type \| null` |
 
-## The controller is the normalizer
+## The controller and the boundary
 
-The input boundary is where `undefined` dies:
+Prefer **passing the whole request DTO** into the service (`userService.updateProfile(userId, body)`). Normalize `undefined → null` only when a service method takes a discrete `T | null` param and the DTO field is optional:
 
 ```ts
-return this.userService.updateProfile(userId, dto.bio ?? null);
+return this.userService.updateSomething(userId, dto.field ?? null);
 ```
 
 A service signature that accepts `bio?: string` has pushed the ambiguity one layer deeper and made every downstream call site re-decide what an absent value means.

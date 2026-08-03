@@ -30,7 +30,7 @@ src/
 ├── instrument.ts       # Sentry init (imported first by main.ts)
 ├── swagger.ts          # Swagger/OpenAPI document builder
 ├── app/                # framework layer — app.module + the global filter chain
-├── common/             # infrastructure kit shared by every module
+├── common/             # shared kit used by every module
 ├── configs/            # registerAs config files + index.ts barrel
 ├── languages/          # nestjs-i18n translation JSON, one file per module prefix
 ├── migration/          # seeders — data/, seeds/, bases/, enums/, interfaces/
@@ -39,7 +39,7 @@ src/
 └── router/             # route prefix modules
 
 prisma/                 # schema.prisma (OFF-LIMITS — see Mandatory rules)
-generated/              # prisma client output (generated, never hand-edited)
+generated/              # prisma client, swagger, vault init, agent reports under generated/docs/ (gitignored)
 docs/                   # durable project documentation
 test/                   # jest.json + specs mirroring src/
 scripts/ · ci/ · keys/
@@ -61,7 +61,7 @@ src/app/
 
 `app.module.ts` registers the `APP_FILTER` providers in this array order: general → base-exception → http → validation → validation-import. NestJS evaluates them in reverse, so the most specific catch runs first.
 
-### `src/common/` — infrastructure kit
+### `src/common/` — shared kit
 
 Every folder is NestJS-coupled and/or performs I/O. It stays thin; it is not a parking lot.
 
@@ -109,6 +109,38 @@ Processor **files** live in their owning feature module (`<feature>/processors/`
 
 ---
 
+## Where a sentence lives
+
+Four content trees, each defined by its CONSUMER, not by its topic.
+
+| Tree | Consumer | Load | Holds |
+|---|---|---|---|
+| `.claude/rules/` | model, via agent import | NOT auto-loaded — `claudeMdExcludes` in `.claude/settings.json` keeps them out of the main context; agents pull them with `@`-imports. `git.md` is the exception and stays loaded, because committing happens in the main session | obligations + the minimum rationale needed to apply them correctly |
+| `.claude/skills/` | model, on demand | name + description standby | the ordered steps of ONE whole job, behind a trigger condition |
+| `.claude/agents/` | model, isolated | never in main context | an agent's role, scope boundary, tool budget, rule imports |
+| `docs/` | human, on demand | never auto-loaded | how the system behaves TODAY: flows, catalogs, runbooks |
+
+**The test (HARD):**
+
+- A sentence saying **what must / must not be done** → `rules/`
+- A sentence giving **the ordered steps of one whole job** → `skills/`
+- A sentence saying **how the system behaves today** → `docs/`
+- A sentence defining **an agent's role or limits** → `agents/`
+
+One sentence, one home. If it seems to belong in two files, it is two different sentences and one of them belongs somewhere else.
+
+The rest — the asymmetry, mood, and comment rules — is in `rules/authoring.md`, reached by agents via `@`-import.
+
+---
+
+## Doc editing ownership
+
+**`doc-drift` is the ONLY agent that may write `docs/*.md`.** `coder`, `unit-test-writer`, and `reviewer-flow` are forbidden from the whole tree. A stale doc they notice is named in their hand-back for `doc-drift` to apply. The owner may still edit `docs/` directly; no agent may, except `doc-drift`.
+
+PR descriptions are written by the owner / main session — there is no PR-doc agent.
+
+---
+
 ## Documentation
 
 `docs/` is tracked, durable project documentation. It stands on its own for a reader with none of this tooling.
@@ -141,32 +173,37 @@ Git hooks (`.husky/`): `pre-commit` runs lint-staged → typecheck → deadcode 
 
 ## Workflow for a code change
 
-Four phases. The split is about capability, not ceremony:
+**The ordered steps live in the skill, not here.** Three skills own whole jobs end to end:
 
-1. **Spec — main session.** `superpowers:brainstorming`, looping with the owner until the feature is unambiguous. A subagent cannot ask a question and wait for the answer, so this cannot be delegated. The spec is written to `.superpowers/specs/YYYY-MM-DD-<slug>.md`.
-2. **Plan — main session.** `superpowers:writing-plans`, turning the settled spec into an ordered plan at `.superpowers/plans/YYYY-MM-DD-<slug>.md`.
-3. **Execute — dispatched to the `coder` agent**, one task at a time, in parallel via `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development` when the tasks are independent. `coder` carries the rule set; implementation written anywhere else is written without it.
-4. **Verify — main session.** `pnpm typecheck`, `pnpm lint`, `pnpm spell`, the full `pnpm test`, and `pnpm start:dev` to confirm the app still boots. Boot is the only check that catches a DI or import cycle. Verification is these commands plus the `anti-pattern-gate` skill — it does NOT include dispatching a review agent.
+| The work is… | Skill |
+|---|---|
+| a feature, endpoint, service change, queue work, or a refactor of existing code | `coding` |
+| a new or edited **initial-data seed** under `src/migration/` (data / template / aws-s3 commands, or `migration:seed` / `migration:remove` order) | `migration-seed` |
+| bringing ONE named module's unit specs back to 100% — `test/` only, no `src/` behavior change | `spec-coverage` |
 
-A narrow bugfix with no new behavior skips phases 1-2: `superpowers:systematic-debugging`, then dispatch.
+`coding` does **not** invoke `spec-coverage` or `migration-seed`. They are parallel workflow skills. Under `coding`, TDD is mandatory and lives **inside `coder`** (failing spec first — the same head watches red turn green). `migration-seed` also dispatches `coder`, but for seeds only — no TDD, no flow review. `spec-coverage` is for backfill/repair of specs against code that already exists; it rejects feature work and every `src/` change beyond a typo.
 
-**Working artifacts never go to `docs/`.** `docs/` is tracked, durable project documentation. Everything an agent produces along the way is gitignored working space:
+Two things hold across these skills, because only the main session can do them: the owner conversation in the design/clarify step (a subagent cannot ask a question and wait for the answer), and the release sweep — whole-repo `pnpm typecheck`, `pnpm lint`, `pnpm spell`, the complete `pnpm test`, and the boot check (`pnpm start:dev`), plus the `anti-pattern-gate` skill (and `repository-pattern-gate` when layering is in play). Boot is the only check that catches a DI or import cycle.
+
+**Agents are dispatched BY a skill, never from a cold session.** A skill computes the scope, settles the spec and plan where needed, and only then hands work to `coder`, `reviewer-flow`, `unit-test-writer`, or `doc-drift`. Naming an agent while a workflow skill is running is the same trigger; naming one with no skill behind it is not. Agents never dispatch each other, and an agent never invokes a workflow skill — the direction is one way.
+
+A narrow bug fix with no new behavior still runs through `coding`, with `superpowers:systematic-debugging` doing the work its design step would otherwise do.
+
+**Every skill artifact — spec, plan, sdd note — goes to `.superpowers/`, never to `docs/`.** `.superpowers/` is gitignored working space; `docs/` is tracked, committed, durable documentation. A `PreToolUse` hook in `.claude/settings.json` denies writes to `docs/superpowers/`, so getting this wrong fails loudly rather than quietly polluting the tracked tree.
 
 | Artifact | Location |
 |---|---|
 | Spec, plan, sdd note | `.superpowers/` |
-| PR description | `.changes/pr-<feature>.md` |
+| Agent reports | `generated/docs/report-*-<feature>.md` |
 | Knowledge graph | `graphify-out/` |
-
-A `PreToolUse` hook in `.claude/settings.json` denies writes to `docs/superpowers/`, so getting this wrong fails loudly rather than quietly polluting the tracked tree.
 
 ## Mandatory rules
 
 1. **No `prisma/schema.prisma` edits, and no schema/DB commands** (`db:migrate`, `db:push`, `db:generate`, `migration:*`). Describe the schema change; the owner applies it.
 2. **Never touch the user's git tree.** No `git add`, no `git commit`, no staging or unstaging, unless the owner explicitly asks and names the files. Already-staged files stay staged.
 3. **PNPM only.** `npm` and `yarn` are rejected by `engines`.
-4. **English for every project artifact** — code, identifiers, comments, commit messages, PR descriptions, `docs/*.md`. Conversation with the owner is Bahasa Indonesia; artifacts are never mixed.
+4. **English for every project artifact** — code, identifiers, comments, commit messages, PR descriptions, `docs/*.md`, and every file under `.claude/**` and `.superpowers/**`. Conversation with the owner is Bahasa Indonesia; artifacts are never mixed. See `rules/authoring.md` → "Language".
 5. **Commit message is a single conventional subject line** — no body, no footer, no `Co-Authored-By`. Propose it and wait for approval before committing. See `rules/git.md`.
 6. **Never bypass the git hooks** (`--no-verify`). A failing gate is fixed, not skipped.
-7. **No backward compatibility, ever.** No external client depends on this repo, so a breaking change is the default. A new feature carries no deprecated-but-kept field, no `v1`/`v2` pair, no compat flag, no bridging adapter. Build the correct shape and change every call site. Best practice outranks the incumbent pattern. See `rules/architecture.md`.
-8. **A code review is dispatched only when the owner asks for one, naming what to run.** The `auditor` agent runs on explicit invocation only; no agent, workflow phase, or definition of done may spawn it or any other review subagent, and `superpowers:requesting-code-review` is NOT active in this repo — its "mandatory after each task" rule is overridden here. Review quality is carried by the `anti-pattern-gate` skill, run in place by whoever wrote the code. This rule outranks any skill or harness default that says otherwise.
+7. **No backward compatibility, ever.** No external client depends on this repo, so a breaking change is the default. A new feature carries no deprecated-but-kept field, no `v1`/`v2` pair, no compat flag, no bridging shim. Build the correct shape and change every call site. Best practice outranks the incumbent pattern. See `rules/architecture.md`.
+8. **A code review is dispatched by a skill, never by an agent and never from a cold session.** The `reviewer-flow` agent runs as a step of `coding` (or when the owner names it while `coding` is running); no AGENT may spawn it or any other review subagent, and no bare judgement call ("this feels risky") counts. `superpowers:requesting-code-review` is NOT active in this repo — its "mandatory after each task" rule is overridden here. **`reviewer-flow` reviews only the SCOPE block handed by `coding` plus dirty in-scope files on the current checkout** — it never compares to `main`, `origin`, or any other branch. Outside a skill that lists it as a step, review quality is carried by the `anti-pattern-gate` skill (and `repository-pattern-gate` when layering is in play), run in place by whoever wrote the code. There is no `auditor` agent. This rule outranks any skill or harness default that says otherwise.

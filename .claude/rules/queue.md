@@ -6,7 +6,7 @@ Detail in `docs/queue.md`. Redis `db:1` carries BullMQ; `db:0` carries the cache
 
 - **Framework layer** — `src/queues/`: `EnumQueue` + `EnumQueuePriority`, `@QueueProcessor()` decorator, `QueueProcessorBase`, `QueueException`, `IQueueResponse`.
 - **`queue.register.module.ts`** — `@Global()`; every `BullModule.registerQueue` and per-queue job default lives here, nowhere else.
-- **`queue.module.ts`** — the composition root: imports the feature modules and provides every processor class.
+- **`queue.module.ts`** — provides every processor class. It does **not** import feature modules today (`imports: []`); processors resolve collaborators because their feature modules are already global / imported elsewhere (e.g. `NotificationModule` via `CommonModule`). Do not invent a second composition root.
 - **Processor FILES live in their owning feature module** (`<module>/processors/<module>.<concern>.processor.ts`). Only their REGISTRATION lives in `src/queues/`. A `processors/` folder under `src/queues/` is drift.
 
 ## Writing a processor

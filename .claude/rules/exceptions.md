@@ -4,7 +4,7 @@ Detail in `docs/handling-error.md` and `docs/message.md`.
 
 ## The hierarchy
 
-Every application error is a dedicated class extending `AppBaseException` (`src/app/exceptions/app.base.exception.ts`):
+Every typed error is a dedicated class extending `AppBaseException` (`src/app/exceptions/app.base.exception.ts`):
 
 ```ts
 export abstract class AppBaseException extends Error {
@@ -43,29 +43,26 @@ export class UserNotFoundException extends AppBaseException {
 
 ## Throwing rules
 
-- **Services throw the module's typed exception.** Never a bare `throw new Error(...)`, never a raw NestJS `BadRequestException` / `NotFoundException` from application code — the filter chain maps `AppBaseException`, and a framework exception bypasses the module and status-code fields entirely.
-- **Repositories do not throw HTTP-shaped errors.** A data-access failure surfaces as an infrastructure error; a business conflict is the service's call.
-- **Controllers do not catch application exceptions.** The global filter chain owns the mapping. A `try/catch` in a controller that reshapes an exception is duplicating the filter and will drift from it.
-- Framework `HttpException`s (route 404, throttler 429, payload limits) are the framework's to throw and `AppHttpFilter`'s to handle. Application code does not raise them.
+- **Services throw the module's typed exception.** Never a bare `throw new Error(...)`, never a raw NestJS `BadRequestException` / `NotFoundException` from feature code — the filter chain maps `AppBaseException`, and a framework exception bypasses the module and status-code fields entirely.
+- **Repositories do not throw HTTP-shaped errors.** A data-access failure stays a data-access failure; a business conflict is the service's call.
+- **Controllers do not catch module exceptions (`AppBaseException`).** The global filter chain owns the mapping. A `try/catch` in a controller that reshapes an exception is duplicating the filter and will drift from it.
+- Framework `HttpException`s (route 404, throttler 429, payload limits) are the framework's to throw and `AppHttpFilter`'s to handle. Feature code does not raise them.
 
 ## Status codes
 
-Each module owns one numeric enum at `<module>/enums/<module>.status-code.enum.ts`:
+Detail and the full procedure (tables): `rules/status-code.md`. Summary:
 
-```ts
-export enum EnumUserStatusCodeError {
-    notFound = 5150,
-    notSelf = 5151,
-    …
-}
-```
+| Rule | Detail |
+|---|---|
+| Location | `<module>/enums/<module>.status-code.enum.ts` — `Enum<Module>StatusCodeError` |
+| Values | **5 digits** for all new codes; legacy 4-digit blocks exist until the owner migrates them |
+| Keys | camelCase descriptors (`notFound`) |
+| Reference | By enum member name — never a numeric literal |
+| Procedure | Owned by `coder` under `coding`; follow `rules/status-code.md` |
+| Docs | Quoted numbers in `docs/*.md` are repaired by `doc-drift` from the coder report |
 
-- Enum name is `Enum<Module>StatusCodeError`; keys are camelCase; **values are numbers**, allocated contiguously inside the module's block. This is the one enum family that does not use camelCase string values.
-- **Reuse before adding.** Duplicate near-synonyms (`notFound` beside `entryNotFound`) make the error surface unreadable.
-- **Reference the member by name, never the literal.** `statusCode = EnumUserStatusCodeError.notFound`, never `statusCode = 5150`. A numeric literal anywhere breaks the ability to renumber.
-- `EnumAppStatusCodeError` (`src/app/enums/`) is the system reserve.
-- Allocating, renumbering, or claiming a block is a procedure — **use the `status-code` skill**.
-- **The number is a client-visible contract.** Removing a member and shifting the ones after it changes what a frontend keying on the integer matches. The stable pair a client should key on is `module` + `statusCodeKey`.
+- **Reuse before adding.** Duplicate near-synonyms make the error surface unreadable.
+- **The number is a client-visible contract.** Removing a member and shifting survivors changes what a frontend keying on the integer matches. Prefer `module` + `statusCodeKey`.
 
 ## The filter chain
 
@@ -74,7 +71,7 @@ export enum EnumUserStatusCodeError {
 - `app.validation-import.filter.ts` — `@Catch(FileImportException)`, row-level CSV import errors. No Sentry.
 - `app.validation.filter.ts` — `@Catch(RequestValidationException)`, class-validator failures. No Sentry.
 - `app.http.filter.ts` — `@Catch(HttpException)`, framework errors only. Sentry at 500+.
-- `app.base-exception.filter.ts` — `@Catch(AppBaseException)`, every application error. Sentry only when `httpStatus >= 500`.
+- `app.base-exception.filter.ts` — `@Catch(AppBaseException)`, every `AppBaseException`. Sentry only when `httpStatus >= 500`.
 - `app.general.filter.ts` — `@Catch()`, the fallback. Always 500, always Sentry.
 
 `AppBaseException` does not extend `HttpException`, so the relative position of those two is inert today — but the array order is the fact; do not reorder it to match a doc.

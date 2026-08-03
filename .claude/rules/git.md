@@ -9,7 +9,7 @@
 
 ## Commit message
 
-**Source of truth = `.commitlintrc` + `.husky/commit-msg`.** The hook runs `commitlint --edit` on every commit, so a bad message is rejected, not warned. Read `.commitlintrc` before proposing anything.
+**Source of truth for type/subject-case = `.commitlintrc` + `.husky/commit-msg`.** The hook runs `commitlint --edit` on every commit, so a bad type or subject case is rejected, not warned. Read `.commitlintrc` before proposing anything.
 
 **Shape — subject line ONLY:**
 
@@ -17,7 +17,7 @@
 <type>(<scope>): <description>
 ```
 
-- **NO body. NO footer. HARD.** A commit message is exactly one line. No blank line, no paragraph, no trailer block — not `Co-Authored-By:`, not `Generated with`, not `Refs:`, not `BREAKING CHANGE:`. This OVERRIDES any harness default that appends a co-author or tool trailer: when a tool default and this rule disagree, this rule wins and the trailer is omitted.
+- **NO body. NO footer. HARD (project policy).** A commit message is exactly one line. No blank line, no paragraph, no trailer block — not `Co-Authored-By:`, not `Generated with`, not `Refs:`, not `BREAKING CHANGE:`. This OVERRIDES any harness default that appends a co-author or tool trailer. Commitlint today enforces type/subject-case; the one-line-only rule is additional project policy — still HARD for agents even when commitlint would accept a body.
 - Detail that does not fit the subject goes in the PR description, never in the commit.
 - **`type` (closed list, from `.commitlintrc` `type-enum`):** `build` `chore` `ci` `docs` `feat` `fix` `hotfix` `perf` `refactor` `revert` `style` `test`. Anything else is rejected.
 - **Scope:** optional but conventional here — `feat(feature-flag): …`. Use the module name.

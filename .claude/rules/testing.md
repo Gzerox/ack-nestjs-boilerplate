@@ -34,10 +34,12 @@ src/common/pagination/services/pagination.service.ts
 
 ## TDD
 
-For any new service method, guard, pipe, interceptor, filter, factory, or bugfix: write the failing spec FIRST, watch it fail, then implement.
+**WHEN is decided by the workflow, not by preference.** Under `coding`, TDD is mandatory and the `coder` agent writes the failing spec before any implementation. Under `spec-coverage`, there is no TDD — `unit-test-writer` backfills against existing code (the code wins). Never delegate the test-first step under `coding`: the same head that implements must watch the red.
+
+For any new service method, guard, pipe, interceptor, filter, factory, or bug fix under `coding`: write the failing spec FIRST, watch it fail, then implement.
 
 - **A TDD spec IS the unit test.** It is written at its final path and stays as the regression net. There is no separate later step and it is never thrown away.
-- **Never delegate the test-first step.** The point is that whoever writes the implementation watched the test go red.
+- **Never delegate the test-first step** to `unit-test-writer`. That agent is for `spec-coverage` backfill only.
 - A pure structural refactor moves the spec with its subject; it must be green before the work is done.
 
 ## How to spec each layer
@@ -56,7 +58,13 @@ Do not spec framework wiring, Prisma itself, or a `@Module` decorator. There is 
 
 ## Hard boundaries
 
-- **Do NOT change production code to make a spec pass.** If the code is wrong, the failing spec IS the deliverable: leave it red and report the defect with file and line.
+Scope matters — these two workflows treat production code differently:
+
+- **Under `coding` / `coder` (TDD):** changing production code to turn a failing TDD spec green **is the job**. The hard boundary below does **not** apply to that red→green step.
+- **Under `spec-coverage` / `unit-test-writer` (backfill):** the existing `src/` code wins. **Do NOT change production code to make a spec pass.** If the code is wrong, the failing spec IS the deliverable: leave it red and report the defect with file and line. A typo that makes the subject uncompilable is the only `src/` edit that agent may make (`spec-coverage` skill).
+
+Always:
+
 - **Do NOT delete, `.skip`, or weaken a failing spec to reach green.** A spec that was asserting something real and now fails is either a regression or a contract that changed deliberately — decide which and say which.
 - **Do NOT lower the coverage threshold**, exclude a file from `collectCoverageFrom`, or add an ignore comment to reach 100%.
 - If a file is genuinely untestable as written (a hard `new Date()`, a static global, an unmockable import), report it as a design defect to fix rather than building an elaborate mock around it.

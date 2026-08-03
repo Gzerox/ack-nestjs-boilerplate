@@ -32,7 +32,7 @@ Reordering is a defect even when the app still boots: the order encodes which ga
 - A controller is a pure HTTP → service dispatcher. One endpoint, one service method, including a trivial GET.
 - **Security preconditions belong in the service, not the controller.** A 2FA check, an account-state check, or a "must own this resource" rule written inline in a controller is business logic in the wrong layer.
 - **Never build pagination metadata by hand.** The repository produces it through `PaginationService`; the controller passes the return value through.
-- **Normalize `undefined → null`** before calling the service (`rules/null-safety.md`).
+- Prefer passing the whole request DTO; normalize `undefined → null` only when a service param is `T | null` (`rules/null-safety.md`).
 - One controller per scope, named for it: `<module>.<scope>.controller.ts` with `<scope>` ∈ `admin` · `public` · `user` · `system` · `shared`. The matching `src/router/routes/routes.<scope>.module.ts` registers it.
 
 ## Route params
@@ -45,7 +45,7 @@ Reordering is a defect even when the app still boots: the order encodes which ga
 
 A guard is a transport gate. It reads transport inputs (JWT payload, params, reflector metadata), delegates the decision, and returns a boolean.
 
-- **A guard MUST NOT hold a business rule.** Resolving an entity and deciding by a domain condition inline makes the rule untestable and invisible to every other caller. Delegate to the owning service and let it throw the typed exception.
+- **A guard MUST NOT hold a business rule.** Resolving a row and deciding by a business condition inline makes the rule untestable and invisible to every other caller. Delegate to the owning service and let it throw the typed exception.
 - **Whatever a guard assigns onto `request.<field>` is a public surface** for the rest of the request — readable by every downstream controller, interceptor, logger, and error reporter. A credential must never land there.
 - Guards are applied through a `@<Feature>Protected()` decorator wrapping `@UseGuards(...)`, not by bare `@UseGuards` on a controller method.
 
@@ -64,4 +64,4 @@ The argument is the i18n message path, not a literal message. The handler's retu
 - Every endpoint has a matching decorator factory in `<module>/docs/<module>.<scope>.doc.ts`, composed with `applyDecorators` from the `Doc*` primitives (`Doc`, `DocAuth`, `DocGuard`, `DocRequest`, `DocRequestFile`, `DocResponse`, `DocResponsePaging`).
 - `@ApiQuery` / `@ApiParam` arrays live as PascalCase constants in `<module>/constants/<module>.doc.constant.ts` (`UserDocParamsMobileNumberId`) and are referenced by the doc function. **Never an inline array literal inside the doc call**, and never generated from the request DTO.
 - The doc file mirrors the controller: one exported factory per endpoint, named `<Module><Scope><Action>Doc`.
-- **Every exported doc factory carries a one-line JSDoc**, like every other method — see `rules/operational.md`.
+- Doc factories follow `rules/authoring.md` for comments — no method JSDoc required.

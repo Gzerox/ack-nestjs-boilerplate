@@ -14,18 +14,21 @@ Controller ──▶ Service ──▶ Repository ──▶ DatabaseService (Pri
 - **The repository owns `null → {}` normalization** for filter params before they reach Prisma. Never in the caller. A service that spreads `filter ?? {}` into a repository call has taken over the repository's job.
 - Returns Prisma models or the module's `I<Module>*` interfaces. It does not return DTOs.
 - May inject `PaginationService`, `DatabaseUtil`, and other repositories' utils where the query genuinely needs them.
+- **Prefer `$transaction` for multi-step writes** so a failure rolls back as one unit. See `rules/database.md`.
+- **No `I*Repository` header.** Inject the class only.
 
 ## Service
 
 - **Business logic ONLY.** Orchestration, validation of rules, exception throwing, i18n message paths, composing repository calls.
-- Injects repositories as classes. Injects other services as classes.
+- Injects repositories as classes — **one or many** (cross-module repos allowed when the feature module imports them). Injects other services as classes.
 - **NEVER injects `DatabaseService`.** Data access goes through the repository, always. This is the single hardest rule in the file.
-- **No header interface.** A service is injected by its class, so an `I<Module>Service` beside it is ceremony — see the header-interface rule in `rules/operational.md`.
+- **NEVER opens a Prisma `$transaction`.** Transactions live in the repository (`rules/database.md`).
+- **Service interface REQUIRED.** `interfaces/<feature>[.<name>].service.interface.ts` with `I<Feature>[<Name>]Service`; the class `implements` it. Injection is still by class unless a real token seam exists. See `rules/operational.md`.
 
 ## Controller
 
 - **Route delegation ONLY.** One endpoint maps to one service method. Decorators, param extraction, and the return value — nothing else.
-- Normalizes the input boundary: `undefined → null` before calling the service (`service.update(id, dto.bio ?? null)`). See `rules/null-safety.md`.
+- Prefer passing the whole request DTO through. Normalize `undefined → null` only when a service param is `T | null` and the DTO field is optional (`rules/null-safety.md`).
 - No business rules, no repository access, no pagination metadata assembled by hand.
 
 ## SOLID, applied here
@@ -33,8 +36,8 @@ Controller ──▶ Service ──▶ Repository ──▶ DatabaseService (Pri
 - **S** — the three roles above. A service method that builds a Prisma `where` has crossed into the repository; a repository that throws `UserNotFoundException` has crossed into the service.
 - **O** — extend with a new class, strategy, or decorator. Never add an `if (type === 'x')` branch to stable code to make it handle one more case.
 - **L** — a subclass or implementation must be drop-in for its base. No narrowing behavior, no surprise throws a caller cannot see coming.
-- **I** — an interface is shaped by its CONSUMER, not by its implementor. An interface with no consumer is not a small interface; it is no interface at all (`rules/operational.md`).
-- **D** — depend on an abstraction only where a real seam exists: a swappable strategy, or a shape more than one type satisfies. Services and repositories have neither, so they are injected as classes.
+- **I** — a service exposes `I*Service` shaped by what callers need; repositories do not get an `I*Repository`. Data-shape interfaces stay consumer-driven (`rules/operational.md`).
+- **D** — inject services and repositories as **classes**. The service still `implements I*Service`. A DI token is only for a real swappable seam.
 
 **DRY** — zero copy-paste logic. Written twice is a signal, written three times is a defect. One source of truth per config value, connection, and constant.
 
@@ -87,12 +90,12 @@ It falls back onto the complexity axis, where YAGNI DOES reject it, when any of 
 
 - A feature module exports what other modules consume — normally its service, sometimes a guard-backing service. Internal helpers stay unexported.
 - **Never `forwardRef` between feature modules.** That is a broken boundary to re-architect, not a hazard to work around.
-- Shared infrastructure comes from `src/common/` via `CommonModule.forRoot()`. **Never open a second Redis connection** — share through the cache/queue modules that already own one.
+- Shared kit pieces come from `src/common/` via a plain `CommonModule` import at the app root (its children use `forRoot()` / `forRootAsync()`). **Never open a second Redis connection** — share through the cache/queue modules that already own one.
 - Controllers are registered by `src/router/routes/routes.<scope>.module.ts`, and BullMQ processors by `src/queues/queue.module.ts`. Registration is external; the files live in the feature module.
 
 ## `src/common/` IS the shared module
 
-`src/common/` is the project's **shared module** — the one place cross-cutting, module-agnostic capability lives: database, cache, redis, pagination, request, response, logger, message, helper, file, doc, aws, firebase. `CommonModule.forRoot()` composes it and makes the global pieces available everywhere.
+`src/common/` is the project's **shared module** — the one place cross-cutting, module-agnostic capability lives: database, cache, redis, pagination, request, response, logger, message, helper, file, doc, aws, firebase. `AppModule` imports `CommonModule` once; `CommonModule` composes the global pieces (each child module brings its own `forRoot()`).
 
 Being shared is exactly why it must stay thin. It is not a parking lot for anything that happens to be imported in several places.
 
@@ -105,7 +108,7 @@ Being shared is exactly why it must stay thin. It is not a parking lot for anyth
 
 No external client depends on this repo. **Breaking changes are the default, not the exception.**
 
-- **A new feature carries NO backward-compatibility affordance.** No deprecated-but-kept field, no `v2` variant beside a `v1`, no optional flag preserving the old behavior, no adapter layer bridging old and new. Build the correct shape and change every call site.
+- **A new feature carries NO backward-compatibility affordance.** No deprecated-but-kept field, no `v2` variant beside a `v1`, no optional flag preserving the old behavior, no bridging shim between old and new. Build the correct shape and change every call site.
 - When an existing design is wrong, replace it. Never keep a worse design because something already uses it.
 - **Best practice outranks the existing pattern.** Default to current community best practice for NestJS, Prisma, and TypeScript, and pick the clean shape over the incumbent one.
 - Use existing code only as a divergence check: when best practice clashes HARD with an established pattern here, WARN the owner before applying — do not apply silently. Minor local divergence: just proceed.

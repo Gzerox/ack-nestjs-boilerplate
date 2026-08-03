@@ -2,6 +2,7 @@
 dist/
 node_modules/
 .warmup/
+# Prisma client, swagger, vault init, and agent reports under generated/docs/
 generated/
 swagger.json
 /src/metadata.ts
@@ -85,9 +86,6 @@ tmp/
 
 ## Superpowers skill output (specs, plans, sdd notes) — never docs/
 .superpowers/
-
-## PR descriptions and change notes
-.changes/
 
 ## Graphify knowledge graph
 graphify-out/

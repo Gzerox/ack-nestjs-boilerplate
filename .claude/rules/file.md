@@ -18,7 +18,7 @@ A CSV import endpoint composes two pipes in order, and the order is the contract
 2. **`FileCsvValidationPipe<Dto>`** — `plainToInstance` + `class-validator` **per row**, collecting per-row failures into a `FileImportException` carrying `{ row, errors }[]`.
 
 - **Row errors are collected, never fail-fast.** `FileCsvValidationPipe` validates every row and reports all failures at once — do not rewrite it to throw on the first bad row.
-- **`FileMaxDataImport` is the row cap.** Exceeding it throws `FileExceedMaxDataImportException`. An unbounded import loads an attacker-controlled row count into memory — the cap is a limit, not a suggestion.
+- **`file.maxDataImport` (config) is the row cap.** Exceeding it throws `FileExceedMaxDataImportException`. An unbounded import loads an attacker-controlled row count into memory — the cap is a limit, not a suggestion.
 - `FileImportException` is `@Catch`-ed by `app.validation-import.filter.ts` (first in the filter chain, `rules/exceptions.md`). It maps to `422` with row-scoped errors and reports **no Sentry** — a bad upload is a client error. Do not route import errors anywhere else.
 - The import DTO is a normal request DTO with `class-validator` decorators (`rules/validation.md`); the pipe validates rows against it with `whitelist: true, forbidNonWhitelisted: true`.
 

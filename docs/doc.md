@@ -244,7 +244,7 @@ Documents paginated response with automatic pagination parameters.
 - Optional ordering query when `availableOrder` provided:
     - `orderBy` - Field and direction in `field:direction` format (e.g., `name:asc`, `createdAt:desc`). Repeat to sort by multiple fields.
 - Shared error responses (422) for both types:
-    - `orderByNotAllowed` (5020), `orderDirectionNotAllowed` (5035), `filterInvalidValue` (5021)
+    - `orderByNotAllowed` (50200), `orderDirectionNotAllowed` (50215), `filterInvalidValue` (50201)
     - `invalidPerPage`, `perPageExceedsMaximum`, `perPageCannotBeLessThanOne`
 - Type-specific error responses (422):
     - **Offset**: `invalidOffsetPaginationParams`, `invalidPage`, `pageExceedsMaximum`, `pageCannotBeLessThanOne`

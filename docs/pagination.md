@@ -301,7 +301,7 @@ status?: Record<string, IPaginationIn>
 
 **Validation:**
 - Throws `PaginationFilterInvalidValueEnumException` (422) if value not in enum
-- Error code: `5021 (filterInvalidValue)`
+- Error code: `50201 (filterInvalidValue)`
 
 ##### @PaginationQueryFilterNinEnum\<T\>
 
@@ -484,8 +484,8 @@ pagination: IPaginationQueryOffsetParams
 
 **Validation:**
 - Field must be in allowed list
-- Invalid field throws error code: `5020 (orderByNotAllowed)`
-- Invalid direction throws error code: `5035 (orderDirectionNotAllowed)`
+- Invalid field throws error code: `50200 (orderByNotAllowed)`
+- Invalid direction throws error code: `50215 (orderDirectionNotAllowed)`
 
 ## Pagination Strategies
 

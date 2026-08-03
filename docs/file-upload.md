@@ -460,21 +460,21 @@ Thrown during CSV validation with detailed error context. This exception provide
 
 | Error Type | Status Code | HTTP | Message | Description |
 |------------|-------------|------|---------|-------------|
-| Invalid Extension | 5011 | 415 | `file.error.extensionInvalid` | File extension not in allowed list |
-| Empty File | 5010 | 422 | `file.error.required` | File buffer is empty or missing |
-| Invalid Format | 5011 | 415 | `file.error.extensionInvalid` | File passed to CSV pipe is not a `.csv` file |
-| Parse First | 5012 | 422 | `file.error.requiredParseFirst` | Validation pipe received no rows |
-| Exceed Max Import | 5013 | 422 | `file.error.exceedMaxDataImport` | Row count exceeds `FileMaxDataImport` (1000) |
-| Validation Failed | 5030 | 422 | `file.error.validationDto` | DTO validation failed with details |
+| Invalid Extension | 50101 | 415 | `file.error.extensionInvalid` | File extension not in allowed list |
+| Empty File | 50100 | 422 | `file.error.required` | File buffer is empty or missing |
+| Invalid Format | 50101 | 415 | `file.error.extensionInvalid` | File passed to CSV pipe is not a `.csv` file |
+| Parse First | 50102 | 422 | `file.error.requiredParseFirst` | Validation pipe received no rows |
+| Exceed Max Import | 50103 | 422 | `file.error.exceedMaxDataImport` | Row count exceeds `FileMaxDataImport` (1000) |
+| Validation Failed | 50300 | 422 | `file.error.validationDto` | DTO validation failed with details |
 
-Every code except `5030` comes from `EnumFileStatusCodeError`. `Validation Failed` reuses `EnumRequestStatusCodeError.validation`, so its `statusCodeKey` is `validation` while its `module` is still `file`.
+Every code except `50300` comes from `EnumFileStatusCodeError`. `Validation Failed` reuses `EnumRequestStatusCodeError.validation`, so its `statusCodeKey` is `validation` while its `module` is still `file`.
 
 **Error Response Examples:**
 
 ```json
 // Invalid Extension
 {
-  "statusCode": 5011,
+  "statusCode": 50101,
   "statusCodeKey": "extensionInvalid",
   "module": "file",
   "message": "The file extension is invalid."
@@ -482,7 +482,7 @@ Every code except `5030` comes from `EnumFileStatusCodeError`. `Validation Faile
 
 // Validation Errors
 {
-  "statusCode": 5030,
+  "statusCode": 50300,
   "statusCodeKey": "validation",
   "module": "file",
   "message": "The imported data failed validation.",

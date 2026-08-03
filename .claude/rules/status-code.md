@@ -2,7 +2,7 @@
 
 A status code is the `statusCode` field on `AppBaseException`, surfaced in `ResponseErrorDto` beside `statusCodeKey` and `module`. It is **not** an HTTP status — `httpStatus` is a separate field.
 
-**The enum files are the machine registry.** Scan them before allocating; never invent a number from memory. This rule file is the procedure and the human layout. Durable prose about error *behavior* stays in `docs/handling-error.md` / `docs/message.md`.
+**The enum files are the machine registry.** Scan them before allocating; never invent a number from memory. This rule file is the procedure and the human layout. Durable prose about error *behavior* stays in `docs/handling-error.md` / `docs/message.md`. The full human catalog of every code is `docs/status-codes.md`.
 
 ```bash
 find src -name '*.status-code.enum.ts' | sort | while read -r f; do
@@ -17,38 +17,37 @@ done
 
 | Rule | Detail |
 |---|---|
-| **All new status codes are 5 digits** | `51000`, `52014`, never a new 4-digit value |
-| **New module blocks are 5-digit bases** | Prefer contiguous hundreds (e.g. `53000`–`53099`) |
-| **Existing 4-digit enums are legacy** | Do not grow them with new 4-digit members. A new member on a legacy module still uses the next free number **only if** it stays inside that module's reserved legacy span and the owner has not yet migrated the block; prefer scheduling a 5-digit renumber for that module |
-| **Target** | Every status code in the repo becomes 5 digits. Renumbering live integers is a client-visible contract change — do it only when the owner schedules it |
+| **Every status code is 5 digits** | `51000`, `52014` — never a 4-digit (or other-width) value |
+| **Module blocks are 5-digit hundreds** | Contiguous hundred per owner (e.g. `53000`–`53099`) |
+| **No other width** | Do not allocate outside the 5-digit hundred layout |
 
 ---
 
 ## Current layout (snapshot — verify by scan)
 
-| Range (legacy 4-digit) | Owner |
+| Range | Owner |
 |---|---|
-| 5000 | `src/app` — `EnumAppStatusCodeError` |
-| 5010–5013 | `src/common/file` |
-| 5020–5035 | `src/common/pagination` (**overruns** request base — known collision) |
-| 5030–5034 | `src/common/request` |
-| 5040–5041 | `session` |
-| 5060–5064 | `role` |
-| 5080–5085 | `feature-flag` |
-| 5100–5108 | `api-key` |
-| 5120–5136 | `auth` |
-| 5140–5143 | `country` |
-| 5150–5176 | `user` |
-| 5180–5182 | `policy` |
-| 5200–5203 | `notification` |
-| 5220 | `device` |
-| 5240 | `src/common/aws` |
-| 6100–6108 | `term-policy` |
+| `50000` | `src/app` — `EnumAppStatusCodeError` |
+| `50100`–`50103` | `src/common/file` |
+| `50200`–`50215` | `src/common/pagination` |
+| `50300`–`50303` | `src/common/request` |
+| `50400`–`50401` | `session` |
+| `50500`–`50504` | `role` |
+| `50600`–`50605` | `feature-flag` |
+| `50700`–`50707` | `api-key` |
+| `50800`–`50814` | `auth` |
+| `50900`–`50903` | `country` |
+| `51000`–`51026` | `user` |
+| `51100`–`51101` | `policy` |
+| `51200`–`51203` | `notification` |
+| `51300` | `device` |
+| `51400` | `src/common/aws` |
+| `51500`–`51508` | `term-policy` |
 
 | Note | Detail |
 |---|---|
-| Collision | `EnumPaginationStatusCodeError` (5020–5035) overlaps `EnumRequestStatusCodeError` (5030+). Do not paper over it. Report; renumber only with owner approval |
-| Next free 5-digit region | After scan, claim the next free hundred (e.g. `53000`) that does not collide. Prefer `5xxxx` for feature modules |
+| Next free hundred | `51600` (verify by scan before claiming) |
+| Prefer | `5xxxx` for feature modules |
 
 ---
 
@@ -138,6 +137,6 @@ Clients should key on `module` + `statusCodeKey`, not the raw integer.
 | Contiguous | Members run from block base without holes |
 | Key matches number | `statusCodeKey` reverse-looks-up the same member as `statusCode` |
 | i18n nested | `messagePath` resolves in every language file |
-| Digit width | New values are 5 digits |
+| Digit width | Every value is 5 digits |
 
-Record block claims and renumbers in `generated/docs/report-coder-<feature>.md`. Quoted numbers in `docs/*.md` are updated from that report — never invent a second registry file under `docs/` for the enum integers themselves.
+Record block claims and renumbers in `generated/docs/report-coder-<feature>.md`. Quoted numbers in `docs/*.md` (including the catalog `docs/status-codes.md`) are updated from that report — the enum files remain the only machine registry.

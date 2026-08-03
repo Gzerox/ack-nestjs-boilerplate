@@ -535,7 +535,7 @@ defaultMessage(validationArguments?: ValidationArguments): string {
 **Final response** (handled by `AppValidationFilter`):
 ```json
 {
-  "statusCode": 5030,
+  "statusCode": 50300,
   "statusCodeKey": "validation",
   "module": "request",
   "message": "There are validation errors.",

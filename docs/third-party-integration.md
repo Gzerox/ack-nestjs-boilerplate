@@ -97,7 +97,7 @@ AWS service errors use `EnumAwsStatusCodeError` located at `src/common/aws/enums
 
 | Enum | Code | i18n Key | Description |
 |---|---|---|---|
-| `EnumAwsStatusCodeError.serviceUnavailable` | `5240` | `aws.error.serviceUnavailable` | AWS service is unavailable |
+| `EnumAwsStatusCodeError.serviceUnavailable` | `51400` | `aws.error.serviceUnavailable` | AWS service is unavailable |
 
 ## Firebase
 

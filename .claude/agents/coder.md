@@ -214,10 +214,9 @@ Follow **`rules/status-code.md`** end to end (tables). Do not restate it here.
 
 | Must | Detail |
 |---|---|
-| Digit width | **5 digits** for every new code and every new module block |
+| Digit width | **5 digits** for every code and every module block |
 | Registry | Enum files under `src/` — scan before allocating |
 | Report | Block claims / renumbers → `generated/docs/report-coder-<feature>.md` for owner / `doc-drift` |
-| Legacy | Existing 4-digit enums stay until the owner schedules a 5-digit migration |
 
 
 ## Skills — required, and when (HARD)

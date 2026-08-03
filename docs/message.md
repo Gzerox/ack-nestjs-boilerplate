@@ -300,7 +300,7 @@ class UserDto {
 ```typescript
 // Automatic transformation
 {
-    "statusCode": 5030,
+    "statusCode": 50300,
     "statusCodeKey": "validation",
     "module": "request",
     "message": "There are validation errors.",

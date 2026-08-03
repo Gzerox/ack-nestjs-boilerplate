@@ -10,6 +10,7 @@ The error handling system provides comprehensive exception management using Nest
 
 - [Response Documentation][ref-doc-response] - For standardized response structure
 - [Request Validation Documentation][ref-doc-request-validation] - For validation error handling
+- [Status Codes Documentation][ref-doc-status-codes] - Full catalog of application `statusCode` values by module
 - [Message Documentation][ref-doc-message] - For error message internationalization
 - [Logger Documentation][ref-doc-logger] - For error logging and monitoring
 
@@ -160,7 +161,7 @@ x-correlation-id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
 **Response example**:
 ```json
 {
-  "statusCode": 5150,
+  "statusCode": 51000,
   "statusCodeKey": "notFound",
   "module": "user",
   "message": "Sorry, we couldn't find the user you requested.",
@@ -235,7 +236,7 @@ x-correlation-id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
 **Response example**:
 ```json
 {
-  "statusCode": 5030,
+  "statusCode": 50300,
   "statusCodeKey": "validation",
   "module": "request",
   "message": "There are validation errors.",
@@ -268,7 +269,7 @@ See [Request Validation][ref-doc-request-validation] for details.
 **Response example**:
 ```json
 {
-  "statusCode": 5030,
+  "statusCode": 50300,
   "statusCodeKey": "validation",
   "module": "file",
   "message": "The imported data failed validation.",
@@ -360,5 +361,6 @@ export class ExampleSomethingException extends AppBaseException {
 
 [ref-doc-response]: response.md
 [ref-doc-request-validation]: request-validation.md
+[ref-doc-status-codes]: status-codes.md
 [ref-doc-message]: message.md
 [ref-doc-logger]: logger.md

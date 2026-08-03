@@ -69,27 +69,28 @@ Essential systems that power every feature in the project.
 9. [Response][ref-doc-response] — Standardized response decorators, pagination response, file download
 10. [Request Validation][ref-doc-request-validation] — `ValidationPipe`, `class-validator`, body/query/path validation
 11. [Handling Error][ref-doc-handling-error] — Exception filters, standardized HTTP error responses, i18n errors
-12. [Message][ref-doc-message] — i18n with `nestjs-i18n`, nested JSON message files in `src/languages/`
-13. [Cache][ref-doc-cache] — Redis caching with shared `RedisCacheModule`, TTL strategy
-14. [Queue][ref-doc-queue] — BullMQ background jobs, `QueueProcessorBase`, retry/backoff
-15. [Logger][ref-doc-logger] — Pino logging, file rotation, sensitive data redaction, Sentry integration
-16. [Security and Middleware][ref-doc-security-and-middleware] — HTTP middleware layer, headers, rate limiting
+12. [Status Codes][ref-doc-status-codes] — Full catalog of application statusCode values by module
+13. [Message][ref-doc-message] — i18n with `nestjs-i18n`, nested JSON message files in `src/languages/`
+14. [Cache][ref-doc-cache] — Redis caching with shared `RedisCacheModule`, TTL strategy
+15. [Queue][ref-doc-queue] — BullMQ background jobs, `QueueProcessorBase`, retry/backoff
+16. [Logger][ref-doc-logger] — Pino logging, file rotation, sensitive data redaction, Sentry integration
+17. [Security and Middleware][ref-doc-security-and-middleware] — HTTP middleware layer, headers, rate limiting
 
 ### Advanced
 Additional features and integrations for production-grade deployments.
 
-17. [Pagination][ref-doc-pagination] — Offset-based, cursor-based pagination, advanced filtering
-18. [Notification][ref-doc-notification] — Multi-channel notifications (email, push, inApp, silent) via BullMQ
-19. [Two Factor][ref-doc-two-factor] — TOTP 2FA with authenticator apps and backup codes
-20. [Feature Flag][ref-doc-feature-flag] — Dynamic feature management, gradual rollouts, A/B testing
-21. [Activity Log][ref-doc-activity-log] — Recording successful user activities with `@ActivityLog`
-22. [Term Policy][ref-doc-term-policy] — Legal agreements, versioning, and user consent enforcement
-23. [File Upload][ref-doc-file-upload] — Single/multiple file uploads, CSV processing, upload decorators
-24. [Presign][ref-doc-presign] — AWS S3 presigned URLs for secure time-limited object access
-25. [Third Party Integration][ref-doc-third-party-integration] — AWS S3/SES, Firebase, Sentry, no-op mode
-26. [Doc][ref-doc-doc] — Swagger/OpenAPI decorators via the Doc Module
-27. [Analytics][ref-doc-analytics] — Planned analytics design using MongoDB aggregation pipelines
-28. [Vault][ref-doc-vault] — Optional secret management via HashiCorp Vault
+18. [Pagination][ref-doc-pagination] — Offset-based, cursor-based pagination, advanced filtering
+19. [Notification][ref-doc-notification] — Multi-channel notifications (email, push, inApp, silent) via BullMQ
+20. [Two Factor][ref-doc-two-factor] — TOTP 2FA with authenticator apps and backup codes
+21. [Feature Flag][ref-doc-feature-flag] — Dynamic feature management, gradual rollouts, A/B testing
+22. [Activity Log][ref-doc-activity-log] — Recording successful user activities with `@ActivityLog`
+23. [Term Policy][ref-doc-term-policy] — Legal agreements, versioning, and user consent enforcement
+24. [File Upload][ref-doc-file-upload] — Single/multiple file uploads, CSV processing, upload decorators
+25. [Presign][ref-doc-presign] — AWS S3 presigned URLs for secure time-limited object access
+26. [Third Party Integration][ref-doc-third-party-integration] — AWS S3/SES, Firebase, Sentry, no-op mode
+27. [Doc][ref-doc-doc] — Swagger/OpenAPI decorators via the Doc Module
+28. [Analytics][ref-doc-analytics] — Planned analytics design using MongoDB aggregation pipelines
+29. [Vault][ref-doc-vault] — Optional secret management via HashiCorp Vault
 
 
 
@@ -104,6 +105,7 @@ Additional features and integrations for production-grade deployments.
 [ref-doc-response]: response.md
 [ref-doc-request-validation]: request-validation.md
 [ref-doc-handling-error]: handling-error.md
+[ref-doc-status-codes]: status-codes.md
 [ref-doc-message]: message.md
 [ref-doc-cache]: cache.md
 [ref-doc-queue]: queue.md

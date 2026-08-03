@@ -55,7 +55,7 @@ Detail and the full procedure (tables): `rules/status-code.md`. Summary:
 | Rule | Detail |
 |---|---|
 | Location | `<module>/enums/<module>.status-code.enum.ts` — `Enum<Module>StatusCodeError` |
-| Values | **5 digits** for all new codes; legacy 4-digit blocks exist until the owner migrates them |
+| Values | **5 digits** for every status code |
 | Keys | camelCase descriptors (`notFound`) |
 | Reference | By enum member name — never a numeric literal |
 | Procedure | Follow `rules/status-code.md` |

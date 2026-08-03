@@ -137,7 +137,7 @@ The rest — the asymmetry, mood, and comment rules — is in `rules/authoring.m
 
 **`doc-drift` is the ONLY agent that may write `docs/*.md`.** `coder`, `unit-test-writer`, `reviewer-flow`, and `pr-doc-writer` are forbidden from the whole tree. A stale doc they notice is named in their hand-back for `doc-drift` to apply. The owner may still edit `docs/` directly; no agent may, except `doc-drift`.
 
-**`pr-doc` (skill) → `pr-doc-writer` (agent) owns PR description documents only** — living markdown at `generated/docs/pr-<feature>.md`. Owner-triggered only; `coding` never invokes the skill or the agent. They never create or edit a GitHub pull request. Neither edits `docs/*.md`.
+**`pr-doc` (skill) → `pr-doc-writer` (agent) owns PR description documents only** — living markdown at `generated/docs/pr-<feature>.md`, body filled to match `.github/pull_request_template.md`. Owner-triggered only; `coding` never invokes the skill or the agent. They never create or edit a GitHub pull request. Neither edits `docs/*.md`.
 
 ---
 

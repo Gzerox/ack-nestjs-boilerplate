@@ -5,7 +5,7 @@ description: Author the pull-request DESCRIPTION document only for the current b
 
 # PR document — whole branch, final state
 
-One job: produce a reviewer-facing **PR description document** for what this branch contains NOW. Diff-base rules live in `rules/git.md`. The document skeleton and section rules live in the `pr-doc-writer` agent. This skill holds the ORDER and the trap at each step.
+One job: produce a reviewer-facing **PR description document** for what this branch contains NOW. Diff-base rules live in `rules/git.md`. The document shape is `.github/pull_request_template.md`; fill rules live in the `pr-doc-writer` agent. This skill holds the ORDER and the trap at each step.
 
 ## Description only — never open a PR (HARD)
 
@@ -20,7 +20,7 @@ One job: produce a reviewer-facing **PR description document** for what this bra
 - **Do not dispatch any agent except `pr-doc-writer`.**
 - **Do not edit `docs/*.md`.**
 - **Do not write commit messages** and do not stage or commit (`rules/git.md`). Preparing the local compare base (fetch / ff-pull / compare branch) is the sanctioned exception — nothing else.
-- **Do not invent a parallel document shape.** The ten-section skeleton is owned by `pr-doc-writer`; do not rewrite it into `.github/pull_request_template.md` checkboxes here.
+- **Do not invent a parallel document shape.** The body must match `.github/pull_request_template.md` (filled checkboxes and sections). That shape is owned by `pr-doc-writer`; this skill does not redefine headings.
 - **`coding` never invokes this skill.** This is a standalone owner-triggered job.
 - **Do not assume the compare base.** Always ask `main` vs `develop` first (step 0). Never default silently.
 - **Do not compare against `origin/*`.** After step 0c the base in SCOPE is always a local ref.
@@ -150,13 +150,14 @@ One dispatch. Paste the SCOPE block verbatim.
 Tell it explicitly:
 
 - Base is the **local** `base` from the SCOPE block — diff that ref with no second ref and no `..`. Do **not** fetch or diff `origin/*` for the compare base; the skill already refreshed the local ref.
-- Cover the WHOLE branch; use `newest work` only for emphasis under `## Details`.
+- Cover the WHOLE branch; use `newest work` only for emphasis under `## Summary` / `## Additional Notes`.
+- Fill the body to match `.github/pull_request_template.md` (agent Reads that file).
 - Write `generated/docs/pr-<feature>.md` (overwrite — living document, no date in the name).
 - Return the full markdown in the hand-back as well.
 - Do not commit or stage. Do not run any `gh pr *` — description file only (HARD).
 - Do not create/delete branches or pull — base prep is done.
 
-Do **not** restate the ten-section skeleton or section rules in the dispatch — the agent already carries them.
+Do **not** restate the template sections or fill rules in the dispatch — the agent already carries them.
 
 ### 2. Hand back to the owner
 

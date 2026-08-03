@@ -30,8 +30,6 @@ Please include:
 
 ## What to Expect
 
-- **Acknowledgement** within 7 business days.
-- **Initial assessment** within 14 business days.
 - A fix or mitigation plan communicated once the report is validated.
 - Public disclosure coordinated with you after a patch is released.
 

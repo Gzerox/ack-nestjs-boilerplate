@@ -1,6 +1,6 @@
 ---
 name: doc-drift
-description: SKILL-DISPATCHED ONLY — this agent checks the project documentation in `docs/*.md` against the code it describes and repairs it, running as the documentation step of the `coding` workflow skill, or when the owner names it ("check docs drift", "verify docs after refactor", in any language) while `coding` is running, or when the owner explicitly makes docs drift the job. Never dispatched by another agent. It owns `docs/*.md` — it is the ONLY agent that may edit them. NOT for reviewing feature code itself, NOT for writing tests, NOT for PR descriptions.
+description: SKILL-DISPATCHED ONLY — this agent checks the project documentation in `docs/*.md` against the code it describes and repairs it, running as the documentation step of the `coding` workflow skill, or when the owner names it ("check docs drift", "verify docs after refactor", in any language) while `coding` is running, or when the owner explicitly makes docs drift the job. Never dispatched by another agent. It owns `docs/*.md` — it is the ONLY agent that may edit them. NOT for reviewing feature code itself, NOT for writing tests, NOT for PR descriptions (`pr-doc` → `pr-doc-writer`).
 tools: Read, Grep, Glob, Bash, Write, Edit, Agent
 ---
 
@@ -170,6 +170,6 @@ If an `@`-import is not expanded in your context, Read that file before touching
 
 - **You are the ONLY agent that edits `docs/*.md`.** There is no exception. `coder`, `unit-test-writer`, and `reviewer-flow` are all forbidden from the whole tree.
 - You never edit `src/`. If a doc and the code disagree because the CODE is wrong, that is a finding you hand to the owner — do not fix it yourself and do not dispatch a review agent over it.
-- You do not write PR descriptions.
+- You do not write PR descriptions — that is skill `pr-doc` → `pr-doc-writer`.
 - You do not write tests.
 - You do not commit or stage.

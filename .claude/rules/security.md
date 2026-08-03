@@ -21,7 +21,7 @@ Every one of these MUST invalidate the affected sessions:
 - device removal
 - role or status change that revokes access
 
-Skipping it leaves a live token for an account the user believes they secured. This is on the anti-pattern reject list for a reason: it is silent, and nothing fails until it matters.
+Skipping it leaves a live token for an account the user believes they secured. It is silent, and nothing fails until it matters.
 
 ## Authorization
 

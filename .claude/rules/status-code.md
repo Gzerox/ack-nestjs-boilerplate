@@ -75,7 +75,7 @@ Duplicate near-synonyms (`notFound` beside `entryNotFound`) are waste.
 | 5 | Create one exception class file under `exceptions/` |
 | 6 | Add nested i18n key in **every** `src/languages/<lang>/<module>.json` |
 | 7 | Pick `httpStatus` deliberately (wire status **and** Sentry predicate: filter reports at 500+) |
-| 8 | Record the change in `generated/docs/report-coder-<feature>.md` for the owner / `doc-drift` |
+| 8 | Record the change in `generated/docs/report-coder-<feature>.md` for the owner |
 
 Exception shape:
 
@@ -140,4 +140,4 @@ Clients should key on `module` + `statusCodeKey`, not the raw integer.
 | i18n nested | `messagePath` resolves in every language file |
 | Digit width | New values are 5 digits |
 
-Who runs this procedure: the `coder` agent (under `coding`). Who updates quoted numbers in `docs/*.md`: `doc-drift`, from the coder report — never invent a second registry file under `docs/` for the enum integers themselves.
+Record block claims and renumbers in `generated/docs/report-coder-<feature>.md`. Quoted numbers in `docs/*.md` are updated from that report — never invent a second registry file under `docs/` for the enum integers themselves.

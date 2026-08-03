@@ -58,8 +58,8 @@ Detail and the full procedure (tables): `rules/status-code.md`. Summary:
 | Values | **5 digits** for all new codes; legacy 4-digit blocks exist until the owner migrates them |
 | Keys | camelCase descriptors (`notFound`) |
 | Reference | By enum member name — never a numeric literal |
-| Procedure | Owned by `coder` under `coding`; follow `rules/status-code.md` |
-| Docs | Quoted numbers in `docs/*.md` are repaired by `doc-drift` from the coder report |
+| Procedure | Follow `rules/status-code.md` |
+| Docs | Quoted numbers in `docs/*.md` are updated from `generated/docs/report-coder-<feature>.md` |
 
 - **Reuse before adding.** Duplicate near-synonyms make the error surface unreadable.
 - **The number is a client-visible contract.** Removing a member and shifting survivors changes what a frontend keying on the integer matches. Prefer `module` + `statusCodeKey`.

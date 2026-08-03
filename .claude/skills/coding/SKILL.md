@@ -14,7 +14,7 @@ One job, run end to end: turning a feature request into reviewed, documented cod
 - **Do not invoke `spec-coverage`.** It is a parallel workflow skill for backfilling unit specs on existing code. Feature TDD belongs inside `coder`.
 - **Do not invoke `migration-seed`.** Standalone seed work under `src/migration/` is a parallel skill. If this feature also needs bootstrap rows, either finish the feature here and point the owner at `migration-seed`, or keep a thin seed via `coder` scaffold §9 — do not restate the full seed workflow.
 - **Do not dispatch `unit-test-writer`.** Only `spec-coverage` may dispatch it. `coder` writes failing specs and brings touched files to 100% coverage itself.
-- **Do not dispatch `pr-doc-writer`.** That agent does not exist here. PR text stays with the owner / main session.
+- **Do not dispatch `pr-doc-writer` and do not invoke `pr-doc`.** PR documents are a standalone owner-triggered job (`pr-doc` → `pr-doc-writer`). This skill never opens that door.
 - **Do not dispatch `auditor`.** That agent does not exist. Flow review inside this skill is `reviewer-flow` only.
 - **Do not restate module-scaffold or status-code procedures.** Module scaffold lives in the `coder` agent; status-code procedure lives in `rules/status-code.md` (coder follows it). Point at those when a task needs a new module folder set, router/queue registration, or a status-code enum allocation.
 
@@ -106,7 +106,7 @@ Nothing in those files is closed by this step. They are surfaced, and the owner 
 
 Before you stop, run the release checks in the main session when the owner wants the branch merge-ready: `pnpm typecheck`, `pnpm lint`, `pnpm spell`, full `pnpm test`, and `pnpm start:dev` for the boot check. A DI or import cycle surfaces at BOOT, never at `tsc` or jest.
 
-**There is no PR-document step.** If a PR description is needed, the owner / main session writes it.
+**There is no PR-document step.** If a PR description is needed, the owner runs skill `pr-doc` separately.
 
 ---
 

@@ -34,14 +34,6 @@ Two false-positive classes are excluded by READING, not by pattern: enum member 
 tables (`ABILITY_FORBIDDEN`, `NOT_FOUND`), and identifiers inside code fences. The
 criterion is "no obligation SENTENCE in `docs/` prose".
 
-## Skills are cut by workflow, never by topic
-
-A skill covers one whole job end to end and needs a trigger a reader can recognise.
-"Touching `controllers/`" is a LOCATION, not a task — it cannot be a trigger. A per-topic
-skill is a reference fragment that never fires. When a rule file feels like it should be a
-skill, the answer is almost always no: the rule stays, and the skill that already spans it
-points at it.
-
 ## Language
 
 Every artifact is written in ENGLISH — code, identifiers, comments, commit messages,
@@ -50,8 +42,8 @@ may be Bahasa Indonesia; artifacts are never mixed. When recording something the
 said, PARAPHRASE it in English; do not paste the original-language quote for provenance.
 The date and the "owner decision" attribution carry the provenance.
 
-This applies to trigger phrases and examples inside agent definitions too. Routing still
-matches other languages semantically, so English examples cost nothing.
+Trigger phrases and examples inside `.claude/**` stay in English too. Routing still matches
+other languages semantically, so English examples cost nothing.
 
 ## Comments
 

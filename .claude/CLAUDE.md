@@ -135,9 +135,9 @@ The rest — the asymmetry, mood, and comment rules — is in `rules/authoring.m
 
 ## Doc editing ownership
 
-**`doc-drift` is the ONLY agent that may write `docs/*.md`.** `coder`, `unit-test-writer`, and `reviewer-flow` are forbidden from the whole tree. A stale doc they notice is named in their hand-back for `doc-drift` to apply. The owner may still edit `docs/` directly; no agent may, except `doc-drift`.
+**`doc-drift` is the ONLY agent that may write `docs/*.md`.** `coder`, `unit-test-writer`, `reviewer-flow`, and `pr-doc-writer` are forbidden from the whole tree. A stale doc they notice is named in their hand-back for `doc-drift` to apply. The owner may still edit `docs/` directly; no agent may, except `doc-drift`.
 
-PR descriptions are written by the owner / main session — there is no PR-doc agent.
+**`pr-doc` (skill) → `pr-doc-writer` (agent) owns PR description documents only** — living markdown at `generated/docs/pr-<feature>.md`. Owner-triggered only; `coding` never invokes the skill or the agent. They never create or edit a GitHub pull request. Neither edits `docs/*.md`.
 
 ---
 
@@ -173,19 +173,20 @@ Git hooks (`.husky/`): `pre-commit` runs lint-staged → typecheck → deadcode 
 
 ## Workflow for a code change
 
-**The ordered steps live in the skill, not here.** Three skills own whole jobs end to end:
+**The ordered steps live in the skill, not here.** Four skills own whole jobs end to end:
 
 | The work is… | Skill |
 |---|---|
 | a feature, endpoint, service change, queue work, or a refactor of existing code | `coding` |
 | a new or edited **initial-data seed** under `src/migration/` (data / template / aws-s3 commands, or `migration:seed` / `migration:remove` order) | `migration-seed` |
 | bringing ONE named module's unit specs back to 100% — `test/` only, no `src/` behavior change | `spec-coverage` |
+| a pull-request title + description for the current branch (`generated/docs/pr-<feature>.md`) | `pr-doc` |
 
-`coding` does **not** invoke `spec-coverage` or `migration-seed`. They are parallel workflow skills. Under `coding`, TDD is mandatory and lives **inside `coder`** (failing spec first — the same head watches red turn green). `migration-seed` also dispatches `coder`, but for seeds only — no TDD, no flow review. `spec-coverage` is for backfill/repair of specs against code that already exists; it rejects feature work and every `src/` change beyond a typo.
+`coding` does **not** invoke `spec-coverage`, `migration-seed`, or `pr-doc`. They are parallel workflow skills. Under `coding`, TDD is mandatory and lives **inside `coder`** (failing spec first — the same head watches red turn green). `migration-seed` also dispatches `coder`, but for seeds only — no TDD, no flow review. `spec-coverage` is for backfill/repair of specs against code that already exists; it rejects feature work and every `src/` change beyond a typo. `pr-doc` is owner-triggered only and is the single door into `pr-doc-writer`.
 
 Two things hold across these skills, because only the main session can do them: the owner conversation in the design/clarify step (a subagent cannot ask a question and wait for the answer), and the release sweep — whole-repo `pnpm typecheck`, `pnpm lint`, `pnpm spell`, the complete `pnpm test`, and the boot check (`pnpm start:dev`), plus the `anti-pattern-gate` skill (and `repository-pattern-gate` when layering is in play). Boot is the only check that catches a DI or import cycle.
 
-**Agents are dispatched BY a skill, never from a cold session.** A skill computes the scope, settles the spec and plan where needed, and only then hands work to `coder`, `reviewer-flow`, `unit-test-writer`, or `doc-drift`. Naming an agent while a workflow skill is running is the same trigger; naming one with no skill behind it is not. Agents never dispatch each other, and an agent never invokes a workflow skill — the direction is one way.
+**Agents are dispatched BY a skill, never from a cold session.** A skill computes the scope, settles the spec and plan where needed, and only then hands work to `coder`, `reviewer-flow`, `unit-test-writer`, `doc-drift`, or `pr-doc-writer` (the last only via skill `pr-doc`). Naming an agent while a workflow skill is running is the same trigger; naming one with no skill behind it is not. Agents never dispatch each other, and an agent never invokes a workflow skill — the direction is one way.
 
 A narrow bug fix with no new behavior still runs through `coding`, with `superpowers:systematic-debugging` doing the work its design step would otherwise do.
 
@@ -195,6 +196,7 @@ A narrow bug fix with no new behavior still runs through `coding`, with `superpo
 |---|---|
 | Spec, plan, sdd note | `.superpowers/` |
 | Agent reports | `generated/docs/report-*-<feature>.md` |
+| PR document | `generated/docs/pr-<feature>.md` |
 | Knowledge graph | `graphify-out/` |
 
 ## Mandatory rules

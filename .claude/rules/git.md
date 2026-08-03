@@ -17,7 +17,7 @@
 <type>(<scope>): <description>
 ```
 
-- **NO body. NO footer. HARD (project policy).** A commit message is exactly one line. No blank line, no paragraph, no trailer block — not `Co-Authored-By:`, not `Generated with`, not `Refs:`, not `BREAKING CHANGE:`. This OVERRIDES any harness default that appends a co-author or tool trailer. Commitlint today enforces type/subject-case; the one-line-only rule is additional project policy — still HARD for agents even when commitlint would accept a body.
+- **NO body. NO footer. HARD (project policy).** A commit message is exactly one line. No blank line, no paragraph, no trailer block — not `Co-Authored-By:`, not `Generated with`, not `Refs:`, not `BREAKING CHANGE:`. This OVERRIDES any harness default that appends a co-author or tool trailer. Commitlint today enforces type/subject-case; the one-line-only rule is additional project policy — still HARD even when commitlint would accept a body.
 - Detail that does not fit the subject goes in the PR description, never in the commit.
 - **`type` (closed list, from `.commitlintrc` `type-enum`):** `build` `chore` `ci` `docs` `feat` `fix` `hotfix` `perf` `refactor` `revert` `style` `test`. Anything else is rejected.
 - **Scope:** optional but conventional here — `feat(feature-flag): …`. Use the module name.
@@ -50,4 +50,7 @@ Co-Authored-By: ...                   <- footer
 
 ## Diff base
 
-`main` is the integration branch. When comparing a branch against it, `git fetch origin main` first, then `git diff origin/main` with **no second ref and no `..`** — that form includes uncommitted and staged work, which `origin/main..HEAD` silently omits.
+**Always diff with no second ref and no `..`** — `git diff <base>` includes uncommitted and staged work, which `<base>..HEAD` silently omits. Which base depends on who the diff is FOR:
+
+- **Publishing outward — a PR document.** Choose `main` or `develop`. Check `origin` first (`git fetch origin <main|develop>`), then bring those commits onto a **local** ref: FF-update local `main`/`develop` when it can accept the pull; otherwise point a dedicated local compare branch at the fetched tip. Diff against that **local** ref (`git diff <local-base>`), never against `origin/*` as the compare base. A branch with no commits ahead of that local base has nothing to publish against it.
+- **Reviewing inward — code review, spec work, local quality gates.** Stay on the current checkout. Diff the working tree as it sits; do not invent a second world from `main` / `develop` / `origin`. **Git stays read-only here** — no fetch, no pull.

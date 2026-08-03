@@ -150,14 +150,17 @@ export class NotificationPushUtil {
 
     /** Schedules the recurring stale-token cleanup (daily at midnight in the configured timezone). */
     async sendCleanupStaleTokens(): Promise<void> {
-        await this.notificationPushQueue.add(
+        await this.notificationPushQueue.upsertJobScheduler(
             EnumNotificationPushProcess.cleanupStaleTokens,
-            {},
             {
-                priority: EnumQueuePriority.low,
-                repeat: {
-                    pattern: this.cleanupStaleTokensCron,
-                    tz: this.defTz,
+                pattern: this.cleanupStaleTokensCron,
+                tz: this.defTz,
+            },
+            {
+                name: EnumNotificationPushProcess.cleanupStaleTokens,
+                data: {},
+                opts: {
+                    priority: EnumQueuePriority.low,
                 },
             }
         );

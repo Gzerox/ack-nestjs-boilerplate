@@ -543,7 +543,7 @@ The pagination fields ride inside the `metadata` block of the standard response 
 - Consistent performance (indexed cursor field)
 - Optional count (requests only if needed)
 - Safe for real-time data changes
-- MongoDB ObjectID timestamps prevent duplicates
+- Stable ordered cursor fields prevent duplicates; UUIDv7 ids are sortable when used as cursor values
 
 **Constraints:**
 - Max cursor length: 256 characters

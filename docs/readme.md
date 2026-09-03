@@ -21,7 +21,7 @@ This project aligns with the [Twelve-Factor App][ref-12factor] methodology — a
 | Codebase | Single repo, one codebase tracked in Git, multiple deploys via env |
 | Dependencies | All dependencies declared in `package.json`, enforced with PNPM lockfile |
 | Config | All configuration via environment variables, validated at startup via `AppEnvDto` |
-| Backing Services | MongoDB, Redis, AWS S3/SES, Firebase — treated as attached resources via env config |
+| Backing Services | PostgreSQL, Redis, AWS S3/SES, Firebase — treated as attached resources via env config |
 | Build, Release, Run | Build (`pnpm build`) is strictly separated from runtime |
 | Processes | Stateless app processes — session and cache state stored in Redis, not in-memory |
 | Port Binding | App self-contained via NestJS HTTP server, port exposed via `HTTP_PORT` env |
@@ -62,7 +62,7 @@ Start here to get the project running and understand its foundations.
 ### Core
 Essential systems that power every feature in the project.
 
-5. [Database][ref-doc-database] — Prisma + MongoDB replica set, transactions, and the Database Module
+5. [Database][ref-doc-database] — Prisma + PostgreSQL, migrations, transactions, and the Database Module
 6. [Authentication][ref-doc-authentication] — JWT (ES256/ES512), session lifecycle, API key auth
 7. [Authorization][ref-doc-authorization] — `UserProtected`, `RoleProtected`, `PolicyAbilityProtected`, `TermPolicyAcceptanceProtected`
 8. [Device][ref-doc-device] — Device fingerprinting, `DeviceOwnership`, max 1 session per device
@@ -89,7 +89,7 @@ Additional features and integrations for production-grade deployments.
 25. [Presign][ref-doc-presign] — AWS S3 presigned URLs for secure time-limited object access
 26. [Third Party Integration][ref-doc-third-party-integration] — AWS S3/SES, Firebase, Sentry, no-op mode
 27. [Doc][ref-doc-doc] — Swagger/OpenAPI decorators via the Doc Module
-28. [Analytics][ref-doc-analytics] — Planned analytics design using MongoDB aggregation pipelines
+28. [Analytics][ref-doc-analytics] — Planned analytics design for product and operational metrics
 29. [Vault][ref-doc-vault] — Optional secret management via HashiCorp Vault
 
 

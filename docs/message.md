@@ -234,7 +234,7 @@ With variables, pass `messageProperties` via the `metadata` field on `IResponseR
 @Response('user.updateStatus')
 @Patch('/update/:userId/status')
 async updateStatus(
-    @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+    @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
     userId: string,
     @AuthJwtPayload('userId') updatedBy: string,
     @Body() body: UserUpdateStatusRequestDto

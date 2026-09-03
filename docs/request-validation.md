@@ -418,12 +418,12 @@ export class UserController {
 }
 ```
 
-**RequestIsValidObjectIdPipe**
-Validates MongoDB ObjectId:
+**RequestIsValidUuidPipe**
+Validates UUID path parameters:
 
 ```typescript
 @Get(':userId')
-findOne(@Param('userId', RequestIsValidObjectIdPipe) userId: string) {
+findOne(@Param('userId', RequestIsValidUuidPipe) userId: string) {
   return this.userService.findById(userId);
 }
 ```

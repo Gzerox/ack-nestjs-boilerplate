@@ -79,7 +79,7 @@ Term policies follow a two-stage status:
 
 Both paths resolve to the same key. Publishing changes the bucket, not the key.
 
-**Important**: When a new version is published, `termPolicy[type]` is set to `false` for every active, non-deleted user, requiring them to accept the new version before accessing protected endpoints.
+**Important**: When a new version is published, the matching `User` acceptance column (`termsOfServiceAccepted`, `privacyAccepted`, `cookiesAccepted`, or `marketingAccepted`) is set to `false` for every active, non-deleted user, requiring them to accept the new version before accessing protected endpoints.
 
 ## Flow
 
@@ -116,7 +116,7 @@ sequenceDiagram
     API->>Database: Check policy has content
     API->>S3 Public: Move all content files
     API->>Database: Update status to published
-    API->>Database: Set active users termPolicy[type]=false
+    API->>Database: Set matching User acceptance column to false
     API->>S3 Private: Delete private content
     API->>Admin: Policy published
     
@@ -145,7 +145,7 @@ sequenceDiagram
     API->>Database: Check latest published exists
     API->>Database: Check not already accepted
     API->>Database: Create acceptance record
-    API->>Database: Update user.termPolicy[type]=true
+    API->>Database: Set matching User acceptance column to true
     API->>Database: Log activity (IP, userAgent)
     API->>User: Acceptance recorded
     
@@ -153,7 +153,7 @@ sequenceDiagram
     
     User->>API: Request protected endpoint
     API->>Guard: Check term policy requirement
-    Guard->>Database: Verify user.termPolicy[type]=true
+    Guard->>Database: Verify required User acceptance columns are true
     alt Policy Accepted
         Guard->>API: Allow access
         API->>User: Return response
@@ -268,7 +268,7 @@ Publish policy and invalidate all user acceptances:
 ```typescript
 PATCH /admin/term-policy/publish/:termPolicyId
 ```
-**Critical**: Publishing sets `termPolicy[type]` to `false` for every active, non-deleted user, requiring re-acceptance. Publishing a policy with no content returns `400` (`contentEmpty`). Once published, policy cannot be edited or deleted.
+**Critical**: Publishing sets the matching `User` acceptance column to `false` for every active, non-deleted user, requiring re-acceptance. Existing `TermPolicyUserAcceptance` records remain as acceptance history. Publishing a policy with no content returns `400` (`contentEmpty`). Once published, policy cannot be edited or deleted.
 
 ### List Policies
 
@@ -364,7 +364,7 @@ flowchart TD
     CheckRequired -->|No| SetDefault[Use Default:<br/>termsOfService + privacy]
     CheckRequired -->|Yes| UseSpecified[Use Specified Policies]
     
-    SetDefault --> GetTermPolicy[Get user.termPolicy<br/>acceptance status]
+    SetDefault --> GetTermPolicy[Read required User<br/>acceptance columns]
     UseSpecified --> GetTermPolicy
     
     GetTermPolicy --> CheckAcceptance{All required policies<br/>accepted by user?}

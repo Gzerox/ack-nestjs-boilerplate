@@ -16,17 +16,20 @@ import { RoleAbilityDto } from '@modules/role/dtos/role.ability.dto';
 export class RoleUtil {
     constructor(private readonly responseUtil: ResponseUtil) {}
 
-    mapList(roles: Role[]): RoleListResponseDto[] {
+    mapList(roles: IRoleWithAbilities[]): RoleListResponseDto[] {
         return this.responseUtil.serialize(RoleListResponseDto, roles);
     }
 
-    mapOne(role: Role): RoleDto {
-        return this.responseUtil.serialize(RoleDto, role);
+    mapOne(role: IRoleWithAbilities): RoleDto {
+        return this.responseUtil.serialize(
+            RoleDto,
+            this.mapRoleAbilityRows(role)
+        );
     }
 
-    mapAbilities(role: Role): RoleAbilitiesResponseDto {
+    mapListAbilities(role: IRoleWithAbilities): RoleAbilitiesResponseDto {
         return this.responseUtil.serialize(RoleAbilitiesResponseDto, {
-            abilities: role.abilities,
+            abilities: this.groupAbilitiesBySubject(role.abilities),
         });
     }
 
@@ -37,5 +40,32 @@ export class RoleUtil {
             roleType: role.type,
             timestamp: role.updatedAt ?? role.createdAt,
         };
+    }
+
+    private mapRoleAbilityRows(role: IRoleWithAbilities): Role & {
+        abilities: RoleAbilityDto[];
+    } {
+        return {
+            ...role,
+            abilities: this.groupAbilitiesBySubject(role.abilities),
+        };
+    }
+
+    private groupAbilitiesBySubject(abilities: RoleAbility[]): RoleAbilityDto[] {
+        const grouped = new Map<EnumPolicySubject, EnumPolicyAction[]>();
+
+        for (const ability of abilities) {
+            const subject = ability.subject as EnumPolicySubject;
+            const action = ability.action as EnumPolicyAction;
+            const actions = grouped.get(subject) ?? [];
+
+            actions.push(action);
+            grouped.set(subject, actions);
+        }
+
+        return [...grouped.entries()].map(([subject, action]) => ({
+            subject,
+            action,
+        }));
     }
 }

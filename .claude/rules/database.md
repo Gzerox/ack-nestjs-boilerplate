@@ -1,18 +1,18 @@
-# Database — Prisma + MongoDB
+# Database — Prisma + PostgreSQL
 
-Setup, seeding, and composite types are in `docs/database.md`. This file is the code rule set.
+Setup, seeding, and relational or JSON data shapes are in `docs/database.md`. This file is the code rule set.
 
 ## Access
 
 - **ALWAYS inject `DatabaseService`; never `PrismaClient` directly.** `DatabaseService` does not extend `PrismaClient`. It injects `DatabaseClientFactory` (the raw connection) plus the `DatabaseClientToken` provider (the extended client), and exposes exactly one member: `client`. That buys ONE injection point, with logging and connection lifecycle wired there once.
 - **Only repositories inject `DatabaseService` for feature data access.** A service that injects it has bypassed the repository layer, and that is the single most consequential violation in this codebase (`rules/architecture.md`). Sanctioned exceptions: **migration seeds** (`rules/migration.md`) and **health indicators** that only ping (`src/modules/health/indicators/`).
-- **Model access goes through `databaseService.client`.** There is no alternative — `DatabaseService` exposes no model delegate and no `$` method. `client` is the audited extended Prisma client, produced once by `DatabaseClientFactory.create()` (`src/common/database/factories/database.client.factory.ts`). The extension itself is `buildDatabaseExtension` in `src/common/database/constants/database.function.constant.ts`; `DatabaseExtensionUtil` (`src/common/database/utils/database.extension.util.ts`) supplies its actor getter, clock, and stamper, and owns the DMMF-driven stamping logic. Its query hooks stamp `createdBy` / `updatedBy` from the CLS request actor on every create and update, filling a field only when the caller left it null (an explicit value wins).
-- **A Prisma extended client does not expose `$on`.** `DynamicClientExtensionThisBuiltin` carries only `$extends`, `$transaction`, `$connect`, `$disconnect`, plus the model delegates and `$runCommandRaw`. Event logging is therefore registered against the raw `DatabaseClientFactory` instance, while everything else runs through `client`. That one missing member is the only reason `DatabaseService` injects the factory at all — do not "simplify" it away.
+- **Model access goes through `databaseService.client`.** There is no alternative — `DatabaseService` exposes no model delegate and no `$` method. `client` is the audited extended Prisma client, produced once by `DatabaseClientFactory.create()` (`src/common/database/factories/database.client.factory.ts`). `DatabaseExtensionUtil.build()` (`src/common/database/utils/database.extension.util.ts`) defines the extension and owns the actor getter, clock, DMMF model maps, and stamping logic. Its query hooks stamp `createdBy` / `updatedBy` from the CLS request actor on every create and update, filling a field only when the caller left it null (an explicit value wins).
+- **A Prisma extended client does not expose `$on`.** It carries `$extends`, `$transaction`, `$connect`, `$disconnect`, the PostgreSQL raw-query methods, and the model delegates. Event logging is therefore registered against the raw `DatabaseClientFactory` instance, while everything else runs through `client`. That one missing member is the only reason `DatabaseService` injects the factory at all — do not "simplify" it away.
 - **Stamping recurses into nested writes.** A nested `create` / `createMany` / `connectOrCreate` / `update` / `updateMany` / `upsert` reached through a relation field is stamped against the RELATED model, resolved from the Prisma DMMF. So a nested write needs no hand-written `createdBy` / `updatedBy`; keep one only where the value is deliberately not the acting user.
 - **Reads are not filtered.** The extension writes audit fields; it never rewrites a `where`. Excluding soft-deleted rows stays explicit — a read against a soft-deletable model carries `deletedAt: null` itself. An auto-filter was rejected because `PaginationService` counts through `repository.count()`, which such a filter would leave unfiltered, making the page and its total disagree.
 - **Soft delete and restore are `client.<model>.softDelete({ where, data? })` / `restore({ where, data? })`, never a manual `deletedAt` update.** They stamp `deletedAt`, `deletedBy`, and `updatedBy`; `data` carries any co-mutated business fields and nested writes. `deletedBy` comes from the CLS actor, and an explicit override must originate server-side, never from a request DTO. Hard delete (`delete` / `deleteMany`) writes no audit. Soft-delete call sites are common; `restore` is the peer API when a row must come back — prefer it over hand-clearing `deletedAt`.
 - `DatabaseModule` is global through `CommonModule` (imported once at the app root; `DatabaseModule.forRoot()` is composed inside it). A feature module does not import it.
-- `DatabaseUtil` (`src/common/database/utils/database.util.ts`) holds the Mongo `ObjectId` helpers. Use it rather than hand-rolling id validation.
+- `DatabaseUtil` (`src/common/database/utils/database.util.ts`) validates and creates UUIDs and converts values to Prisma JSON input shapes. Use it rather than hand-rolling those operations.
 
 ## Queries
 
@@ -23,7 +23,7 @@ Setup, seeding, and composite types are in `docs/database.md`. This file is the 
 
 ## Transactions
 
-MongoDB transactions require the replica set — that is why `docker-compose` runs one. Two forms:
+PostgreSQL transactions use two forms:
 
 - **Array form** for a simple sequential batch with no branching: `databaseService.client.$transaction([opA, opB])`.
 - **Callback form** when the work has conditional logic, needs a read between writes, or must branch on an intermediate result: `databaseService.client.$transaction(async tx => { … })`.

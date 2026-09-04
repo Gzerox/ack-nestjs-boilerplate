@@ -11,13 +11,13 @@
 ## Stack & runtime
 
 - NestJS 11, TypeScript strict, Node >= 24.11, **PNPM only** (`npm` and `yarn` are blocked by `engines`).
-- Prisma 6 → **MongoDB 8 replica set** (a replica set is required — transactions do not work without one).
+- Prisma 6 → **PostgreSQL 18** with versioned Prisma Migrate files.
 - Redis: cache on `db:0`, BullMQ on `db:1`, shared through one connection.
 - Pino logging, Sentry instrumentation, Swagger docs, nest-commander migration CLI.
 
 ## Ports (docker-compose)
 
-API 3000 · MongoDB 27017 · Redis 6379 · BullBoard 3010 · JWKS server 3011 · Vault 8200 · Swagger under the configured `doc.prefix`
+API 3000 · PostgreSQL 5432 · Redis 6379 · BullBoard 3010 · JWKS server 3011 · Vault 8200 · Swagger under the configured `doc.prefix`
 
 ---
 
@@ -156,7 +156,7 @@ The rest — the asymmetry, mood, and comment rules — is in `rules/authoring.m
 ```bash
 pnpm install
 pnpm db:generate         # prisma generate → generated/prisma-client
-pnpm db:migrate          # prisma db push (MongoDB has no migration files)
+pnpm db:migrate          # prisma migrate dev
 pnpm migration:seed      # seed all modules; :remove, :fresh also exist
 pnpm start:dev | build | start:prod
 pnpm test                # TZ=UTC jest --config test/jest.json
@@ -164,7 +164,7 @@ pnpm typecheck           # tsc --noEmit
 pnpm lint | lint:fix | format
 pnpm deadcode | spell
 pnpm db:studio
-docker-compose up -d     # MongoDB replica set + Redis + BullBoard + JWKS + Vault
+docker-compose up -d     # PostgreSQL + Redis + BullBoard + JWKS + Vault
 ```
 
 Git hooks (`.husky/`): `pre-commit` runs lint-staged → typecheck → deadcode → spell → tests; `commit-msg` runs commitlint. Both are blocking.

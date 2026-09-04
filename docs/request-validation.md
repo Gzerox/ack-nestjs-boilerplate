@@ -164,7 +164,7 @@ export class UserController {
 
 ```typescript
 export class UserParamDto {
-  @IsMongoId()
+  @IsUUID()
   @IsNotEmpty()
   userId: string;
 }

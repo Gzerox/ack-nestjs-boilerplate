@@ -6,7 +6,7 @@ import {
     IPaginationEqual,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -83,7 +83,7 @@ export class DeviceAdminController {
             Prisma.DeviceOwnershipSelect,
             Prisma.DeviceOwnershipWhereInput
         >,
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @PaginationQueryFilterEqualBoolean('isRevoked')
         isRevoked?: Record<string, IPaginationEqual>
@@ -117,12 +117,12 @@ export class DeviceAdminController {
     @Delete('/remove/:deviceOwnershipId')
     async remove(
         @AuthJwtPayload('userId') removedBy: string,
-        @Param('userId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
         @Param(
             'deviceOwnershipId',
             RequestRequiredPipe,
-            RequestIsValidObjectIdPipe
+            RequestIsValidUuidPipe
         )
         deviceOwnershipId: string
     ): Promise<IResponseReturn<void>> {

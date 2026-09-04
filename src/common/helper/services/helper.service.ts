@@ -12,7 +12,10 @@ import { DateObjectUnits, DateTime, Duration, DurationLikeObject } from 'luxon';
 import _ from 'lodash';
 import { EnumHelperDateDayOf } from '@common/helper/enums/helper.enum';
 import { hostname } from 'os';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
+import {
+    IRequestGeoLocation,
+    IRequestUserAgent,
+} from '@common/request/interfaces/request.interface';
 
 @Injectable()
 export class HelperService implements IHelperService {
@@ -571,11 +574,11 @@ export class HelperService implements IHelperService {
         return hostname();
     }
 
-    resolveCity(geoLocation?: GeoLocation): string {
+    resolveCity(geoLocation?: IRequestGeoLocation): string {
         return geoLocation?.city ?? 'Unknown Location';
     }
 
-    resolveDevice(userAgent: UserAgent): string {
+    resolveDevice(userAgent: IRequestUserAgent): string {
         const { device, os, browser } = userAgent;
 
         if (device?.vendor && device?.model) {

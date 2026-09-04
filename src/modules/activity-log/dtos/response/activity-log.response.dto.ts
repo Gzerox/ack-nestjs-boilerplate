@@ -10,7 +10,7 @@ import { Expose, Type } from 'class-transformer';
 export class ActivityLogResponseDto extends DatabaseResponseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     userId: string;

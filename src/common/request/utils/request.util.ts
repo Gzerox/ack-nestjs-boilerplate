@@ -3,8 +3,11 @@ import { Injectable } from '@nestjs/common';
 import { getClientIp } from '@supercharge/request-ip';
 import geoIp from 'geoip-lite';
 import { UAParser } from 'ua-parser-js';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
-import { IRequestLog } from '@common/request/interfaces/request.interface';
+import {
+    IRequestGeoLocation,
+    IRequestLog,
+    IRequestUserAgent,
+} from '@common/request/interfaces/request.interface';
 
 @Injectable()
 export class RequestUtil {
@@ -13,10 +16,12 @@ export class RequestUtil {
      * Called once per HTTP request from the request-log middleware.
      */
     buildRequestLog(req: IncomingMessage): IRequestLog {
-        const userAgent = UAParser(req.headers['user-agent']) as UserAgent;
+        const userAgent = UAParser(
+            req.headers['user-agent']
+        ) as IRequestUserAgent;
         const ipAddress = getClientIp(req) ?? null;
 
-        let geoLocation: GeoLocation | null = null;
+        let geoLocation: IRequestGeoLocation | null = null;
         if (ipAddress) {
             const geo = geoIp.lookup(ipAddress);
             if (geo) {

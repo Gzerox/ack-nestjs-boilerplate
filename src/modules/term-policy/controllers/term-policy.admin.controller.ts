@@ -8,7 +8,7 @@ import {
     IPaginationIn,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { RequestRequiredPipe } from '@common/request/pipes/request.required.pipe';
 import {
     Response,
@@ -152,7 +152,7 @@ export class TermPolicyAdminController {
     @ApiKeyProtected()
     @Delete('/delete/:termPolicyId')
     async delete(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string
     ): Promise<IResponseReturn<TermPolicyResponseDto>> {
         return this.termPolicyService.deleteByAdmin(termPolicyId);
@@ -195,7 +195,7 @@ export class TermPolicyAdminController {
     @ApiKeyProtected()
     @Put('/update/:termPolicyId/content/update')
     async updateContent(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string,
         @Body()
         body: TermPolicyContentRequestDto,
@@ -222,7 +222,7 @@ export class TermPolicyAdminController {
     @ApiKeyProtected()
     @Put('/update/:termPolicyId/content/add')
     async addContent(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string,
         @Body()
         body: TermPolicyContentRequestDto,
@@ -249,7 +249,7 @@ export class TermPolicyAdminController {
     @ApiKeyProtected()
     @Delete('/update/:termPolicyId/content/remove')
     async removeContent(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string,
         @Body()
         body: TermPolicyRemoveContentRequestDto,
@@ -276,7 +276,7 @@ export class TermPolicyAdminController {
     @HttpCode(HttpStatus.OK)
     @Post('/get/:termPolicyId/content/:language')
     async getContent(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string,
         @Param('language', RequestRequiredPipe) language: EnumMessageLanguage
     ): Promise<IResponseReturn<AwsS3PresignResponseDto>> {
@@ -297,7 +297,7 @@ export class TermPolicyAdminController {
     @ApiKeyProtected()
     @Patch('/publish/:termPolicyId')
     async publish(
-        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('termPolicyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         termPolicyId: string,
         @AuthJwtPayload('userId') updatedBy: string
     ): Promise<IResponseReturn<void>> {

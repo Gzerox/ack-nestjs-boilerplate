@@ -1,5 +1,4 @@
 import { DatabaseService } from '@common/database/services/database.service';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import {
     IPaginationIn,
     IPaginationQueryCursorParams,
@@ -9,7 +8,10 @@ import { PaginationService } from '@common/pagination/services/pagination.servic
 import { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
 import { RoleCreateRequestDto } from '@modules/role/dtos/request/role.create.request.dto';
 import { RoleUpdateRequestDto } from '@modules/role/dtos/request/role.update.request.dto';
-import { IRole } from '@modules/role/interfaces/role.interface';
+import {
+    IRole,
+    IRoleWithAbilities,
+} from '@modules/role/interfaces/role.interface';
 import { Injectable } from '@nestjs/common';
 import { Prisma, Role } from '@generated/prisma-client';
 
@@ -17,8 +19,7 @@ import { Prisma, Role } from '@generated/prisma-client';
 export class RoleRepository {
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly paginationService: PaginationService,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly paginationService: PaginationService
     ) {}
 
     async findWithPaginationOffsetByAdmin(
@@ -30,13 +31,14 @@ export class RoleRepository {
             Prisma.RoleWhereInput
         >,
         type?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<Role>> {
+    ): Promise<IResponsePagingReturn<IRoleWithAbilities>> {
         return this.paginationService.offset<
-            Role,
+            IRoleWithAbilities,
             Prisma.RoleSelect,
             Prisma.RoleWhereInput
         >(this.databaseService.client.role, {
             ...params,
+            include: { abilities: true },
             where: {
                 ...where,
                 ...type,
@@ -53,13 +55,14 @@ export class RoleRepository {
             Prisma.RoleWhereInput
         >,
         type?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<Role>> {
+    ): Promise<IResponsePagingReturn<IRoleWithAbilities>> {
         return this.paginationService.cursor<
-            Role,
+            IRoleWithAbilities,
             Prisma.RoleSelect,
             Prisma.RoleWhereInput
         >(this.databaseService.client.role, {
             ...params,
+            include: { abilities: true },
             where: {
                 ...where,
                 ...type,
@@ -67,9 +70,10 @@ export class RoleRepository {
         });
     }
 
-    async findOneById(id: string): Promise<Role | null> {
+    async findOneById(id: string): Promise<IRoleWithAbilities | null> {
         return this.databaseService.client.role.findUnique({
             where: { id },
+            include: { abilities: true },
         });
     }
 
@@ -108,26 +112,47 @@ export class RoleRepository {
         name,
         abilities,
         ...others
-    }: RoleCreateRequestDto): Promise<Role> {
+    }: RoleCreateRequestDto): Promise<IRoleWithAbilities> {
         return this.databaseService.client.role.create({
             data: {
                 name: name,
-                abilities: this.databaseUtil.toPlainArray(abilities),
+                abilities: {
+                    createMany: {
+                        data: abilities.flatMap(ability =>
+                            ability.action.map(action => ({
+                                subject: ability.subject,
+                                action,
+                            }))
+                        ),
+                    },
+                },
                 ...others,
             },
+            include: { abilities: true },
         });
     }
 
     async update(
         id: string,
         { abilities, ...others }: RoleUpdateRequestDto
-    ): Promise<Role> {
+    ): Promise<IRoleWithAbilities> {
         return this.databaseService.client.role.update({
             where: { id },
             data: {
-                abilities: this.databaseUtil.toPlainArray(abilities),
+                abilities: {
+                    deleteMany: {},
+                    createMany: {
+                        data: abilities.flatMap(ability =>
+                            ability.action.map(action => ({
+                                subject: ability.subject,
+                                action,
+                            }))
+                        ),
+                    },
+                },
                 ...others,
             },
+            include: { abilities: true },
         });
     }
 

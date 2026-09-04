@@ -30,11 +30,14 @@ import { UserSignUpRequestDto } from '@modules/user/dtos/request/user.sign-up.re
 import { UserUpdateStatusRequestDto } from '@modules/user/dtos/request/user.update-status.request.dto';
 import {
     IUser,
+    IUserExport,
     IUserForgotPasswordCreate,
+    IUserForgotPasswordWithUser,
     IUserLogin,
     IUserLoginResult,
     IUserProfile,
     IUserVerificationCreate,
+    IUserWithPhoto,
 } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import {
@@ -72,6 +75,38 @@ export class UserRepository {
         private readonly helperService: HelperService
     ) {}
 
+    private buildTermPolicyAcceptance({
+        cookies = false,
+        marketing = false,
+    }: {
+        cookies?: boolean;
+        marketing?: boolean;
+    } = {}): {
+        acceptedTypes: EnumTermPolicyType[];
+        columns: Pick<
+            Prisma.UserCreateInput,
+            | 'termsOfServiceAccepted'
+            | 'privacyAccepted'
+            | 'cookiesAccepted'
+            | 'marketingAccepted'
+        >;
+    } {
+        return {
+            acceptedTypes: [
+                EnumTermPolicyType.termsOfService,
+                EnumTermPolicyType.privacy,
+                ...(cookies ? [EnumTermPolicyType.cookies] : []),
+                ...(marketing ? [EnumTermPolicyType.marketing] : []),
+            ],
+            columns: {
+                termsOfServiceAccepted: true,
+                privacyAccepted: true,
+                cookiesAccepted: cookies,
+                marketingAccepted: marketing,
+            },
+        };
+    }
+
     async findWithPaginationOffset(
         {
             where,
@@ -83,9 +118,9 @@ export class UserRepository {
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
-    ): Promise<IResponsePagingReturn<IUser>> {
+    ): Promise<IResponsePagingReturn<IUserWithPhoto>> {
         return this.paginationService.offset<
-            IUser,
+            IUserWithPhoto,
             Prisma.UserSelect,
             Prisma.UserWhereInput
         >(this.databaseService.client.user, {
@@ -98,8 +133,8 @@ export class UserRepository {
                 deletedAt: null,
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                photo: true,
             },
         });
     }
@@ -115,9 +150,9 @@ export class UserRepository {
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
-    ): Promise<IPaginationCursorReturn<IUser>> {
+    ): Promise<IPaginationCursorReturn<IUserWithPhoto>> {
         return this.paginationService.cursor<
-            IUser,
+            IUserWithPhoto,
             Prisma.UserSelect,
             Prisma.UserWhereInput
         >(this.databaseService.client.user, {
@@ -130,8 +165,8 @@ export class UserRepository {
                 deletedAt: null,
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                photo: true,
             },
         });
     }
@@ -142,8 +177,8 @@ export class UserRepository {
                 email: { in: emails },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -152,7 +187,7 @@ export class UserRepository {
         status?: Record<string, IPaginationIn>,
         role?: Record<string, IPaginationEqual>,
         country?: Record<string, IPaginationEqual>
-    ): Promise<IUser[]> {
+    ): Promise<IUserExport[]> {
         return this.databaseService.client.user.findMany({
             where: {
                 ...status,
@@ -161,8 +196,8 @@ export class UserRepository {
                 deletedAt: null,
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                photo: true,
             },
         });
     }
@@ -209,8 +244,8 @@ export class UserRepository {
         return this.databaseService.client.user.findUnique({
             where: { email, deletedAt: null },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -219,9 +254,10 @@ export class UserRepository {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null },
             include: {
-                role: true,
+                role: { include: { abilities: true } },
                 country: true,
                 twoFactor: true,
+                photo: true,
                 mobileNumbers: {
                     include: {
                         country: true,
@@ -235,9 +271,10 @@ export class UserRepository {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null, status: EnumUserStatus.active },
             include: {
-                role: true,
+                role: { include: { abilities: true } },
                 country: true,
                 twoFactor: true,
+                photo: true,
                 mobileNumbers: {
                     include: {
                         country: true,
@@ -251,15 +288,15 @@ export class UserRepository {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
 
     async findOneActiveByForgotPasswordToken(
         token: string
-    ): Promise<(ForgotPassword & { user: IUser }) | null> {
+    ): Promise<IUserForgotPasswordWithUser | null> {
         const today = this.helperService.dateCreate();
 
         return this.databaseService.client.forgotPassword.findFirst({
@@ -277,8 +314,8 @@ export class UserRepository {
             include: {
                 user: {
                     include: {
-                        role: true,
-                        twoFactor: true,
+                        role: { include: { abilities: true } },
+                        twoFactor: { include: { backupCodes: true } },
                     },
                 },
             },
@@ -394,19 +431,18 @@ export class UserRepository {
         { ipAddress, userAgent, geoLocation }: IRequestLog,
         createdBy: string
     ): Promise<User> {
+        const termPolicyAcceptance = this.buildTermPolicyAcceptance();
         const termPolicies =
             await this.databaseService.client.termPolicy.findMany({
                 where: {
                     type: {
-                        in: [
-                            EnumTermPolicyType.termsOfService,
-                            EnumTermPolicyType.privacy,
-                        ],
+                        in: termPolicyAcceptance.acceptedTypes,
                     },
                     status: EnumTermPolicyStatus.published,
                 },
                 select: {
                     id: true,
+                    type: true,
                 },
             });
 
@@ -427,12 +463,7 @@ export class UserRepository {
                     username,
                     isVerified: roleType === EnumRoleType.user ? false : true,
                     status: EnumUserStatus.active,
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: false,
-                        [EnumTermPolicyType.marketing]: false,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
-                    },
+                    ...termPolicyAcceptance.columns,
                     createdBy,
                     deletedAt: null,
                     passwordHistories: {
@@ -1179,22 +1210,22 @@ export class UserRepository {
             loginWith === EnumUserLoginWith.socialApple
                 ? EnumUserSignUpWith.socialApple
                 : EnumUserSignUpWith.socialGoogle;
+        const termPolicyAcceptance = this.buildTermPolicyAcceptance({
+            cookies,
+            marketing,
+        });
 
         const termPolicies =
             await this.databaseService.client.termPolicy.findMany({
                 where: {
                     type: {
-                        in: [
-                            EnumTermPolicyType.termsOfService,
-                            EnumTermPolicyType.privacy,
-                            cookies ? EnumTermPolicyType.cookies : null,
-                            marketing ? EnumTermPolicyType.marketing : null,
-                        ].filter(Boolean) as EnumTermPolicyType[],
+                        in: termPolicyAcceptance.acceptedTypes,
                     },
                     status: EnumTermPolicyStatus.published,
                 },
                 select: {
                     id: true,
+                    type: true,
                 },
             });
 
@@ -1211,12 +1242,7 @@ export class UserRepository {
                     username,
                     isVerified: true,
                     status: EnumUserStatus.active,
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: cookies,
-                        [EnumTermPolicyType.marketing]: marketing,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
-                    },
+                    ...termPolicyAcceptance.columns,
                     createdBy: userId,
                     deletedAt: null,
                     activityLogs: {
@@ -1257,8 +1283,8 @@ export class UserRepository {
                     },
                 },
                 include: {
-                    role: true,
-                    twoFactor: true,
+                    role: { include: { abilities: true } },
+                    twoFactor: { include: { backupCodes: true } },
                 },
             }),
             ...termPolicies.map(termPolicy =>
@@ -1322,21 +1348,21 @@ export class UserRepository {
         { expiredAt, reference, hashedToken, type }: IUserVerificationCreate,
         { ipAddress, userAgent, geoLocation }: IRequestLog
     ): Promise<User> {
+        const termPolicyAcceptance = this.buildTermPolicyAcceptance({
+            cookies,
+            marketing,
+        });
         const termPolicies =
             await this.databaseService.client.termPolicy.findMany({
                 where: {
                     type: {
-                        in: [
-                            EnumTermPolicyType.termsOfService,
-                            EnumTermPolicyType.privacy,
-                            cookies ? EnumTermPolicyType.cookies : null,
-                            marketing ? EnumTermPolicyType.marketing : null,
-                        ].filter(Boolean) as EnumTermPolicyType[],
+                        in: termPolicyAcceptance.acceptedTypes,
                     },
                     status: EnumTermPolicyStatus.published,
                 },
                 select: {
                     id: true,
+                    type: true,
                 },
             });
 
@@ -1366,12 +1392,7 @@ export class UserRepository {
                             createdBy: userId,
                         },
                     },
-                    termPolicy: {
-                        [EnumTermPolicyType.cookies]: cookies,
-                        [EnumTermPolicyType.marketing]: marketing,
-                        [EnumTermPolicyType.privacy]: true,
-                        [EnumTermPolicyType.termsOfService]: true,
-                    },
+                    ...termPolicyAcceptance.columns,
                     createdBy: userId,
                     deletedAt: null,
                     activityLogs: {
@@ -1448,7 +1469,8 @@ export class UserRepository {
                     },
                 },
                 include: {
-                    role: true,
+                    role: { include: { abilities: true } },
+                    twoFactor: { include: { backupCodes: true } },
                 },
             }),
             ...termPolicies.map(termPolicy =>
@@ -1769,7 +1791,14 @@ export class UserRepository {
                     update: {
                         lastUsedAt: this.helperService.dateCreate(),
                         ...(method === EnumAuthTwoFactorMethod.backupCodes && {
-                            backupCodes: newBackupCodes,
+                            backupCodes: {
+                                deleteMany: {},
+                                createMany: {
+                                    data: (newBackupCodes ?? []).map(
+                                        codeHash => ({ codeHash })
+                                    ),
+                                },
+                            },
                         }),
                     },
                 },
@@ -1789,8 +1818,8 @@ export class UserRepository {
                 },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -1830,8 +1859,8 @@ export class UserRepository {
                 },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -1858,7 +1887,14 @@ export class UserRepository {
                         update: {
                             enabled: true,
                             confirmedAt: twoFactor?.confirmedAt ?? now,
-                            backupCodes: backupCodesHashed,
+                            backupCodes: {
+                                deleteMany: {},
+                                createMany: {
+                                    data: backupCodesHashed.map(codeHash => ({
+                                        codeHash,
+                                    })),
+                                },
+                            },
                             lastUsedAt: now,
                             updatedAt: now,
                             updatedBy: userId,
@@ -1881,8 +1917,8 @@ export class UserRepository {
                     },
                 },
                 include: {
-                    role: true,
-                    twoFactor: true,
+                    role: { include: { abilities: true } },
+                    twoFactor: { include: { backupCodes: true } },
                 },
             });
         });
@@ -1901,7 +1937,9 @@ export class UserRepository {
                     update: {
                         enabled: false,
                         requiredSetup: false,
-                        backupCodes: [],
+                        backupCodes: {
+                            deleteMany: {},
+                        },
                         lastUsedAt: now,
                         secret: null,
                         iv: null,
@@ -1939,8 +1977,8 @@ export class UserRepository {
                 },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -1957,7 +1995,14 @@ export class UserRepository {
             data: {
                 twoFactor: {
                     update: {
-                        backupCodes: backupCodesHashed,
+                        backupCodes: {
+                            deleteMany: {},
+                            createMany: {
+                                data: backupCodesHashed.map(codeHash => ({
+                                    codeHash,
+                                })),
+                            },
+                        },
                         updatedBy: userId,
                         updatedAt: now,
                     },
@@ -1978,8 +2023,8 @@ export class UserRepository {
                 },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -1997,7 +2042,9 @@ export class UserRepository {
                 twoFactor: {
                     update: {
                         requiredSetup: true,
-                        backupCodes: [],
+                        backupCodes: {
+                            deleteMany: {},
+                        },
                         secret: null,
                         iv: null,
                         updatedBy: updatedBy,
@@ -2031,8 +2078,8 @@ export class UserRepository {
                 },
             },
             include: {
-                role: true,
-                twoFactor: true,
+                role: { include: { abilities: true } },
+                twoFactor: { include: { backupCodes: true } },
             },
         });
     }
@@ -2074,19 +2121,18 @@ export class UserRepository {
         { ipAddress, userAgent, geoLocation }: IRequestLog,
         createdBy: string
     ): Promise<User[]> {
+        const termPolicyAcceptance = this.buildTermPolicyAcceptance();
         const termPolicies =
             await this.databaseService.client.termPolicy.findMany({
                 where: {
                     type: {
-                        in: [
-                            EnumTermPolicyType.termsOfService,
-                            EnumTermPolicyType.privacy,
-                        ],
+                        in: termPolicyAcceptance.acceptedTypes,
                     },
                     status: EnumTermPolicyStatus.published,
                 },
                 select: {
                     id: true,
+                    type: true,
                 },
             });
 
@@ -2126,12 +2172,7 @@ export class UserRepository {
                                         ? false
                                         : true,
                                 status: EnumUserStatus.active,
-                                termPolicy: {
-                                    [EnumTermPolicyType.cookies]: false,
-                                    [EnumTermPolicyType.marketing]: false,
-                                    [EnumTermPolicyType.privacy]: true,
-                                    [EnumTermPolicyType.termsOfService]: true,
-                                },
+                                ...termPolicyAcceptance.columns,
                                 createdBy,
                                 deletedAt: null,
                                 passwordHistories: {

@@ -10,7 +10,7 @@ import {
 export class NotificationUserSettingDto extends DatabaseResponseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         description: 'User ID',
     })
     @Expose()

@@ -1,6 +1,49 @@
 import { Request } from 'express';
 import { IAuthJwtAccessTokenPayload } from '@modules/auth/interfaces/auth.interface';
-import { GeoLocation, UserAgent } from '@generated/prisma-client';
+
+export interface IRequestGeoLocation {
+    latitude: number;
+    longitude: number;
+    country: string;
+    region: string;
+    city: string;
+}
+
+export interface IRequestUserAgentBrowser {
+    name?: string;
+    version?: string;
+    major?: string;
+    type?: string;
+}
+
+export interface IRequestUserAgentCpu {
+    architecture?: string;
+}
+
+export interface IRequestUserAgentDevice {
+    type?: string;
+    vendor?: string;
+    model?: string;
+}
+
+export interface IRequestUserAgentEngine {
+    name?: string;
+    version?: string;
+}
+
+export interface IRequestUserAgentOs {
+    name?: string;
+    version?: string;
+}
+
+export interface IRequestUserAgent {
+    ua?: string;
+    browser?: IRequestUserAgentBrowser;
+    cpu?: IRequestUserAgentCpu;
+    device?: IRequestUserAgentDevice;
+    engine?: IRequestUserAgentEngine;
+    os?: IRequestUserAgentOs;
+}
 
 export interface IRequestApp<T = IAuthJwtAccessTokenPayload> extends Omit<
     Request,
@@ -11,7 +54,7 @@ export interface IRequestApp<T = IAuthJwtAccessTokenPayload> extends Omit<
 }
 
 export interface IRequestLog {
-    userAgent: UserAgent;
+    userAgent: IRequestUserAgent;
     ipAddress?: string | null;
-    geoLocation?: GeoLocation | null;
+    geoLocation?: IRequestGeoLocation | null;
 }

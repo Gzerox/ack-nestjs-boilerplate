@@ -43,7 +43,7 @@ export class CountryResponseDto extends DatabaseResponseDto {
         isArray: true,
     })
     @Expose()
-    phoneCode: string[];
+    phoneCodes: string[];
 
     @ApiProperty({
         required: true,

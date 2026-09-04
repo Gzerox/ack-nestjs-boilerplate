@@ -7,19 +7,17 @@ import { UserProfileResponseDto } from '@modules/user/dtos/response/user.profile
 import { UserDto } from '@modules/user/dtos/user.dto';
 import { UserMobileNumberResponseDto } from '@modules/user/dtos/user.mobile-number.dto';
 import {
-    IUser,
+    IUserExport,
     IUserForgotPasswordCreate,
     IUserMobileNumber,
     IUserProfile,
+    IUserTwoFactor,
     IUserVerificationCreate,
+    IUserWithPhoto,
 } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-    EnumVerificationType,
-    TwoFactor,
-    User,
-} from '@generated/prisma-client';
+import { EnumVerificationType, User } from '@generated/prisma-client';
 import { ResponseUtil } from '@common/response/utils/response.util';
 import { Duration } from 'luxon';
 import ms from 'ms';
@@ -153,11 +151,11 @@ export class UserUtil {
         return this.profanity.exists(str);
     }
 
-    mapList(users: IUser[]): UserListResponseDto[] {
+    mapList(users: IUserWithPhoto[]): UserListResponseDto[] {
         return this.responseUtil.serialize(UserListResponseDto, users);
     }
 
-    mapExport(users: IUser[]): UserExportResponseDto[] {
+    mapExport(users: IUserExport[]): UserExportResponseDto[] {
         return this.responseUtil.serialize(UserExportResponseDto, users);
     }
 
@@ -178,8 +176,7 @@ export class UserUtil {
         );
     }
 
-    /** Maps a two-factor record to status, deriving the pending-confirmation flag. */
-    mapTwoFactor(twoFactor: TwoFactor): UserTwoFactorStatusResponseDto {
+    mapTwoFactor(twoFactor: IUserTwoFactor): UserTwoFactorStatusResponseDto {
         return {
             isEnabled: twoFactor.enabled,
             isPendingConfirmation:
@@ -187,7 +184,9 @@ export class UserUtil {
                 !!twoFactor.secret &&
                 !!twoFactor.iv &&
                 !twoFactor.confirmedAt,
-            backupCodesRemaining: twoFactor.backupCodes.length,
+            backupCodesRemaining: twoFactor.backupCodes.filter(
+                backupCode => !backupCode.usedAt
+            ).length,
             confirmedAt: twoFactor.confirmedAt ?? undefined,
             lastUsedAt: twoFactor.lastUsedAt ?? undefined,
         };

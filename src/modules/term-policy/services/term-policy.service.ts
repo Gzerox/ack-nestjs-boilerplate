@@ -37,6 +37,7 @@ import { TermPolicyStatusInvalidException } from '@modules/term-policy/exception
 import { ITermPolicyService } from '@modules/term-policy/interfaces/term-policy.service.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
+import { TermPolicyAcceptedColumnMap } from '@modules/term-policy/constants/term-policy.constant';
 import { IUser } from '@modules/user/interfaces/user.interface';
 import { RequestLogStoreKey } from '@common/request/constants/request.constant';
 import { IRequestLog } from '@common/request/interfaces/request.interface';
@@ -68,8 +69,6 @@ export class TermPolicyService implements ITermPolicyService {
             throw new AuthJwtAccessTokenInvalidException();
         }
 
-        const { termPolicy } = user;
-
         const defaultTermPolicies = [
             EnumTermPolicyType.termsOfService,
             EnumTermPolicyType.privacy,
@@ -79,7 +78,11 @@ export class TermPolicyService implements ITermPolicyService {
                 ? defaultTermPolicies
                 : requiredTermPolicies;
 
-        if (!requiredTermPolicies.every(type => termPolicy[type])) {
+        if (
+            !requiredTermPolicies.every(
+                type => user[TermPolicyAcceptedColumnMap[type]] === true
+            )
+        ) {
             throw new TermPolicyRequiredInvalidException();
         }
     }
@@ -229,7 +232,10 @@ export class TermPolicyService implements ITermPolicyService {
                 mappedContents,
                 createdBy
             );
-            const termPolicy = this.termPolicyUtil.mapOne(created);
+            const termPolicy = this.termPolicyUtil.mapOne({
+                ...created,
+                contents: mappedContents,
+            });
 
             this.requestStoreService.merge<IActivityLogMetadata>(
                 ActivityLogMetadataStoreKey,
@@ -257,18 +263,18 @@ export class TermPolicyService implements ITermPolicyService {
 
         try {
             const contentPath = this.termPolicyUtil.getPath(termPolicy);
-            const [deleted] = await Promise.all([
+            await Promise.all([
                 this.termPolicyRepository.delete(termPolicyId),
                 this.awsS3Service.deleteDir(contentPath, {
                     access: EnumAwsS3Accessibility.private,
                 }),
             ]);
 
-            const mapped = this.termPolicyUtil.mapOne(deleted);
+            const mapped = this.termPolicyUtil.mapOne(termPolicy);
 
             this.requestStoreService.merge<IActivityLogMetadata>(
                 ActivityLogMetadataStoreKey,
-                this.termPolicyUtil.mapActivityLogMetadata(deleted)
+                this.termPolicyUtil.mapActivityLogMetadata(termPolicy)
             );
 
             return {
@@ -353,7 +359,6 @@ export class TermPolicyService implements ITermPolicyService {
             };
             const updated = await this.termPolicyRepository.updateContent(
                 termPolicyId,
-                termPolicy.contents as unknown as TermContentDto[],
                 mappedContent,
                 updatedBy
             );
@@ -383,7 +388,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (existingContent) {
@@ -431,7 +436,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (!existingContent) {
@@ -441,7 +446,6 @@ export class TermPolicyService implements ITermPolicyService {
         try {
             const updated = await this.termPolicyRepository.removeContent(
                 termPolicyId,
-                termPolicy.contents as unknown as TermContentDto[],
                 { language },
                 updatedBy
             );
@@ -468,7 +472,7 @@ export class TermPolicyService implements ITermPolicyService {
         }
 
         const existContent = this.termPolicyUtil.getContentByLanguage(
-            termPolicy.contents as unknown as TermContentDto[],
+            termPolicy.contents,
             language
         );
         if (!existContent) {
@@ -497,16 +501,16 @@ export class TermPolicyService implements ITermPolicyService {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status === EnumTermPolicyStatus.published) {
             throw new TermPolicyStatusInvalidException();
-        } else if (
-            (termPolicy.contents as unknown as TermContentDto[]).length === 0
-        ) {
+        } else if (termPolicy.contents.length === 0) {
             throw new TermPolicyContentEmptyException();
         }
 
         try {
             const contentPublicPath =
                 this.termPolicyUtil.getContentPublicPath(termPolicy);
-            const contents = termPolicy.contents as unknown as TermContentDto[];
+            const contents = this.termPolicyUtil.mapTermContents(
+                termPolicy.contents
+            );
 
             const newItems = await this.awsS3Service.moveItems(
                 contents,

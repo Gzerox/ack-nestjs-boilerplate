@@ -8,7 +8,7 @@ import { Expose, Type } from 'class-transformer';
 export class PasswordHistoryResponseDto extends DatabaseResponseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     userId: string;

@@ -64,7 +64,7 @@ export class CountryRequestDto {
     @IsNotEmpty({ each: true })
     @IsString({ each: true })
     @MaxLength(4, { each: true })
-    phoneCode: string[];
+    phoneCodes: string[];
 
     @ApiProperty({
         required: true,

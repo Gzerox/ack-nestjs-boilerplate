@@ -59,7 +59,7 @@ import {
     EnumRoleType,
     Prisma,
 } from '@generated/prisma-client';
-import { RequestIsValidObjectIdPipe } from '@common/request/pipes/request.is-valid-object-id.pipe';
+import { RequestIsValidUuidPipe } from '@common/request/pipes/request.is-valid-uuid.pipe';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import { ActivityLog } from '@modules/activity-log/decorators/activity-log.decorator';
@@ -136,7 +136,7 @@ export class ApiKeyAdminController {
     @ApiKeyProtected()
     @Patch('/update/:apiKeyId/reset')
     async reset(
-        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         apiKeyId: string
     ): Promise<IResponseReturn<ApiKeyCreateResponseDto>> {
         return this.apiKeyService.resetByAdmin(apiKeyId);
@@ -157,7 +157,7 @@ export class ApiKeyAdminController {
     @Put('/update/:apiKeyId')
     async update(
         @Body() body: ApiKeyUpdateRequestDto,
-        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         apiKeyId: string
     ): Promise<IResponseReturn<ApiKeyResponseDto>> {
         return this.apiKeyService.updateByAdmin(apiKeyId, body);
@@ -178,7 +178,7 @@ export class ApiKeyAdminController {
     @Put('/update/:apiKeyId/date')
     async updateDate(
         @Body() body: ApiKeyUpdateDateRequestDto,
-        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         apiKeyId: string
     ): Promise<IResponseReturn<ApiKeyResponseDto>> {
         return this.apiKeyService.updateDatesByAdmin(apiKeyId, body);
@@ -198,7 +198,7 @@ export class ApiKeyAdminController {
     @ApiKeyProtected()
     @Patch('/update/:apiKeyId/status')
     async updateStatus(
-        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         apiKeyId: string,
         @Body() body: ApiKeyUpdateStatusRequestDto
     ): Promise<IResponseReturn<ApiKeyResponseDto>> {
@@ -219,7 +219,7 @@ export class ApiKeyAdminController {
     @ApiKeyProtected()
     @Delete('/delete/:apiKeyId')
     async delete(
-        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidObjectIdPipe)
+        @Param('apiKeyId', RequestRequiredPipe, RequestIsValidUuidPipe)
         apiKeyId: string
     ): Promise<IResponseReturn<ApiKeyResponseDto>> {
         return this.apiKeyService.deleteByAdmin(apiKeyId);

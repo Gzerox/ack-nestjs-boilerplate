@@ -12,7 +12,6 @@ import {
 } from '@generated/prisma-client';
 import { AwsS3ResponseDto } from '@common/aws/dtos/response/aws.s3.response.dto';
 import { RoleDto } from '@modules/role/dtos/role.dto';
-import { UserTermPolicyDto } from '@modules/user/dtos/user.term-policy.dto';
 import { UserTwoFactorDto } from '@modules/user/dtos/user.two-factor.dto';
 
 export class UserDto extends DatabaseResponseDto {
@@ -56,7 +55,7 @@ export class UserDto extends DatabaseResponseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     roleId: string;
@@ -122,7 +121,7 @@ export class UserDto extends DatabaseResponseDto {
 
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     countryId: string;
@@ -169,11 +168,35 @@ export class UserDto extends DatabaseResponseDto {
 
     @ApiProperty({
         required: true,
-        type: UserTermPolicyDto,
+        description: 'Terms of Service acceptance',
+        example: true,
     })
     @Expose()
-    @Type(() => UserTermPolicyDto)
-    termPolicy: UserTermPolicyDto;
+    termsOfServiceAccepted: boolean;
+
+    @ApiProperty({
+        required: true,
+        description: 'Privacy Policy acceptance',
+        example: true,
+    })
+    @Expose()
+    privacyAccepted: boolean;
+
+    @ApiProperty({
+        required: true,
+        description: 'Cookie Policy acceptance',
+        example: true,
+    })
+    @Expose()
+    cookiesAccepted: boolean;
+
+    @ApiProperty({
+        required: true,
+        description: 'Marketing Policy acceptance',
+        example: false,
+    })
+    @Expose()
+    marketingAccepted: boolean;
 
     @ApiProperty({
         required: false,

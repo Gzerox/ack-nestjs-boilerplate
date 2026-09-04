@@ -9,7 +9,7 @@ import { Expose, Type } from 'class-transformer';
 export class SessionResponseDto extends DatabaseResponseDto {
     @ApiProperty({
         required: true,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     userId: string;
@@ -77,7 +77,7 @@ export class SessionResponseDto extends DatabaseResponseDto {
 
     @ApiProperty({
         required: false,
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
     })
     @Expose()
     revokedById?: string;

@@ -169,12 +169,10 @@ export class MigrationUserSeed
                             signUpWith: EnumUserSignUpWith.credential,
                             signUpFrom: EnumUserSignUpFrom.system,
                             status: EnumUserStatus.active,
-                            termPolicy: {
-                                [EnumTermPolicyType.cookies]: false,
-                                [EnumTermPolicyType.marketing]: false,
-                                [EnumTermPolicyType.privacy]: true,
-                                [EnumTermPolicyType.termsOfService]: true,
-                            },
+                            termsOfServiceAccepted: true,
+                            privacyAccepted: true,
+                            cookiesAccepted: false,
+                            marketingAccepted: false,
                             username: this.userUtil.createRandomUsername(),
                             deletedAt: null,
                             passwordHistories: {

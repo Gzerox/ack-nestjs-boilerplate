@@ -1,6 +1,5 @@
 import { EnumAppEnvironment } from '@app/enums/app.enum';
 import { DatabaseService } from '@common/database/services/database.service';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import { MigrationSeedBase } from '@migration/bases/migration.seed.base';
 import { migrationRoleData } from '@migration/data/migration.role.data';
 import { IMigrationSeed } from '@migration/interfaces/migration.seed.interface';
@@ -28,8 +27,7 @@ export class MigrationRoleSeed
 
     constructor(
         private readonly databaseService: DatabaseService,
-        private readonly configService: ConfigService,
-        private readonly databaseUtil: DatabaseUtil
+        private readonly configService: ConfigService
     ) {
         super();
 
@@ -51,9 +49,16 @@ export class MigrationRoleSeed
                         create: {
                             ...role,
                             name: role.name.toLowerCase(),
-                            abilities: this.databaseUtil.toPlainArray(
-                                role.abilities
-                            ),
+                            abilities: {
+                                createMany: {
+                                    data: role.abilities.flatMap(ability =>
+                                        ability.action.map(action => ({
+                                            subject: ability.subject,
+                                            action,
+                                        }))
+                                    ),
+                                },
+                            },
                         },
                         update: {},
                     })

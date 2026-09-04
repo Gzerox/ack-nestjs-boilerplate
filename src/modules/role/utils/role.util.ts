@@ -3,8 +3,14 @@ import { RoleAbilitiesResponseDto } from '@modules/role/dtos/response/role.abili
 import { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import { RoleDto } from '@modules/role/dtos/role.dto';
 import { Injectable } from '@nestjs/common';
-import { Role } from '@generated/prisma-client';
+import { Role, RoleAbility } from '@generated/prisma-client';
 import { ResponseUtil } from '@common/response/utils/response.util';
+import { IRoleWithAbilities } from '@modules/role/interfaces/role.interface';
+import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+} from '@modules/policy/enums/policy.enum';
+import { RoleAbilityDto } from '@modules/role/dtos/role.ability.dto';
 
 @Injectable()
 export class RoleUtil {

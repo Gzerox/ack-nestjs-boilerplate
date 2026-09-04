@@ -1,24 +1,23 @@
-import { EnumTermPolicyType } from '@generated/prisma-client';
 import { UserListResponseDto } from '@modules/user/dtos/response/user.list.response.dto';
-import { UserTermPolicyDto } from '@modules/user/dtos/user.term-policy.dto';
-import { ApiHideProperty, ApiProperty, OmitType } from '@nestjs/swagger';
-import { Exclude, Expose, Transform } from 'class-transformer';
+import { IUserExport } from '@modules/user/interfaces/user.interface';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
+import { Expose, Transform } from 'class-transformer';
 
 export class UserExportResponseDto extends OmitType(UserListResponseDto, [
     'role',
     'photo',
+    'termsOfServiceAccepted',
+    'privacyAccepted',
+    'cookiesAccepted',
+    'marketingAccepted',
 ]) {
-    @ApiHideProperty()
-    @Exclude()
-    termPolicy: UserTermPolicyDto;
-
     @ApiProperty({
         required: true,
         description: 'User photo URL',
         example: 'https://example.com/photo.jpg',
     })
     @Expose()
-    @Transform(({ obj }) => obj.photo.completedUrl)
+    @Transform(({ obj }: { obj: IUserExport }) => obj.photo?.completedUrl ?? '')
     photo: string;
 
     @ApiProperty({
@@ -27,8 +26,7 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
         example: true,
     })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.termsOfService])
-    termPolicyTermsOfService: boolean;
+    termsOfServiceAccepted: boolean;
 
     @ApiProperty({
         required: true,
@@ -36,8 +34,7 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
         example: true,
     })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.privacy])
-    termPolicyPrivacy: boolean;
+    privacyAccepted: boolean;
 
     @ApiProperty({
         required: true,
@@ -45,8 +42,7 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
         example: true,
     })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.cookies])
-    termPolicyCookies: boolean;
+    cookiesAccepted: boolean;
 
     @ApiProperty({
         required: true,
@@ -54,8 +50,7 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
         example: true,
     })
     @Expose()
-    @Transform(({ obj }) => obj.termPolicy?.[EnumTermPolicyType.marketing])
-    termPolicyMarketing: boolean;
+    marketingAccepted: boolean;
 
     @ApiProperty({
         required: true,
@@ -63,6 +58,6 @@ export class UserExportResponseDto extends OmitType(UserListResponseDto, [
         example: 'admin',
     })
     @Expose()
-    @Transform(({ obj }) => obj.role.name)
+    @Transform(({ obj }: { obj: IUserExport }) => obj.role.name)
     role: string;
 }

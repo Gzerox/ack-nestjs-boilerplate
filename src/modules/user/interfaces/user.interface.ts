@@ -4,24 +4,51 @@ import {
     DeviceOwnership,
     EnumUserLoginFrom,
     EnumUserLoginWith,
+    ForgotPassword,
     Role,
+    RoleAbility,
     TwoFactor,
+    TwoFactorBackupCode,
     User,
     UserMobileNumber,
+    UserPhoto,
 } from '@generated/prisma-client';
 
-export interface IUser extends User {
-    role: Role;
-    twoFactor: TwoFactor | null;
+interface IUserRole extends Role {
+    abilities: RoleAbility[];
+}
+
+interface IUserWithRole extends User {
+    role: IUserRole;
+}
+
+export interface IUser extends IUserWithRole {
+    twoFactor: IUserTwoFactor | null;
+}
+
+export interface IUserWithPhoto extends IUserWithRole {
+    photo: UserPhoto | null;
+}
+
+export type IUserExport = IUserWithPhoto;
+
+export interface IUserTwoFactor extends TwoFactor {
+    backupCodes: TwoFactorBackupCode[];
 }
 
 export interface IUserMobileNumber extends UserMobileNumber {
     country: Country;
 }
 
-export interface IUserProfile extends IUser {
+export interface IUserProfile extends IUserWithRole {
+    twoFactor: TwoFactor | null;
     mobileNumbers: IUserMobileNumber[];
     country: Country;
+    photo: UserPhoto | null;
+}
+
+export interface IUserForgotPasswordWithUser extends ForgotPassword {
+    user: IUser;
 }
 
 export interface IUserLogin {

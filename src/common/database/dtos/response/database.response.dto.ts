@@ -8,7 +8,7 @@ import { Expose } from 'class-transformer';
 export class DatabaseResponseDto {
     @ApiProperty({
         description: 'Database document identifier',
-        example: faker.database.mongodbObjectId(),
+        example: faker.string.uuid(),
         required: true,
     })
     @Expose()

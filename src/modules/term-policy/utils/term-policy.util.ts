@@ -14,9 +14,13 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
     EnumTermPolicyType,
-    Prisma,
     TermPolicy,
+    TermPolicyContent,
 } from '@generated/prisma-client';
+
+type TermPolicyMappable = TermPolicy & {
+    contents: (TermContentDto | TermPolicyContent)[];
+};
 
 @Injectable()
 export class TermPolicyUtil {
@@ -37,11 +41,11 @@ export class TermPolicyUtil {
         )!;
     }
 
-    mapList(termPolicies: TermPolicy[]): TermPolicyResponseDto[] {
+    mapList(termPolicies: TermPolicyMappable[]): TermPolicyResponseDto[] {
         return this.responseUtil.serialize(TermPolicyResponseDto, termPolicies);
     }
 
-    mapOne(termPolicy: TermPolicy): TermPolicyResponseDto {
+    mapOne(termPolicy: TermPolicyMappable): TermPolicyResponseDto {
         return this.responseUtil.serialize(TermPolicyResponseDto, termPolicy);
     }
 
@@ -85,15 +89,6 @@ export class TermPolicyUtil {
         return fullPath;
     }
 
-    checkContentExist(
-        contents: Prisma.JsonArray,
-        language: EnumMessageLanguage
-    ): boolean {
-        return !!(contents as unknown as TermContentDto[]).find(
-            c => c.language === language
-        );
-    }
-
     getContentPublicPath(termPolicy: TermPolicy): string {
         return this.contentPublicPath
             .replace('{type}', termPolicy.type)
@@ -126,9 +121,28 @@ export class TermPolicyUtil {
     }
 
     getContentByLanguage(
-        contents: TermContentDto[],
+        contents: TermPolicyContent[],
         language: EnumMessageLanguage
     ): TermContentDto | null {
-        return contents.find(c => c.language === language) ?? null;
+        const content = contents.find(c => c.language === language);
+        return content ? this.mapTermContent(content) : null;
+    }
+
+    mapTermContents(contents: TermPolicyContent[]): TermContentDto[] {
+        return contents.map(content => this.mapTermContent(content));
+    }
+
+    private mapTermContent(content: TermPolicyContent): TermContentDto {
+        return {
+            language: content.language as TermContentDto['language'],
+            bucket: content.bucket,
+            key: content.key,
+            cdnUrl: content.cdnUrl,
+            completedUrl: content.completedUrl,
+            mime: content.mime,
+            extension: content.extension,
+            access: content.access as TermContentDto['access'],
+            size: content.size,
+        };
     }
 }

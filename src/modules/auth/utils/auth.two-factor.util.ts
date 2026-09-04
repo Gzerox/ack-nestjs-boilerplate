@@ -1,6 +1,5 @@
 import { CacheMainProvider } from '@common/cache/constants/cache.constant';
 import { HelperService } from '@common/helper/services/helper.service';
-import { TwoFactor } from '@generated/prisma-client';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
 import {
     IAuthTwoFactorBackupCodes,
@@ -11,7 +10,10 @@ import {
     IAuthTwoFactorVerify,
     IAuthTwoFactorVerifyResult,
 } from '@modules/auth/interfaces/auth.interface';
-import { IUser } from '@modules/user/interfaces/user.interface';
+import {
+    IUser,
+    IUserTwoFactor,
+} from '@modules/user/interfaces/user.interface';
 import { Cache } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -200,7 +202,7 @@ export class AuthTwoFactorUtil {
 
     /** Validates the TOTP code format (digits only, configured length). */
     validateCode(code: string): boolean {
-        const rgx = new RegExp(`^\d{${this.digits}}$`);
+        const rgx = new RegExp(`^\\d{${this.digits}}$`);
         return rgx.test(code);
     }
 
@@ -212,7 +214,7 @@ export class AuthTwoFactorUtil {
 
     /** Verifies a TOTP or backup code; a consumed backup code is returned removed in newBackupCodes. */
     async verifyTwoFactor(
-        twoFactor: TwoFactor,
+        twoFactor: IUserTwoFactor,
         { method, code, backupCode }: IAuthTwoFactorVerify
     ): Promise<IAuthTwoFactorVerifyResult> {
         const normalizedCode =
@@ -226,7 +228,7 @@ export class AuthTwoFactorUtil {
             };
         } else if (
             method === EnumAuthTwoFactorMethod.backupCodes &&
-            twoFactor.backupCodes.length === 0
+            this.getUnusedBackupCodeHashes(twoFactor).length === 0
         ) {
             return {
                 isValid: false,
@@ -250,10 +252,8 @@ export class AuthTwoFactorUtil {
             };
         }
 
-        const backupValidation = this.verifyBackupCode(
-            twoFactor.backupCodes,
-            normalizedCode
-        );
+        const backupCodes = this.getUnusedBackupCodeHashes(twoFactor);
+        const backupValidation = this.verifyBackupCode(backupCodes, normalizedCode);
         if (!backupValidation.isValid) {
             return {
                 isValid: false,
@@ -261,7 +261,7 @@ export class AuthTwoFactorUtil {
             };
         }
 
-        const updatedTwoFactorBackupCodes = [...twoFactor.backupCodes];
+        const updatedTwoFactorBackupCodes = [...backupCodes];
         updatedTwoFactorBackupCodes.splice(backupValidation.index, 1);
 
         return {
@@ -309,5 +309,13 @@ export class AuthTwoFactorUtil {
         const retryAfterMs = await this.cacheManager.ttl(key);
 
         return isLocked ? (retryAfterMs ?? 0) : 0;
+    }
+
+    private getUnusedBackupCodeHashes(
+        twoFactor: IUserTwoFactor
+    ): string[] {
+        return twoFactor.backupCodes
+            .filter(backupCode => !backupCode.usedAt)
+            .map(backupCode => backupCode.codeHash);
     }
 }

@@ -542,7 +542,10 @@ export class UserService implements IUserService {
         }
 
         const [checkValidMobileNumber, checkExist] = await Promise.all([
-            this.userUtil.checkMobileNumber(checkCountry.phoneCode, phoneCode),
+            this.userUtil.checkMobileNumber(
+                checkCountry.phoneCodes,
+                phoneCode
+            ),
             this.userRepository.existMobileNumber(userId, {
                 number,
                 countryId: checkCountry.id,
@@ -604,7 +607,7 @@ export class UserService implements IUserService {
         }
 
         const checkValidMobileNumber = this.userUtil.checkMobileNumber(
-            checkCountry.phoneCode,
+            checkCountry.phoneCodes,
             phoneCode
         );
         if (!checkValidMobileNumber) {
@@ -1493,7 +1496,9 @@ export class UserService implements IUserService {
                         challengeToken,
                         challengeExpiresInMs: expiresInMs,
                         backupCodesRemaining:
-                            user.twoFactor?.backupCodes.length ?? 0,
+                            user.twoFactor?.backupCodes.filter(
+                                backupCode => !backupCode.usedAt
+                            ).length ?? 0,
                         otpauthUrl,
                         secret,
                     },
@@ -1509,7 +1514,9 @@ export class UserService implements IUserService {
                     challengeToken,
                     challengeExpiresInMs: expiresInMs,
                     backupCodesRemaining:
-                        user.twoFactor?.backupCodes.length ?? 0,
+                        user.twoFactor?.backupCodes.filter(
+                            backupCode => !backupCode.usedAt
+                        ).length ?? 0,
                 },
             },
         };

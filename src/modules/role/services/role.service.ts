@@ -96,7 +96,7 @@ export class RoleService implements IRoleService {
             throw new RoleNotFoundException();
         }
 
-        return { data: this.roleUtil.mapAbilities(role) };
+        return { data: this.roleUtil.mapListAbilities(role) };
     }
 
     async createByAdmin({

@@ -64,7 +64,7 @@ flowchart TD
     R -->|Yes| N
     N --> S{User exists in request?}
     S -->|No| T[Allow access]
-    S -->|Yes| S1{userId in targetUserIds?}
+    S -->|Yes| S1{userId in targetUsers relation?}
     S1 -->|Yes| T
     S1 -->|No| U[Hash 'key:userId' with MD5]
     U --> V[Calculate percentage from hash]
@@ -158,27 +158,32 @@ Metadata provides granular control within a single feature flag:
 
 When using nested keys, metadata value **must** be boolean.
 
-Metadata is per-feature config (small on/off and typed values). For per-user targeting use `targetUserIds` (see [Targeting](#targeting)), not metadata.
+Metadata is per-feature config (small on/off and typed values). Per-user targeting uses the `FeatureFlag.targetUsers` relation (see [Targeting](#targeting)), not metadata.
 
 ## Targeting
 
-`targetUserIds` is an allow-list of user ids that always receive the feature, bypassing the rollout percentage.
+`FeatureFlag.targetUsers` is an allow-list stored as `FeatureFlagUser` rows. A targeted user always receives the feature, bypassing the rollout percentage.
 
 ```typescript
 {
   key: 'newFeature',
-  targetUserIds: ['userIdA', 'userIdB'],
+  targetUsers: [{ userId: 'userIdA' }, { userId: 'userIdB' }],
   rolloutPercent: 30
 }
 ```
 
 **How it works:**
 1. Only evaluated when the request has an authenticated user.
-2. If `userId` is in `targetUserIds`, access is granted and rollout is skipped.
+2. The relation rows are converted to user IDs during evaluation. If `userId` matches one, access is granted and rollout is skipped.
 3. Otherwise the user falls back to rollout percentage.
 4. Anonymous requests (no user) skip targeting and rollout, and are allowed.
 
-`targetUserIds` is admin-editable via the status update endpoint and defaults to empty.
+The `targetUsers` relation is managed through dedicated target-user endpoints and defaults to empty. Status updates only change `isEnable` and `rolloutPercent`.
+
+**Admin target-user endpoints:**
+- `PUT /feature-flag/:featureFlagId/user` adds a user to the allow-list. Adding an existing user is idempotent. The body is `{ "userId": "<uuid>" }`.
+- `DELETE /feature-flag/:featureFlagId/user/:userId` removes a user from the allow-list. Removing a missing user is idempotent.
+- Both endpoints invalidate the feature-flag cache.
 
 ## Rollout Percentage
 
@@ -197,7 +202,7 @@ Controls gradual feature deployment using deterministic hashing:
 4. Same user always gets the same result per flag (deterministic)
 5. Salting by flag key keeps each flag independent (a user in flag A's 30% is not automatically in flag B's 30%)
 
-Runs only when the request has a user who is not in `targetUserIds`.
+Runs only when the request has a user who is not represented in `targetUsers`.
 
 **Use cases:**
 - A/B testing
@@ -227,7 +232,8 @@ See [Cache Documentation][ref-doc-cache] for cache system details.
 - Feature flags cannot be added via admin API
 - Feature flags cannot be deleted
 - Metadata keys cannot be modified (add/remove)
-- Only values can be updated: `isEnable`, `rolloutPercent`, `targetUserIds`, metadata values
+- Only values can be updated: `isEnable`, `rolloutPercent`, metadata values
+- Target users can be added or removed through dedicated target-user endpoints
 
 
 ## Contribution

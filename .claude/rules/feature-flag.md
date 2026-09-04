@@ -15,13 +15,14 @@ Detail in `docs/feature-flag.md`. Guard order is governed by `rules/http.md` (sl
 - **An array value cannot change element type on update.** `checkMetadataKey` treats `string[]` and `number[]` as distinct types, and an empty array counts as an empty value (rejected), same as `''`.
 - **Keys are frozen; only values change.** The admin API updates values, never adds or removes a metadata key — schema consistency is the contract.
 - **A nested-key gate requires a boolean value.** `@FeatureFlagProtected('key.meta')` where `meta` is not boolean throws `predefinedKeyTypeInvalid`.
-- Per-feature config lives in metadata; per-user rollout lives in `targetUserIds` and `rolloutPercent`, never in metadata.
+- Per-feature config lives in metadata; per-user targeting lives in the `FeatureFlagUser` relation and percentage rollout lives in `rolloutPercent`, never in metadata.
+- Status updates only change `isEnable` and `rolloutPercent`; target users are added or removed through dedicated target-user operations.
 
 ## Gating
 
 - A route is gated by `@FeatureFlagProtected('<key>')` — slot #9 in the decorator stack (`rules/http.md`), never a bare `@UseGuards`.
 - **`@FeatureFlagProtected()` is NOT authentication.** It gates on flag state only; apply the auth guards separately when the route needs a user.
-- Rollout is salted per flag key and evaluated only for an authenticated user not in `targetUserIds`. Read `docs/feature-flag.md` before adding or changing a flag.
+- Rollout is salted per flag key and evaluated only for an authenticated user without a matching `FeatureFlagUser` relation. Read `docs/feature-flag.md` before adding or changing a flag.
 
 ## Restrictions
 

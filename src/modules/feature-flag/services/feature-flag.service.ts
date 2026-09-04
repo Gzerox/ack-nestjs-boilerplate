@@ -8,6 +8,7 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
+import { FeatureFlagTargetUserRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.target-user.request';
 import { FeatureFlagUpdateMetadataRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.update-metadata.request';
 import { FeatureFlagUpdateStatusRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.update-status.request';
 import { FeatureFlagResponseDto } from '@modules/feature-flag/dtos/response/feature-flag.response';
@@ -61,7 +62,8 @@ export class FeatureFlagService implements IFeatureFlagService {
         }
 
         const { user } = request;
-        if (user && !featureFlag.targetUserIds.includes(user.userId)) {
+        const targetUserIds = featureFlag.targetUsers.map(({ userId }) => userId);
+        if (user && !targetUserIds.includes(user.userId)) {
             const checkRollout = this.featureFlagUtil.checkRolloutPercentage(
                 featureFlag.rolloutPercent,
                 keys[0],
@@ -157,6 +159,50 @@ export class FeatureFlagService implements IFeatureFlagService {
 
         const mapped: FeatureFlagResponseDto =
             this.featureFlagUtil.mapOne(updated);
+
+        return {
+            data: mapped,
+        };
+    }
+
+    async addTargetUserByAdmin(
+        id: string,
+        { userId }: FeatureFlagTargetUserRequestDto
+    ): Promise<IResponseReturn<FeatureFlagResponseDto>> {
+        const featureFlag = await this.featureFlagRepository.findOneById(id);
+        if (!featureFlag) {
+            throw new FeatureFlagNotFoundException();
+        }
+
+        await Promise.all([
+            this.featureFlagRepository.addTargetUser(id, userId),
+            this.featureFlagUtil.deleteCacheByKey(featureFlag.key),
+        ]);
+
+        const mapped: FeatureFlagResponseDto =
+            this.featureFlagUtil.mapOne(featureFlag);
+
+        return {
+            data: mapped,
+        };
+    }
+
+    async removeTargetUserByAdmin(
+        id: string,
+        userId: string
+    ): Promise<IResponseReturn<FeatureFlagResponseDto>> {
+        const featureFlag = await this.featureFlagRepository.findOneById(id);
+        if (!featureFlag) {
+            throw new FeatureFlagNotFoundException();
+        }
+
+        await Promise.all([
+            this.featureFlagRepository.removeTargetUser(id, userId),
+            this.featureFlagUtil.deleteCacheByKey(featureFlag.key),
+        ]);
+
+        const mapped: FeatureFlagResponseDto =
+            this.featureFlagUtil.mapOne(featureFlag);
 
         return {
             data: mapped,

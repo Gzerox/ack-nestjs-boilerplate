@@ -8,6 +8,7 @@ import {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client';
+import { FeatureFlagTargetUserRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.target-user.request';
 import { FeatureFlagUpdateMetadataRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.update-metadata.request';
 import { FeatureFlagUpdateStatusRequestDto } from '@modules/feature-flag/dtos/request/feature-flag.update-status.request';
 import { FeatureFlagResponseDto } from '@modules/feature-flag/dtos/response/feature-flag.response';
@@ -33,5 +34,13 @@ export interface IFeatureFlagService {
     updateMetadataByAdmin(
         id: string,
         data: FeatureFlagUpdateMetadataRequestDto
+    ): Promise<IResponseReturn<FeatureFlagResponseDto>>;
+    addTargetUserByAdmin(
+        id: string,
+        data: FeatureFlagTargetUserRequestDto
+    ): Promise<IResponseReturn<FeatureFlagResponseDto>>;
+    removeTargetUserByAdmin(
+        id: string,
+        userId: string
     ): Promise<IResponseReturn<FeatureFlagResponseDto>>;
 }

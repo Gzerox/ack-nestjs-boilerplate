@@ -1,9 +1,9 @@
 import {
     PaginationOffsetQuery,
-    PaginationQueryFilterEqualBoolean,
+    PaginationQueryFilterExists,
 } from '@common/pagination/decorators/pagination.decorator';
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import { RequestThrottle } from '@common/request/decorators/request.throttler.decorator';
@@ -79,13 +79,13 @@ export class SessionAdminController {
         pagination: IPaginationQueryOffsetParams<Prisma.SessionWhereInput>,
         @Param('userId', RequestRequiredPipe, RequestIsValidUuidPipe)
         userId: string,
-        @PaginationQueryFilterEqualBoolean('isRevoked')
-        isRevoked?: Record<string, IPaginationEqual>
+        @PaginationQueryFilterExists('isRevoked', { customField: 'revokedAt' })
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<ISession>> {
         return this.sessionHttpService.getListOffsetByAdmin(
             userId,
             pagination,
-            isRevoked
+            revokedAt
         );
     }
 

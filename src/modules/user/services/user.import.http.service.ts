@@ -53,7 +53,6 @@ export class UserImportHttpService implements IUserImportHttpService {
             deletedBy: user.deletedBy,
             name: user.name,
             username: user.username as Lowercase<string>,
-            isVerified: user.isVerified,
             verifiedAt: user.verifiedAt,
             email: user.email as Lowercase<string>,
             roleId: user.roleId,

@@ -45,7 +45,6 @@ export class NotificationRepository {
             body,
             userId,
             metadata,
-            isRead: false,
             priority,
             createdBy,
             deliveries: {
@@ -85,13 +84,13 @@ export class NotificationRepository {
     async existById(
         userId: string,
         notificationId: string
-    ): Promise<{ id: string; isRead: boolean } | null> {
+    ): Promise<{ id: string; readAt: Date | null } | null> {
         return this.databaseService.client.notification.findFirst({
             where: {
                 id: notificationId,
                 userId,
             },
-            select: { id: true, isRead: true },
+            select: { id: true, readAt: true },
         });
     }
 
@@ -128,10 +127,9 @@ export class NotificationRepository {
             where: {
                 id: notificationId,
                 userId,
-                isRead: false,
+                readAt: null,
             },
             data: {
-                isRead: true,
                 readAt: this.helperDateService.create(),
             },
         });
@@ -141,10 +139,9 @@ export class NotificationRepository {
         return this.databaseService.client.notification.updateMany({
             where: {
                 userId,
-                isRead: false,
+                readAt: null,
             },
             data: {
-                isRead: true,
                 readAt: this.helperDateService.create(),
             },
         });

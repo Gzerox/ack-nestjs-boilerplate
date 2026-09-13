@@ -10,6 +10,7 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
     IPaginationDate,
     IPaginationEqual,
+    IPaginationExists,
     IPaginationIn,
     IPaginationNin,
     IPaginationNotEqual,
@@ -17,12 +18,25 @@ import {
     IPaginationQueryFilterDateOptions,
     IPaginationQueryFilterEnumOptions,
     IPaginationQueryFilterEqualOptions,
+    IPaginationQueryFilterExistsOptions,
 } from '@common/pagination/interfaces/pagination.interface';
 import { EnumPaginationFilterDateBetweenType } from '@common/pagination/enums/pagination.enum';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationFilterInvalidValueEnumException } from '@common/pagination/exceptions/pagination.filter-invalid-value-enum.exception';
 import { PaginationFilterInvalidValueException } from '@common/pagination/exceptions/pagination.filter-invalid-value.exception';
+
+/**
+ * Parses a 'true'/'false' query value, throwing the shared invalid-value exception otherwise.
+ */
+function parseBooleanFilterValue(value: string, field: string): boolean {
+    const booleanString = value.trim();
+    if (booleanString !== 'true' && booleanString !== 'false') {
+        throw new PaginationFilterInvalidValueException(field);
+    }
+
+    return booleanString === 'true';
+}
 
 /**
  * Pipe validating a comma-separated value against an enum and emitting an `in` filter.
@@ -194,14 +208,10 @@ export function PaginationQueryFilterEqualPipe<T>(
 
             let finalValue: T;
             if (options && 'isBoolean' in options && options.isBoolean) {
-                const booleanString = value.trim();
-                if (booleanString !== 'true' && booleanString !== 'false') {
-                    throw new PaginationFilterInvalidValueException(
-                        metadata.data!
-                    );
-                }
-
-                finalValue = (booleanString === 'true') as T;
+                finalValue = parseBooleanFilterValue(
+                    value,
+                    metadata.data!
+                ) as T;
             } else if (options && 'isNumber' in options && options.isNumber) {
                 finalValue = Number.parseFloat(value.trim()) as T;
 
@@ -266,14 +276,10 @@ export function PaginationQueryFilterNotEqualPipe<T>(
 
             let finalValue: T;
             if (options && 'isBoolean' in options && options.isBoolean) {
-                const booleanString = value.trim();
-                if (booleanString !== 'true' && booleanString !== 'false') {
-                    throw new PaginationFilterInvalidValueException(
-                        metadata.data!
-                    );
-                }
-
-                finalValue = (booleanString === 'true') as T;
+                finalValue = parseBooleanFilterValue(
+                    value,
+                    metadata.data!
+                ) as T;
             } else if (options && 'isNumber' in options && options.isNumber) {
                 finalValue = Number.parseFloat(value.trim()) as T;
 
@@ -314,6 +320,53 @@ export function PaginationQueryFilterNotEqualPipe<T>(
     }
 
     return mixin(MixinPaginationFilterNotEqualPipe);
+}
+
+/**
+ * Pipe coercing a boolean value and emitting an `equals: null` / `not: null` existence filter.
+ */
+export function PaginationQueryFilterExistsPipe(
+    options?: IPaginationQueryFilterExistsOptions
+): Type<PipeTransform> {
+    @Injectable()
+    class MixinPaginationFilterExistsPipe implements PipeTransform {
+        constructor(
+            private readonly requestStoreService: RequestStoreService
+        ) {}
+
+        async transform(
+            value: string,
+            metadata: ArgumentMetadata
+        ): Promise<Record<string, IPaginationExists> | undefined> {
+            if (!value || value.trim() === '') {
+                return;
+            }
+
+            const field = metadata.data!;
+            const finalValue = parseBooleanFilterValue(value, field);
+
+            const filters =
+                this.requestStoreService.get<Partial<IPaginationQuery>>(
+                    PaginationStoreKey
+                )?.filters;
+            this.requestStoreService.merge<IPaginationQuery>(
+                PaginationStoreKey,
+                {
+                    filters: filters
+                        ? { ...filters, [field]: finalValue }
+                        : { [field]: finalValue },
+                }
+            );
+
+            const customField = options?.customField ?? field;
+
+            return {
+                [customField]: finalValue ? { not: null } : { equals: null },
+            };
+        }
+    }
+
+    return mixin(MixinPaginationFilterExistsPipe);
 }
 
 /**

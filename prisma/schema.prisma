@@ -110,7 +110,6 @@ model UserMobileNumber {
   countryId  String    @db.Uuid
   phoneCode  String
   number     String
-  isVerified Boolean   @default(false)
   verifiedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -123,7 +122,7 @@ model UserMobileNumber {
   verifications Verification[] @relation("UserMobileNumberVerification")
 
   @@unique(fields: [userId, countryId, phoneCode, number])
-  @@index(fields: [userId, isVerified])
+  @@index(fields: [userId, verifiedAt])
   @@map("user_mobile_numbers")
 }
 
@@ -131,7 +130,6 @@ model User {
   id                     String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name                   String?
   username               String
-  isVerified             Boolean            @default(false)
   verifiedAt             DateTime?
   email                  String
   roleId                 String             @db.Uuid
@@ -219,8 +217,7 @@ model Verification {
   type           EnumVerificationType
   token          String
   expiredAt      DateTime
-  verifiedAt     DateTime?
-  isUsed         Boolean              @default(false)
+  usedAt         DateTime?
   reference      String
 
   createdAt DateTime @default(now())
@@ -230,8 +227,8 @@ model Verification {
   mobileNumber UserMobileNumber? @relation("UserMobileNumberVerification", fields: [mobileNumberId], references: [id])
 
   @@unique(fields: [reference])
-  @@index(fields: [token, expiredAt, isUsed, type])
-  @@index(fields: [userId, type, isUsed])
+  @@index(fields: [token, expiredAt, usedAt, type])
+  @@index(fields: [userId, type, usedAt])
   @@map("verifications")
 }
 
@@ -286,7 +283,6 @@ model Session {
   geoLocation       Json?
   expiredAt         DateTime
   revokedAt         DateTime?
-  isRevoked         Boolean   @default(false)
   revokedById       String?   @db.Uuid
 
   revokedBy       User?           @relation("SessionRevokedByUser", fields: [revokedById], references: [id])
@@ -299,10 +295,10 @@ model Session {
   updatedBy String?  @db.Uuid
 
   @@unique(fields: [userId, jti])
-  @@index(fields: [userId, expiredAt(sort: Desc), isRevoked])
-  @@index(fields: [userId, isRevoked, createdAt(sort: Desc), id(sort: Desc)])
-  @@index(fields: [isRevoked, expiredAt(sort: Asc)])
-  @@index(fields: [userId, deviceOwnershipId, isRevoked])
+  @@index(fields: [userId, revokedAt, expiredAt(sort: Desc)])
+  @@index(fields: [userId, revokedAt, createdAt(sort: Desc), id(sort: Desc)])
+  @@index(fields: [revokedAt, expiredAt(sort: Asc)])
+  @@index(fields: [userId, deviceOwnershipId, revokedAt])
   @@index(fields: [deviceOwnershipId])
   @@map("sessions")
 }
@@ -332,7 +328,6 @@ model DeviceOwnership {
   deviceId     String    @db.Uuid
   userId       String    @db.Uuid
   revokedAt    DateTime?
-  isRevoked    Boolean   @default(false)
   revokedById  String?   @db.Uuid
   lastActiveAt DateTime  @default(now())
 
@@ -352,7 +347,7 @@ model DeviceOwnership {
   sessions  Session[] @relation("DeviceOwnershipSessions")
 
   @@index(fields: [deviceId, revokedAt])
-  @@index(fields: [userId, isRevoked, createdAt(sort: Desc), id(sort: Desc)])
+  @@index(fields: [userId, revokedAt, createdAt(sort: Desc), id(sort: Desc)])
   @@index(fields: [userId, revokedAt])
   @@index(fields: [deviceId, userId, revokedAt])
   @@map("device_ownerships")
@@ -491,8 +486,7 @@ model ForgotPassword {
   to        String
   token     String
   expiredAt DateTime
-  resetAt   DateTime?
-  isUsed    Boolean   @default(false)
+  usedAt    DateTime?
   reference String
 
   createdAt DateTime @default(now())
@@ -501,7 +495,7 @@ model ForgotPassword {
   user User @relation("UserForgotPassword", fields: [userId], references: [id])
 
   @@unique(fields: [reference])
-  @@index(fields: [token, expiredAt, isUsed])
+  @@index(fields: [token, expiredAt, usedAt])
   @@map("forgot_passwords")
 }
 
@@ -513,7 +507,6 @@ model Notification {
   title    String
   body     String
   metadata Json?
-  isRead   Boolean                  @default(false)
   readAt   DateTime?
 
   user       User                   @relation("UserNotifications", fields: [userId], references: [id])
@@ -525,9 +518,9 @@ model Notification {
   updatedBy String?  @db.Uuid
 
   @@index(fields: [userId, createdAt(sort: Desc), id(sort: Desc)])
-  @@index(fields: [userId, isRead, createdAt(sort: Desc)])
+  @@index(fields: [userId, readAt, createdAt(sort: Desc)])
   @@index(fields: [userId, type, createdAt(sort: Desc)])
-  @@index(fields: [userId, priority, isRead, createdAt(sort: Desc)])
+  @@index(fields: [userId, priority, readAt, createdAt(sort: Desc)])
   @@map("notifications")
 }
 

@@ -95,10 +95,6 @@ export const SessionResponseSchema = DatabaseResponseSchema.omit({
         description: 'When the session was revoked',
         example: faker.date.future(),
     }),
-    isRevoked: z.boolean().meta({
-        description: 'Whether the session has been revoked',
-        example: false,
-    }),
     revokedById: z.string().nullable().meta({
         description: 'Identifier of the user who revoked the session',
         example: faker.string.uuid(),

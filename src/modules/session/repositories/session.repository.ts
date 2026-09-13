@@ -2,7 +2,7 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -35,7 +35,7 @@ export class SessionRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.SessionWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<ISession>> {
         return this.paginationService.offset<
             ISession,
@@ -44,7 +44,7 @@ export class SessionRepository {
             ...others,
             where: {
                 ...where,
-                ...isRevoked,
+                ...revokedAt,
                 userId,
             },
             include: {
@@ -73,7 +73,7 @@ export class SessionRepository {
             where: {
                 ...where,
                 userId,
-                isRevoked: false,
+                revokedAt: null,
             },
             include: {
                 user: {
@@ -94,7 +94,7 @@ export class SessionRepository {
         return this.databaseService.client.session.findMany({
             where: {
                 userId,
-                isRevoked: false,
+                revokedAt: null,
                 expiredAt: {
                     gte: this.helperDateService.create(),
                 },
@@ -116,7 +116,7 @@ export class SessionRepository {
         return this.databaseService.client.session.findMany({
             where: {
                 userId,
-                isRevoked: false,
+                revokedAt: null,
                 expiredAt: {
                     gte: this.helperDateService.create(),
                 },
@@ -141,7 +141,7 @@ export class SessionRepository {
                 expiredAt: {
                     gte: today,
                 },
-                isRevoked: false,
+                revokedAt: null,
             },
         });
     }
@@ -157,7 +157,6 @@ export class SessionRepository {
                 userId,
             },
             data: {
-                isRevoked: true,
                 revokedAt: this.helperDateService.create(),
                 revokedBy: {
                     connect: {
@@ -202,7 +201,6 @@ export class SessionRepository {
                 id: sessionId,
             },
             data: {
-                isRevoked: true,
                 revokedAt: this.helperDateService.create(),
                 revokedBy: {
                     connect: {

@@ -25,7 +25,7 @@ export class UserMobileNumberRepository {
         id: string;
         number: string;
         phoneCode: string;
-        isVerified: boolean;
+        verifiedAt: Date | null;
     } | null> {
         return this.databaseService.client.userMobileNumber.findFirst({
             where: {
@@ -38,7 +38,7 @@ export class UserMobileNumberRepository {
                 id: true,
                 number: true,
                 phoneCode: true,
-                isVerified: true,
+                verifiedAt: true,
             },
         });
     }
@@ -123,7 +123,7 @@ export class UserMobileNumberRepository {
             id: string;
             number: string;
             phoneCode: string;
-            isVerified: boolean;
+            verifiedAt: Date | null;
         },
         { number, countryId, phoneCode }: UserAddMobileNumberRequestDto,
         { ipAddress, userAgent, geoLocation }: IRequestLog
@@ -139,11 +139,11 @@ export class UserMobileNumberRepository {
                             number,
                             phoneCode,
                             updatedBy: userId,
-                            isVerified:
+                            verifiedAt:
                                 mobileNumber.number === number &&
                                 mobileNumber.phoneCode === phoneCode
-                                    ? mobileNumber.isVerified
-                                    : false,
+                                    ? mobileNumber.verifiedAt
+                                    : null,
                         },
                     },
                 },

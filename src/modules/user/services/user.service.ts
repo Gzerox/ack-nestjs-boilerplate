@@ -100,8 +100,7 @@ export class UserService implements IUserService {
             to: email,
             expiredAt:
                 this.userVerificationService.verificationSetExpiredDate(),
-            verifiedAt: this.helperDateService.create(),
-            isUsed: true,
+            usedAt: this.helperDateService.create(),
         };
     }
 
@@ -128,7 +127,7 @@ export class UserService implements IUserService {
             throw new UserPasswordExpiredException();
         }
 
-        if (requiredVerified === true && user.isVerified !== true) {
+        if (requiredVerified === true && !user.verifiedAt) {
             throw new UserEmailNotVerifiedException();
         }
 
@@ -217,7 +216,10 @@ export class UserService implements IUserService {
                 this.userOnboardingService.buildPersonalWorkspaceContexts([
                     username,
                 ]);
-            const isVerified = checkRole.type !== EnumRoleType.user;
+            const verifiedAt =
+                checkRole.type !== EnumRoleType.user
+                    ? this.helperDateService.create()
+                    : null;
             let created: IUser;
             try {
                 created =
@@ -230,7 +232,7 @@ export class UserService implements IUserService {
                         roleId: checkRole.id,
                         signUpFrom: EnumUserSignUpFrom.admin,
                         signUpWith: EnumUserSignUpWith.credential,
-                        isVerified,
+                        verifiedAt,
                         termPolicy: {
                             [EnumTermPolicyType.cookies]: false,
                             [EnumTermPolicyType.marketing]: false,
@@ -245,7 +247,7 @@ export class UserService implements IUserService {
                         passwordHistoryType:
                             UserCreateModeRules[EnumUserCreateMode.admin]
                                 .passwordHistoryType,
-                        verification: isVerified
+                        verification: verifiedAt
                             ? this.buildVerifiedVerificationRow(email)
                             : null,
                         activityLogs:

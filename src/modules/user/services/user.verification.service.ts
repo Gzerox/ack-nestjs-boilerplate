@@ -189,7 +189,7 @@ export class UserVerificationService implements IUserVerificationService {
         const user = await this.userRepository.findOneActiveByEmail(email);
         if (!user) {
             throw new UserNotFoundException();
-        } else if (user.isVerified) {
+        } else if (user.verifiedAt) {
             throw new UserEmailAlreadyVerifiedException();
         }
 

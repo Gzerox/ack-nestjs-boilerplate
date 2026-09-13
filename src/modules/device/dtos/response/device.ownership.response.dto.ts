@@ -42,10 +42,6 @@ export const DeviceOwnershipResponseSchema = DatabaseResponseSchema.omit({
         description: 'Date the device ownership was revoked',
         example: faker.date.recent(),
     }),
-    isRevoked: z.boolean().meta({
-        description: 'Indicates if the device ownership is revoked',
-        example: true,
-    }),
     revokedById: z.string().nullable().meta({
         description: 'User ID who revoked the device ownership',
         example: faker.string.uuid(),

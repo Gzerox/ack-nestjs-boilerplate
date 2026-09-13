@@ -160,8 +160,7 @@ export interface IUserOnboardingVerificationRow {
     type: EnumVerificationType;
     to: string;
     expiredAt: Date;
-    verifiedAt: Date | null;
-    isUsed: boolean;
+    usedAt: Date | null;
 }
 
 export interface IUserCreateModeRule {
@@ -179,7 +178,7 @@ export interface IUserCreateWithWorkspaceInput {
     roleId: string;
     signUpFrom: EnumUserSignUpFrom;
     signUpWith: EnumUserSignUpWith;
-    isVerified: boolean;
+    verifiedAt: Date | null;
     termPolicy: Record<EnumTermPolicyType, boolean>;
     acceptedTermPolicyTypes: EnumTermPolicyType[];
     password: IAuthPassword | null;

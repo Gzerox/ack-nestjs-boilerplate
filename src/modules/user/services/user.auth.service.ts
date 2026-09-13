@@ -235,7 +235,7 @@ export class UserAuthService implements IUserAuthService {
                             loginWith === EnumUserLoginWith.socialApple
                                 ? EnumUserSignUpWith.socialApple
                                 : EnumUserSignUpWith.socialGoogle,
-                        isVerified: true,
+                        verifiedAt: this.helperDateService.create(),
                         termPolicy: {
                             [EnumTermPolicyType.cookies]: cookies,
                             [EnumTermPolicyType.marketing]: marketing,
@@ -284,12 +284,12 @@ export class UserAuthService implements IUserAuthService {
             throw new UserInactiveForbiddenException();
         }
 
-        if (!user!.isVerified) {
+        if (!user!.verifiedAt) {
             const updatedUser = await this.userVerificationRepository.verify(
                 user!.id,
                 requestLog
             );
-            user!.isVerified = updatedUser.isVerified;
+            user!.verifiedAt = updatedUser.verifiedAt;
         }
 
         return this.userLoginService.handleLogin(
@@ -376,7 +376,7 @@ export class UserAuthService implements IUserAuthService {
                         roleId: role.id,
                         signUpFrom: from,
                         signUpWith: EnumUserSignUpWith.credential,
-                        isVerified: false,
+                        verifiedAt: null,
                         termPolicy: {
                             [EnumTermPolicyType.cookies]: cookies,
                             [EnumTermPolicyType.marketing]: marketing,
@@ -401,8 +401,7 @@ export class UserAuthService implements IUserAuthService {
                             type: EnumVerificationType.email,
                             to: email,
                             expiredAt: emailVerification.expiredAt,
-                            verifiedAt: null,
-                            isUsed: false,
+                            usedAt: null,
                         },
                         activityLogs:
                             this.userOnboardingService.buildOnboardingActivityLogs(

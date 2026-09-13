@@ -140,7 +140,10 @@ export class UserImportService implements IUserImportService {
                 this.userOnboardingService.buildPersonalWorkspaceContexts(
                     usernames
                 );
-            const isVerified = checkRole.type !== EnumRoleType.user;
+            const verifiedAt =
+                checkRole.type !== EnumRoleType.user
+                    ? this.helperDateService.create()
+                    : null;
             const inputs: IUserCreateWithWorkspaceInput[] = data.map(
                 ({ email, name }, index) => ({
                     userId: userIds[index],
@@ -151,7 +154,7 @@ export class UserImportService implements IUserImportService {
                     roleId: checkRole.id,
                     signUpFrom: EnumUserSignUpFrom.admin,
                     signUpWith: EnumUserSignUpWith.credential,
-                    isVerified,
+                    verifiedAt,
                     termPolicy: {
                         [EnumTermPolicyType.cookies]: false,
                         [EnumTermPolicyType.marketing]: false,

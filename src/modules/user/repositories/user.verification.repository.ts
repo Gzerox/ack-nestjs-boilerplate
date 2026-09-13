@@ -31,7 +31,7 @@ export class UserVerificationRepository {
         return this.databaseService.client.verification.findFirst({
             where: {
                 token,
-                isUsed: false,
+                usedAt: null,
                 type: EnumVerificationType.email,
                 expiredAt: {
                     gt: today,
@@ -69,7 +69,7 @@ export class UserVerificationRepository {
         return this.databaseService.client.user.update({
             where: { id: userId, deletedAt: null },
             data: {
-                isVerified: true,
+                verifiedAt: this.helperDateService.create(),
                 updatedBy: userId,
                 activityLogs: {
                     create: {
@@ -100,12 +100,10 @@ export class UserVerificationRepository {
                 id,
             },
             data: {
-                isUsed: true,
-                verifiedAt: today,
+                usedAt: today,
                 user: {
                     update: {
                         verifiedAt: today,
-                        isVerified: true,
                         activityLogs: {
                             create: {
                                 action: EnumActivityLogAction.userVerifiedEmail,
@@ -143,7 +141,7 @@ export class UserVerificationRepository {
                     where: {
                         userId,
                         type,
-                        isUsed: false,
+                        usedAt: null,
                         expiredAt: {
                             gt: today,
                         },

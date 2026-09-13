@@ -2,7 +2,7 @@ import { DatabaseService } from '@common/database/services/database.service';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -50,7 +50,6 @@ export class DeviceOwnershipRepository {
                 userId,
             },
             data: {
-                isRevoked: true,
                 revokedAt: today,
                 revokedBy: {
                     connect: {
@@ -69,14 +68,13 @@ export class DeviceOwnershipRepository {
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: {
                                 gt: today,
                             },
                             deviceOwnershipId: deviceOwnershipId,
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: today,
                             revokedById: removedBy,
                             updatedBy: removedBy,
@@ -115,7 +113,7 @@ export class DeviceOwnershipRepository {
                     select: {
                         sessions: {
                             where: {
-                                isRevoked: false,
+                                revokedAt: null,
                                 expiredAt: {
                                     gt: today,
                                 },
@@ -133,7 +131,7 @@ export class DeviceOwnershipRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<IDeviceOwnership>> {
         const today = this.helperDateService.create();
 
@@ -144,7 +142,7 @@ export class DeviceOwnershipRepository {
             ...others,
             where: {
                 ...where,
-                ...isRevoked,
+                ...revokedAt,
                 userId,
             },
             include: {
@@ -159,7 +157,7 @@ export class DeviceOwnershipRepository {
                     select: {
                         sessions: {
                             where: {
-                                isRevoked: false,
+                                revokedAt: null,
                                 expiredAt: {
                                     gt: today,
                                 },
@@ -189,7 +187,7 @@ export class DeviceOwnershipRepository {
             where: {
                 ...where,
                 userId,
-                isRevoked: false,
+                revokedAt: null,
             },
             include: {
                 device: true,
@@ -203,7 +201,7 @@ export class DeviceOwnershipRepository {
                     select: {
                         sessions: {
                             where: {
-                                isRevoked: false,
+                                revokedAt: null,
                                 expiredAt: {
                                     gt: today,
                                 },
@@ -245,7 +243,7 @@ export class DeviceOwnershipRepository {
             where: {
                 id: deviceOwnershipId,
                 userId,
-                isRevoked: false,
+                revokedAt: null,
             },
             select: { id: true },
         });

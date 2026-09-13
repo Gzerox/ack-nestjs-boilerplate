@@ -131,6 +131,8 @@ export type IPaginationQueryFilterEqualOptions =
     | IPaginationQueryFilterBooleanOptions
     | IPaginationQueryFilterNumberOptions;
 
+export type IPaginationQueryFilterExistsOptions = IPaginationQueryFilterOptions;
+
 export interface IPaginationQueryFilterDateOptions extends IPaginationQueryFilterOptions {
     dayOf?: EnumHelperDateDayOf;
     type?: EnumPaginationFilterDateBetweenType;
@@ -151,6 +153,8 @@ export interface IPaginationEqual {
 export interface IPaginationNotEqual {
     not: string | number | boolean;
 }
+
+export type IPaginationExists = { equals: null } | { not: null };
 
 export interface IPaginationDate {
     gte?: Date;

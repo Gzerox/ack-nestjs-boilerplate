@@ -26,10 +26,6 @@ export const UserSchema = DatabaseResponseSchema.extend({
         description: 'Unique username of the user',
         example: faker.internet.username().toLowerCase(),
     }),
-    isVerified: z.boolean().meta({
-        description: 'Whether the user email is verified',
-        example: true,
-    }),
     verifiedAt: z.date().nullable().meta({
         description: 'When the user email was verified',
         example: faker.date.past(),

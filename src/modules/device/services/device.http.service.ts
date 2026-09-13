@@ -1,5 +1,5 @@
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -21,13 +21,13 @@ export class DeviceHttpService implements IDeviceHttpService {
     async getListOffsetByAdmin(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<IDeviceOwnershipDetail>> {
         const { data, ...others } =
             await this.deviceService.getListOffsetByAdmin(
                 userId,
                 pagination,
-                isRevoked
+                revokedAt
             );
         const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
             deviceOwnership => ({

@@ -179,7 +179,7 @@ export class MigrationUserSeed
                             passwordExpired,
                             passwordAttempt: 0,
                             signUpAt: today,
-                            isVerified: true,
+                            verifiedAt: today,
                             signUpWith: EnumUserSignUpWith.credential,
                             signUpFrom: EnumUserSignUpFrom.system,
                             status: EnumUserStatus.active,
@@ -201,13 +201,12 @@ export class MigrationUserSeed
                             verifications: {
                                 create: {
                                     expiredAt: this.helperDateService.create(),
-                                    verifiedAt: this.helperDateService.create(),
                                     reference,
                                     token: hashedToken,
                                     type,
                                     createdBy: userId,
                                     to: user.email,
-                                    isUsed: true,
+                                    usedAt: this.helperDateService.create(),
                                 },
                             },
                             activityLogs: {

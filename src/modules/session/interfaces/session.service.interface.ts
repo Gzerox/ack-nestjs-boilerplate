@@ -1,5 +1,5 @@
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -11,7 +11,7 @@ export interface ISessionService {
     getListOffsetByAdmin(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.SessionWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<ISession>>;
     getListCursor(
         userId: string,

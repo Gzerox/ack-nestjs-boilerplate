@@ -66,7 +66,7 @@ export class UserSessionRepository {
                 where: {
                     deviceId: device.id,
                     userId,
-                    isRevoked: false,
+                    revokedAt: null,
                 },
             });
             if (!deviceOwnership) {
@@ -76,7 +76,6 @@ export class UserSessionRepository {
                         userId,
                         createdBy: userId,
                         lastActiveAt: today,
-                        isRevoked: false,
                         deviceId: device.id,
                     },
                 });
@@ -84,7 +83,7 @@ export class UserSessionRepository {
                 const activeSessions = await tx.session.findMany({
                     where: {
                         deviceOwnershipId: deviceOwnership.id,
-                        isRevoked: false,
+                        revokedAt: null,
                         expiredAt: { gte: today },
                     },
                 });
@@ -106,7 +105,6 @@ export class UserSessionRepository {
                             id: { in: activeSessions.map(s => s.id) },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: today,
                             revokedById: userId,
                             updatedBy: userId,
@@ -141,7 +139,6 @@ export class UserSessionRepository {
                             id: sessionId,
                             jti,
                             expiredAt,
-                            isRevoked: false,
                             ipAddress,
                             deviceOwnershipId: deviceOwnership.id,
                             userAgent:
@@ -237,7 +234,6 @@ export class UserSessionRepository {
                             id: sessionId,
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: this.helperDateService.create(),
                             revokedBy: {
                                 connect: {

@@ -1,5 +1,5 @@
 import {
-    IPaginationEqual,
+    IPaginationExists,
     IPaginationQueryCursorParams,
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
@@ -16,7 +16,7 @@ export interface IDeviceService {
     getListOffsetByAdmin(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>
+        revokedAt?: Record<string, IPaginationExists>
     ): Promise<IResponsePagingReturn<IDeviceOwnership>>;
     getListCursor(
         userId: string,

@@ -220,11 +220,10 @@ export class UserTwoFactorRepository {
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: { gte: now },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: now,
                             revokedById: userId,
                             updatedBy: userId,
@@ -329,9 +328,8 @@ export class UserTwoFactorRepository {
                 },
                 sessions: {
                     updateMany: {
-                        where: { isRevoked: false, expiredAt: { gte: now } },
+                        where: { revokedAt: null, expiredAt: { gte: now } },
                         data: {
-                            isRevoked: true,
                             revokedAt: now,
                             revokedById: updatedBy,
                             updatedBy: userId,

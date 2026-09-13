@@ -6,12 +6,14 @@ import {
     IPaginationQueryFilterDateOptions,
     IPaginationQueryFilterEnumOptions,
     IPaginationQueryFilterEqualOptions,
+    IPaginationQueryFilterExistsOptions,
     IPaginationQueryFilterOptions,
     IPaginationQueryOffsetOptions,
 } from '@common/pagination/interfaces/pagination.interface';
 import {
     PaginationQueryFilterDatePipe,
     PaginationQueryFilterEqualPipe,
+    PaginationQueryFilterExistsPipe,
     PaginationQueryFilterInEnumPipe,
     PaginationQueryFilterNinEnumPipe,
     PaginationQueryFilterNotEqualPipe,
@@ -81,6 +83,16 @@ export function PaginationQueryFilterEqualBoolean(
             isBoolean: true,
         })
     );
+}
+
+/**
+ * Filters a field by null-existence (`equals: null` / `not: null`).
+ */
+export function PaginationQueryFilterExists(
+    field: string,
+    options?: IPaginationQueryFilterExistsOptions
+): ParameterDecorator {
+    return Query(field, PaginationQueryFilterExistsPipe(options));
 }
 
 /**

@@ -68,7 +68,7 @@ export class UserTwoFactorService implements IUserTwoFactorService {
             throw new UserNotFoundException();
         } else if (user.status !== EnumUserStatus.active) {
             throw new UserInactiveForbiddenException();
-        } else if (!user.isVerified) {
+        } else if (!user.verifiedAt) {
             throw new UserEmailNotVerifiedException();
         } else if (!user.twoFactor?.enabled) {
             throw new AuthTwoFactorNotEnabledException();
@@ -131,7 +131,7 @@ export class UserTwoFactorService implements IUserTwoFactorService {
             throw new UserNotFoundException();
         } else if (user.status !== EnumUserStatus.active) {
             throw new UserInactiveForbiddenException();
-        } else if (!user.isVerified) {
+        } else if (!user.verifiedAt) {
             throw new UserEmailNotVerifiedException();
         } else if (!user.twoFactor?.enabled) {
             throw new AuthTwoFactorNotEnabledException();

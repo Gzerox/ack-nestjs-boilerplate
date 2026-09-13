@@ -52,7 +52,7 @@ export class NotificationService implements INotificationService {
         );
         if (!checkExist) {
             throw new NotificationNotFoundException();
-        } else if (checkExist.isRead) {
+        } else if (checkExist.readAt) {
             throw new NotificationAlreadyReadException();
         }
 

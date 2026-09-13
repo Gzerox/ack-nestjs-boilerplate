@@ -37,10 +37,6 @@ export const NotificationResponseSchema = DatabaseResponseSchema.omit({
         description: 'Additional payload attached to the notification',
         example: { exampleKey: 'exampleValue' },
     }),
-    isRead: z.boolean().meta({
-        description: 'Whether the user has read the notification',
-        example: false,
-    }),
     readAt: z.date().nullable().meta({
         description: 'When the user read the notification',
         example: faker.date.recent(),

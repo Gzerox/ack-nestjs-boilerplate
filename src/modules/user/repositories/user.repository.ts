@@ -311,11 +311,10 @@ export class UserRepository {
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: { gte: deletedAt },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: deletedAt,
                             revokedById: userId,
                             updatedBy: userId,

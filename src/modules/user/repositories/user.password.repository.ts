@@ -36,7 +36,7 @@ export class UserPasswordRepository {
         return this.databaseService.client.forgotPassword.findFirst({
             where: {
                 token,
-                isUsed: false,
+                usedAt: null,
                 expiredAt: {
                     gt: today,
                 },
@@ -123,11 +123,10 @@ export class UserPasswordRepository {
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: { gte: passwordCreated },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: passwordCreated,
                             revokedById: updatedBy,
                             updatedBy: userId,
@@ -201,13 +200,12 @@ export class UserPasswordRepository {
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: {
                                 gte: passwordCreated,
                             },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: passwordCreated,
                             revokedById: userId,
                             updatedBy: userId,
@@ -246,8 +244,8 @@ export class UserPasswordRepository {
                 },
                 forgotPasswords: {
                     updateMany: {
-                        where: { isUsed: false },
-                        data: { isUsed: true },
+                        where: { usedAt: null },
+                        data: { usedAt: this.helperDateService.create() },
                     },
                     create: {
                         expiredAt,
@@ -311,21 +309,19 @@ export class UserPasswordRepository {
                     update: {
                         where: { id: forgotPasswordId },
                         data: {
-                            isUsed: true,
-                            resetAt: passwordCreated,
+                            usedAt: passwordCreated,
                         },
                     },
                 },
                 sessions: {
                     updateMany: {
                         where: {
-                            isRevoked: false,
+                            revokedAt: null,
                             expiredAt: {
                                 gte: passwordCreated,
                             },
                         },
                         data: {
-                            isRevoked: true,
                             revokedAt: passwordCreated,
                             revokedById: userId,
                             updatedBy: userId,

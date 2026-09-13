@@ -156,7 +156,7 @@ export class UserLoginService implements IUserLoginService {
         const requestLog: IRequestLog =
             this.requestStoreService.get<IRequestLog>(RequestLogStoreKey)!;
 
-        if (!user.isVerified) {
+        if (!user.verifiedAt) {
             const emailVerification =
                 this.userVerificationService.verificationCreateVerification(
                     user.id,

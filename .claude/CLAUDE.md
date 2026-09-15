@@ -54,10 +54,10 @@ src/
 prisma/schema.prisma    # editable; applying it to PostgreSQL is the owner's — see "How work happens here"
 generated/              # prisma client, swagger, vault init, agent reports (gitignored)
 docs/                   # durable project documentation
-test/                   # jest.json + specs mirroring src/
+test/                   # Vitest specs mirroring src/ + optional shared setup
 scripts/ · ci/ · keys/
 
-tsconfig.json           # typecheck, jest, ts-prune, editor — src + test + scripts
+tsconfig.json           # typecheck, Vitest, ts-prune, editor — src + test + scripts
 tsconfig.build.json     # nest build / nest start — src only; named by nest-cli.json
 ```
 
@@ -69,7 +69,7 @@ the most specific catch runs first.
 
 - `pnpm install` · `pnpm start:dev` · `pnpm build` · `pnpm start:prod`
 - `pnpm typecheck` — `tsc --noEmit`. `pnpm build` runs it too, but proves nothing on its own
-- `pnpm test` — `TZ=UTC jest --config test/jest.json`; `pnpm test:cov` adds coverage
+- `pnpm test` — `TZ=UTC vitest run --passWithNoTests`; `pnpm test:cov` adds coverage
 - `pnpm lint` · `pnpm lint:fix` · `pnpm format` · `pnpm deadcode` · `pnpm spell`
 - `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:studio` · `pnpm vault:pull`
 - `docker-compose up -d` — PostgreSQL, Redis, BullBoard, JWKS server, Vault
@@ -129,7 +129,7 @@ review of their own. A docs-only pass is `/ack-docs`; a docs update after a code
 **A test run is always scoped to the module the work actually CHANGED** —
 `pnpm test --testPathPatterns '<module>'`. No skill except `/ack-spec` runs the full
 suite; the `pre-commit` hook runs `pnpm test` (no coverage) on every commit.
-`collectCoverage` is `false` in `test/jest.json`, so a scoped `pnpm test` does not apply the
+Vitest coverage is opt-in, so a scoped `pnpm test` does not apply the
 100% threshold. Coverage is `pnpm test:cov`, and a scoped coverage run exits 1 with every
 spec passing because the threshold is global — read the `Tests:` line and the per-file rows,
 not the exit code and not the global summary.

@@ -84,7 +84,7 @@ response shape, the meaning of a vendor error string, what a version bump change
 The stack you will most often be asked about: NestJS 12, Prisma 6 against PostgreSQL, BullMQ,
 `@nestjs/cache-manager` with Keyv/Redis, zod 4 with `zod-openapi` and `@standard-schema/spec`,
 `nestjs-i18n`, Pino, Passport, CASL, Luxon, AWS SDK (S3, SES), Firebase Admin, nest-commander,
-Jest 30 with `@swc/jest`.
+Vitest 5 with `@golevelup/ts-vitest` and the root `vitest.config.ts`.
 
 1. Establish the exact version or configuration from `package.json`, `pnpm-lock.yaml`, or the
    config file in play. An answer about the wrong major version is worse than no answer.

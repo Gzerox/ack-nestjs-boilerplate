@@ -288,7 +288,7 @@ Below are explanations for the root folders and files outside `src/`:
 - **logs/**: Directory for application logs. Not tracked by git.
 - **prisma/**: Contains `schema.prisma`, the single source of truth for the database schema, plus PostgreSQL migration files under `prisma/migrations/*`.
 - **scripts/**: Utility scripts for tasks like key generation.
-- **test/**: Jest configuration (`jest.json`). The spec suite is meant to mirror `src/`, but no spec files are committed, so `pnpm test` passes through `--passWithNoTests`.
+- **test/**: Vitest specs mirroring `src/`; the runner is configured in the root `vitest.config.ts` and runs with `pnpm test`.
 
 ### Files
 
@@ -314,7 +314,6 @@ Below are explanations for the root folders and files outside `src/`:
 - **CODE_OF_CONDUCT.md**: Community code of conduct.
 - **SECURITY.md**: Supported versions and vulnerability reporting process.
 - **LICENSE.md**: Project license.
-
 
 
 

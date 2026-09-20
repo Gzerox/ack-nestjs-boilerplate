@@ -1,140 +1,220 @@
-# Testing
+# Testing — where specs live and how the suite runs
+
+One discipline, one place. Whoever touches a `*.spec.ts` in this repo follows this file, and
+`testing-spec-style.md` beside it when actually writing one.
+
+**A spec's measure of success is that it fails when the BEHAVIOR changes** — not that it
+passes, and not that it fails when someone merely rearranges the code.
+
+## Kinds of test (HARD)
+
+Three kinds. Each has one subject and one I/O story. A file that mixes them is the wrong
+kind for every assertion it makes.
+
+| Kind | Subject | I/O | What it proves |
+|---|---|---|---|
+| **Unit** | One class: a domain, HTTP or processor service, util, cache, queue, guard, pipe, interceptor, filter, DTO, exception | Collaborators doubled (`mock<T>()` / `mockDeep<T>()`) | The class's behaviour |
+| **Integration** | One adapter: a repository, or another class whose job is a real engine | Prisma and PostgreSQL, or Redis, are real | The query or command against that engine |
+| **E2E** | One transport path: an HTTP route or a consumed job | The running app | Wiring from the edge through guards, pipes, interceptors, domain, and persistence |
+
+This repository's suite is **unit**. `pnpm test` and `pnpm test:cov` collect `test/**/*.spec.ts`
+through `vitest.config.ts`. `coder` and `test-writer` write that kind and no other. Integration
+tests, e2e tests, and load tests are not this suite: they are not authored under `test/`, they
+are not in that `include`, and they have no TDD cycle here.
+
+`reviewer-e2e` is a read-only review agent that traces a flow in source. It is not an e2e
+suite and it writes no test.
+
+### Unit
+
+Every DI collaborator is a double. The subject is the one class that is real
+(`rules/testing-spec-style.md`).
+
+- A domain spec doubles the repository (`mock<UserRepository>()`) and asserts orchestration
+  and typed exceptions. That is how a repository is present in the unit suite.
+- An HTTP or processor service spec doubles the domain. It never reaches a repository.
+- A repository is the double, never the subject. Constructing `UserRepository` and stubbing
+  `databaseService.client` is still a unit spec of the adapter: it freezes a Prisma `where` /
+  `select` shape and does not prove the query against PostgreSQL. Those files sit outside the
+  coverage set.
+- A controller and a processor are route or job delegation. They have no unit spec.
+- A Swagger doc factory (`*.doc.ts`) is `applyDecorators` of the doc kit. It has no unit spec.
+- A contract is a lookup table. The consumer's unit spec exercises it.
+
+TDD is this kind (`coder`). `/ack-spec` covers this kind against code that already exists.
+
+### Integration
+
+The adapter is the subject. Prisma and PostgreSQL are real. Doubling
+`DatabaseService.client` makes the file a unit spec of the repository, which this suite does
+not write.
+
+This kind is how a Prisma `where`, a `groupBy`, a soft-delete filter, or an id mapping is
+proven against the engine. It is not authored under `test/` and it is not collected by
+`vitest.config.ts`.
+
+### E2E
+
+The subject is a request or a job entering the running process. Guards, pipes, interceptors,
+the HTTP or processor service, the domain, and the repository all run for real.
+
+This kind is not authored under `test/` and it is not collected by `vitest.config.ts`. Load
+tests are the same ban.
+
+## Where specs live (HARD)
+
+Specs mirror `src/` under `test/`, same relative path, filename plus `.spec.ts`:
+
+```
+src/modules/session/domains/session.domain.ts
+  → test/modules/session/domains/session.domain.spec.ts
+
+src/modules/user/services/user.http.service.ts
+  → test/modules/user/services/user.http.service.spec.ts
+
+src/common/pagination/services/pagination.service.ts
+  → test/common/pagination/services/pagination.service.spec.ts
+```
+
+This is mechanical, not stylistic: `vitest.config.ts` `test.include` is
+`test/**/*.spec.ts`. A spec written anywhere else — colocated in `src/`, or under a
+different root — **is never executed**, while `coverage.include` still counts its subject as
+uncovered. Never colocate a spec in `src/`.
+
+A pure structural refactor moves the spec with its subject: same mirrored path, green before
+the work is done.
 
 ## Local Vitest facts
 
-- Run the complete suite with `pnpm test`.
-- Scope a run by passing a test path after the script name: `pnpm test test/modules/<feature>`.
-- Coverage uses the V8 provider and is off by default. Enable it with `--coverage` and scope source collection with `--coverage.include='<glob>'` when a coverage report is useful.
-- Import `describe`, `expect`, `it`, `beforeEach`, and `vi` from `vitest`; do not depend on globals.
-- Use `vi.fn()`, `vi.spyOn()`, and `vi.mock()` for test doubles. `vi.mock()` is hoisted; values used by its factory must be created with `vi.hoisted()` or inside the factory.
-- Put `vi.mock()` and `vi.hoisted()` at file scope. Prefer the type-checked `vi.mock(import('<module>'), factory)` form for project modules, and use `vi.mocked()` to work with mocked exports without casts.
-- Prefer `@golevelup/ts-vitest`'s `createMock<T>()` for injected collaborators and framework/third-party transport types such as `ExecutionContext`, `ArgumentsHost`, `CallHandler`, Express `Request`/`Response`, and nested clients. Its methods are typed Vitest mocks, including nested members. Configure every behavior that decides the branch under test; use `createMock<T>({}, { strict: true })` when an unexpected call should fail immediately. Small explicit `Pick` plus `satisfies` doubles remain valid when they are clearer. Do not add another deep-mock package.
-- The canonical configuration and setup files are `vitest.config.mts` and `test/vitest.setup.ts` when a shared setup is needed.
+- **`vitest.config.ts` is the ONLY test configuration in this repository, and no second one is
+  ever created (HARD).** A run is `pnpm test`, which is `TZ=UTC vitest run --passWithNoTests`;
+  a scoped run appends a path filter, never `--config`. Do not write a `vitest.workspace.*`, a
+  second `vitest.config.*`, a `test` key in `vite.config.*`, or a throwaway config under the
+  scratchpad to make one spec run. A spec that will not run under `vitest.config.ts` is a spec
+  in the wrong place or a transform gap in that file — fix the path or the config. A second
+  config silently changes `include`, the transform, the alias resolution and
+  `coverage.include`, so a suite that is green under it proves nothing about the suite the
+  hook and `.github/workflows/test.yml` actually run.
+- SWC transforms through `unplugin-swc` (`module: nodenext`), so decorator metadata matches the
+  build. `resolve.tsconfigPaths` resolves the `tsconfig.json` aliases, so a spec imports
+  `@modules/…` / `@common/…` exactly as `src/` does. `globals` is on, `environment` is `node`,
+  `testTimeout` is 5000ms.
+- **`isolate` is `false`.** The suite is `environment: 'node'` and every spec resets doubles
+  in `beforeEach`, so Vitest reuses workers across files. `fsModuleCache` is `true`; SWC
+  transforms persist under `node_modules/.vitest-cache`. `pool` is the default `forks`
+  (Prisma and other native modules can segfault under `threads`). Isolation is not split
+  across a second config or a workspace.
+- **`test/setup.ts` is `test.setupFiles`.** It mutes Nest `Logger` by assigning no-ops onto
+  the class (instance and static) and onto `ConsoleLogger.prototype`.
+  `Test.createTestingModule()` installs Nest's `TestingLogger`, whose `error` still prints,
+  so the mute is those no-ops — not `Logger.overrideLogger(false)`, not
+  `vi.mock('@nestjs/common')`, and not a `console` spy. Do not re-mock `Logger` in a spec
+  (`rules/testing-spec-style.md`).
+- Blob reports and JSON output land in `.vitest/`, which is gitignored.
+- Typed doubles come from `vitest-mock-extended` (`mock<T>()`, `mockDeep<T>()`,
+  `MockProxy<T>`, `DeepMockProxy<T>`). The skeleton and its rules are in
+  `testing-spec-style.md`.
+- **`vi.mock()` is written AFTER the imports**, never before. Vitest hoists it either way; the
+  position is the house layout.
+- Scope a run: `pnpm test <path fragment>` — the positional argument filters spec files by
+  path. `pnpm test user.domain` runs every spec whose path contains that fragment.
+- **`coverage.enabled` is `false` in `vitest.config.ts`.** `pnpm test` does not collect
+  coverage. `pnpm test:cov` is the same command plus `--coverage`, which is when coverage is
+  collected and `coverage.thresholds` (100% branches, functions, lines, statements) apply.
+  **A scoped `pnpm test` that exits 0 is not a coverage pass.** A scoped `pnpm test:cov` exits
+  1 while every spec passes, because the threshold is GLOBAL and a scoped run measures a few
+  percent of `src/` — read the `Tests` line and the per-file rows for the files you touched;
+  the exit code and the global summary mean nothing on a scoped coverage run.
+- **Coverage threshold is 100% global** — branches, functions, lines, statements — whenever
+  coverage is collected. That number is only meaningful if the branches are real: 100% reached
+  with happy paths alone means every guard clause in the file is untested and the threshold is
+  lying to you.
+- **A run is SCOPED to the module being worked on, always.** `pnpm test <module>`, where the
+  module is one the work actually CHANGED — a module you only read is not in scope. No skill
+  except `/ack-spec` runs the full suite; the `pre-commit` hook runs `pnpm test` (no coverage)
+  on every commit, and that is where a broken global mock or shared fixture surfaces.
+  Reporting a scoped run as if it were the whole suite is the one thing that turns this into a
+  lie — name the filter you passed.
+- **GitHub Actions.** `.github/workflows/test.yml` runs `NODE_ENV=test pnpm test` on
+  `workflow_dispatch`. `.github/workflows/linter.yml` runs on `pull_request`.
 
-## Vitest configuration contract
+## What is covered
 
-- Define the unit runner in root `vitest.config.mts` with `defineConfig()` and resolve the aliases from `tsconfig.json` through `vite-tsconfig-paths` or explicit Vite aliases.
-- Use the Node environment and include only `test/**/*.spec.ts` in the unit project. Keep globals disabled; every spec imports its APIs from `vitest`.
-- The `test` script runs once with `vitest run`. Watch mode is a separate script. Coverage is a separate opt-in flag or script.
-- Use `@vitest/coverage-v8`. Configure `coverage.include` for the source layers eligible under this rule so unloaded files appear in a full report; exclusions must represent deliberate non-unit-test surfaces, never missing coverage.
-- Keep file isolation enabled. Do not trade shared module state between specs for speed.
-- Use `test/vitest.setup.ts` only for initialization or identical module mocks required by the whole suite. A setup file must not hide subject-specific fixtures or behavior.
-- The TypeScript transform must preserve the decorator semantics and metadata Nest providers require. Verify the chosen configuration by compiling and resolving a representative decorated provider through `Test.createTestingModule()`; use Nest's documented SWC integration when the default transform cannot preserve that contract.
-- Do not install compatibility globals, aliases, or bridge packages. A spec uses Vitest APIs directly.
+`coverage.include` is every `src/**/*.ts`, minus a denylist in `vitest.config.ts`:
 
-## Nest test harness
+`*.module.ts` · `*.enum.ts` · `*.interface.ts` · `*.constant.ts` · `*.contract.ts` ·
+`*.controller.ts` · `*.processor.ts` · `*.repository.ts` · `*.doc.ts` · `src/generated/**` ·
+`src/migration/**` · `src/router/**` · `src/configs/**` · `src/languages/**` · the root
+`src/*.ts` files
 
-- Instantiate a class directly when the test needs no Nest container behavior.
-- Use `Test.createTestingModule(...).compile()` when constructor injection, injection tokens, provider overrides, or Nest lifecycle behavior are part of the setup.
-- Register the real subject and explicit doubles for its collaborators. Do not import a production feature module into a unit spec.
-- Retrieve singleton providers with `moduleRef.get()`. Retrieve request-scoped or transient providers with `moduleRef.resolve()`; repeated `resolve()` calls create different DI sub-trees unless the same context id is supplied.
-- Use `.overrideProvider()` when a test intentionally compiles imported Nest wiring. Use `.useMocker()` only when a reusable mock factory remains explicit about every behavior the subject reads; an auto-mock without an implementation must not decide a branch accidentally.
-- Close a compiled module in teardown only when the test activates lifecycle hooks or resources that require shutdown. A unit spec must not open real infrastructure.
+Everything else is measured: services, domains, utils, caches, queues, guards, pipes,
+interceptors, filters, middlewares, strategies, indicators, factories, decorators
+(including the doc kit in `src/common/doc/`), validations, exceptions and DTOs.
 
-## Where specs live
+**Controllers, processors, repositories, contracts and Swagger doc factories (`*.doc.ts`)
+are not in the coverage set.** A controller and a processor are delegation, a repository is
+a Prisma call shape, a contract is a lookup table, and a `*.doc.ts` factory is
+`applyDecorators` of the doc kit — specs there would assert the mock, restatement, or
+TypeScript already proved. If you find yourself wanting a controller, processor, or
+repository spec, the logic is probably in the wrong layer. A contract is exercised by the
+consumer that reads it (a domain or a pipe), not by a spec of the table. A doc factory is
+wired by the controller; it is not a unit subject.
 
-Specs mirror `src/` under `test/`:
+**The denylist decides WHAT gets a spec for `/ack-spec`, and an excluded file gets NONE
+(HARD).** Wanting coverage on an excluded path is a request to change `vitest.config.ts`,
+which is the owner's call, never a spec written around the config. Adding a path to the
+denylist, or removing one, changes the 100% denominator at once.
 
-```text
-src/modules/session/domains/session.domain.ts
-  -> test/modules/session/domains/session.domain.spec.ts
+## TDD (HARD)
 
-src/modules/user/services/user.http.service.ts
-  -> test/modules/user/services/user.http.service.spec.ts
+New behaviour and a repair go through TDD. Write the failing spec first, watch it fail
+because the behaviour is absent, then implement. `coder` writes both halves of that cycle.
+The skill is `superpowers:test-driven-development`.
 
-src/common/pagination/services/pagination.service.ts
-  -> test/common/pagination/services/pagination.service.spec.ts
-```
+A spec lives at its final path under `test/` and stays as the regression net. TDD is the
+**unit** cycle. When the behaviour lives on a domain, the TDD subject is that domain class
+(`rules/architecture.md`).
 
-The Vitest include pattern is `test/**/*.spec.ts`. A spec written elsewhere is not part of the unit suite. Never colocate specs in `src/`.
+Seeds, controllers, processors, repositories, contracts and Swagger doc factories
+(`*.doc.ts`) have no TDD cycle (the coverage denylist excludes them). A contract row is the
+`src/` that turns the consumer's unit spec green. A repository's presence in that cycle is
+the double in the domain spec.
 
-`test/support/` holds shared, explicitly-imported test doubles/utilities that are not themselves specs (e.g. `test/support/execution-context.mock.ts`). It is not mirrored from `src/`, is outside the `test/**/*.spec.ts` include pattern, and is distinct from `test/vitest.setup.ts` (global initialization/module mocks applied to every spec automatically). Import from it with the `@test/*` path alias.
+## The code is the specification (`/ack-spec`)
 
-## What earns a unit spec
+When the code already exists and the job is to cover it, `src/` wins. `/ack-spec` writes
+those specs through `test-writer` and never changes `src/`.
 
-Test behavior whose regression would affect security, authorization, state transitions, validation, serialization, error mapping, external-I/O orchestration, or queue dispatch. Select subjects by risk, not by filename suffix and not to make a coverage percentage look complete.
+## Writing the spec itself
 
-Default priorities:
-
-- **Service:** yes when it owns business decisions or multi-collaborator orchestration.
-- **Guard / strategy:** yes for authentication, authorization, metadata, and request-context behavior.
-- **Pipe / validator:** yes for parsing, normalization, allow-lists, boundaries, and rejection behavior.
-- **Interceptor / filter / substantive middleware:** yes for response/error shape, headers, context propagation, and security behavior.
-- **Factory / indicator / processor:** yes when it branches, maps failures, dispatches work, or crosses an I/O boundary.
-- **DTO:** only for security-sensitive response whitelists, nested serialization, non-trivial transforms, or important validation contracts. Do not create a spec for every declarative DTO.
-- **Decorator:** only when metadata values, composition, or arguments are a meaningful contract. Do not test a pass-through wrapper merely because it exists.
-- **Exception:** test the shared exception mapping and any exceptional class with custom behavior. Do not create one repetitive spec per constant-only exception subclass.
-- **Utility:** test pure logic with meaningful branches or security/domain rules.
-
-Controllers and repositories are deliberately not unit-test targets. Controllers should only delegate routes, while repository specs usually assert mocked Prisma call shapes rather than owned behavior. Test framework wiring, module decorators, constants, enums, interfaces, and generated code through typecheck, boot checks, or higher-level tests instead.
-
-Start with the smallest suite that protects critical contracts. Coverage is diagnostic evidence during that first pass, and coverage below 100% is expected.
-
-The long-term goal is 100% branches, functions, lines, and statements. Move toward it incrementally by adding meaningful contracts in risk order and ratcheting established thresholds upward. Never add equivalent permutations or framework-behavior tests solely to increase a percentage, and never let line coverage hide an untested material branch.
-
-## Minimum case design
-
-For each selected subject, start with the smallest useful set:
-
-1. One representative success path.
-2. One case for each materially different security, validation, or business-rule failure branch.
-3. One boundary case only where the boundary changes behavior.
-4. One collaborator-failure case only when the subject translates, compensates for, or deliberately propagates that failure.
-
-Use table-driven cases when several inputs exercise the same rule. Do not duplicate tests for aliases, equivalent enum members, or framework behavior already covered upstream.
-
-## How to spec each layer
-
-- **Service:** mock repositories and injected services; assert observable orchestration, important argument mapping, required order only when order is contractual, and the exception type for each material failure. Assert the exception class and enum member, never a message string.
-- **Guard / strategy:** assert metadata reads, service delegation, request-context assignment, and the returned or rejected transport result. The underlying authorization decision belongs to the service spec.
-- **Pipe / validator:** pass real input shapes; assert transformed output and the typed validation error for representative invalid classes.
-- **Interceptor / filter:** assert the emitted `IResponseReturn` / `ResponseErrorDto` shape, status, and headers. Mock the transport boundary, not RxJS itself.
-- **Middleware:** assert only project-owned decisions and side effects. Do not retest third-party middleware internals.
-- **DTO:** serialize through `ResponseUtil.serialize()` for response whitelists; use the real validation/transform path for request contracts. Prefer one focused contract per response family over one spec per DTO.
-- **Exception:** assert shared mapping invariants or genuinely custom fields through table-driven cases.
-- **Factory / indicator:** construct through the real path and mock only external I/O.
-- **Processor:** assert job-name dispatch, payload forwarding, return shape, and unknown-job or translated-failure behavior when present. Business work remains in processor-service specs.
-- **Utility:** assert inputs and outputs directly, including only behavior-changing boundaries.
-
-## TDD and backfill
-
-- **New behavior or a bug fix:** TDD is mandatory. Write the failing final-path spec first, watch it fail for the expected reason, implement, then watch it pass.
-- **Coverage backfill for existing code:** characterize the current working-tree behavior without changing production behavior. A suspected defect is reported and pinned by a green characterization test only when the current behavior is a meaningful contract; do not invent a test merely to preserve an obvious accident.
-- **Structural refactor:** move the mirrored spec with its subject and keep its behavior green.
-
-The same implementer performs the TDD red-to-green loop. `test-writer` is for standalone backfill or repair, not feature implementation.
-
-## Isolation and hygiene
-
-- One subject per spec file unless a table-driven contract intentionally covers a small family such as exception mappings or DTO serialization.
-- Recreate mutable fixtures in `beforeEach`; no state leaks across cases.
-- Keep fast, deterministic pure functions real when that does not broaden the subject. Mock injected collaborators, databases, Redis, queues, clocks, random values, filesystem access, and network clients at the nearest owned boundary.
-- Prefer deterministic clocks and IDs. Use `vi.useFakeTimers()` and `vi.setSystemTime()` for time-dependent behavior, and restore real timers after each case that changes them.
-- Reset mock calls and implementations between cases. Restore every `vi.spyOn()` target so a real object is never left patched for the next case.
-- A unit suite must not boot real infrastructure or reach the network.
-- Never commit `.only` or use `.skip` / `.todo` as a way to make a run green.
+The skeleton, the mocking rules, the assertion style, the casting rules, and how to spec each
+layer live in `.claude/rules/testing-spec-style.md`. Read that file whenever you WRITE or
+REPAIR a spec. This file covers where specs live, how the runner is configured, and what is
+never done to reach green — which is what someone who only RUNS the suite needs.
 
 ## Hard boundaries
 
-- Do not add controller or repository unit specs unless the architecture first changes and gives that class project-owned behavior.
-- Do not lower configured coverage thresholds, narrow configured coverage includes, or add ignore comments to hide missing tests.
-- Do not edit production code during coverage backfill. Report every blocking source defect for a separate fix workflow.
-- Do not delete or weaken a meaningful failing spec. Decide whether it exposes a regression or an intentional contract change and report that decision.
-- If a subject is untestable because it hard-codes time, randomness, global state, or construction of an I/O client, report the design defect instead of building an elaborate mock around it.
-- Do not call, expose, or spy on a private method to satisfy coverage. Exercise it through the public contract; an unreachable private branch is a design or coverage-scope finding, not a reason to couple a spec to internals.
+Which skill is running decides who wins:
 
-Before finishing, mentally break the behavior the spec claims to protect. If the spec would still pass, improve or remove it.
+- **TDD (`coder` / `/ack-code`):** changing `src/` to turn a failing spec green is the job.
+- **`/ack-spec`:** the existing `src/` wins. **Do NOT change production code to make a spec
+  pass.** If the code is wrong, pin the spec green against current behaviour and report the
+  defect with file and line. The only sanctioned `src/` edit on that path is a typo or syntax
+  fix that cannot change behavior for any input.
 
-## Official references
+Always:
 
-- Nest testing facilities: https://docs.nestjs.com/fundamentals/testing
-- Nest Vitest and path-alias setup: https://docs.nestjs.com/recipes/swc#vitest
-- Official Nest TypeScript starter Vitest config: https://github.com/nestjs/typescript-starter/blob/master/vitest.config.ts
-- Vitest contract-focused testing: https://vitest.dev/guide/learn/testing-in-practice
-- Vitest file filtering: https://vitest.dev/guide/filtering
-- Vitest mocking and cleanup: https://vitest.dev/guide/mocking.html
-- Vitest module mocking and hoisting: https://vitest.dev/guide/mocking/modules.html
-- Vitest fake timers: https://vitest.dev/guide/mocking/timers
-- Vitest V8 coverage: https://vitest.dev/guide/coverage.html
-- Vitest guidance for AI-authored tests: https://vitest.dev/guide/learn/writing-tests-with-ai
-- `@golevelup/ts-vitest` `createMock<T>()`: https://github.com/golevelup/nestjs/tree/master/packages/ts-vitest
+- **Do NOT delete, `.skip`, or weaken a failing spec to reach green.** A spec that was
+  asserting something real and now fails is either a regression or a contract that changed
+  deliberately — decide which and say which.
+- **Do NOT lower the coverage threshold**, add a path to the coverage denylist, or add an
+  ignore comment (`/* v8 ignore */`) to reach 100%.
+- **Do NOT write integration, e2e, or load tests in this tree.** The suite is unit specs
+  (`Kinds of test` above).
+- If a file is genuinely untestable as written (a static global, an unmockable import), report
+  it as a design defect to fix rather than building an elaborate mock around it. A hard
+  `new Date()` is NOT one of these — `vi.useFakeTimers()` in `beforeAll` covers it.
+
+A spec that passes against a broken implementation is worse than no spec: it converts an
+untested file into a file everyone believes is tested. Before finishing any spec, break the
+code it covers in your head and confirm the spec would catch it.

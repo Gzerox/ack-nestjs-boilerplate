@@ -1,117 +1,113 @@
 ---
 name: ack-spec
-description: Backfill, repair, or relocate meaningful Vitest unit specs for existing code in one named scope. Uses coverage to find unprotected contracts and moves the suite toward ratcheted 100% coverage without changing production behavior. NOT for new behavior or bug fixes, whose implementer owns TDD.
+description: >-
+    Write and repair unit specs against code that already exists, until coverage is 100%. The code is the specification and always wins — it is never changed here. Use for a failing suite, a coverage gap, or orphan specs. NOT for feature code.
 disable-model-invocation: true
 ---
 
-Specs only. `src/` is not yours and not the agent's, for any reason (HARD).
+Specs only. **`src/` is not yours and not the agent's — not one line, for any reason (HARD).**
 
-## Which workflow is this?
+## Rules
 
-Use this workflow when existing production behavior needs missing unit coverage, a spec is stale,
-or a structural refactor left a spec misplaced.
+Read `.claude/rules/orientation.md` before dispatching. Standing extras for `test-writer`:
+`testing.md`, `testing-spec-style.md`, `agent-communication.md`, then the surface row that
+governs the subject.
 
-- A new behavior or production bug fix belongs to `/ack-feature` or `/ack-fix`; the implementer
-  writes the failing spec before the code.
-- A spec that no longer represents the intended contract belongs here.
-- A failure that reveals wrong production behavior is reported and handed to `/ack-fix`. Do not
-  weaken the existing contract or create a characterization test for an obvious accident.
+## The code is the specification
 
-## 1 - Establish the scope
+Everything under `src/` is treated as correct. Write the spec that asserts what the code
+does. Code that looks wrong is still pinned green, then reported as a suspected defect with
+`file:line`. The repair is a separate `/ack-code` run the owner decides on.
 
-Name the module, source subjects, or failing specs. Read `vitest.config.mts`,
-`.claude/rules/testing.md`, `.claude/rules/testing-spec-style.md`, the matching project docs, and
-the source contracts before judging the suite.
+**Follow the code that is there.** Existing specs are the style guide as much as
+`rules/testing-spec-style.md`.
 
-Run the smallest current suite first:
+A failing suite splits two ways:
 
-```bash
-pnpm test test/modules/<feature>
-```
+- the SPEC is wrong, or the code moved and the spec was left behind → this skill
+- the CODE is wrong — the spec asserts the right thing and the code does not do it →
+  `/ack-code`
 
-Vitest treats a positional argument as a filename substring filter. Pass the test directory or
-full spec path so unrelated files are not loaded.
+If making the suite green requires touching `src/`, stop and say so.
 
-When the request is coverage backfill, collect a scoped baseline that includes the relevant
-source even when a file is never imported:
+## 1 — Establish what is actually wrong
+
+Run the suite for the named scope first, and read the failure.
 
 ```bash
-pnpm test test/modules/<feature> --coverage \
-  --coverage.include='src/modules/<feature>/{services,guards,utils}/**/*.ts'
+pnpm test <scope>
 ```
 
-Select the include glob from the layer policy in `rules/testing.md`. Do not include controllers,
-repositories, declarations, or other excluded surfaces to manufacture work.
+The scope is a path fragment; Vitest runs every spec whose path contains it.
 
-## 2 - Select contracts
+**Clear the Vitest cache (`pnpm exec vitest --clearCache`) before believing a coverage gap.**
 
-Use uncovered lines and branches as navigation, then read the code and rank the missing
-behavior by risk. Start with security, authorization, state transitions, validation,
-serialization, error mapping, external-I/O orchestration, and queue dispatch.
+## 2 — Dispatch
 
-The target for a pass is a named set of meaningful contracts, not a raw percentage. The
-long-term goal remains 100% branches, functions, lines, and statements, reached incrementally
-by ratcheting established thresholds. Do not plan duplicate permutations, private-method tests,
-framework behavior tests, or assertions on incidental implementation details.
+Dispatch `test-writer` with the scope. Carry the target: 100% on every file in scope, and
+the code as written is the behaviour to describe.
 
-## 3 - Dispatch
+A structural rename may narrow the dispatch to **RELOCATE ONLY** — move existing green specs
+and author no new assertion.
 
-Dispatch `test-writer` with the exact source and test scope, the reason for the pass, the
-contracts selected in step 2, and the baseline command/result. For relocation-only work, say
-`RELOCATE ONLY` and forbid new cases.
+## 3 — Confirm, and reach 100% (HARD)
 
-The dispatch also carries any known disagreement among code, docs, and existing specs. The
-agent reports the conflict rather than deciding that production code or a stale spec wins by
-default.
-
-## 4 - Verify
-
-Re-run the narrow spec, then the module. Re-run the same scoped coverage command when coverage
-informed the work. Read the per-file branches as well as the four headline dimensions and
-confirm that every new case would fail if its claimed behavior were broken.
-
-Run the repository checks after the scoped work is green:
+Re-run the suite for that scope, then run the FULL coverage suite. **This skill is the only
+one that does.**
 
 ```bash
-pnpm test
-pnpm typecheck
-pnpm lint
-pnpm spell
+pnpm test:cov
 ```
 
-A change to `test/vitest.setup.ts` or another shared test helper requires the full suite even
-before the final checks because it affects every spec.
+Every other skill runs `pnpm test <module>` without coverage and stops there. A spec repair
+reaches past its own scope: a global mock, a shared fixture, a relocated helper, and the
+**100% global threshold, which is measured only when `--coverage` is on**.
+`coverage.enabled` is `false` in `vitest.config.ts`, so `pnpm test` never applies the
+threshold. Report the totals with the command that produced them.
 
-## Completion standard
+Controllers, processors, repositories, contracts, Swagger doc factories (`*.doc.ts`), and
+the paths on the coverage denylist sit outside the coverage set — a gap there is not an
+`/ack-spec` gap (`rules/testing.md`). The doc kit in `src/common/doc/` is measured. Changing
+the denylist is an owner change to `vitest.config.ts`.
 
-- Every selected contract has a focused assertion through the public surface.
-- No unit spec opens a database, Redis connection, queue worker, filesystem resource, or
-  network connection.
-- No `.only`, unjustified `.skip`, or placeholder `.todo` remains.
-- Coverage does not regress in the named scope. Any remaining material uncovered branch is
-  identified with its risk and reason.
-- `src/`, `docs/`, `prisma/`, `vitest.config.mts`, and shared setup remain unchanged unless the
-  owner explicitly opened a separate configuration task.
-- The scoped suite and repository checks are green, or every failure is reported exactly.
+**100% is the bar.** A file in scope still short of it is another `test-writer` dispatch,
+until the per-file rows read 100 across statements, branches, functions and lines. Read the
+PER-FILE rows.
+
+**The one thing that stops the loop is a line that cannot be covered without changing
+`src/`** — an unreachable branch, a defensive throw no input can produce, a type-narrowing
+guard the compiler already proves. That is a HAND-BACK naming the file, the line, and why.
+It is not a waiver.
 
 ## Boundaries
 
-- Never change production behavior.
-- Never lower thresholds, narrow configured coverage collection, or add coverage-ignore
-  comments.
-- Never call private methods or expose them for coverage.
-- Never delete or weaken a meaningful failing spec to reach green.
-- No gate, flow review, or application boot. This workflow changes unit specs only.
+- **No `src/` changes. None.** A blocked compile is a hand-back with the file and the error.
+  The owner takes it to `/ack-code`.
+- **No review, no boot.** This skill dispatches `test-writer` and nothing else.
+- **Unit specs only.** Integration, e2e, and load tests are not this suite (`rules/testing.md`).
+- Never delete or skip a spec to reach green.
+- Never lower the coverage threshold, add a path to the coverage denylist, or add an
+  ignore comment.
+- **Never `--no-verify` on your own initiative.**
 - Never stage or commit unless the owner asks in that exchange.
 
 ## Hand back
 
-Specs changed; contracts protected; scoped and full commands with results; coverage dimensions
-when collected; remaining material gaps; every production defect or contract conflict, each
-with `file:line`.
+Specs written or repaired, the coverage numbers with their command, every file that reached
+100% and every file that did not with the reason, and every defect pinned rather than
+fixed — each with `file:line`.
 
 ## Next
 
-| Then run   | When                                                                              |
-| ---------- | --------------------------------------------------------------------------------- |
-| `/ack-fix` | A failing meaningful spec or backfill analysis exposes wrong production behavior. |
+Usually nothing. This skill ends where it started: `src/` unchanged.
+
+```mermaid
+flowchart LR
+  spec["/ack-spec"] --> code["/ack-code"]
+```
+
+| Then run | When |
+|---|---|
+| `/ack-code` | a defect you pinned green and the owner wants it repaired |
+
+**Never repair the pinned defect from here.**

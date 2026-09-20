@@ -1,7 +1,7 @@
 import { EnumAppEnvironment } from '@app/enums/app.enum';
-import { Prisma } from '@generated/prisma-client';
+import { Prisma } from '@generated/prisma-client/client';
 
-const featureFlagData: Prisma.FeatureFlagCreateInput[] = [
+const FeatureFlagData: Prisma.FeatureFlagCreateInput[] = [
     {
         key: 'loginWithGoogle',
         description: 'Enable login with Google',
@@ -54,13 +54,13 @@ const featureFlagData: Prisma.FeatureFlagCreateInput[] = [
     },
 ];
 
-export const migrationFeatureFlagData: Record<
+export const MigrationFeatureFlagData: Record<
     EnumAppEnvironment,
     Prisma.FeatureFlagCreateInput[]
 > = {
-    [EnumAppEnvironment.local]: featureFlagData,
-    [EnumAppEnvironment.test]: featureFlagData,
-    [EnumAppEnvironment.development]: featureFlagData,
-    [EnumAppEnvironment.staging]: featureFlagData,
-    [EnumAppEnvironment.production]: featureFlagData,
+    [EnumAppEnvironment.local]: FeatureFlagData,
+    [EnumAppEnvironment.test]: FeatureFlagData,
+    [EnumAppEnvironment.development]: FeatureFlagData,
+    [EnumAppEnvironment.staging]: FeatureFlagData,
+    [EnumAppEnvironment.production]: FeatureFlagData,
 };

@@ -208,7 +208,6 @@ describe('UserMobileNumberDomain', () => {
             );
             expect(userMobileNumberRepository.updateInTx).toHaveBeenCalledWith(
                 expect.any(Object),
-                'user-id',
                 mobileNumber.id,
                 {
                     countryId: country.id,

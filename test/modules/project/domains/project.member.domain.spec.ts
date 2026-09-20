@@ -19,17 +19,15 @@ import { ProjectMemberNotFoundException } from '@modules/project/exceptions/proj
 import { ProjectMemberPeerForbiddenException } from '@modules/project/exceptions/project.member-peer-forbidden.exception';
 import { ProjectNotFoundException } from '@modules/project/exceptions/project.not-found.exception';
 import { ProjectRoleForbiddenException } from '@modules/project/exceptions/project.role-forbidden.exception';
-import { IProjectMember } from '@modules/project/interfaces/project.interface';
+import type { IProjectMember } from '@modules/project/interfaces/project.interface';
 import { ProjectMemberRepository } from '@modules/project/repositories/project.member.repository';
 import { ProjectUtil } from '@modules/project/utils/project.util';
 import { WorkspaceMemberNotFoundException } from '@modules/workspace/exceptions/workspace.member-not-found.exception';
-import { createDatabaseServiceMock } from '@test/support/database.mock';
 
 describe('ProjectMemberDomain', () => {
     const projectMemberRepository = createMock<ProjectMemberRepository>();
     const projectUtil = createMock<ProjectUtil>();
     const activityLogDomain = createMock<ActivityLogDomain>();
-    const databaseService = createDatabaseServiceMock();
     const requestStoreService = createMock<RequestStoreService>();
 
     const project = createMock<Project>({
@@ -46,7 +44,6 @@ describe('ProjectMemberDomain', () => {
             projectMemberRepository,
             projectUtil,
             activityLogDomain,
-            databaseService,
             requestStoreService
         );
     });
@@ -179,7 +176,7 @@ describe('ProjectMemberDomain', () => {
                     deletedBy: null,
                 },
             });
-            projectMemberRepository.createInTx.mockResolvedValue(created);
+            projectMemberRepository.create.mockResolvedValue(created);
 
             await expect(
                 domain.assignMember(
@@ -189,17 +186,18 @@ describe('ProjectMemberDomain', () => {
                     EnumProjectMemberRole.admin
                 )
             ).resolves.toBe(created);
-            expect(projectMemberRepository.createInTx).toHaveBeenCalledWith(
-                expect.anything(),
+            expect(projectMemberRepository.create).toHaveBeenCalledWith(
                 project.id,
                 'target-id',
                 EnumProjectMemberRole.admin,
                 'actor-id'
             );
-            expect(activityLogDomain.stage).toHaveBeenCalledWith({
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.projectMemberAssigned,
                 userId: 'actor-id',
+                createdBy: 'actor-id',
                 workspaceId: 'workspace-id',
+                metadata: { targetUserId: 'target-id' },
             });
         });
 
@@ -262,6 +260,7 @@ describe('ProjectMemberDomain', () => {
             setWorkspaceOwner(true);
             const targetMember = createMock<ProjectMember>({
                 id: 'target-member-id',
+                userId: 'target-user-id',
                 role: EnumProjectMemberRole.member,
             });
             projectMemberRepository.findByIdAndProject.mockResolvedValue(
@@ -275,16 +274,16 @@ describe('ProjectMemberDomain', () => {
                 EnumProjectMemberRole.admin
             );
 
-            expect(projectMemberRepository.updateRoleInTx).toHaveBeenCalledWith(
-                expect.anything(),
+            expect(projectMemberRepository.updateRole).toHaveBeenCalledWith(
                 'target-member-id',
-                EnumProjectMemberRole.admin,
-                'actor-id'
+                EnumProjectMemberRole.admin
             );
-            expect(activityLogDomain.stage).toHaveBeenCalledWith({
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.projectMemberRoleUpdated,
                 userId: 'actor-id',
+                createdBy: 'actor-id',
                 workspaceId: 'workspace-id',
+                metadata: { targetUserId: 'target-user-id' },
             });
         });
 
@@ -356,13 +355,15 @@ describe('ProjectMemberDomain', () => {
 
             await domain.removeMember(project, 'actor-id', 'target-member-id');
 
-            expect(
-                projectMemberRepository.removeMemberInTx
-            ).toHaveBeenCalledWith(expect.anything(), 'target-member-id');
-            expect(activityLogDomain.stage).toHaveBeenCalledWith({
+            expect(projectMemberRepository.removeMember).toHaveBeenCalledWith(
+                'target-member-id'
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.projectMemberRemoved,
                 userId: 'actor-id',
+                createdBy: 'actor-id',
                 workspaceId: 'workspace-id',
+                metadata: { targetUserId: 'target-user-id' },
             });
         });
 
@@ -416,12 +417,13 @@ describe('ProjectMemberDomain', () => {
 
             await domain.leaveProject(project, member);
 
-            expect(
-                projectMemberRepository.removeMemberInTx
-            ).toHaveBeenCalledWith(expect.anything(), 'member-id');
-            expect(activityLogDomain.stage).toHaveBeenCalledWith({
+            expect(projectMemberRepository.removeMember).toHaveBeenCalledWith(
+                'member-id'
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.projectMemberLeft,
                 userId: 'user-id',
+                createdBy: 'user-id',
                 workspaceId: 'workspace-id',
             });
         });

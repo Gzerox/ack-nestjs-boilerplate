@@ -2,6 +2,8 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { DatabaseUtil } from '@common/database/utils/database.util';
+import { createMock } from '@golevelup/ts-vitest';
 import { EnumApiKeyType, type ApiKey } from '@generated/prisma-client';
 import { ApiKeyExpiredException } from '@modules/api-key/exceptions/api-key.expired.exception';
 import { ApiKeyXApiKeyForbiddenException } from '@modules/api-key/exceptions/api-key.x-api-key-forbidden.exception';
@@ -60,8 +62,10 @@ describe('ApiKeyDomain', () => {
         'findOneById' | 'findOneByKey' | 'updateStatus' | 'updateHash'
     >;
     const activityLogDomain = {
-        stage: vi.fn<ActivityLogDomain['stage']>(),
-    } satisfies Pick<ActivityLogDomain, 'stage'>;
+        prepare: vi.fn<ActivityLogDomain['prepare']>(),
+        stagePrepared: vi.fn<ActivityLogDomain['stagePrepared']>(),
+    } satisfies Pick<ActivityLogDomain, 'prepare' | 'stagePrepared'>;
+    const databaseUtil = createMock<DatabaseUtil>();
 
     const now = new Date('2026-01-01T12:00:00.000Z');
     const apiKey = {
@@ -103,6 +107,7 @@ describe('ApiKeyDomain', () => {
                 { provide: ApiKeyCache, useValue: apiKeyCacheService },
                 { provide: ApiKeyRepository, useValue: apiKeyRepository },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
+                { provide: DatabaseUtil, useValue: databaseUtil },
             ],
         }).compile();
         service = moduleRef.get(ApiKeyDomain);

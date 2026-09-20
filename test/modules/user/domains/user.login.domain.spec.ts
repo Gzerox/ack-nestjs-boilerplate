@@ -3,6 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { DatabaseService } from '@common/database/services/database.service';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
@@ -65,6 +66,7 @@ describe('UserLoginDomain', () => {
     const sessionService = createMock<SessionDomain>();
     const notificationQueue = createMock<NotificationQueue>();
     const helperDateService = createMock<HelperDateService>();
+    const helperHashService = createMock<HelperHashService>();
     const userUtil = createMock<UserUtil>();
     const userVerificationService = createMock<UserVerificationDomain>();
     const featureFlagService = createMock<FeatureFlagDomain>();
@@ -137,7 +139,7 @@ describe('UserLoginDomain', () => {
             id: 'two-factor-id',
             userId: 'user-id',
             secret: 'secret',
-            iv: 'iv',
+            pendingSecret: null,
             enabled: true,
             requiredSetup: false,
             confirmedAt: now,
@@ -193,6 +195,8 @@ describe('UserLoginDomain', () => {
         mockDatabaseServiceTransaction(databaseService);
         requestStoreGet.mockReturnValue(requestLog);
         authCacheService.getLockTwoFactorAttempt.mockResolvedValue(0);
+        helperHashService.sha256Hash.mockImplementation(value => value);
+        helperHashService.sha256Compare.mockReturnValue(false);
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 UserLoginDomain,
@@ -226,6 +230,7 @@ describe('UserLoginDomain', () => {
                 { provide: NotificationQueue, useValue: notificationQueue },
                 { provide: FeatureFlagDomain, useValue: featureFlagService },
                 { provide: HelperDateService, useValue: helperDateService },
+                { provide: HelperHashService, useValue: helperHashService },
                 { provide: RequestStoreService, useValue: requestStoreService },
             ],
         }).compile();
@@ -270,7 +275,7 @@ describe('UserLoginDomain', () => {
             'jti',
             expiredAt
         );
-        expect(sessionCacheService.deleteAllLogins).not.toHaveBeenCalled();
+        expect(sessionService.purgeLoginsByUser).not.toHaveBeenCalled();
         expect(notificationQueue.sendNewDeviceLogin).toHaveBeenCalled();
     });
 
@@ -360,6 +365,7 @@ describe('UserLoginDomain', () => {
     });
 
     it('rotates the cache and persisted session to the new jti', async () => {
+        helperHashService.sha256Compare.mockReturnValue(true);
         const session = {
             userId: user.id,
             sessionId: 'session-id',

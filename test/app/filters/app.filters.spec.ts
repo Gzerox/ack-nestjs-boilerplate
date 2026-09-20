@@ -2,9 +2,11 @@ import { createMock } from '@golevelup/ts-vitest';
 import * as Sentry from '@sentry/nestjs';
 import { HttpException, HttpStatus, type ArgumentsHost } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
+import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
 import { AppBaseExceptionFilter } from '@app/filters/app.base-exception.filter';
 import { AppGeneralFilter } from '@app/filters/app.general.filter';
 import { AppHttpFilter } from '@app/filters/app.http.filter';
@@ -16,6 +18,7 @@ import { MessageService } from '@common/message/services/message.service';
 import { FileRequiredException } from '@common/file/exceptions/file.required.exception';
 import { RequestValidationException } from '@common/request/exceptions/request.validation.exception';
 import { ResponseMetadataService } from '@common/response/services/response.metadata.service';
+import { SentryService } from '@common/sentry/services/sentry.service';
 import type { Response } from 'express';
 
 vi.mock(import('@sentry/nestjs'), async importOriginal => ({
@@ -25,7 +28,7 @@ vi.mock(import('@sentry/nestjs'), async importOriginal => ({
 
 describe('Application error filters', () => {
     const metadata = {
-        language: 'en',
+        language: EnumMessageLanguage.en,
         timestamp: 1,
         timezone: 'UTC',
         version: '1',
@@ -44,6 +47,7 @@ describe('Application error filters', () => {
         >();
     const responseMetadataService =
         createMock<Pick<ResponseMetadataService, 'create' | 'setHeaders'>>();
+    const sentryService = new SentryService();
     const json = vi.fn<(body: unknown) => Response>();
     const status = vi.fn<(statusCode: number) => Response>();
     const response = createMock<Response>({ json, status });
@@ -73,6 +77,7 @@ describe('Application error filters', () => {
                     provide: ResponseMetadataService,
                     useValue: responseMetadataService,
                 },
+                { provide: SentryService, useValue: sentryService },
             ],
         }).compile();
 
@@ -122,12 +127,13 @@ describe('Application error filters', () => {
         await filter.catch(exception, host);
 
         expect(Sentry.captureException).toHaveBeenCalledWith(exception);
-        expect(messageService.setMessage).toHaveBeenCalledWith('http.500', {
-            customLanguage: 'en',
-        });
+        expect(messageService.setMessage).toHaveBeenCalledWith(
+            'http.serverError.internalServerError',
+            { customLanguage: 'en' }
+        );
         expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
         expect(json).toHaveBeenCalledWith({
-            statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+            statusCode: EnumAppStatusCodeError.unknown,
             statusCodeKey: 'unknown',
             module: 'app',
             message: 'localized message',

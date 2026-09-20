@@ -6,7 +6,6 @@ import { Duration } from 'luxon';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { DatabaseService } from '@common/database/services/database.service';
-import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
@@ -45,6 +44,7 @@ import { UserPasswordDomain } from '@modules/user/domains/user.password.domain';
 import { UserUtil } from '@modules/user/utils/user.util';
 import { UserDomain } from '@modules/user/domains/user.domain';
 import { SessionDomain } from '@modules/session/domains/session.domain';
+import { DeviceDomain } from '@modules/device/domains/device.domain';
 import {
     createDatabaseServiceMock,
     mockDatabaseServiceTransaction,
@@ -59,6 +59,7 @@ describe('UserPasswordDomain', () => {
     const userRepository = createMock<UserRepository>();
     const userDomain = createMock<UserDomain>();
     const sessionDomain = createMock<SessionDomain>();
+    const deviceDomain = createMock<DeviceDomain>();
     const activityLogDomain = createMock<ActivityLogDomain>();
     const userTwoFactorRepository = createMock<UserTwoFactorRepository>();
     const passwordHistoryService = createMock<PasswordHistoryDomain>();
@@ -77,11 +78,8 @@ describe('UserPasswordDomain', () => {
     } satisfies Pick<ConfigService, 'get'>;
     const helperStringService = {
         random: vi.fn<HelperStringService['random']>(),
-    } satisfies Pick<HelperStringService, 'random'>;
-    const helperEncryptionService = {
-        aes256EncryptSimple:
-            vi.fn<HelperEncryptionService['aes256EncryptSimple']>(),
-    } satisfies Pick<HelperEncryptionService, 'aes256EncryptSimple'>;
+        fillPattern: vi.fn<HelperStringService['fillPattern']>(),
+    } satisfies Pick<HelperStringService, 'random' | 'fillPattern'>;
     const databaseService = createDatabaseServiceMock();
 
     const now = new Date('2026-01-01T00:00:00.000Z');
@@ -92,7 +90,6 @@ describe('UserPasswordDomain', () => {
         passwordExpired: expiredAt,
         passwordCreated: now,
         passwordPeriodExpired: periodExpiredAt,
-        passwordEncrypted: 'encrypted-new-password',
     } satisfies IAuthPassword;
     const twoFactorVerified = {
         isValid: true,
@@ -147,7 +144,7 @@ describe('UserPasswordDomain', () => {
             id: 'two-factor-id',
             userId: 'user-id',
             secret: 'secret',
-            iv: 'iv',
+            pendingSecret: null,
             enabled: true,
             requiredSetup: false,
             confirmedAt: now,
@@ -202,10 +199,10 @@ describe('UserPasswordDomain', () => {
             return values[key as keyof typeof values];
         });
         helperStringService.random.mockReturnValue('RANDOM');
-        helperHashService.sha256Hash.mockReturnValue('hashed-token');
-        helperEncryptionService.aes256EncryptSimple.mockReturnValue(
-            'encrypted-link'
+        helperStringService.fillPattern.mockReturnValue(
+            'https://app.example.com/reset-password?token=RANDOM'
         );
+        helperHashService.sha256Hash.mockReturnValue('hashed-token');
         helperDateService.create.mockReturnValue(now);
         helperDateService.forward.mockReturnValue(expiredAt);
         helperDateService.formatToIso.mockReturnValue(
@@ -244,8 +241,12 @@ describe('UserPasswordDomain', () => {
         userLoginService.handleTwoFactorValidation.mockResolvedValue(
             twoFactorVerified
         );
-        userLoginService.revokeAllSessions.mockResolvedValue(undefined);
-        userUtil.mapActivityLogMetadata.mockReturnValue({ userId: user.id });
+        userUtil.mapActivityLogActorMetadata.mockReturnValue({
+            targetUserId: user.id,
+        });
+        userUtil.mapActivityLogTargetMetadata.mockReturnValue({
+            actorUserId: 'admin-id',
+        });
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -268,6 +269,7 @@ describe('UserPasswordDomain', () => {
                 { provide: UserLoginDomain, useValue: userLoginService },
                 { provide: UserDomain, useValue: userDomain },
                 { provide: SessionDomain, useValue: sessionDomain },
+                { provide: DeviceDomain, useValue: deviceDomain },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
                 { provide: DatabaseService, useValue: databaseService },
                 { provide: AuthPasswordUtil, useValue: authPasswordService },
@@ -276,18 +278,14 @@ describe('UserPasswordDomain', () => {
                 { provide: HelperDateService, useValue: helperDateService },
                 { provide: ConfigService, useValue: configService },
                 { provide: HelperStringService, useValue: helperStringService },
-                {
-                    provide: HelperEncryptionService,
-                    useValue: helperEncryptionService,
-                },
             ],
         }).compile();
         service = moduleRef.get(UserPasswordDomain);
     });
 
     describe('forgotPasswordCreate', () => {
-        it('creates a token, hashed token, encrypted link, reference, and expiry metadata', () => {
-            const result = service.forgotPasswordCreate(user.id);
+        it('creates a token, hashed token, link, reference, and expiry metadata', () => {
+            const result = service.forgotPasswordCreate();
 
             expect(result).toMatchObject({
                 reference: 'FP-RANDOM',
@@ -297,14 +295,7 @@ describe('UserPasswordDomain', () => {
                 expiredInMinutes: 60,
                 resendInMinutes: 10,
                 link: 'https://app.example.com/reset-password?token=RANDOM',
-                encryptedLink: 'encrypted-link',
             });
-            expect(
-                helperEncryptionService.aes256EncryptSimple
-            ).toHaveBeenCalledWith(
-                'https://app.example.com/reset-password?token=RANDOM',
-                user.id
-            );
         });
     });
 
@@ -316,11 +307,10 @@ describe('UserPasswordDomain', () => {
                 authPasswordService.createPasswordRandom
             ).toHaveBeenCalledTimes(1);
             expect(authPasswordService.createPassword).toHaveBeenCalledWith(
-                user.id,
                 'temporary-password',
                 { temporary: true }
             );
-            expect(userLoginService.revokeAllSessions).toHaveBeenCalledWith(
+            expect(sessionDomain.purgeLoginsByUser).toHaveBeenCalledWith(
                 user.id
             );
             expect(userDomain.updatePasswordInTx).toHaveBeenCalledWith(
@@ -334,20 +324,21 @@ describe('UserPasswordDomain', () => {
             ).toHaveBeenCalledWith(
                 user.id,
                 {
-                    password: password.passwordEncrypted,
+                    password: 'temporary-password',
                     passwordCreatedAt: '2026-01-02T00:00:00.000Z',
                     passwordExpiredAt: '2026-01-02T00:00:00.000Z',
                 },
                 'admin-id'
             );
-            expect(activityLogDomain.stage).toHaveBeenNthCalledWith(1, {
+            expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(1, {
                 action: EnumActivityLogAction.adminUserUpdatePassword,
-                metadata: { userId: user.id },
+                metadata: { targetUserId: user.id },
             });
-            expect(activityLogDomain.stage).toHaveBeenNthCalledWith(2, {
+            expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(2, {
                 action: EnumActivityLogAction.userUpdatePasswordByAdmin,
                 userId: user.id,
-                metadata: { userId: user.id },
+                createdBy: 'admin-id',
+                metadata: { actorUserId: 'admin-id' },
             });
         });
 
@@ -384,7 +375,7 @@ describe('UserPasswordDomain', () => {
             expect(userDomain.increasePasswordAttempt).toHaveBeenCalledWith(
                 user.id
             );
-            expect(userLoginService.revokeAllSessions).not.toHaveBeenCalled();
+            expect(sessionDomain.purgeLoginsByUser).not.toHaveBeenCalled();
         });
 
         it('rejects a reused password before changing persistence', async () => {
@@ -421,7 +412,7 @@ describe('UserPasswordDomain', () => {
                 code: '123456',
                 backupCode: undefined,
             });
-            expect(userLoginService.revokeAllSessions).toHaveBeenCalledWith(
+            expect(sessionDomain.purgeLoginsByUser).toHaveBeenCalledWith(
                 user.id
             );
             expect(userDomain.updatePasswordInTx).toHaveBeenCalledWith(
@@ -431,12 +422,8 @@ describe('UserPasswordDomain', () => {
                 user.id
             );
             expect(
-                userTwoFactorRepository.verifyTwoFactorInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
-                user.id,
-                twoFactorVerified
-            );
+                userLoginService.recordTwoFactorVerificationInTx
+            ).toHaveBeenCalledWith(expect.any(Object), user, twoFactorVerified);
             expect(notificationQueue.sendChangePassword).toHaveBeenCalledWith(
                 user.id
             );
@@ -450,21 +437,21 @@ describe('UserPasswordDomain', () => {
             expect(
                 featureFlagService.validateFeatureFlagMetadata
             ).toHaveBeenCalledWith('changePassword', 'forgotAllowed');
-            expect(userPasswordRepository.createInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(
+                userPasswordRepository.createReplacingUnused
+            ).toHaveBeenCalledWith(
                 user.id,
                 user.email,
                 expect.objectContaining({
                     reference: 'FP-RANDOM',
                     hashedToken: 'hashed-token',
-                    encryptedLink: 'encrypted-link',
                 })
             );
             expect(notificationQueue.sendForgotPassword).toHaveBeenCalledWith(
                 user.id,
                 {
                     expiredAt: '2026-01-02T00:00:00.000Z',
-                    link: 'encrypted-link',
+                    link: 'https://app.example.com/reset-password?token=RANDOM',
                     reference: 'FP-RANDOM',
                     expiredInMinutes: 60,
                     resendInMinutes: 10,
@@ -485,7 +472,9 @@ describe('UserPasswordDomain', () => {
             ).rejects.toBeInstanceOf(
                 UserForgotPasswordRequestLimitExceededException
             );
-            expect(userPasswordRepository.createInTx).not.toHaveBeenCalled();
+            expect(
+                userPasswordRepository.createReplacingUnused
+            ).not.toHaveBeenCalled();
         });
     });
 
@@ -522,7 +511,7 @@ describe('UserPasswordDomain', () => {
                 code: '123456',
                 backupCode: undefined,
             });
-            expect(userLoginService.revokeAllSessions).toHaveBeenCalledWith(
+            expect(sessionDomain.purgeLoginsByUser).toHaveBeenCalledWith(
                 user.id
             );
             expect(userDomain.updatePasswordInTx).toHaveBeenCalledWith(
@@ -532,12 +521,8 @@ describe('UserPasswordDomain', () => {
                 user.id
             );
             expect(
-                userTwoFactorRepository.verifyTwoFactorInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
-                user.id,
-                twoFactorVerified
-            );
+                userLoginService.recordTwoFactorVerificationInTx
+            ).toHaveBeenCalledWith(expect.any(Object), user, twoFactorVerified);
             expect(notificationQueue.sendResetPassword).toHaveBeenCalledWith(
                 user.id
             );

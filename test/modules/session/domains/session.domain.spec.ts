@@ -12,17 +12,12 @@ import { SessionRepository } from '@modules/session/repositories/session.reposit
 import { SessionCache } from '@modules/session/caches/session.cache';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { SessionUtil } from '@modules/session/utils/session.util';
-import {
-    createDatabaseServiceMock,
-    mockDatabaseServiceTransaction,
-} from '@test/support/database.mock';
 
 describe('SessionDomain', () => {
     const sessionRepository = createMock<SessionRepository>();
     const sessionCacheService = createMock<SessionCache>();
     const sessionUtil = createMock<SessionUtil>();
     const activityLogDomain = createMock<ActivityLogDomain>();
-    const databaseService = createDatabaseServiceMock();
     const helperDateService = createMock<HelperDateService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const userRef = {
@@ -60,14 +55,12 @@ describe('SessionDomain', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        mockDatabaseServiceTransaction(databaseService);
         helperDateService.create.mockReturnValue(now);
         service = new SessionDomain(
             sessionRepository,
             sessionUtil,
             sessionCacheService,
             activityLogDomain,
-            databaseService,
             helperDateService
         );
     });
@@ -99,86 +92,84 @@ describe('SessionDomain', () => {
         await expect(
             service.revoke('user-id', 'foreign-session')
         ).rejects.toBeInstanceOf(SessionNotFoundException);
-        expect(sessionRepository.revokeInTx).not.toHaveBeenCalled();
+        expect(sessionRepository.revoke).not.toHaveBeenCalled();
     });
 
     it('revokes an owned session and invalidates its cached login', async () => {
         sessionRepository.findOneActive.mockResolvedValue(session);
+        sessionRepository.revoke.mockResolvedValue(true);
 
         await expect(
             service.revoke('user-id', 'session-id')
         ).resolves.toBeUndefined();
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.userRevokeSession,
         });
-        expect(sessionRepository.revokeInTx).toHaveBeenCalledWith(
-            expect.any(Object),
+        expect(sessionRepository.revoke).toHaveBeenCalledWith(
             'user-id',
             'session-id',
             'user-id',
             expect.any(Date)
         );
-        expect(sessionCacheService.deleteOneLogin).toHaveBeenCalledWith(
+        expect(sessionCacheService.deleteLogins).toHaveBeenCalledWith(
             'user-id',
-            'session-id'
+            [{ id: 'session-id' }]
         );
     });
 
     it('revokes a user session as administrator and records audit metadata', async () => {
         sessionRepository.findOneActive.mockResolvedValue(session);
-        sessionRepository.revokeByAdminInTx.mockResolvedValue(session);
-        sessionUtil.mapActivityLogMetadata.mockReturnValue({
+        sessionRepository.revokeByAdmin.mockResolvedValue(true);
+        sessionUtil.mapActivityLogActorMetadata.mockReturnValue({
             sessionId: session.id,
-            userId: session.userId,
-            userUsername: session.user.username,
+            targetUserId: session.userId,
+            targetUsername: session.user.username,
+            timestamp: session.updatedAt,
+        });
+        sessionUtil.mapActivityLogTargetMetadata.mockReturnValue({
+            actorUserId: 'admin-id',
+            sessionId: session.id,
             timestamp: session.updatedAt,
         });
 
         await expect(
             service.revokeByAdmin('user-id', 'session-id', 'admin-id')
         ).resolves.toBeUndefined();
-        expect(sessionRepository.revokeByAdminInTx).toHaveBeenCalledWith(
-            expect.any(Object),
+        expect(sessionRepository.revokeByAdmin).toHaveBeenCalledWith(
             'session-id',
             'admin-id',
             expect.any(Date)
         );
-        expect(sessionCacheService.deleteOneLogin).toHaveBeenCalledWith(
+        expect(sessionCacheService.deleteLogins).toHaveBeenCalledWith(
             'user-id',
-            'session-id'
+            [{ id: 'session-id' }]
         );
-        expect(activityLogDomain.stage).toHaveBeenNthCalledWith(1, {
+        expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(1, {
             action: EnumActivityLogAction.adminSessionRevoke,
             metadata: {
                 sessionId: session.id,
-                userId: session.userId,
-                userUsername: session.user.username,
+                targetUserId: session.userId,
+                targetUsername: session.user.username,
                 timestamp: session.updatedAt,
             },
         });
-        expect(activityLogDomain.stage).toHaveBeenNthCalledWith(2, {
+        expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(2, {
             action: EnumActivityLogAction.userRevokeSessionByAdmin,
             userId: 'user-id',
+            createdBy: 'admin-id',
             metadata: {
+                actorUserId: 'admin-id',
                 sessionId: session.id,
-                userId: session.userId,
-                userUsername: session.user.username,
                 timestamp: session.updatedAt,
             },
         });
     });
 
-    it('invalidates every active login returned before bulk revocation', async () => {
-        sessionRepository.findActive.mockResolvedValue([
-            { id: 'session-1' },
-            { id: 'session-2' },
-        ]);
+    it('invalidates every cached login for a user', async () => {
+        await service.purgeLoginsByUser('user-id');
 
-        await service.deleteAllLogins('user-id');
-
-        expect(sessionCacheService.deleteAllLogins).toHaveBeenCalledWith(
-            'user-id',
-            [{ id: 'session-1' }, { id: 'session-2' }]
+        expect(sessionCacheService.deleteLoginsByUser).toHaveBeenCalledWith(
+            'user-id'
         );
     });
 });

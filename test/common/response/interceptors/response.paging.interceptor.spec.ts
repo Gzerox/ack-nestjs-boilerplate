@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-vitest';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -26,7 +27,7 @@ import type { Response } from 'express';
 
 describe('ResponsePagingInterceptor', () => {
     const metadata = {
-        language: 'en',
+        language: EnumMessageLanguage.en,
         timestamp: 123,
         timezone: 'UTC',
         version: '1',

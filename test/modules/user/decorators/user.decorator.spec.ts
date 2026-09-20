@@ -11,6 +11,7 @@ import {
 } from '@modules/user/decorators/user.decorator';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { ClsService } from 'nestjs-cls';
 
@@ -85,13 +86,15 @@ describe('UserCurrent', () => {
         expect(get).toHaveBeenCalledWith(UserStoreKey);
     });
 
-    it('returns undefined when no user was stored', () => {
+    it('rejects a missing user context', () => {
         const clsService = createMock<ClsService>();
         clsService.get.mockImplementation(() => undefined as never);
         vi.mocked(ClsServiceManager.getClsService).mockReturnValue(clsService);
 
         const factory = extractFactory();
 
-        expect(factory(undefined, {})).toBeUndefined();
+        expect(() => factory(undefined, {})).toThrow(
+            RequestContextMissingException
+        );
     });
 });

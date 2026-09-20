@@ -1,11 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
-import {
-    EnumWorkspaceMemberRole,
-    Workspace,
-    WorkspaceInvite,
-} from '@generated/prisma-client';
+import { EnumWorkspaceMemberRole } from '@generated/prisma-client';
+import type { Workspace, WorkspaceInvite } from '@generated/prisma-client';
 import { getPrismaClient } from '@test/e2e/support/prisma';
 
 /**

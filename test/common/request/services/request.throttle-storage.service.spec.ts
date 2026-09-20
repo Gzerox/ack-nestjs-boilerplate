@@ -2,16 +2,18 @@ import { ConfigService } from '@nestjs/config';
 import type Keyv from 'keyv';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RequestThrottlerStorageService } from '@common/request/services/request.throttler.service';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
+import { RequestThrottleStorageService } from '@common/request/services/request.throttle-storage.service';
 
-describe('RequestThrottlerStorageService', () => {
+describe('RequestThrottleStorageService', () => {
     const evalScript = vi.fn();
     const getClient = vi.fn(() => ({ eval: evalScript }));
     const keyv = { store: { getClient } } as unknown as Keyv;
     const configService: Pick<ConfigService, 'get'> = { get: vi.fn() };
     const configGet = vi.mocked(configService.get);
 
-    let service: RequestThrottlerStorageService;
+    const helperStringService = new HelperStringService();
+    let service: RequestThrottleStorageService;
 
     beforeEach(() => {
         vi.resetAllMocks();
@@ -26,9 +28,10 @@ describe('RequestThrottlerStorageService', () => {
             };
             return values[key];
         });
-        service = new RequestThrottlerStorageService(
+        service = new RequestThrottleStorageService(
             keyv,
-            configService as ConfigService
+            configService as ConfigService,
+            helperStringService
         );
     });
 

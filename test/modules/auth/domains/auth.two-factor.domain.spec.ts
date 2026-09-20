@@ -6,6 +6,8 @@ import { generateSecret, verifySync } from 'otplib';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
+import { SentryService } from '@common/sentry/services/sentry.service';
+import { AuthTwoFactorSecretEncryptionPurpose } from '@modules/auth/constants/auth.constant';
 import {
     EnumRoleType,
     EnumUserGender,
@@ -23,27 +25,24 @@ import type {
 
 vi.mock('otplib', () => ({
     generateSecret: vi.fn(() => 'TOTPSECRET'),
+    generateURI: vi.fn(() => 'otpauth://totp/ACK:user@example.com'),
     verifySync: vi.fn(() => ({ valid: true, delta: 0 })),
 }));
 
 describe('AuthTwoFactorDomain', () => {
-    const aes256Decrypt = vi.fn(
-        (_encrypted: string, _key: string, _iv: string) => 'plain-secret'
+    const aes256Decrypt = vi.fn<HelperEncryptionService['aes256Decrypt']>(
+        () => 'plain-secret'
     );
     const helperEncryptionService = {
         aes256Encrypt: vi.fn<HelperEncryptionService['aes256Encrypt']>(),
-        aes256Decrypt<T>(encrypted: string, key: string, iv: string): T {
-            return JSON.parse(
-                JSON.stringify(aes256Decrypt(encrypted, key, iv))
-            );
-        },
+        aes256Decrypt,
     } satisfies Pick<
         HelperEncryptionService,
         'aes256Encrypt' | 'aes256Decrypt'
     >;
     const helperStringService = {
-        random: vi.fn<HelperStringService['random']>(),
-    } satisfies Pick<HelperStringService, 'random'>;
+        randomUppercase: vi.fn<HelperStringService['randomUppercase']>(),
+    } satisfies Pick<HelperStringService, 'randomUppercase'>;
     const helperHashService = {
         sha256Hash: vi.fn<HelperHashService['sha256Hash']>(),
         sha256Compare: vi.fn<HelperHashService['sha256Compare']>(),
@@ -51,6 +50,9 @@ describe('AuthTwoFactorDomain', () => {
     const authTwoFactorUtil = {
         createKeyUri: vi.fn<AuthTwoFactorUtil['createKeyUri']>(),
     } satisfies Pick<AuthTwoFactorUtil, 'createKeyUri'>;
+    const sentryService = {
+        captureException: vi.fn<SentryService['captureException']>(),
+    } satisfies Pick<SentryService, 'captureException'>;
     const configService = new ConfigService({
         'auth.twoFactor.strategy': 'totp',
         'auth.twoFactor.algorithm': 'sha1',
@@ -68,7 +70,7 @@ describe('AuthTwoFactorDomain', () => {
         id: 'two-factor-id',
         userId: 'user-id',
         secret: 'encrypted-secret',
-        iv: 'hex:00112233445566778899aabbccddeeff',
+        pendingSecret: null,
         enabled: true,
         requiredSetup: false,
         confirmedAt: now,
@@ -161,6 +163,7 @@ describe('AuthTwoFactorDomain', () => {
                 { provide: HelperStringService, useValue: helperStringService },
                 { provide: HelperHashService, useValue: helperHashService },
                 { provide: AuthTwoFactorUtil, useValue: authTwoFactorUtil },
+                { provide: SentryService, useValue: sentryService },
             ],
         }).compile();
         service = moduleRef.get(AuthTwoFactorDomain);
@@ -265,9 +268,9 @@ describe('AuthTwoFactorDomain', () => {
     });
 
     it('generates uppercase backup codes and their hashes', () => {
-        helperStringService.random
-            .mockReturnValueOnce('abc123def4')
-            .mockReturnValueOnce('ghi567jkl8');
+        helperStringService.randomUppercase
+            .mockReturnValueOnce('ABC123DEF4')
+            .mockReturnValueOnce('GHI567JKL8');
         helperHashService.sha256Hash.mockImplementation(code => `hash:${code}`);
 
         expect(service.generateBackupCodes()).toEqual({
@@ -282,18 +285,21 @@ describe('AuthTwoFactorDomain', () => {
         );
         authTwoFactorUtil.createKeyUri.mockReturnValue('otpauth://totp/ACK');
 
-        const result = await service.setupTwoFactor('user@example.com');
+        const result = await service.setupTwoFactor(
+            'user-id',
+            'user@example.com'
+        );
 
         expect(result).toMatchObject({
             secret: 'TOTPSECRET',
             encryptedSecret: 'encrypted-secret',
             otpauthUrl: 'otpauth://totp/ACK',
         });
-        expect(result.iv).toMatch(/^hex:[0-9a-f]{32}$/);
         expect(helperEncryptionService.aes256Encrypt).toHaveBeenCalledWith(
             'TOTPSECRET',
             'encryption-key',
-            result.iv
+            AuthTwoFactorSecretEncryptionPurpose,
+            'user-id'
         );
     });
 

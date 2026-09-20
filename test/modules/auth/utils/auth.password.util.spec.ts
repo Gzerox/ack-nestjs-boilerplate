@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Duration } from 'luxon';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
-import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import {
@@ -19,15 +18,6 @@ import {
 import { AuthPasswordUtil } from '@modules/auth/utils/auth.password.util';
 
 describe('AuthPasswordUtil', () => {
-    const helperEncryptionService = {
-        aes256EncryptSimple:
-            vi.fn<HelperEncryptionService['aes256EncryptSimple']>(),
-        aes256DecryptSimple:
-            vi.fn<HelperEncryptionService['aes256DecryptSimple']>(),
-    } satisfies Pick<
-        HelperEncryptionService,
-        'aes256EncryptSimple' | 'aes256DecryptSimple'
-    >;
     const helperHashService = {
         bcryptCompare: vi.fn<HelperHashService['bcryptCompare']>(),
         bcryptGenerateSalt: vi.fn<HelperHashService['bcryptGenerateSalt']>(),
@@ -99,10 +89,6 @@ describe('AuthPasswordUtil', () => {
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 AuthPasswordUtil,
-                {
-                    provide: HelperEncryptionService,
-                    useValue: helperEncryptionService,
-                },
                 { provide: HelperHashService, useValue: helperHashService },
                 { provide: HelperDateService, useValue: helperDateService },
                 { provide: HelperStringService, useValue: helperStringService },
@@ -126,26 +112,18 @@ describe('AuthPasswordUtil', () => {
             .mockReturnValueOnce(periodExpiry);
         helperHashService.bcryptGenerateSalt.mockReturnValue('salt');
         helperHashService.bcryptHash.mockReturnValue('password-hash');
-        helperEncryptionService.aes256EncryptSimple.mockReturnValue(
-            'encrypted-password'
+        expect(service.createPassword('password', { temporary: true })).toEqual(
+            {
+                passwordHash: 'password-hash',
+                passwordExpired: temporaryExpiry,
+                passwordCreated: now,
+                passwordPeriodExpired: periodExpiry,
+            }
         );
-
-        expect(
-            service.createPassword('user-id', 'password', { temporary: true })
-        ).toEqual({
-            passwordHash: 'password-hash',
-            passwordExpired: temporaryExpiry,
-            passwordCreated: now,
-            passwordPeriodExpired: periodExpiry,
-            passwordEncrypted: 'encrypted-password',
-        });
         expect(helperHashService.bcryptHash).toHaveBeenCalledWith(
             'password',
             'salt'
         );
-        expect(
-            helperEncryptionService.aes256EncryptSimple
-        ).toHaveBeenCalledWith('password', 'user-id');
     });
 
     it.each([
@@ -207,25 +185,6 @@ describe('AuthPasswordUtil', () => {
             'candidate',
             'stored-hash'
         );
-    });
-
-    it('encrypts and decrypts password material with the user id as key context', () => {
-        helperEncryptionService.aes256EncryptSimple.mockReturnValue(
-            'encrypted-password'
-        );
-        helperEncryptionService.aes256DecryptSimple.mockReturnValue(
-            'plain-password'
-        );
-
-        expect(service.encryptPassword('user-id', 'plain-password')).toBe(
-            'encrypted-password'
-        );
-        expect(service.decryptPassword('user-id', 'encrypted-password')).toBe(
-            'plain-password'
-        );
-        expect(
-            helperEncryptionService.aes256DecryptSimple
-        ).toHaveBeenCalledWith('encrypted-password', 'user-id');
     });
 
     it('generates a ten-character random password', () => {

@@ -2,8 +2,6 @@ import { createMock } from '@golevelup/ts-vitest';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
-import { DatabaseService } from '@common/database/services/database.service';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { RequestLogStoreKey } from '@common/request/constants/request.constant';
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
@@ -20,14 +18,6 @@ import { WorkspaceStoreKey } from '@modules/workspace/constants/workspace.consta
 describe('ActivityLogDomain', () => {
     const activityLogRepository = createMock<ActivityLogRepository>();
     const activityLogUtil = createMock<ActivityLogUtil>();
-    const transactionClient = {} as IDatabaseTransactionClient;
-    const databaseService = {
-        async withTransaction<T>(
-            callback: (tx: IDatabaseTransactionClient) => Promise<T>
-        ): Promise<T> {
-            return callback(transactionClient);
-        },
-    } satisfies Pick<DatabaseService, 'withTransaction'>;
     const requestStore = new Map<string, unknown>();
     const requestStoreGet = vi.fn((key: string): unknown =>
         requestStore.get(key)
@@ -67,18 +57,18 @@ describe('ActivityLogDomain', () => {
                     provide: RequestStoreService,
                     useValue: requestStoreService,
                 },
-                { provide: DatabaseService, useValue: databaseService },
             ],
         }).compile();
 
         domain = moduleRef.get(ActivityLogDomain);
     });
 
-    describe('stage', () => {
+    describe('prepare / stagePrepared', () => {
         it('appends a validated success event to the request store', () => {
-            domain.stage({
+            const event = domain.prepare({
                 action: EnumActivityLogAction.userUpdateProfile,
             });
+            domain.stagePrepared([event]);
 
             expect(requestStoreSet).toHaveBeenCalledWith(
                 ActivityLogStageStoreKey,
@@ -94,7 +84,7 @@ describe('ActivityLogDomain', () => {
 
         it('rejects an event missing its required target user', () => {
             expect(() =>
-                domain.stage({
+                domain.prepare({
                     action: EnumActivityLogAction.userCreated,
                 })
             ).toThrow(ActivityLogContractInvalidException);
@@ -103,7 +93,7 @@ describe('ActivityLogDomain', () => {
 
         it('rejects metadata outside the action contract', () => {
             expect(() =>
-                domain.stage({
+                domain.prepare({
                     action: EnumActivityLogAction.userUpdateProfile,
                     metadata: { unexpected: true },
                 })
@@ -113,7 +103,7 @@ describe('ActivityLogDomain', () => {
     });
 
     describe('flushStaged', () => {
-        it('writes all success events in one transaction and clears the stage', async () => {
+        it('writes all success events and clears the stage', async () => {
             requestStore.set(RequestLogStoreKey, requestLog);
             requestStore.set(ActivityLogStageStoreKey, [
                 {
@@ -123,9 +113,10 @@ describe('ActivityLogDomain', () => {
                 },
                 {
                     action: EnumActivityLogAction.userCreated,
-                    metadata: { userId: 'target-id' },
+                    metadata: {},
                     onError: false,
                     userId: 'target-id',
+                    createdBy: 'target-id',
                 },
             ] satisfies IActivityLogStagedEvent[]);
 
@@ -134,27 +125,26 @@ describe('ActivityLogDomain', () => {
                 isError: false,
             });
 
-            expect(activityLogRepository.createManyInTx).toHaveBeenCalledWith(
-                transactionClient,
-                [
-                    {
-                        userId: 'payload-id',
-                        workspaceId: null,
-                        action: EnumActivityLogAction.userUpdateProfile,
-                        description: EnumActivityLogAction.userUpdateProfile,
-                        requestLog,
-                        metadata: {},
-                    },
-                    {
-                        userId: 'target-id',
-                        workspaceId: null,
-                        action: EnumActivityLogAction.userCreated,
-                        description: EnumActivityLogAction.userCreated,
-                        requestLog,
-                        metadata: { userId: 'target-id' },
-                    },
-                ]
-            );
+            expect(activityLogRepository.createMany).toHaveBeenCalledWith([
+                {
+                    userId: 'payload-id',
+                    createdBy: 'payload-id',
+                    workspaceId: null,
+                    action: EnumActivityLogAction.userUpdateProfile,
+                    description: EnumActivityLogAction.userUpdateProfile,
+                    requestLog,
+                    metadata: {},
+                },
+                {
+                    userId: 'target-id',
+                    createdBy: 'target-id',
+                    workspaceId: null,
+                    action: EnumActivityLogAction.userCreated,
+                    description: EnumActivityLogAction.userCreated,
+                    requestLog,
+                    metadata: {},
+                },
+            ]);
             expect(requestStoreSet).toHaveBeenLastCalledWith(
                 ActivityLogStageStoreKey,
                 []
@@ -174,6 +164,7 @@ describe('ActivityLogDomain', () => {
                     metadata: {},
                     onError: true,
                     userId: 'target-id',
+                    createdBy: 'target-id',
                 },
             ] satisfies IActivityLogStagedEvent[]);
 
@@ -182,15 +173,12 @@ describe('ActivityLogDomain', () => {
                 isError: true,
             });
 
-            expect(activityLogRepository.createManyInTx).toHaveBeenCalledWith(
-                transactionClient,
-                [
-                    expect.objectContaining({
-                        userId: 'target-id',
-                        action: EnumActivityLogAction.userLoginFailed,
-                    }),
-                ]
-            );
+            expect(activityLogRepository.createMany).toHaveBeenCalledWith([
+                expect.objectContaining({
+                    userId: 'target-id',
+                    action: EnumActivityLogAction.userLoginFailed,
+                }),
+            ]);
         });
 
         it('clears success-only events without opening a transaction on error', async () => {
@@ -207,7 +195,7 @@ describe('ActivityLogDomain', () => {
                 isError: true,
             });
 
-            expect(activityLogRepository.createManyInTx).not.toHaveBeenCalled();
+            expect(activityLogRepository.createMany).not.toHaveBeenCalled();
             expect(requestStoreSet).toHaveBeenCalledWith(
                 ActivityLogStageStoreKey,
                 []
@@ -219,10 +207,11 @@ describe('ActivityLogDomain', () => {
             requestStore.set(WorkspaceStoreKey, { id: 'workspace-id' });
             requestStore.set(ActivityLogStageStoreKey, [
                 {
-                    action: EnumActivityLogAction.workspaceInviteAccepted,
+                    action: EnumActivityLogAction.workspaceJoinRequested,
                     metadata: {},
                     onError: false,
                     userId: 'target-id',
+                    createdBy: 'target-id',
                     workspaceId: 'workspace-id',
                 },
             ] satisfies IActivityLogStagedEvent[]);
@@ -232,15 +221,12 @@ describe('ActivityLogDomain', () => {
                 isError: false,
             });
 
-            expect(activityLogRepository.createManyInTx).toHaveBeenCalledWith(
-                transactionClient,
-                [
-                    expect.objectContaining({
-                        userId: 'target-id',
-                        workspaceId: 'workspace-id',
-                    }),
-                ]
-            );
+            expect(activityLogRepository.createMany).toHaveBeenCalledWith([
+                expect.objectContaining({
+                    userId: 'target-id',
+                    workspaceId: 'workspace-id',
+                }),
+            ]);
         });
 
         it('rejects a staged batch without request metadata', async () => {
@@ -258,7 +244,7 @@ describe('ActivityLogDomain', () => {
                     isError: false,
                 })
             ).rejects.toBeInstanceOf(ActivityLogContractInvalidException);
-            expect(activityLogRepository.createManyInTx).not.toHaveBeenCalled();
+            expect(activityLogRepository.createMany).not.toHaveBeenCalled();
         });
     });
 

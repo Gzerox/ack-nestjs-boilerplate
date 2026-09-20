@@ -9,6 +9,7 @@ import {
 } from '@generated/prisma-client';
 import { EnumFileExtensionDocument } from '@common/file/enums/file.enum';
 import { HelperArrayService } from '@common/helper/services/helper.array.service';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
 import { ConfigService } from '@nestjs/config';
 
@@ -24,7 +25,11 @@ describe('TermPolicyUtil', () => {
                 contentPublicPath: 'public/{type}/{version}',
             },
         });
-        util = new TermPolicyUtil(configService, new HelperArrayService());
+        util = new TermPolicyUtil(
+            configService,
+            new HelperArrayService(),
+            new HelperStringService()
+        );
     });
 
     it('rejects duplicate languages', () => {
@@ -70,7 +75,7 @@ describe('TermPolicyUtil', () => {
             updatedBy: null,
         } satisfies TermPolicy;
 
-        expect(util.mapActivityLogMetadata(termPolicy)).toEqual({
+        expect(util.mapActivityLogMetadata(termPolicy, updatedAt)).toEqual({
             termPolicyId: 'term-id',
             termPolicyType: EnumTermPolicyType.privacy,
             termPolicyVersion: 2,

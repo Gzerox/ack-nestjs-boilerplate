@@ -18,7 +18,7 @@ describe('RoleUtil', () => {
             updatedBy: null,
         } satisfies Role;
 
-        expect(new RoleUtil().mapActivityLogMetadata(role)).toEqual({
+        expect(new RoleUtil().mapActivityLogMetadata(role, updatedAt)).toEqual({
             roleId: 'role-id',
             roleName: 'Admin',
             roleType: EnumRoleType.admin,

@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
+import { SentryService } from '@common/sentry/services/sentry.service';
 import { NotificationEmailProcessor } from '@modules/notification/processors/notification.email.processor';
 import { NotificationEmailProcessorService } from '@modules/notification/services/notification.email.processor.service';
 import type { IQueueResponse } from '@queues/interfaces/queue.interface';
@@ -9,7 +10,10 @@ import { createQueueJob } from '@test/support/queue-job.mock';
 
 describe('NotificationEmailProcessor', () => {
     const service = createMock<NotificationEmailProcessorService>();
-    const processor = new NotificationEmailProcessor(service);
+    const processor = new NotificationEmailProcessor(
+        service,
+        createMock<SentryService>()
+    );
     const cases = [
         [EnumNotificationProcess.changePassword, service.processChangePassword],
         [EnumNotificationProcess.welcome, service.processWelcome],

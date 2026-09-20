@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ISession } from '@modules/session/interfaces/session.interface';
+import type { ISession } from '@modules/session/interfaces/session.interface';
 import { SessionUtil } from '@modules/session/utils/session.util';
 
 describe('SessionUtil', () => {
@@ -40,10 +40,10 @@ describe('SessionUtil', () => {
             revokedBy: null,
         } satisfies ISession;
 
-        expect(util.mapActivityLogMetadata(session)).toEqual({
+        expect(util.mapActivityLogActorMetadata(session, updatedAt)).toEqual({
             sessionId: 'session-id',
-            userId: 'user-id',
-            userUsername: 'jane',
+            targetUserId: 'user-id',
+            targetUsername: 'jane',
             timestamp: updatedAt,
         });
     });

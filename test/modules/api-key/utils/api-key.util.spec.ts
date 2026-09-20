@@ -44,7 +44,7 @@ describe('ApiKeyUtil', () => {
             updatedBy: null,
         } satisfies ApiKey;
 
-        expect(util.mapActivityLogMetadata(apiKey)).toEqual({
+        expect(util.mapActivityLogMetadata(apiKey, now)).toEqual({
             apiKeyId: 'api-key-id',
             apiKeyName: 'System',
             apiKeyType: EnumApiKeyType.system,

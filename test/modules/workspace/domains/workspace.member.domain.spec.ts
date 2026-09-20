@@ -18,13 +18,11 @@ import { WorkspaceRoleForbiddenException } from '@modules/workspace/exceptions/w
 import { WorkspaceSelfTransferException } from '@modules/workspace/exceptions/workspace.self-transfer.exception';
 import { WorkspaceMemberRepository } from '@modules/workspace/repositories/workspace.member.repository';
 import { WorkspaceRepository } from '@modules/workspace/repositories/workspace.repository';
-import { createDatabaseServiceMock } from '@test/support/database.mock';
 
 describe('WorkspaceMemberDomain', () => {
     const memberRepository = createMock<WorkspaceMemberRepository>();
     const workspaceRepository = createMock<WorkspaceRepository>();
     const activityLogDomain = createMock<ActivityLogDomain>();
-    const databaseService = createDatabaseServiceMock();
     const owner = createMock<WorkspaceMember>({
         id: 'owner-member-id',
         userId: 'owner-id',
@@ -57,8 +55,7 @@ describe('WorkspaceMemberDomain', () => {
         domain = new WorkspaceMemberDomain(
             memberRepository,
             workspaceRepository,
-            activityLogDomain,
-            databaseService
+            activityLogDomain
         );
     });
 
@@ -124,16 +121,16 @@ describe('WorkspaceMemberDomain', () => {
     it('transfers ownership and stages the activity atomically', async () => {
         memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(member);
         await domain.transferOwnership('workspace-id', owner, member.userId);
-        expect(memberRepository.transferOwnershipInTx).toHaveBeenCalledWith(
-            expect.anything(),
+        expect(memberRepository.transferOwnership).toHaveBeenCalledWith(
             owner.id,
-            member.id,
-            owner.userId
+            member.id
         );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceOwnershipTransferred,
             userId: owner.userId,
+            createdBy: owner.userId,
             workspaceId: 'workspace-id',
+            metadata: { targetUserId: member.userId },
         });
     });
 
@@ -142,16 +139,13 @@ describe('WorkspaceMemberDomain', () => {
         await expect(
             domain.leaveWorkspace('workspace-id', owner)
         ).rejects.toBeInstanceOf(WorkspaceLastOwnerException);
-        expect(memberRepository.removeMemberInTx).not.toHaveBeenCalled();
+        expect(memberRepository.removeMember).not.toHaveBeenCalled();
     });
 
     it('allows a non-owner to leave without counting owners', async () => {
         await domain.leaveWorkspace('workspace-id', member);
         expect(memberRepository.countOwners).not.toHaveBeenCalled();
-        expect(memberRepository.removeMemberInTx).toHaveBeenCalledWith(
-            expect.anything(),
-            member.id
-        );
+        expect(memberRepository.removeMember).toHaveBeenCalledWith(member.id);
     });
 
     it.each([
@@ -192,16 +186,16 @@ describe('WorkspaceMemberDomain', () => {
             member.id,
             EnumWorkspaceMemberRole.admin
         );
-        expect(memberRepository.updateRoleInTx).toHaveBeenCalledWith(
-            expect.anything(),
-            admin.userId,
+        expect(memberRepository.updateRole).toHaveBeenCalledWith(
             member.id,
             EnumWorkspaceMemberRole.admin
         );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceMemberRoleUpdated,
             userId: admin.userId,
+            createdBy: admin.userId,
             workspaceId: 'workspace-id',
+            metadata: { targetUserId: member.userId },
         });
     });
 
@@ -232,14 +226,13 @@ describe('WorkspaceMemberDomain', () => {
     it('removes a member and stages activity', async () => {
         memberRepository.findByIdAndWorkspace.mockResolvedValue(member);
         await domain.removeMember('workspace-id', admin, member.id);
-        expect(memberRepository.removeMemberInTx).toHaveBeenCalledWith(
-            expect.anything(),
-            member.id
-        );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(memberRepository.removeMember).toHaveBeenCalledWith(member.id);
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceMemberRemoved,
             userId: admin.userId,
+            createdBy: admin.userId,
             workspaceId: 'workspace-id',
+            metadata: { targetUserId: member.userId },
         });
     });
 });

@@ -9,16 +9,12 @@ import type {
     IAwsS3Presign,
 } from '@common/aws/interfaces/aws.interface';
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
+import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
 import type { IFile } from '@common/file/interfaces/file.interface';
 import { FileService } from '@common/file/services/file.service';
-import { RequestStoreService } from '@common/request/services/request.store.service';
-import { DatabaseService } from '@common/database/services/database.service';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
-import {
-    EnumAwsS3Accessibility,
-    EnumUserGender,
-} from '@generated/prisma-client';
+import { EnumUserGender } from '@generated/prisma-client';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
 import { CountryDomain } from '@modules/country/domains/country.domain';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
@@ -28,27 +24,22 @@ import { UserUsernameNotAllowedException } from '@modules/user/exceptions/user.u
 import { UserRepository } from '@modules/user/repositories/user.repository';
 import { UserProfileDomain } from '@modules/user/domains/user.profile.domain';
 import { UserUtil } from '@modules/user/utils/user.util';
-import {
-    createDatabaseServiceMock,
-    mockDatabaseServiceTransaction,
-} from '@test/support/database.mock';
 
 describe('UserProfileDomain', () => {
     const userRepository = {
         findOneActiveProfileById:
             vi.fn<UserRepository['findOneActiveProfileById']>(),
-        updateProfileInTx: vi.fn<UserRepository['updateProfileInTx']>(),
-        updatePhotoProfileInTx:
-            vi.fn<UserRepository['updatePhotoProfileInTx']>(),
+        updateProfile: vi.fn<UserRepository['updateProfile']>(),
+        updatePhotoProfile: vi.fn<UserRepository['updatePhotoProfile']>(),
         existsByUsername: vi.fn<UserRepository['existsByUsername']>(),
-        claimUsernameInTx: vi.fn<UserRepository['claimUsernameInTx']>(),
+        claimUsername: vi.fn<UserRepository['claimUsername']>(),
     } satisfies Pick<
         UserRepository,
         | 'findOneActiveProfileById'
-        | 'updateProfileInTx'
-        | 'updatePhotoProfileInTx'
+        | 'updateProfile'
+        | 'updatePhotoProfile'
         | 'existsByUsername'
-        | 'claimUsernameInTx'
+        | 'claimUsername'
     >;
     const countryService = {
         existsById: vi.fn<CountryDomain['existsById']>(),
@@ -70,13 +61,6 @@ describe('UserProfileDomain', () => {
         FileService,
         'createRandomFilename' | 'extractExtensionFromFilename'
     >;
-    const requestStoreGet = vi.fn((_key: string): unknown => null);
-    const requestStoreService = {
-        get<T>(key: string): T | null {
-            return requestStoreGet(key) as T | null;
-        },
-    } satisfies Pick<RequestStoreService, 'get'>;
-    const databaseService = createDatabaseServiceMock();
     const configGet = vi.fn((_key: string): unknown => undefined);
     const configService = {
         get<T>(key: string): T | undefined {
@@ -84,11 +68,6 @@ describe('UserProfileDomain', () => {
         },
     } satisfies Pick<ConfigService, 'get'>;
 
-    const requestLog = {
-        userAgent: { ua: 'browser' },
-        ipAddress: '127.0.0.1',
-        geoLocation: null,
-    };
     const aws = {
         bucket: 'bucket',
         key: 'users/user-id/photo.png',
@@ -111,8 +90,6 @@ describe('UserProfileDomain', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        mockDatabaseServiceTransaction(databaseService);
-        requestStoreGet.mockReturnValue(requestLog);
         configGet.mockImplementation((key: string) => {
             const values = {
                 'user.uploadPhotoProfilePath': 'users/{userId}/photos',
@@ -140,12 +117,10 @@ describe('UserProfileDomain', () => {
                     provide: ActivityLogDomain,
                     useValue: createMock<ActivityLogDomain>(),
                 },
-                { provide: DatabaseService, useValue: databaseService },
                 { provide: CountryDomain, useValue: countryService },
                 { provide: UserUtil, useValue: userUtil },
                 { provide: AwsS3Service, useValue: awsS3Service },
                 { provide: FileService, useValue: fileService },
-                { provide: RequestStoreService, useValue: requestStoreService },
                 { provide: ConfigService, useValue: configService },
             ],
         }).compile();
@@ -162,7 +137,7 @@ describe('UserProfileDomain', () => {
         });
     });
 
-    describe('updateProfileInTx', () => {
+    describe('updateProfile', () => {
         it('updates profile data after validating the country', async () => {
             await service.updateProfile('user-id', {
                 countryId: 'country-id',
@@ -173,8 +148,7 @@ describe('UserProfileDomain', () => {
             expect(countryService.existsById).toHaveBeenCalledWith(
                 'country-id'
             );
-            expect(userRepository.updateProfileInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(userRepository.updateProfile).toHaveBeenCalledWith(
                 'user-id',
                 {
                     countryId: 'country-id',
@@ -193,7 +167,7 @@ describe('UserProfileDomain', () => {
                     gender: EnumUserGender.male,
                 })
             ).rejects.toBeInstanceOf(CountryNotFoundException);
-            expect(userRepository.updateProfileInTx).not.toHaveBeenCalled();
+            expect(userRepository.updateProfile).not.toHaveBeenCalled();
         });
     });
 
@@ -235,7 +209,7 @@ describe('UserProfileDomain', () => {
         });
     });
 
-    describe('updatePhotoProfileInTx', () => {
+    describe('updatePhotoProfile', () => {
         it('maps the presigned object and stores it on the user profile', async () => {
             await service.updatePhotoProfile('user-id', {
                 key: aws.key,
@@ -246,8 +220,7 @@ describe('UserProfileDomain', () => {
                 { key: aws.key, size: 100 },
                 { access: EnumAwsS3Accessibility.public }
             );
-            expect(userRepository.updatePhotoProfileInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
                 'user-id',
                 aws
             );
@@ -271,8 +244,7 @@ describe('UserProfileDomain', () => {
                 { key: aws.key, size: 100, file: file.buffer },
                 { access: EnumAwsS3Accessibility.public }
             );
-            expect(userRepository.updatePhotoProfileInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
                 'user-id',
                 aws
             );
@@ -288,18 +260,15 @@ describe('UserProfileDomain', () => {
 
             await service.uploadPhotoProfile('user-id', file);
 
-            expect(
-                userRepository.updatePhotoProfileInTx
-            ).not.toHaveBeenCalled();
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
         });
     });
 
-    describe('claimUsernameInTx', () => {
+    describe('claimUsername', () => {
         it('claims an available username', async () => {
             await service.claimUsername('user-id', 'newname');
 
-            expect(userRepository.claimUsernameInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(userRepository.claimUsername).toHaveBeenCalledWith(
                 'user-id',
                 { username: 'newname' }
             );
@@ -313,7 +282,7 @@ describe('UserProfileDomain', () => {
             await expect(
                 service.claimUsername('user-id', 'bad')
             ).rejects.toBeInstanceOf(UserUsernameNotAllowedException);
-            expect(userRepository.claimUsernameInTx).not.toHaveBeenCalled();
+            expect(userRepository.claimUsername).not.toHaveBeenCalled();
         });
 
         it('throws UserUsernameContainBadWordException when the username contains a bad word', async () => {

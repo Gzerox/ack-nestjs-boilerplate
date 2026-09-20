@@ -4,7 +4,7 @@ import {
     EnumDeviceNotificationProvider,
     EnumDevicePlatform,
 } from '@generated/prisma-client';
-import { IDeviceOwnership } from '@modules/device/interfaces/device.interface';
+import type { IDeviceOwnership } from '@modules/device/interfaces/device.interface';
 import { DeviceUtil } from '@modules/device/utils/device.util';
 
 describe('DeviceUtil', () => {
@@ -71,12 +71,9 @@ describe('DeviceUtil', () => {
                 _count: { sessions: 3 },
             } satisfies IDeviceOwnership;
 
-            expect(util.mapActivityLogMetadata(ownership)).toEqual({
+            expect(util.mapActivityLogMetadata(ownership, 3)).toEqual({
                 deviceOwnershipId: 'ownership-id',
                 deviceId: 'device-id',
-                userId: 'user-id',
-                userUsername: 'jane',
-                timestamp: updatedAt,
                 sessionCount: 3,
             });
         });

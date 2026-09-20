@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { EnumApiKeyStatusCodeError } from '@modules/api-key/enums/api-key.status-code.enum';

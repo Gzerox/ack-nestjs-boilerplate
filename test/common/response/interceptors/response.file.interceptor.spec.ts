@@ -6,12 +6,14 @@ import type {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EnumFileExtensionDocument } from '@common/file/enums/file.enum';
 import { FileService } from '@common/file/services/file.service';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { ResponseFileInterceptor } from '@common/response/interceptors/response.file.interceptor';
 import { ResponseMetadataService } from '@common/response/services/response.metadata.service';
 import type { Response } from 'express';
@@ -21,6 +23,7 @@ describe('ResponseFileInterceptor', () => {
         createMock<Pick<FileService, 'extractMimeFromFilename'>>();
     const helperDateService =
         createMock<Pick<HelperDateService, 'create' | 'getTimestamp'>>();
+    const helperStringService = createMock<HelperStringService>();
     const responseMetadataService =
         createMock<Pick<ResponseMetadataService, 'create' | 'setHeaders'>>();
     const configService: Pick<ConfigService, 'get'> = {
@@ -46,8 +49,9 @@ describe('ResponseFileInterceptor', () => {
             new Date('2026-09-09T12:00:00.000Z')
         );
         helperDateService.getTimestamp.mockReturnValue(123);
+        helperStringService.fillPattern.mockReturnValue('export-123.csv');
         responseMetadataService.create.mockReturnValue({
-            language: 'en',
+            language: EnumMessageLanguage.en,
             timestamp: 123,
             timezone: 'UTC',
             version: '1',
@@ -61,6 +65,7 @@ describe('ResponseFileInterceptor', () => {
                 ResponseFileInterceptor,
                 { provide: FileService, useValue: fileService },
                 { provide: HelperDateService, useValue: helperDateService },
+                { provide: HelperStringService, useValue: helperStringService },
                 {
                     provide: ResponseMetadataService,
                     useValue: responseMetadataService,

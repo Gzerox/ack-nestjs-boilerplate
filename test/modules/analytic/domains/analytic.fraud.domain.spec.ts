@@ -2,10 +2,12 @@ import { createMock } from '@golevelup/ts-vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { PaginationService } from '@common/pagination/services/pagination.service';
 import { ActivityLogAnalyticDomain } from '@modules/activity-log/domains/activity-log.analytic.domain';
 import { AnalyticCache } from '@modules/analytic/caches/analytic.cache';
 import { AnalyticFraudDomain } from '@modules/analytic/domains/analytic.fraud.domain';
 import { AnalyticDateUtil } from '@modules/analytic/utils/analytic.date.util';
+import { AnalyticSortUtil } from '@modules/analytic/utils/analytic.sort.util';
 import { DeviceAnalyticDomain } from '@modules/device/domains/device.analytic.domain';
 import { UserAnalyticDomain } from '@modules/user/domains/user.analytic.domain';
 import { UserForgotPasswordAnalyticDomain } from '@modules/user/domains/user.forgot-password.analytic.domain';
@@ -17,6 +19,8 @@ import { ConfigService } from '@nestjs/config';
 describe('AnalyticFraudDomain', () => {
     const cache = createMock<AnalyticCache>();
     const dateUtil = createMock<AnalyticDateUtil>();
+    const sortUtil = createMock<AnalyticSortUtil>();
+    const paginationService = createMock<PaginationService>();
     const configService = createMock<ConfigService>();
     const helperDateService = createMock<HelperDateService>();
     const activityDomain = createMock<ActivityLogAnalyticDomain>();
@@ -56,6 +60,8 @@ describe('AnalyticFraudDomain', () => {
         domain = new AnalyticFraudDomain(
             cache,
             dateUtil,
+            sortUtil,
+            paginationService,
             configService,
             helperDateService,
             activityDomain,

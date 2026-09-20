@@ -7,6 +7,8 @@ import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { FileService } from '@common/file/services/file.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { DatabaseService } from '@common/database/services/database.service';
+import { DatabaseUtil } from '@common/database/utils/database.util';
+import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
     EnumTermPolicyStatus,
     EnumTermPolicyType,
@@ -50,14 +52,17 @@ describe('TermPolicyDomain', () => {
             vi.fn<NotificationQueue['sendPublishTermPolicy']>(),
     } satisfies Pick<NotificationQueue, 'sendPublishTermPolicy'>;
     const activityLogDomain = {
-        stage: vi.fn<ActivityLogDomain['stage']>(),
-    } satisfies Pick<ActivityLogDomain, 'stage'>;
+        prepare: vi.fn<ActivityLogDomain['prepare']>(),
+        stagePrepared: vi.fn<ActivityLogDomain['stagePrepared']>(),
+    } satisfies Pick<ActivityLogDomain, 'prepare' | 'stagePrepared'>;
     const fileService = {
         extractFilenameFromPath:
             vi.fn<FileService['extractFilenameFromPath']>(),
     } satisfies Pick<FileService, 'extractFilenameFromPath'>;
     const databaseService = createDatabaseServiceMock();
     const userDomain = createMock<UserDomain>();
+    const databaseUtil = createMock<DatabaseUtil>();
+    const helperDateService = createMock<HelperDateService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const content = {
         id: 'content-id',
@@ -104,6 +109,8 @@ describe('TermPolicyDomain', () => {
                 { provide: FileService, useValue: fileService },
                 { provide: DatabaseService, useValue: databaseService },
                 { provide: UserDomain, useValue: userDomain },
+                { provide: DatabaseUtil, useValue: databaseUtil },
+                { provide: HelperDateService, useValue: helperDateService },
             ],
         }).compile();
         service = moduleRef.get(TermPolicyDomain);
@@ -170,8 +177,7 @@ describe('TermPolicyDomain', () => {
         expect(termPolicyRepository.publishInTx).toHaveBeenCalledWith(
             expect.anything(),
             draft.id,
-            [{ ...publicItem, language: EnumMessageLanguage.en }],
-            'admin-id'
+            [{ ...publicItem, language: EnumMessageLanguage.en }]
         );
         expect(awsS3Service.copyItems).toHaveBeenCalledWith(
             draft.contents,

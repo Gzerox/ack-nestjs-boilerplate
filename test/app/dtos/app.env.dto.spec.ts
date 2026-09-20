@@ -7,7 +7,8 @@ describe('AppEnvSchema', () => {
         APP_NAME: 'ACK',
         APP_ENV: 'local',
         APP_LANGUAGE: 'en',
-        APP_ENCRYPTION_SECRET_KEY: '12345678901234567890123456789012',
+        APP_ENCRYPTION_SECRET_KEY:
+            '1234567890123456789012345678901234567890123456789012345678901234',
         APP_TIMEZONE: 'Asia/Jakarta',
         HOME_NAME: 'ACK',
         HOME_URL: 'https://example.com',
@@ -36,7 +37,8 @@ describe('AppEnvSchema', () => {
         AUTH_JWT_REFRESH_TOKEN_PUBLIC_KEY: 'refreshInTx-public-key',
         AUTH_JWT_REFRESH_TOKEN_EXPIRED: '30d',
         AUTH_TWO_FACTOR_ISSUER: 'ACK',
-        AUTH_TWO_FACTOR_ENCRYPTION_KEY: 'two-factor-encryption-key',
+        AUTH_TWO_FACTOR_ENCRYPTION_KEY:
+            'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-',
         CACHE_REDIS_URL: 'redis://localhost:6379/0',
         QUEUE_REDIS_URL: 'redis://localhost:6379/1',
     } as const;

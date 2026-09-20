@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { useE2eApp } from '@test/e2e/support/app';

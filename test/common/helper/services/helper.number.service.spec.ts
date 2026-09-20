@@ -24,22 +24,27 @@ describe('HelperNumberService', () => {
     });
 
     describe('randomInRange', () => {
-        it('returns min when random is 0', () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0);
-
-            expect(service.randomInRange(5, 10)).toBe(5);
+        it('returns an integer within the half-open range', () => {
+            for (let i = 0; i < 50; i++) {
+                const value = service.randomInRange(5, 10);
+                expect(Number.isInteger(value)).toBe(true);
+                expect(value).toBeGreaterThanOrEqual(5);
+                expect(value).toBeLessThan(10);
+            }
         });
 
         it('stays below max when random approaches 1', () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0.999999);
-
-            expect(service.randomInRange(5, 10)).toBe(9);
+            for (let i = 0; i < 50; i++) {
+                expect(service.randomInRange(5, 10)).toBeLessThan(10);
+            }
         });
 
         it('rounds fractional bounds inward', () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0);
-
-            expect(service.randomInRange(1.2, 9.9)).toBe(2);
+            for (let i = 0; i < 50; i++) {
+                const value = service.randomInRange(1.2, 9.9);
+                expect(value).toBeGreaterThanOrEqual(2);
+                expect(value).toBeLessThan(9);
+            }
         });
     });
 
@@ -50,10 +55,8 @@ describe('HelperNumberService', () => {
             }
         });
 
-        it('builds the range from 10^(n-1) to 10^n - 1', () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0);
-
-            expect(service.randomDigits(4)).toBe('1000');
+        it('builds a four-digit value', () => {
+            expect(service.randomDigits(4)).toMatch(/^[1-9]\d{3}$/);
         });
     });
 

@@ -29,6 +29,9 @@ describe('AnalyticWorkspaceUserDomain', () => {
         dateUtil.cacheToken.mockImplementation(date =>
             date ? date.toISOString() : '_'
         );
+        dateUtil.workspaceWindowToken.mockReturnValue(
+            `workspace-id:${startDate.toISOString()}:${endDate.toISOString()}`
+        );
         domain = new AnalyticWorkspaceUserDomain(
             cache,
             dateUtil,

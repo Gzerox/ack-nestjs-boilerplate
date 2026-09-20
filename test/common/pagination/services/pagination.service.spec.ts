@@ -6,7 +6,7 @@ import {
     EnumPaginationOrderDirectionType,
     EnumPaginationType,
 } from '@common/pagination/enums/pagination.enum';
-import { PaginationInvalidCursorFormatException } from '@common/pagination/exceptions/pagination.invalid-cursor-format.exception';
+import { PaginationFailedToDecodeCursorException } from '@common/pagination/exceptions/pagination.failed-to-decode-cursor.exception';
 import { PaginationInvalidCursorPaginationParamsException } from '@common/pagination/exceptions/pagination.invalid-cursor-pagination-params.exception';
 import type { IPaginationRepository } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
@@ -155,6 +155,6 @@ describe('PaginationService', () => {
     it('maps malformed cursor data to the public cursor-format exception', async () => {
         await expect(
             service.cursor(repository, { limit: 10, cursor: 'not-json' })
-        ).rejects.toBeInstanceOf(PaginationInvalidCursorFormatException);
+        ).rejects.toBeInstanceOf(PaginationFailedToDecodeCursorException);
     });
 });

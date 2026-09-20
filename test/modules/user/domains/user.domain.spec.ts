@@ -17,7 +17,9 @@ import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import { AuthPasswordUtil } from '@modules/auth/utils/auth.password.util';
 import { CountryDomain } from '@modules/country/domains/country.domain';
+import { DeviceDomain } from '@modules/device/domains/device.domain';
 import { NotificationQueue } from '@modules/notification/queues/notification.queue';
+import { SessionDomain } from '@modules/session/domains/session.domain';
 import { RoleDomain } from '@modules/role/domains/role.domain';
 import { UserBlockedForbiddenException } from '@modules/user/exceptions/user.blocked-forbidden.exception';
 import { UserEmailNotVerifiedException } from '@modules/user/exceptions/user.email-not-verified.exception';
@@ -44,6 +46,7 @@ describe('UserDomain', () => {
     } satisfies Pick<AuthPasswordUtil, 'checkPasswordExpired'>;
     const roleService = createMock<RoleDomain>();
     const countryService = createMock<CountryDomain>();
+    const deviceDomain = createMock<DeviceDomain>();
     const userUtil = createMock<UserUtil>();
     const userVerificationService = createMock<UserVerificationDomain>();
     const helperHashService = createMock<HelperHashService>();
@@ -51,6 +54,7 @@ describe('UserDomain', () => {
     const userLoginService = createMock<UserLoginDomain>();
     const databaseUtil = createMock<DatabaseUtil>();
     const notificationQueue = createMock<NotificationQueue>();
+    const sessionDomain = createMock<SessionDomain>();
     const helperDateService = createMock<HelperDateService>();
     const requestStoreService = createMock<RequestStoreService>();
     const activityLogDomain = createMock<ActivityLogDomain>();
@@ -120,6 +124,7 @@ describe('UserDomain', () => {
                 { provide: UserRepository, useValue: userRepository },
                 { provide: RoleDomain, useValue: roleService },
                 { provide: CountryDomain, useValue: countryService },
+                { provide: DeviceDomain, useValue: deviceDomain },
                 { provide: UserUtil, useValue: userUtil },
                 {
                     provide: UserVerificationDomain,
@@ -134,6 +139,7 @@ describe('UserDomain', () => {
                 { provide: AuthPasswordUtil, useValue: authPasswordService },
                 { provide: DatabaseUtil, useValue: databaseUtil },
                 { provide: NotificationQueue, useValue: notificationQueue },
+                { provide: SessionDomain, useValue: sessionDomain },
                 { provide: HelperDateService, useValue: helperDateService },
                 { provide: RequestStoreService, useValue: requestStoreService },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },

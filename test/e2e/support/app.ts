@@ -1,8 +1,9 @@
-import { INestApplication, VersioningType } from '@nestjs/common';
+import { VersioningType } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '@app/app.module';
 import { ConfigService } from '@nestjs/config';
-import { RequestThrottlerGuard } from '@common/request/guards/request.throttler.guard';
+import { RequestThrottleDefaultGuard } from '@common/request/guards/request.throttle-default.guard';
 import { RequestThrottleRouteGuard } from '@common/request/guards/request.throttle-route.guard';
 import { afterAll, beforeAll } from 'vitest';
 
@@ -14,7 +15,7 @@ import { afterAll, beforeAll } from 'vitest';
 // firing with that override in place. Patching `canActivate` on the prototype is the only
 // test-only way to neutralize a guard that is invisible to DI by its own class token.
 const noopCanActivate = async (): Promise<boolean> => true;
-RequestThrottlerGuard.prototype.canActivate = noopCanActivate;
+RequestThrottleDefaultGuard.prototype.canActivate = noopCanActivate;
 RequestThrottleRouteGuard.prototype.canActivate = noopCanActivate;
 
 export async function createE2eApplication(): Promise<INestApplication> {

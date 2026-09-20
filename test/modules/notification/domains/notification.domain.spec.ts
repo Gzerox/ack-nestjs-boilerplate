@@ -103,7 +103,7 @@ describe('NotificationDomain', () => {
             expect.anything(),
             'user-id'
         );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.userUpdateNotificationSetting,
             metadata: data,
         });

@@ -15,7 +15,7 @@ import {
     EnumUserStatus,
 } from '@generated/prisma-client';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
-import { AuthTwoFactorAlreadyEnabledException } from '@modules/auth/exceptions/auth.two-factor-already-enabled.exception';
+import { AuthTwoFactorBackupCodeRequiredException } from '@modules/auth/exceptions/auth.two-factor-backup-code-required.exception';
 import { AuthTwoFactorChallengeInvalidException } from '@modules/auth/exceptions/auth.two-factor-challenge-invalid.exception';
 import { AuthTwoFactorNotEnabledException } from '@modules/auth/exceptions/auth.two-factor-not-enabled.exception';
 import { AuthTwoFactorSetupRequiredException } from '@modules/auth/exceptions/auth.two-factor-setup-required.exception';
@@ -33,6 +33,7 @@ import { UserRepository } from '@modules/user/repositories/user.repository';
 import { UserTwoFactorRepository } from '@modules/user/repositories/user.two-factor.repository';
 import { UserLoginDomain } from '@modules/user/domains/user.login.domain';
 import { UserTwoFactorDomain } from '@modules/user/domains/user.two-factor.domain';
+import { UserUtil } from '@modules/user/utils/user.util';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import {
@@ -44,25 +45,21 @@ describe('UserTwoFactorDomain', () => {
     const userTwoFactorRepository = {
         verifyTwoFactorInTx:
             vi.fn<UserTwoFactorRepository['verifyTwoFactorInTx']>(),
-        setupTwoFactorInTx:
-            vi.fn<UserTwoFactorRepository['setupTwoFactorInTx']>(),
-        enableTwoFactorInTx:
-            vi.fn<UserTwoFactorRepository['enableTwoFactorInTx']>(),
+        setupTwoFactor: vi.fn<UserTwoFactorRepository['setupTwoFactor']>(),
+        enableTwoFactor: vi.fn<UserTwoFactorRepository['enableTwoFactor']>(),
         disableTwoFactorInTx:
             vi.fn<UserTwoFactorRepository['disableTwoFactorInTx']>(),
-        regenerateTwoFactorBackupCodesInTx:
-            vi.fn<
-                UserTwoFactorRepository['regenerateTwoFactorBackupCodesInTx']
-            >(),
+        regenerateTwoFactorBackupCodes:
+            vi.fn<UserTwoFactorRepository['regenerateTwoFactorBackupCodes']>(),
         resetTwoFactorByAdminInTx:
             vi.fn<UserTwoFactorRepository['resetTwoFactorByAdminInTx']>(),
     } satisfies Pick<
         UserTwoFactorRepository,
         | 'verifyTwoFactorInTx'
-        | 'setupTwoFactorInTx'
-        | 'enableTwoFactorInTx'
+        | 'setupTwoFactor'
+        | 'enableTwoFactor'
         | 'disableTwoFactorInTx'
-        | 'regenerateTwoFactorBackupCodesInTx'
+        | 'regenerateTwoFactorBackupCodes'
         | 'resetTwoFactorByAdminInTx'
     >;
     const userRepository = {
@@ -73,12 +70,16 @@ describe('UserTwoFactorDomain', () => {
             vi.fn<UserLoginDomain['handleTwoFactorValidation']>(),
         createTokenAndSession:
             vi.fn<UserLoginDomain['createTokenAndSession']>(),
-        revokeAllSessions: vi.fn<UserLoginDomain['revokeAllSessions']>(),
+        recordTwoFactorVerification:
+            vi.fn<UserLoginDomain['recordTwoFactorVerification']>(),
+        handleTwoFactorSetupValidation:
+            vi.fn<UserLoginDomain['handleTwoFactorSetupValidation']>(),
     } satisfies Pick<
         UserLoginDomain,
         | 'handleTwoFactorValidation'
         | 'createTokenAndSession'
-        | 'revokeAllSessions'
+        | 'recordTwoFactorVerification'
+        | 'handleTwoFactorSetupValidation'
     >;
     const authTwoFactorService = {
         setupTwoFactor: vi.fn<AuthTwoFactorDomain['setupTwoFactor']>(),
@@ -113,6 +114,7 @@ describe('UserTwoFactorDomain', () => {
     const databaseService = createDatabaseServiceMock();
     const sessionDomain = createMock<SessionDomain>();
     const activityLogDomain = createMock<ActivityLogDomain>();
+    const userUtil = createMock<UserUtil>();
 
     const now = new Date('2026-01-01T00:00:00.000Z');
     const requestLog = {
@@ -180,7 +182,7 @@ describe('UserTwoFactorDomain', () => {
             id: 'two-factor-id',
             userId: 'user-id',
             secret: 'secret',
-            iv: 'iv',
+            pendingSecret: null,
             enabled: true,
             requiredSetup: false,
             confirmedAt: now,
@@ -228,7 +230,6 @@ describe('UserTwoFactorDomain', () => {
             twoFactorVerified
         );
         userLoginService.createTokenAndSession.mockResolvedValue(tokens);
-        userLoginService.revokeAllSessions.mockResolvedValue(undefined);
         authTwoFactorService.generateBackupCodes.mockReturnValue(backupCodes);
 
         const moduleRef: TestingModule = await Test.createTestingModule({
@@ -240,6 +241,7 @@ describe('UserTwoFactorDomain', () => {
                 },
                 { provide: UserRepository, useValue: userRepository },
                 { provide: UserLoginDomain, useValue: userLoginService },
+                { provide: UserUtil, useValue: userUtil },
                 { provide: SessionDomain, useValue: sessionDomain },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
                 { provide: DatabaseService, useValue: databaseService },
@@ -285,12 +287,8 @@ describe('UserTwoFactorDomain', () => {
                 'challenge-token'
             );
             expect(
-                userTwoFactorRepository.verifyTwoFactorInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
-                user.id,
-                twoFactorVerified
-            );
+                userLoginService.recordTwoFactorVerification
+            ).toHaveBeenCalledWith(user, twoFactorVerified);
         });
 
         it('throws AuthTwoFactorChallengeInvalidException when the challenge is missing', async () => {
@@ -313,6 +311,7 @@ describe('UserTwoFactorDomain', () => {
                 twoFactor: {
                     ...user.twoFactor!,
                     requiredSetup: true,
+                    pendingSecret: 'pending-secret',
                     confirmedAt: null,
                 },
             } satisfies IUser;
@@ -327,16 +326,17 @@ describe('UserTwoFactorDomain', () => {
 
             expect(result).toEqual(backupCodes.codes);
             expect(
-                userLoginService.handleTwoFactorValidation
-            ).toHaveBeenCalledWith(setupRequiredUser, {
-                method: EnumAuthTwoFactorMethod.code,
-                code: '123456',
-            });
-            expect(
-                userTwoFactorRepository.enableTwoFactorInTx
+                userLoginService.handleTwoFactorSetupValidation
             ).toHaveBeenCalledWith(
-                expect.any(Object),
+                setupRequiredUser,
+                'pending-secret',
+                '123456'
+            );
+            expect(
+                userTwoFactorRepository.enableTwoFactor
+            ).toHaveBeenCalledWith(
                 user.id,
+                setupRequiredUser.twoFactor!.pendingSecret,
                 backupCodes.hashes
             );
         });
@@ -350,7 +350,7 @@ describe('UserTwoFactorDomain', () => {
                     ...user.twoFactor!,
                     enabled: false,
                     secret: null,
-                    iv: null,
+                    pendingSecret: null,
                     confirmedAt: null,
                 },
             } satisfies IUser;
@@ -358,37 +358,33 @@ describe('UserTwoFactorDomain', () => {
                 secret: 'plain-secret',
                 otpauthUrl: 'otpauth://totp/user',
                 encryptedSecret: 'encrypted-secret',
-                iv: 'iv',
             });
 
-            await expect(service.setupTwoFactor(disabledUser)).resolves.toEqual(
-                {
-                    secret: 'plain-secret',
-                    otpauthUrl: 'otpauth://totp/user',
-                }
-            );
+            await expect(
+                service.setupTwoFactor(disabledUser, null)
+            ).resolves.toEqual({
+                secret: 'plain-secret',
+                otpauthUrl: 'otpauth://totp/user',
+            });
             expect(authTwoFactorService.setupTwoFactor).toHaveBeenCalledWith(
+                disabledUser.id,
                 disabledUser.email
             );
-            expect(
-                userTwoFactorRepository.setupTwoFactorInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(userTwoFactorRepository.setupTwoFactor).toHaveBeenCalledWith(
                 disabledUser.id,
-                'encrypted-secret',
-                'iv'
+                'encrypted-secret'
             );
         });
 
-        it('throws AuthTwoFactorAlreadyEnabledException when setup is already enabled', async () => {
-            await expect(service.setupTwoFactor(user)).rejects.toBeInstanceOf(
-                AuthTwoFactorAlreadyEnabledException
-            );
+        it('requires a backup code when setup is already enabled', async () => {
+            await expect(
+                service.setupTwoFactor(user, null)
+            ).rejects.toBeInstanceOf(AuthTwoFactorBackupCodeRequiredException);
             expect(authTwoFactorService.setupTwoFactor).not.toHaveBeenCalled();
         });
     });
 
-    describe('enableTwoFactorInTx', () => {
+    describe('enableTwoFactor', () => {
         it('verifies the setup code and stores hashed backup codes', async () => {
             const pendingUser = {
                 ...user,
@@ -396,6 +392,7 @@ describe('UserTwoFactorDomain', () => {
                     ...user.twoFactor!,
                     enabled: false,
                     confirmedAt: null,
+                    pendingSecret: 'pending-secret',
                 },
             } satisfies IUser;
 
@@ -403,16 +400,13 @@ describe('UserTwoFactorDomain', () => {
 
             expect(result).toEqual(backupCodes.codes);
             expect(
-                userLoginService.handleTwoFactorValidation
-            ).toHaveBeenCalledWith(pendingUser, {
-                method: EnumAuthTwoFactorMethod.code,
-                code: '123456',
-            });
+                userLoginService.handleTwoFactorSetupValidation
+            ).toHaveBeenCalledWith(pendingUser, 'pending-secret', '123456');
             expect(
-                userTwoFactorRepository.enableTwoFactorInTx
+                userTwoFactorRepository.enableTwoFactor
             ).toHaveBeenCalledWith(
-                expect.any(Object),
                 pendingUser.id,
+                'pending-secret',
                 backupCodes.hashes
             );
         });
@@ -424,7 +418,7 @@ describe('UserTwoFactorDomain', () => {
                     ...user.twoFactor!,
                     enabled: false,
                     secret: null,
-                    iv: null,
+                    pendingSecret: null,
                     confirmedAt: null,
                 },
             } satisfies IUser;
@@ -441,9 +435,12 @@ describe('UserTwoFactorDomain', () => {
     describe('disableTwoFactorInTx', () => {
         it('validates the factor before revoking sessions and disabling 2FA', async () => {
             const order: string[] = [];
-            userLoginService.revokeAllSessions.mockImplementation(async () => {
-                order.push('revokeInTx');
-            });
+            sessionDomain.revokeActiveByUserInTx.mockImplementation(
+                async () => {
+                    order.push('revokeInTx');
+                    return [];
+                }
+            );
             userTwoFactorRepository.disableTwoFactorInTx.mockImplementation(
                 async () => {
                     order.push('disable');
@@ -463,7 +460,7 @@ describe('UserTwoFactorDomain', () => {
                 code: undefined,
                 backupCode: 'BACKUP1',
             });
-            expect(order).toEqual(['revokeInTx', 'disable']);
+            expect(order).toEqual(['disable', 'revokeInTx']);
             expect(
                 userTwoFactorRepository.disableTwoFactorInTx
             ).toHaveBeenCalledWith(expect.any(Object), user.id);
@@ -487,7 +484,7 @@ describe('UserTwoFactorDomain', () => {
         });
     });
 
-    describe('regenerateTwoFactorBackupCodesInTx', () => {
+    describe('regenerateTwoFactorBackupCodes', () => {
         it('requires a code and replaces stored backup-code hashes', async () => {
             const result = await service.regenerateTwoFactorBackupCodes(
                 user,
@@ -502,12 +499,8 @@ describe('UserTwoFactorDomain', () => {
                 code: '123456',
             });
             expect(
-                userTwoFactorRepository.regenerateTwoFactorBackupCodesInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
-                user.id,
-                backupCodes.hashes
-            );
+                userTwoFactorRepository.regenerateTwoFactorBackupCodes
+            ).toHaveBeenCalledWith(user.id, backupCodes.hashes);
         });
     });
 
@@ -515,12 +508,10 @@ describe('UserTwoFactorDomain', () => {
         it('resets another active user, clears attempt locks, and sends the notification', async () => {
             await service.resetTwoFactorByAdmin(user.id, 'admin-id');
 
-            expect(userLoginService.revokeAllSessions).toHaveBeenCalledWith(
-                user.id
-            );
+            expect(sessionDomain.revokeActiveByUserInTx).toHaveBeenCalled();
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
-            ).toHaveBeenCalledWith(expect.any(Object), user.id, 'admin-id');
+            ).toHaveBeenCalledWith(expect.any(Object), user.id);
             expect(
                 authCacheService.clearLockTwoFactorAttempt
             ).toHaveBeenCalledWith(user);
@@ -545,7 +536,7 @@ describe('UserTwoFactorDomain', () => {
             await expect(
                 service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(UserBlockedInvalidException);
-            expect(userLoginService.revokeAllSessions).not.toHaveBeenCalled();
+            expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
         });
     });
 

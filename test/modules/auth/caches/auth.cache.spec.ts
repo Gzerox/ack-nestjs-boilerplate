@@ -102,7 +102,7 @@ describe('AuthCache', () => {
             id: 'two-factor-id',
             userId: 'user-id',
             secret: 'encrypted-secret',
-            iv: 'hex:iv',
+            pendingSecret: null,
             enabled: true,
             requiredSetup: false,
             confirmedAt: now,

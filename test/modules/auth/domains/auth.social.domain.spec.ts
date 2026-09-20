@@ -1,12 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import verifyAppleToken from 'verify-apple-id-token';
 
-import { AuthSocialDomain } from '@modules/auth/domains/auth.social.domain';
+import type { AuthSocialDomain } from '@modules/auth/domains/auth.social.domain';
 
 const googleMocks = vi.hoisted(() => ({
     verifyIdToken: vi.fn(),
 }));
+const appleMocks = vi.hoisted(() => ({ verify: vi.fn() }));
 
 vi.mock('google-auth-library', () => ({
     OAuth2Client: class {
@@ -15,15 +15,18 @@ vi.mock('google-auth-library', () => ({
 }));
 
 vi.mock('verify-apple-id-token', () => ({
-    default: vi.fn(),
+    default: { default: appleMocks.verify },
 }));
 
 describe('AuthSocialDomain', () => {
     let service: AuthSocialDomain;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.resetAllMocks();
-        service = new AuthSocialDomain(
+        vi.resetModules();
+        const { AuthSocialDomain: AuthSocialDomainClass } =
+            await import('@modules/auth/domains/auth.social.domain');
+        service = new AuthSocialDomainClass(
             new ConfigService({
                 'auth.apple.clientId': 'apple-client',
                 'auth.apple.signInClientId': 'apple-sign-in-client',
@@ -84,10 +87,10 @@ describe('AuthSocialDomain', () => {
             auth_time: 1,
             nonce_supported: true,
         };
-        vi.mocked(verifyAppleToken).mockResolvedValue(payload);
+        appleMocks.verify.mockResolvedValue(payload);
 
         await expect(service.verifyApple('apple-token')).resolves.toBe(payload);
-        expect(verifyAppleToken).toHaveBeenCalledWith({
+        expect(appleMocks.verify).toHaveBeenCalledWith({
             idToken: 'apple-token',
             clientId: ['apple-client', 'apple-sign-in-client'],
         });

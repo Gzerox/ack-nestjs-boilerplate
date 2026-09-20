@@ -7,10 +7,10 @@ import type {
 } from '@nestjs/throttler';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RequestThrottlerGuard } from '@common/request/guards/request.throttler.guard';
+import { RequestThrottleDefaultGuard } from '@common/request/guards/request.throttle-default.guard';
 import { RequestUtil } from '@common/request/utils/request.util';
 
-describe('RequestThrottlerGuard', () => {
+describe('RequestThrottleDefaultGuard', () => {
     const increment = vi.fn<ThrottlerStorage['increment']>();
     const storage: ThrottlerStorage = { increment };
     const options: ThrottlerModuleOptions = {
@@ -28,7 +28,7 @@ describe('RequestThrottlerGuard', () => {
     function list() {}
     let context: ExecutionContext;
 
-    let guard: RequestThrottlerGuard;
+    let guard: RequestThrottleDefaultGuard;
 
     beforeEach(async () => {
         vi.resetAllMocks();
@@ -51,7 +51,7 @@ describe('RequestThrottlerGuard', () => {
             isBlocked: false,
             timeToBlockExpire: 0,
         });
-        guard = new RequestThrottlerGuard(
+        guard = new RequestThrottleDefaultGuard(
             options,
             storage,
             new Reflector(),

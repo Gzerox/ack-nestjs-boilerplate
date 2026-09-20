@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { AuthPasswordUtil } from '@modules/auth/utils/auth.password.util';
@@ -9,8 +9,8 @@ import {
     EnumUserSignUpWith,
     EnumUserStatus,
     EnumVerificationType,
-    User,
 } from '@generated/prisma-client';
+import type { User } from '@generated/prisma-client';
 import { getPrismaClient } from '@test/e2e/support/prisma';
 import { generateSync } from 'otplib';
 import { ConfigService } from '@nestjs/config';
@@ -54,7 +54,7 @@ export async function createActiveUser(
     ]);
 
     const userId = databaseUtil.createId();
-    const password = authPasswordUtil.createPassword(userId, passwordString);
+    const password = authPasswordUtil.createPassword(passwordString);
 
     const user: User = await prisma.user.create({
         data: {
@@ -169,14 +169,13 @@ export async function enableTwoFactorForUser(
     const prisma = getPrismaClient(app);
     const authTwoFactorDomain = app.get(AuthTwoFactorDomain);
 
-    const { secret, iv, encryptedSecret } =
-        await authTwoFactorDomain.setupTwoFactor(email);
+    const { secret, encryptedSecret } =
+        await authTwoFactorDomain.setupTwoFactor(userId, email);
 
     await prisma.twoFactor.create({
         data: {
             userId,
             secret: encryptedSecret,
-            iv,
             enabled: true,
             requiredSetup: false,
             confirmedAt: new Date(),

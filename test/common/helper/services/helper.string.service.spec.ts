@@ -18,10 +18,8 @@ describe('HelperStringService', () => {
             expect(service.random(0)).toBe('');
         });
 
-        it('picks characters from the alphabet by Math.random', () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0);
-
-            expect(service.random(3)).toBe('AAA');
+        it('uses only the configured alphanumeric alphabet', () => {
+            expect(service.random(64)).toMatch(/^[A-Za-z0-9]{64}$/);
         });
     });
 

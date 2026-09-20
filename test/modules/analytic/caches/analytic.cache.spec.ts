@@ -4,12 +4,14 @@ import type { Cache } from 'cache-manager';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CacheMainProvider } from '@common/cache/constants/cache.constant';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { AnalyticCache } from '@modules/analytic/caches/analytic.cache';
 import { ConfigService } from '@nestjs/config';
 
 describe('AnalyticCache', () => {
     const cacheManager = createMock<Cache>();
     const configService = createMock<ConfigService>();
+    const helperStringService = new HelperStringService();
     const config = new Map<string, string | number>([
         [
             'analytic.cache.keyPatterns.dashboard',
@@ -34,6 +36,7 @@ describe('AnalyticCache', () => {
                 AnalyticCache,
                 { provide: CacheMainProvider, useValue: cacheManager },
                 { provide: ConfigService, useValue: configService },
+                { provide: HelperStringService, useValue: helperStringService },
             ],
         }).compile();
         cache = moduleRef.get(AnalyticCache);

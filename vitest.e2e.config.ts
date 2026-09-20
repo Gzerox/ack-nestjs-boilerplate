@@ -4,20 +4,18 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     plugins: [
         swc.vite({
-            include: [/\.ts$/],
-            module: { type: 'es6' },
+            module: { type: 'nodenext' },
         }),
     ],
     resolve: {
         tsconfigPaths: true,
     },
     test: {
-        root: '.',
+        globals: true,
         environment: 'node',
-        globals: false,
         include: ['test/**/*.e2e-spec.ts'],
         exclude: ['**/node_modules/**', '**/dist/**'],
-        setupFiles: ['test/e2e/setup.ts'],
+        setupFiles: ['test/setup.ts', 'test/e2e/setup.ts'],
         testTimeout: 30000,
         hookTimeout: 60000,
         pool: 'forks',

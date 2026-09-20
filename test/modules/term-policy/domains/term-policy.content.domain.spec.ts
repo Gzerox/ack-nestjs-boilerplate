@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
+import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
     EnumTermPolicyStatus,
     EnumTermPolicyType,
@@ -40,8 +41,12 @@ describe('TermPolicyContentDomain', () => {
         'getContentByLanguage' | 'mapActivityLogMetadata'
     >;
     const activityLogDomain = {
-        stage: vi.fn<ActivityLogDomain['stage']>(),
-    } satisfies Pick<ActivityLogDomain, 'stage'>;
+        prepare: vi.fn<ActivityLogDomain['prepare']>(),
+        stagePrepared: vi.fn<ActivityLogDomain['stagePrepared']>(),
+    } satisfies Pick<ActivityLogDomain, 'prepare' | 'stagePrepared'>;
+    const helperDateService = {
+        create: vi.fn<HelperDateService['create']>(),
+    } satisfies Pick<HelperDateService, 'create'>;
     const now = new Date('2026-01-01T00:00:00.000Z');
     const content = {
         id: 'content-id',
@@ -73,6 +78,7 @@ describe('TermPolicyContentDomain', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        helperDateService.create.mockReturnValue(now);
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 TermPolicyContentDomain,
@@ -83,6 +89,7 @@ describe('TermPolicyContentDomain', () => {
                 { provide: AwsS3Service, useValue: awsS3Service },
                 { provide: TermPolicyUtil, useValue: termPolicyUtil },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
+                { provide: HelperDateService, useValue: helperDateService },
             ],
         }).compile();
         service = moduleRef.get(TermPolicyContentDomain);
@@ -92,11 +99,11 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(null);
 
         await expect(
-            service.addContentByAdmin(
-                'missing',
-                { language: EnumMessageLanguage.en, key: 'key', size: 100 },
-                'admin-id'
-            )
+            service.addContentByAdmin('missing', {
+                language: EnumMessageLanguage.en,
+                key: 'key',
+                size: 100,
+            })
         ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
     });
 
@@ -107,11 +114,7 @@ describe('TermPolicyContentDomain', () => {
         });
 
         await expect(
-            service.removeContentByAdmin(
-                draft.id,
-                EnumMessageLanguage.en,
-                'admin-id'
-            )
+            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
         ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
     });
 
@@ -120,11 +123,11 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockReturnValue(content);
 
         await expect(
-            service.addContentByAdmin(
-                draft.id,
-                { language: EnumMessageLanguage.en, key: 'key', size: 100 },
-                'admin-id'
-            )
+            service.addContentByAdmin(draft.id, {
+                language: EnumMessageLanguage.en,
+                key: 'key',
+                size: 100,
+            })
         ).rejects.toBeInstanceOf(TermPolicyContentExistException);
     });
 
@@ -148,21 +151,16 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.addContent.mockResolvedValue(draft);
 
         await expect(
-            service.addContentByAdmin(
-                draft.id,
-                {
-                    language: EnumMessageLanguage.en,
-                    key: mapped.key,
-                    size: mapped.size,
-                },
-                'admin-id'
-            )
+            service.addContentByAdmin(draft.id, {
+                language: EnumMessageLanguage.en,
+                key: mapped.key,
+                size: mapped.size,
+            })
         ).resolves.toBeUndefined();
-        expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
-            draft.id,
-            { language: EnumMessageLanguage.en, ...mapped },
-            'admin-id'
-        );
+        expect(termPolicyRepository.addContent).toHaveBeenCalledWith(draft.id, {
+            language: EnumMessageLanguage.en,
+            ...mapped,
+        });
     });
 
     it('rejects removing a language absent from the draft', async () => {
@@ -170,11 +168,7 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockReturnValue(null);
 
         await expect(
-            service.removeContentByAdmin(
-                draft.id,
-                EnumMessageLanguage.en,
-                'admin-id'
-            )
+            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
         ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
     });
 });

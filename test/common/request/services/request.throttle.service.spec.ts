@@ -5,15 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IRequestThrottlePolicy } from '@common/request/interfaces/request.interface';
 import { RequestThrottleService } from '@common/request/services/request.throttle.service';
-import { RequestThrottlerStorageService } from '@common/request/services/request.throttler.service';
+import { RequestThrottleStorageService } from '@common/request/services/request.throttle-storage.service';
 import type { Response } from 'express';
 
 describe('RequestThrottleService', () => {
     const configService: Pick<ConfigService, 'get'> = { get: vi.fn() };
     const configGet = vi.mocked(configService.get);
     const storageService = {
-        increment: vi.fn<RequestThrottlerStorageService['increment']>(),
-    } satisfies Pick<RequestThrottlerStorageService, 'increment'>;
+        increment: vi.fn<RequestThrottleStorageService['increment']>(),
+    } satisfies Pick<RequestThrottleStorageService, 'increment'>;
     const setHeader = vi.fn<Response['setHeader']>();
     const response = createMock<Response>({ setHeader });
     const policy: IRequestThrottlePolicy = {
@@ -30,7 +30,7 @@ describe('RequestThrottleService', () => {
 
         service = new RequestThrottleService(
             configService as ConfigService,
-            storageService as unknown as RequestThrottlerStorageService
+            storageService as unknown as RequestThrottleStorageService
         );
     });
 
@@ -70,14 +70,14 @@ describe('RequestThrottleService', () => {
         expect(setHeader).toHaveBeenCalledWith('Retry-After', 15);
     });
 
-    it('fails open when storage rejects', async () => {
+    it('propagates a storage failure', async () => {
         storageService.increment.mockRejectedValue(
             new Error('redis unavailable')
         );
 
         await expect(
             service.evaluate(response, 'user', 'user-id', policy)
-        ).resolves.toBeUndefined();
+        ).rejects.toThrow('redis unavailable');
         expect(setHeader).not.toHaveBeenCalled();
     });
 });

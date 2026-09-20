@@ -38,17 +38,4 @@ describe('HelperHashService', () => {
             expect(service.sha256Compare('a', 'b')).toBe(false);
         });
     });
-
-    describe('md5', () => {
-        it('produces the known hex digest', () => {
-            expect(service.md5Hash('abc')).toBe(
-                '900150983cd24fb0d6963f7d28e17f72'
-            );
-        });
-
-        it('compares equal and different hashes', () => {
-            expect(service.md5Compare('a', 'a')).toBe(true);
-            expect(service.md5Compare('a', 'b')).toBe(false);
-        });
-    });
 });

@@ -8,15 +8,15 @@ import { withDefaultApiKey } from '@test/e2e/support/api-key';
 import {
     createActiveUser,
     deleteUserFixture,
-    IE2eUserFixture,
+    type IE2eUserFixture,
 } from '@test/e2e/support/user.fixture';
 import {
     createPublicWorkspace,
     createWorkspaceInvite,
     deleteWorkspaceFixture,
 } from '@test/e2e/support/workspace.fixture';
-import { INestApplication } from '@nestjs/common';
-import { Workspace } from '@generated/prisma-client';
+import type { INestApplication } from '@nestjs/common';
+import type { Workspace } from '@generated/prisma-client';
 
 describe('Workspace public preview routes', () => {
     const getApp = useE2eApp();

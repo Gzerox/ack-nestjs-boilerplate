@@ -22,24 +22,35 @@ import { RoleDomain } from '@modules/role/domains/role.domain';
 import { RoleUtil } from '@modules/role/utils/role.util';
 import type { IUser } from '@modules/user/interfaces/user.interface';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
+import { DatabaseUtil } from '@common/database/utils/database.util';
+import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { createMock } from '@golevelup/ts-vitest';
 
 describe('RoleDomain', () => {
     const roleRepository = {
         existsByName: vi.fn<RoleRepository['existsByName']>(),
         existsById: vi.fn<RoleRepository['existsById']>(),
+        findOneById: vi.fn<RoleRepository['findOneById']>(),
         create: vi.fn<RoleRepository['create']>(),
         isUsedById: vi.fn<RoleRepository['isUsedById']>(),
         delete: vi.fn<RoleRepository['delete']>(),
     } satisfies Pick<
         RoleRepository,
-        'existsByName' | 'existsById' | 'create' | 'isUsedById' | 'delete'
+        | 'existsByName'
+        | 'existsById'
+        | 'findOneById'
+        | 'create'
+        | 'isUsedById'
+        | 'delete'
     >;
     const roleUtil = {
         mapActivityLogMetadata: vi.fn<RoleUtil['mapActivityLogMetadata']>(),
     } satisfies Pick<RoleUtil, 'mapActivityLogMetadata'>;
     const activityLogDomain = {
-        stage: vi.fn<ActivityLogDomain['stage']>(),
-    } satisfies Pick<ActivityLogDomain, 'stage'>;
+        prepare: vi.fn<ActivityLogDomain['prepare']>(),
+    } satisfies Pick<ActivityLogDomain, 'prepare'>;
+    const databaseUtil = createMock<DatabaseUtil>();
+    const helperDateService = createMock<HelperDateService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const policy = {
         id: 'policy-id',
@@ -109,6 +120,8 @@ describe('RoleDomain', () => {
                 { provide: RoleRepository, useValue: roleRepository },
                 { provide: RoleUtil, useValue: roleUtil },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
+                { provide: DatabaseUtil, useValue: databaseUtil },
+                { provide: HelperDateService, useValue: helperDateService },
             ],
         }).compile();
         service = moduleRef.get(RoleDomain);
@@ -166,7 +179,7 @@ describe('RoleDomain', () => {
     });
 
     it('rejects deletion while the role is assigned', async () => {
-        roleRepository.existsById.mockResolvedValue(true);
+        roleRepository.findOneById.mockResolvedValue(role);
         roleRepository.isUsedById.mockResolvedValue(true);
 
         await expect(service.deleteByAdmin(role.id)).rejects.toBeInstanceOf(

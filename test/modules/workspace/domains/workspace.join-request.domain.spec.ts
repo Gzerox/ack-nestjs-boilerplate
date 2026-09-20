@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
-import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
 import {
     EnumActivityLogAction,
     EnumWorkspaceJoinRejectReason,
@@ -38,7 +38,7 @@ describe('WorkspaceJoinRequestDomain', () => {
     const userDomain = createMock<UserDomain>();
     const activityLogDomain = createMock<ActivityLogDomain>();
     const databaseService = createDatabaseServiceMock();
-    const encryptionService = createMock<HelperEncryptionService>();
+    const helperStringService = createMock<HelperStringService>();
     const dateService = createMock<HelperDateService>();
     const configService = createMock<ConfigService>();
     const notificationQueue = createMock<NotificationQueue>();
@@ -74,8 +74,8 @@ describe('WorkspaceJoinRequestDomain', () => {
             userDomain,
             activityLogDomain,
             databaseService,
-            encryptionService,
             dateService,
+            helperStringService,
             configService,
             notificationQueue,
             featureFlagDomain
@@ -138,7 +138,7 @@ describe('WorkspaceJoinRequestDomain', () => {
         workspaceRepository.findActiveById.mockResolvedValue(workspace);
         memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(null);
         joinRepository.existsPendingByWorkspaceAndUser.mockResolvedValue(false);
-        joinRepository.createPendingInTx.mockResolvedValue(joinRequest);
+        joinRepository.createPending.mockResolvedValue(joinRequest);
         userDomain.getNameById.mockResolvedValue({
             name: 'Requester',
             username: 'requester',
@@ -146,7 +146,9 @@ describe('WorkspaceJoinRequestDomain', () => {
         memberRepository.findReviewersByWorkspace.mockResolvedValue([
             { userId: 'reviewer-id' },
         ]);
-        encryptionService.aes256EncryptSimple.mockReturnValue('encrypted-link');
+        helperStringService.fillPattern.mockReturnValue(
+            'https://example.com/join/join-id'
+        );
 
         await expect(
             domain.createJoinRequest('requester-id', {
@@ -154,9 +156,10 @@ describe('WorkspaceJoinRequestDomain', () => {
                 message: 'Let me in',
             })
         ).resolves.toBe(joinRequest);
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceJoinRequested,
             userId: 'requester-id',
+            createdBy: 'requester-id',
             workspaceId: 'workspace-id',
         });
         expect(notificationQueue.sendWorkspaceJoinRequest).toHaveBeenCalledWith(
@@ -165,7 +168,7 @@ describe('WorkspaceJoinRequestDomain', () => {
                 workspaceId: 'workspace-id',
                 workspaceName: 'Workspace',
                 requesterName: 'Requester',
-                encryptedJoinRequestReviewLink: 'encrypted-link',
+                joinRequestReviewLink: 'https://example.com/join/join-id',
             },
             'requester-id'
         );
@@ -265,17 +268,18 @@ describe('WorkspaceJoinRequestDomain', () => {
             EnumWorkspaceJoinRejectReason.other
         );
 
-        expect(joinRepository.rejectInTx).toHaveBeenCalledWith(
-            expect.anything(),
+        expect(joinRepository.reject).toHaveBeenCalledWith(
             'join-id',
             'reviewer-id',
             EnumWorkspaceJoinRejectReason.other,
             reviewedAt
         );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceJoinRejected,
             userId: 'reviewer-id',
+            createdBy: 'reviewer-id',
             workspaceId: 'workspace-id',
+            metadata: { targetUserId: 'requester-id' },
         });
         expect(
             notificationQueue.sendWorkspaceJoinRejected

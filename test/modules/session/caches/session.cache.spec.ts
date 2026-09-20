@@ -5,9 +5,12 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { HelperStringService } from '@common/helper/services/helper.string.service';
+import { RedisClientCachedProvider } from '@common/redis/constants/redis.constant';
 import { SessionCacheProvider } from '@modules/session/constants/session.constant';
 import type { ISessionCache } from '@modules/session/interfaces/session.interface';
 import { SessionCache } from '@modules/session/caches/session.cache';
+import type Keyv from 'keyv';
 
 describe('SessionCache', () => {
     const cacheManager = createMock<Cache>();
@@ -16,6 +19,18 @@ describe('SessionCache', () => {
     const helperDateService = {
         create: vi.fn<HelperDateService['create']>(),
     } satisfies Pick<HelperDateService, 'create'>;
+    const redisSet = vi.fn();
+    const redisClient = { set: redisSet };
+    const redisStore = {
+        createKeyPrefix: vi.fn((key: string) => `prefix:${key}`),
+        getClient: vi.fn(async () => redisClient),
+        getMasterNodes: vi.fn(async () => []),
+        namespace: 'cache',
+    };
+    const keyv = {
+        store: redisStore,
+        serializeData: vi.fn(async () => 'serialized'),
+    } as unknown as Keyv;
 
     let service: SessionCache;
 
@@ -27,10 +42,12 @@ describe('SessionCache', () => {
         cacheManager.get.mockResolvedValue(undefined);
         cacheManager.del.mockResolvedValue(true);
         cacheManager.mdel.mockResolvedValue(true);
+        redisSet.mockResolvedValue('OK');
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 SessionCache,
                 { provide: SessionCacheProvider, useValue: cacheManager },
+                { provide: RedisClientCachedProvider, useValue: keyv },
                 {
                     provide: ConfigService,
                     useValue: new ConfigService({
@@ -38,6 +55,10 @@ describe('SessionCache', () => {
                     }),
                 },
                 { provide: HelperDateService, useValue: helperDateService },
+                {
+                    provide: HelperStringService,
+                    useValue: new HelperStringService(),
+                },
             ],
         }).compile();
         service = moduleRef.get(SessionCache);
@@ -62,7 +83,10 @@ describe('SessionCache', () => {
         );
     });
 
-    it('rotates only the cached jti and applies the remaining refreshInTx lifetime', async () => {
+    it('rotates only the cached jti and applies the remaining refresh lifetime', async () => {
+        helperDateService.create.mockReturnValue(
+            new Date('2026-01-01T00:00:00.000Z')
+        );
         const session = {
             userId: 'user-id',
             sessionId: 'session-id',
@@ -78,15 +102,18 @@ describe('SessionCache', () => {
             120_000
         );
 
-        expect(cacheSet).toHaveBeenCalledWith(
-            'session:user-id:session-id',
-            { ...session, jti: 'new-jti' },
-            120_000
+        expect(redisSet).toHaveBeenCalledWith(
+            'prefix:session:user-id:session-id',
+            'serialized',
+            {
+                expiration: { type: 'PX', value: 120_000 },
+                condition: 'XX',
+            }
         );
     });
 
     it('bulk-deletes only the supplied active session keys', async () => {
-        await service.deleteAllLogins('user-id', [
+        await service.deleteLogins('user-id', [
             { id: 'session-1' },
             { id: 'session-2' },
         ]);
@@ -98,7 +125,7 @@ describe('SessionCache', () => {
     });
 
     it('does not issue an empty bulk cache deletion', async () => {
-        await service.deleteAllLogins('user-id', []);
+        await service.deleteLogins('user-id', []);
 
         expect(cacheMdel).not.toHaveBeenCalled();
     });

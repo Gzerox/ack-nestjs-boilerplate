@@ -210,6 +210,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^21.2.2
         version: 21.2.2
+      '@golevelup/ts-vitest':
+        specifier: ^4.0.0
+        version: 4.0.0
       '@nestjs/cli':
         specifier: ^12.0.0
         version: 12.0.0(@swc/cli@0.8.1(@swc/core@1.16.2)(chokidar@5.0.0)(supports-color@10.2.2))(@swc/core@1.16.2)(@types/node@26.4.1)(fork-ts-checker-webpack-plugin@9.1.0(typescript@6.0.3)(webpack@5.106.2(@swc/core@1.16.2)(uglify-js@3.19.3)))(prettier@3.9.6)(tsconfig-paths-webpack-plugin@4.2.0)(webpack-node-externals@3.0.0)(webpack@5.106.2(@swc/core@1.16.2)(uglify-js@3.19.3))
@@ -898,6 +901,9 @@ packages:
     peerDependencies:
       '@nestjs/common': ^11.1.21
       '@nestjs/core': ^11.1.21
+
+  '@golevelup/ts-vitest@4.0.0':
+    resolution: {integrity: sha512-TNIhtox9zWfxlww0ql91l/k2zDthN4owg5qDieRHtjIwIvuoUlXLiwqAb/ifkRr8K+jZLRIC9QrKN/J7TBghlQ==}
 
   '@google-cloud/firestore@8.7.1':
     resolution: {integrity: sha512-Hp/WI8sH569ANitsko6RNvCUkzTCYudHoINOkQjiJq2FBG6kKnofBAW7PtS823cu6RMxHqK2RxRcspdjrRpUFA==}
@@ -2825,13 +2831,6 @@ packages:
     resolution: {integrity: sha512-ZC5Bd0LgJXgwGqUknZY/vkUQ04r8NXnJZ3yYi4vDmSiZmC/pdSN0NbNRPxZpbtO4uAfDUAFffO8IZoM3Gj8IkA==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
-
-  bs-logger@0.2.6:
-    resolution: {integrity: sha512-pd8DCoxmbgc7hyPKOvxtqNcjYoOsABPQdcCUjGp3d42VR2CX1ORhk2A87oqqu5R1kk+76nsxZupkmyd+MVtCog==}
-    engines: {node: '>= 6'}
-
-  bser@2.1.1:
-    resolution: {integrity: sha512-gQxTNE/GAfIIrmHLUE3oJyp5FO6HRBfhjnw4/wMmA63ZGDJnWBmgY/lyQBpnDUkGmAhbSe39tx2d/iTOAfglwQ==}
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -6590,6 +6589,8 @@ snapshots:
       '@nestjs/common': 12.0.1(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
       '@nestjs/core': 12.0.1(@nestjs/common@12.0.1(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.0.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
 
+  '@golevelup/ts-vitest@4.0.0': {}
+
   '@google-cloud/firestore@8.7.1(supports-color@10.2.2)':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -8449,14 +8450,6 @@ snapshots:
       node-releases: 2.0.27
       update-browserslist-db: 1.2.2(browserslist@4.28.1)
     optional: true
-
-  bs-logger@0.2.6:
-    dependencies:
-      fast-json-stable-stringify: 2.1.0
-
-  bser@2.1.1:
-    dependencies:
-      node-int64: 0.4.0
 
   buffer-equal-constant-time@1.0.1: {}
 

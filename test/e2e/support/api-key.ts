@@ -1,9 +1,9 @@
-import { migrationApiKeyData } from '@migration/data/migration.api-key.data';
+import { MigrationApiKeyData } from '@migration/data/migration.api-key.data';
 import { EnumAppEnvironment } from '@app/enums/app.enum';
 import type request from 'supertest';
 import { withApiKey } from '@test/e2e/support/request';
 
-const seededApiKey = migrationApiKeyData[EnumAppEnvironment.test][0]!;
+const seededApiKey = MigrationApiKeyData[EnumAppEnvironment.test][0]!;
 
 /**
  * The `x-api-key` header value for the seeded default-type API key (`pnpm test:e2e:db:reset`

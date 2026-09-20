@@ -39,7 +39,7 @@ describe('UserUtil', () => {
             id: 'two-factor-id',
             userId: 'user-id',
             secret: 'encrypted-secret',
-            iv: 'hex:iv',
+            pendingSecret: 'encrypted-pending-secret',
             enabled: false,
             requiredSetup: false,
             confirmedAt: null,

@@ -24,6 +24,7 @@ describe('WorkspaceUtil', () => {
         updatedAt: now,
         updatedBy: null,
         deletedAt: null,
+        deletedBy: null,
     } satisfies Workspace;
 
     const invite = {

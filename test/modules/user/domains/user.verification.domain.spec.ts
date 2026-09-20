@@ -6,11 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { DatabaseService } from '@common/database/services/database.service';
-import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { HelperNumberService } from '@common/helper/services/helper.number.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
-import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
     EnumUserGender,
     EnumUserSignUpFrom,
@@ -45,16 +43,14 @@ describe('UserVerificationDomain', () => {
             vi.fn<
                 UserVerificationRepository['findOneLatestByVerificationEmail']
             >(),
-        expireActiveByTypeInTx:
-            vi.fn<UserVerificationRepository['expireActiveByTypeInTx']>(),
-        createInTx: vi.fn<UserVerificationRepository['createInTx']>(),
+        createReplacingActive:
+            vi.fn<UserVerificationRepository['createReplacingActive']>(),
     } satisfies Pick<
         UserVerificationRepository,
         | 'findOneActiveByVerificationEmailToken'
         | 'markUsedInTx'
         | 'findOneLatestByVerificationEmail'
-        | 'expireActiveByTypeInTx'
-        | 'createInTx'
+        | 'createReplacingActive'
     >;
     const userRepository = {
         findOneActiveByEmail: vi.fn<UserRepository['findOneActiveByEmail']>(),
@@ -83,12 +79,6 @@ describe('UserVerificationDomain', () => {
         HelperDateService,
         'create' | 'forward' | 'formatToIso' | 'diff'
     >;
-    const requestStoreGet = vi.fn((_key: string): unknown => null);
-    const requestStoreService = {
-        get<T>(key: string): T | null {
-            return requestStoreGet(key) as T | null;
-        },
-    } satisfies Pick<RequestStoreService, 'get'>;
     const configGet = vi.fn((_key: string): unknown => undefined);
     const configService = {
         get<T>(key: string): T | undefined {
@@ -97,24 +87,16 @@ describe('UserVerificationDomain', () => {
     } satisfies Pick<ConfigService, 'get'>;
     const helperStringService = {
         random: vi.fn<HelperStringService['random']>(),
-    } satisfies Pick<HelperStringService, 'random'>;
+        fillPattern: vi.fn<HelperStringService['fillPattern']>(),
+    } satisfies Pick<HelperStringService, 'random' | 'fillPattern'>;
     const helperNumberService = {
         randomDigits: vi.fn<HelperNumberService['randomDigits']>(),
     } satisfies Pick<HelperNumberService, 'randomDigits'>;
-    const helperEncryptionService = {
-        aes256EncryptSimple:
-            vi.fn<HelperEncryptionService['aes256EncryptSimple']>(),
-    } satisfies Pick<HelperEncryptionService, 'aes256EncryptSimple'>;
     const databaseService = createDatabaseServiceMock();
     const activityLogDomain = createMock<ActivityLogDomain>();
 
     const now = new Date('2026-01-01T00:00:00.000Z');
     const expiredAt = new Date('2026-01-01T01:00:00.000Z');
-    const requestLog = {
-        userAgent: { ua: 'browser' },
-        ipAddress: '127.0.0.1',
-        geoLocation: null,
-    };
     const user = {
         id: 'user-id',
         name: 'User',
@@ -170,7 +152,6 @@ describe('UserVerificationDomain', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         mockDatabaseServiceTransaction(databaseService);
-        requestStoreGet.mockReturnValue(requestLog);
         configGet.mockImplementation((key: string) => {
             const values = {
                 'home.url': 'https://app.example.com',
@@ -187,11 +168,11 @@ describe('UserVerificationDomain', () => {
             return values[key as keyof typeof values];
         });
         helperStringService.random.mockReturnValue('RANDOM');
+        helperStringService.fillPattern.mockReturnValue(
+            'https://app.example.com/verify-email?token=RANDOM'
+        );
         helperNumberService.randomDigits.mockReturnValue('123456');
         helperHashService.sha256Hash.mockReturnValue('hashed-token');
-        helperEncryptionService.aes256EncryptSimple.mockReturnValue(
-            'encrypted-link'
-        );
         helperDateService.create.mockReturnValue(now);
         helperDateService.forward.mockReturnValue(expiredAt);
         helperDateService.formatToIso.mockReturnValue(
@@ -207,7 +188,9 @@ describe('UserVerificationDomain', () => {
         userVerificationRepository.findOneLatestByVerificationEmail.mockResolvedValue(
             null
         );
-        userVerificationRepository.createInTx.mockResolvedValue(verification);
+        userVerificationRepository.createReplacingActive.mockResolvedValue(
+            verification
+        );
         userVerificationRepository.markUsedInTx.mockResolvedValue(verification);
 
         const moduleRef: TestingModule = await Test.createTestingModule({
@@ -223,23 +206,17 @@ describe('UserVerificationDomain', () => {
                 { provide: HelperHashService, useValue: helperHashService },
                 { provide: NotificationQueue, useValue: notificationQueue },
                 { provide: HelperDateService, useValue: helperDateService },
-                { provide: RequestStoreService, useValue: requestStoreService },
                 { provide: ConfigService, useValue: configService },
                 { provide: HelperStringService, useValue: helperStringService },
                 { provide: HelperNumberService, useValue: helperNumberService },
-                {
-                    provide: HelperEncryptionService,
-                    useValue: helperEncryptionService,
-                },
             ],
         }).compile();
         service = moduleRef.get(UserVerificationDomain);
     });
 
     describe('verificationCreateVerification', () => {
-        it('creates an encrypted email verification link', () => {
+        it('creates an email verification link', () => {
             const result = service.verificationCreateVerification(
-                user.id,
                 EnumVerificationType.email
             );
 
@@ -252,19 +229,11 @@ describe('UserVerificationDomain', () => {
                 expiredInMinutes: 60,
                 resendInMinutes: 10,
                 link: 'https://app.example.com/verify-email?token=RANDOM',
-                encryptedLink: 'encrypted-link',
             });
-            expect(
-                helperEncryptionService.aes256EncryptSimple
-            ).toHaveBeenCalledWith(
-                'https://app.example.com/verify-email?token=RANDOM',
-                user.id
-            );
         });
 
         it('creates an OTP verification for a mobile number', () => {
             const result = service.verificationCreateVerification(
-                user.id,
                 EnumVerificationType.mobileNumber
             );
 
@@ -277,9 +246,6 @@ describe('UserVerificationDomain', () => {
                 expiredInMinutes: 60,
                 resendInMinutes: 10,
             });
-            expect(
-                helperEncryptionService.aes256EncryptSimple
-            ).not.toHaveBeenCalled();
         });
     });
 
@@ -327,15 +293,15 @@ describe('UserVerificationDomain', () => {
             expect(userRepository.findOneActiveByEmail).toHaveBeenCalledWith(
                 user.email
             );
-            expect(userVerificationRepository.createInTx).toHaveBeenCalledWith(
-                expect.any(Object),
+            expect(
+                userVerificationRepository.createReplacingActive
+            ).toHaveBeenCalledWith(
                 user.id,
                 user.email,
                 expect.objectContaining({
                     type: EnumVerificationType.email,
                     reference: 'VE-RANDOM',
                     hashedToken: 'hashed-token',
-                    encryptedLink: 'encrypted-link',
                 }),
                 expect.any(Date)
             );
@@ -344,7 +310,7 @@ describe('UserVerificationDomain', () => {
             ).toHaveBeenCalledWith(user.id, {
                 expiredAt: '2026-01-01T01:00:00.000Z',
                 reference: 'VE-RANDOM',
-                link: 'encrypted-link',
+                link: 'https://app.example.com/verify-email?token=RANDOM',
                 expiredInMinutes: 60,
             });
         });
@@ -356,7 +322,7 @@ describe('UserVerificationDomain', () => {
                 service.sendVerificationEmail(user.email)
             ).rejects.toBeInstanceOf(UserNotFoundException);
             expect(
-                userVerificationRepository.createInTx
+                userVerificationRepository.createReplacingActive
             ).not.toHaveBeenCalled();
         });
 
@@ -371,7 +337,7 @@ describe('UserVerificationDomain', () => {
                 service.sendVerificationEmail(user.email)
             ).rejects.toBeInstanceOf(UserEmailAlreadyVerifiedException);
             expect(
-                userVerificationRepository.createInTx
+                userVerificationRepository.createReplacingActive
             ).not.toHaveBeenCalled();
         });
 
@@ -389,7 +355,7 @@ describe('UserVerificationDomain', () => {
                 UserVerificationEmailResendLimitExceededException
             );
             expect(
-                userVerificationRepository.createInTx
+                userVerificationRepository.createReplacingActive
             ).not.toHaveBeenCalled();
         });
     });

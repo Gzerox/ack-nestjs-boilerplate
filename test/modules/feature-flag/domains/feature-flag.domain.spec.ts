@@ -5,7 +5,6 @@ import { FeatureFlagPredefinedKeyEmptyException } from '@modules/feature-flag/ex
 import { FeatureFlagPredefinedKeyNotFoundException } from '@modules/feature-flag/exceptions/feature-flag.predefined-key-not-found.exception';
 import { FeatureFlagPredefinedKeyTypeInvalidException } from '@modules/feature-flag/exceptions/feature-flag.predefined-key-type-invalid.exception';
 import { FeatureFlagServiceUnavailableException } from '@modules/feature-flag/exceptions/feature-flag.service-unavailable.exception';
-import { FeatureFlagNotFoundException } from '@modules/feature-flag/exceptions/feature-flag.not-found.exception';
 import { FeatureFlagRepository } from '@modules/feature-flag/repositories/feature-flag.repository';
 import { FeatureFlagCache } from '@modules/feature-flag/caches/feature-flag.cache';
 import { FeatureFlagDomain } from '@modules/feature-flag/domains/feature-flag.domain';
@@ -17,12 +16,7 @@ describe('FeatureFlagDomain', () => {
     const featureFlagRepository = {
         findOneById: vi.fn<FeatureFlagRepository['findOneById']>(),
         updateStatus: vi.fn<FeatureFlagRepository['updateStatus']>(),
-        addTargetUser: vi.fn<FeatureFlagRepository['addTargetUser']>(),
-        removeTargetUser: vi.fn<FeatureFlagRepository['removeTargetUser']>(),
-    } satisfies Pick<
-        FeatureFlagRepository,
-        'findOneById' | 'updateStatus' | 'addTargetUser' | 'removeTargetUser'
-    >;
+    } satisfies Pick<FeatureFlagRepository, 'findOneById' | 'updateStatus'>;
     const featureFlagCacheService = {
         getByKeyAndCache: vi.fn<FeatureFlagCache['getByKeyAndCache']>(),
         deleteCacheByKey: vi.fn<FeatureFlagCache['deleteCacheByKey']>(),
@@ -31,8 +25,8 @@ describe('FeatureFlagDomain', () => {
         checkMetadataKey: vi.fn<FeatureFlagUtil['checkMetadataKey']>(),
     } satisfies Pick<FeatureFlagUtil, 'checkMetadataKey'>;
     const helperHashService = {
-        md5Hash: vi.fn<HelperHashService['md5Hash']>(),
-    } satisfies Pick<HelperHashService, 'md5Hash'>;
+        sha256Hash: vi.fn<HelperHashService['sha256Hash']>(),
+    } satisfies Pick<HelperHashService, 'sha256Hash'>;
 
     const featureFlag = {
         id: 'flag-id',
@@ -109,19 +103,19 @@ describe('FeatureFlagDomain', () => {
             await expect(
                 service.validateFeatureFlag('new-home', 'user-id', null)
             ).resolves.toBeUndefined();
-            expect(helperHashService.md5Hash).not.toHaveBeenCalled();
+            expect(helperHashService.sha256Hash).not.toHaveBeenCalled();
         });
 
         it('uses a flag-salted deterministic bucket for an untargeted user', async () => {
             featureFlagCacheService.getByKeyAndCache.mockResolvedValue(
                 featureFlag
             );
-            helperHashService.md5Hash.mockReturnValue('00000031ffff');
+            helperHashService.sha256Hash.mockReturnValue('00000031ffff');
 
             await expect(
                 service.validateFeatureFlag('new-home', 'user-id', null)
             ).resolves.toBeUndefined();
-            expect(helperHashService.md5Hash).toHaveBeenCalledWith(
+            expect(helperHashService.sha256Hash).toHaveBeenCalledWith(
                 'new-home:user-id'
             );
         });
@@ -192,48 +186,5 @@ describe('FeatureFlagDomain', () => {
         expect(featureFlagCacheService.deleteCacheByKey).toHaveBeenCalledWith(
             'new-home'
         );
-    });
-
-    it('adds a target user and invalidates the flag cache', async () => {
-        featureFlagRepository.findOneById.mockResolvedValue(featureFlag);
-        featureFlagRepository.addTargetUser.mockResolvedValue({
-            id: 'target-user-id',
-            featureFlagId: 'flag-id',
-            userId: 'user-id',
-        });
-
-        await expect(
-            service.addTargetUserByAdmin('flag-id', { userId: 'user-id' })
-        ).resolves.toBe(featureFlag);
-        expect(featureFlagRepository.addTargetUser).toHaveBeenCalledWith(
-            'flag-id',
-            'user-id'
-        );
-        expect(featureFlagCacheService.deleteCacheByKey).toHaveBeenCalledWith(
-            'new-home'
-        );
-    });
-
-    it('removes a target user and invalidates the flag cache', async () => {
-        featureFlagRepository.findOneById.mockResolvedValue(featureFlag);
-        featureFlagRepository.removeTargetUser.mockResolvedValue({ count: 1 });
-
-        await expect(
-            service.removeTargetUserByAdmin('flag-id', 'user-id')
-        ).resolves.toBe(featureFlag);
-        expect(featureFlagRepository.removeTargetUser).toHaveBeenCalledWith(
-            'flag-id',
-            'user-id'
-        );
-    });
-
-    it('throws FeatureFlagNotFoundException before a target mutation', async () => {
-        featureFlagRepository.findOneById.mockResolvedValue(null);
-
-        await expect(
-            service.addTargetUserByAdmin('missing', { userId: 'user-id' })
-        ).rejects.toBeInstanceOf(FeatureFlagNotFoundException);
-        expect(featureFlagRepository.addTargetUser).not.toHaveBeenCalled();
-        expect(featureFlagCacheService.deleteCacheByKey).not.toHaveBeenCalled();
     });
 });

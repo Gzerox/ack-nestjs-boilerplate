@@ -11,7 +11,11 @@ import {
     EnumUserCreateMode,
     EnumUserSignUpWorkspaceContextType,
 } from '@modules/user/enums/user.enum';
-import type { IUserSignUpWorkspacePersonal } from '@modules/user/interfaces/user.interface';
+import type {
+    IUser,
+    IUserCreateWithWorkspaceInput,
+    IUserSignUpWorkspacePersonal,
+} from '@modules/user/interfaces/user.interface';
 import { UserOnboardingDomain } from '@modules/user/domains/user.onboarding.domain';
 import { UserRepository } from '@modules/user/repositories/user.repository';
 
@@ -79,7 +83,12 @@ describe('UserOnboardingDomain', () => {
     it('builds sign-up activity logs including the verification-email request and workspace creation', () => {
         const logs = service.buildOnboardingActivities(
             EnumUserCreateMode.signUp,
-            personalContext
+            createMock<IUserCreateWithWorkspaceInput>({
+                userId: 'user-id',
+                createdBy: 'user-id',
+                workspaceContext: personalContext,
+            }),
+            createMock<IUser>({ createdAt: now })
         );
 
         expect(logs).toEqual([

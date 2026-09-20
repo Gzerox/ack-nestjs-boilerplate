@@ -2,10 +2,12 @@ import { createMock } from '@golevelup/ts-vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { PaginationService } from '@common/pagination/services/pagination.service';
 import { AnalyticCache } from '@modules/analytic/caches/analytic.cache';
 import { AnalyticAnomalyDomain } from '@modules/analytic/domains/analytic.anomaly.domain';
 import { AnalyticDateUtil } from '@modules/analytic/utils/analytic.date.util';
 import { AnalyticGeoUtil } from '@modules/analytic/utils/analytic.geo.util';
+import { AnalyticSortUtil } from '@modules/analytic/utils/analytic.sort.util';
 import { DeviceAnalyticDomain } from '@modules/device/domains/device.analytic.domain';
 import { SessionAnalyticDomain } from '@modules/session/domains/session.analytic.domain';
 import { UserAnalyticDomain } from '@modules/user/domains/user.analytic.domain';
@@ -16,6 +18,8 @@ describe('AnalyticAnomalyDomain', () => {
     const cache = createMock<AnalyticCache>();
     const dateUtil = createMock<AnalyticDateUtil>();
     const geoUtil = createMock<AnalyticGeoUtil>();
+    const sortUtil = createMock<AnalyticSortUtil>();
+    const paginationService = createMock<PaginationService>();
     const configService = createMock<ConfigService>();
     const dateService = createMock<HelperDateService>();
     const sessionDomain = createMock<SessionAnalyticDomain>();
@@ -38,6 +42,8 @@ describe('AnalyticAnomalyDomain', () => {
             cache,
             dateUtil,
             geoUtil,
+            sortUtil,
+            paginationService,
             configService,
             dateService,
             sessionDomain,
@@ -59,7 +65,13 @@ describe('AnalyticAnomalyDomain', () => {
             { key: '3', count: 2 },
         ]);
         userDomain.findNearLockout.mockResolvedValue([
-            { id: 'user-id', email: 'user@example.com', passwordAttempt: 4 },
+            {
+                id: 'user-id',
+                email: 'user@example.com',
+                passwordAttempt: 4,
+                lastLoginAt: null,
+                createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            },
         ]);
         const expected = {
             count: 1,

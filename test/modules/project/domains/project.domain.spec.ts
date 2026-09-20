@@ -1,8 +1,6 @@
 import { createMock } from '@golevelup/ts-vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DatabaseUniqueValueGenerationFailedException } from '@common/database/exceptions/database.unique-value-generation-failed.exception';
-import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { EnumActivityLogAction, type Project } from '@generated/prisma-client';
@@ -15,14 +13,11 @@ import { ProjectRepository } from '@modules/project/repositories/project.reposit
 import { ProjectUtil } from '@modules/project/utils/project.util';
 import { WorkspaceNotFoundException } from '@modules/workspace/exceptions/workspace.not-found.exception';
 import { ConfigService } from '@nestjs/config';
-import { createDatabaseServiceMock } from '@test/support/database.mock';
 
 describe('ProjectDomain', () => {
     const repository = createMock<ProjectRepository>();
     const projectUtil = createMock<ProjectUtil>();
     const activityLogDomain = createMock<ActivityLogDomain>();
-    const databaseService = createDatabaseServiceMock();
-    const databaseUtil = createMock<DatabaseUtil>();
     const helperDateService = createMock<HelperDateService>();
     const helperStringService = createMock<HelperStringService>();
     const configService = createMock<ConfigService>();
@@ -50,8 +45,6 @@ describe('ProjectDomain', () => {
             repository,
             projectUtil,
             activityLogDomain,
-            databaseService,
-            databaseUtil,
             helperDateService,
             helperStringService,
             configService
@@ -75,54 +68,23 @@ describe('ProjectDomain', () => {
     });
 
     it('creates a project and stages its activity', async () => {
-        repository.createInTx.mockResolvedValue(project);
+        repository.create.mockResolvedValue(project);
         await expect(
             domain.createProject('workspace-id', 'actor-id', {
                 name: 'Project',
             })
         ).resolves.toBe(project);
-        expect(repository.createInTx).toHaveBeenCalledWith(
-            expect.anything(),
+        expect(repository.create).toHaveBeenCalledWith(
             'workspace-id',
-            'actor-id',
             { name: 'Project' },
-            'first-slug'
+            ['first-slug', 'second-slug']
         );
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.projectCreated,
             userId: 'actor-id',
+            createdBy: 'actor-id',
             workspaceId: 'workspace-id',
         });
-    });
-
-    it('retries a slug collision and returns the second creation', async () => {
-        repository.createInTx
-            .mockRejectedValueOnce(new Error('collision'))
-            .mockResolvedValueOnce(project);
-        databaseUtil.isUniqueCollision.mockReturnValueOnce(true);
-        await expect(
-            domain.createProject('workspace-id', 'actor-id', {
-                name: 'Project',
-            })
-        ).resolves.toBe(project);
-        expect(repository.createInTx).toHaveBeenNthCalledWith(
-            2,
-            expect.anything(),
-            'workspace-id',
-            'actor-id',
-            { name: 'Project' },
-            'second-slug'
-        );
-    });
-
-    it('throws after all generated slugs collide', async () => {
-        repository.createInTx.mockRejectedValue(new Error('collision'));
-        databaseUtil.isUniqueCollision.mockReturnValue(true);
-        await expect(
-            domain.createProject('workspace-id', 'actor-id', {
-                name: 'Project',
-            })
-        ).rejects.toBeInstanceOf(DatabaseUniqueValueGenerationFailedException);
     });
 
     it.each(['INVALID!', 'this-slug-is-far-too-long'])(

@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { EnumApiKeyStatusCodeError } from '@modules/api-key/enums/api-key.status-code.enum';
@@ -16,7 +16,7 @@ import {
     deleteUserFixture,
     enableTwoFactorForUser,
     generateTwoFactorCode,
-    IE2eUserFixture,
+    type IE2eUserFixture,
 } from '@test/e2e/support/user.fixture';
 
 function device() {

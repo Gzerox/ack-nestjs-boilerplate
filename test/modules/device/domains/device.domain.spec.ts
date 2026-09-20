@@ -18,6 +18,7 @@ import type {
     IDeviceOwnershipWithSession,
 } from '@modules/device/interfaces/device.interface';
 import { DeviceOwnershipRepository } from '@modules/device/repositories/device.ownership.repository';
+import { DeviceRepository } from '@modules/device/repositories/device.repository';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
 import { DeviceUtil } from '@modules/device/utils/device.util';
 import { SessionDomain } from '@modules/session/domains/session.domain';
@@ -33,25 +34,25 @@ describe('DeviceDomain', () => {
                 DeviceOwnershipRepository['findActiveWithPaginationCursor']
             >(),
         existsActive: vi.fn<DeviceOwnershipRepository['existsActive']>(),
-        refreshInTx: vi.fn<DeviceOwnershipRepository['refreshInTx']>(),
+        touchInTx: vi.fn<DeviceOwnershipRepository['touchInTx']>(),
         removeOwnershipInTx:
             vi.fn<DeviceOwnershipRepository['removeOwnershipInTx']>(),
     } satisfies Pick<
         DeviceOwnershipRepository,
         | 'findActiveWithPaginationCursor'
         | 'existsActive'
-        | 'refreshInTx'
+        | 'touchInTx'
         | 'removeOwnershipInTx'
     >;
     const sessionService = {
-        deleteLoginsByDeviceOwnership:
-            vi.fn<SessionDomain['deleteLoginsByDeviceOwnership']>(),
+        purgeRevokedLogins: vi.fn<SessionDomain['purgeRevokedLogins']>(),
         revokeByDeviceOwnershipInTx:
             vi.fn<SessionDomain['revokeByDeviceOwnershipInTx']>(),
     } satisfies Pick<
         SessionDomain,
-        'deleteLoginsByDeviceOwnership' | 'revokeByDeviceOwnershipInTx'
+        'purgeRevokedLogins' | 'revokeByDeviceOwnershipInTx'
     >;
+    const deviceRepository = createMock<DeviceRepository>();
     const activityLogDomain = createMock<ActivityLogDomain>();
     const databaseService = createDatabaseServiceMock();
     const helperDateService = createMock<HelperDateService>();
@@ -114,6 +115,7 @@ describe('DeviceDomain', () => {
                     provide: DeviceOwnershipRepository,
                     useValue: deviceOwnershipRepository,
                 },
+                { provide: DeviceRepository, useValue: deviceRepository },
                 { provide: SessionDomain, useValue: sessionService },
                 { provide: DeviceUtil, useValue: new DeviceUtil() },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
@@ -152,7 +154,7 @@ describe('DeviceDomain', () => {
                 platform: EnumDevicePlatform.ios,
             })
         ).rejects.toBeInstanceOf(DeviceNotFoundException);
-        expect(deviceOwnershipRepository.refreshInTx).not.toHaveBeenCalled();
+        expect(deviceOwnershipRepository.touchInTx).not.toHaveBeenCalled();
     });
 
     it('refreshes an owned device with the platform notification provider', async () => {
@@ -162,17 +164,17 @@ describe('DeviceDomain', () => {
             platform: EnumDevicePlatform.ios,
             notificationToken: 'push-token',
         };
+        deviceOwnershipRepository.touchInTx.mockResolvedValue('device-id');
 
         await expect(
             service.refresh('user-id', ownership.id, update)
         ).resolves.toBeUndefined();
-        expect(activityLogDomain.stage).toHaveBeenCalledWith({
+        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.userDeviceRefresh,
         });
-        expect(deviceOwnershipRepository.refreshInTx).toHaveBeenCalledWith(
+        expect(deviceRepository.refreshInTx).toHaveBeenCalledWith(
             expect.any(Object),
-            'user-id',
-            ownership.id,
+            'device-id',
             update,
             EnumDeviceNotificationProvider.apns,
             expect.any(Date)
@@ -182,9 +184,10 @@ describe('DeviceDomain', () => {
     it('invalidates device sessions before self-removal', async () => {
         deviceOwnershipRepository.existsActive.mockResolvedValue(true);
         const order: string[] = [];
-        sessionService.deleteLoginsByDeviceOwnership.mockImplementation(
+        sessionService.revokeByDeviceOwnershipInTx.mockImplementation(
             async () => {
                 order.push('sessions');
+                return [];
             }
         );
         deviceOwnershipRepository.removeOwnershipInTx.mockImplementation(
@@ -210,14 +213,22 @@ describe('DeviceDomain', () => {
 
     it('invalidates sessions and records metadata for administrator removal', async () => {
         deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+        sessionService.revokeByDeviceOwnershipInTx.mockResolvedValue([
+            { id: 'session-1' },
+            { id: 'session-2' },
+        ]);
         deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
             ownership
         );
         await service.removeByAdmin('user-id', ownership.id, 'admin-id');
 
-        expect(
-            sessionService.deleteLoginsByDeviceOwnership
-        ).toHaveBeenCalledWith('user-id', ownership.id);
+        expect(sessionService.revokeByDeviceOwnershipInTx).toHaveBeenCalledWith(
+            expect.any(Object),
+            'user-id',
+            ownership.id,
+            'admin-id',
+            expect.any(Date)
+        );
         expect(
             deviceOwnershipRepository.removeOwnershipInTx
         ).toHaveBeenCalledWith(
@@ -230,19 +241,26 @@ describe('DeviceDomain', () => {
         const metadata = {
             deviceOwnershipId: ownership.id,
             deviceId: ownership.device.id,
-            userId: ownership.userId,
-            userUsername: ownership.user.username,
+            targetUserId: ownership.userId,
+            targetUsername: ownership.user.username,
             timestamp: ownership.updatedAt,
             sessionCount: ownership._count.sessions,
         };
-        expect(activityLogDomain.stage).toHaveBeenNthCalledWith(1, {
+        expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(1, {
             action: EnumActivityLogAction.adminDeviceRemove,
             metadata,
         });
-        expect(activityLogDomain.stage).toHaveBeenNthCalledWith(2, {
-            action: EnumActivityLogAction.userRemoveDevice,
+        expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(2, {
+            action: EnumActivityLogAction.userRemoveDeviceByAdmin,
             userId: 'user-id',
-            metadata,
+            createdBy: 'admin-id',
+            metadata: {
+                deviceOwnershipId: ownership.id,
+                deviceId: ownership.device.id,
+                actorUserId: 'admin-id',
+                timestamp: ownership.updatedAt,
+                sessionCount: ownership._count.sessions,
+            },
         });
     });
 });

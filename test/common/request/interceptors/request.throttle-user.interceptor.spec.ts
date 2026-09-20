@@ -10,13 +10,13 @@ import {
     RequestThrottleHandledStoreKey,
     RequestThrottleOptionsMetaKey,
 } from '@common/request/constants/request.constant';
-import { RequestThrottleInterceptor } from '@common/request/interceptors/request.throttle.interceptor';
+import { RequestThrottleUserInterceptor } from '@common/request/interceptors/request.throttle-user.interceptor';
 import type { IRequestApp } from '@common/request/interfaces/request.interface';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import { RequestThrottleService } from '@common/request/services/request.throttle.service';
 import type { Response } from 'express';
 
-describe('RequestThrottleInterceptor', () => {
+describe('RequestThrottleUserInterceptor', () => {
     const policy = { ttlInMs: 60_000, limit: 100, blockDurationInMs: 60_000 };
     const reflector = {
         get: vi.fn<Reflector['get']>(),
@@ -38,7 +38,7 @@ describe('RequestThrottleInterceptor', () => {
 
     let request: IRequestApp<{ userId: string }>;
     let context: ExecutionContext;
-    let interceptor: RequestThrottleInterceptor;
+    let interceptor: RequestThrottleUserInterceptor;
 
     beforeEach(async () => {
         vi.resetAllMocks();
@@ -58,7 +58,7 @@ describe('RequestThrottleInterceptor', () => {
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
-                RequestThrottleInterceptor,
+                RequestThrottleUserInterceptor,
                 { provide: Reflector, useValue: reflector },
                 { provide: ConfigService, useValue: configService },
                 { provide: RequestStoreService, useValue: requestStoreService },
@@ -68,7 +68,7 @@ describe('RequestThrottleInterceptor', () => {
                 },
             ],
         }).compile();
-        interceptor = moduleRef.get(RequestThrottleInterceptor);
+        interceptor = moduleRef.get(RequestThrottleUserInterceptor);
     });
 
     it('evaluates the user limiter once before delegating', async () => {

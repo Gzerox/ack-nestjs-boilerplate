@@ -46,16 +46,11 @@ describe('UserAuthDomain', () => {
     const userLoginService = {
         handleLogin: vi.fn<UserLoginDomain['handleLogin']>(),
         refreshSession: vi.fn<UserLoginDomain['refreshSession']>(),
-        revokeSession: vi.fn<UserLoginDomain['revokeSession']>(),
         logout: vi.fn<UserLoginDomain['logout']>(),
-        stageLoginFailed: vi.fn<UserLoginDomain['stageLoginFailed']>(),
+        recordLoginFailed: vi.fn<UserLoginDomain['recordLoginFailed']>(),
     } satisfies Pick<
         UserLoginDomain,
-        | 'handleLogin'
-        | 'refreshSession'
-        | 'revokeSession'
-        | 'logout'
-        | 'stageLoginFailed'
+        'handleLogin' | 'refreshSession' | 'logout' | 'recordLoginFailed'
     >;
     const authPasswordService = {
         checkPasswordAttempt: vi.fn<AuthPasswordUtil['checkPasswordAttempt']>(),
@@ -173,7 +168,7 @@ describe('UserAuthDomain', () => {
         authPasswordService.checkPasswordExpired.mockReturnValue(false);
         userLoginService.handleLogin.mockResolvedValue(loginOutcome);
         userLoginService.refreshSession.mockResolvedValue(tokens);
-        userLoginService.revokeSession.mockResolvedValue(undefined);
+        userLoginService.logout.mockResolvedValue(undefined);
         userVerificationService.markVerified.mockResolvedValue(undefined);
 
         const moduleRef: TestingModule = await Test.createTestingModule({
@@ -307,9 +302,9 @@ describe('UserAuthDomain', () => {
                     device,
                 })
             ).rejects.toBeInstanceOf(UserPasswordNotMatchException);
-            expect(
-                userPasswordDomain.increasePasswordAttempt
-            ).toHaveBeenCalledWith(user.id);
+            expect(userLoginService.recordLoginFailed).toHaveBeenCalledWith(
+                user.id
+            );
         });
 
         it('throws UserPasswordExpiredException after resetting attempts for expired credentials', async () => {
@@ -386,9 +381,6 @@ describe('UserAuthDomain', () => {
     describe('logout', () => {
         it('revokes the session cache before persisting the logout', async () => {
             const order: string[] = [];
-            userLoginService.revokeSession.mockImplementation(async () => {
-                order.push('revokeInTx');
-            });
             userLoginService.logout.mockImplementation(async () => {
                 order.push('logout');
             });

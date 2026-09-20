@@ -9,12 +9,20 @@ import { createQueueJob } from '@test/support/queue-job.mock';
 
 describe('QueueProcessorBase', () => {
     const sentryService = createMock<SentryService>();
+    const scope = {
+        setAttribute: vi.fn(),
+    };
     const processor = new NotificationProcessor(
         createMock<NotificationProcessorService>(),
         sentryService
     );
 
-    beforeEach(() => vi.resetAllMocks());
+    beforeEach(() => {
+        vi.resetAllMocks();
+        sentryService.withScope.mockImplementation(callback => {
+            callback(scope as never);
+        });
+    });
 
     it('reports a fatal error on the final attempt', () => {
         const error = new Error('fatal');
@@ -25,6 +33,10 @@ describe('QueueProcessorBase', () => {
         processor.onFailed(job, error);
 
         expect(sentryService.captureException).toHaveBeenCalledWith(error);
+        expect(scope.setAttribute).toHaveBeenCalledWith('job.id', 'undefined');
+        expect(scope.setAttribute).toHaveBeenCalledWith('job.name', 'job');
+        expect(scope.setAttribute).toHaveBeenCalledWith('job.attemptsMade', 3);
+        expect(scope.setAttribute).toHaveBeenCalledWith('job.maxAttempts', 3);
     });
 
     it('does not report before the final attempt', () => {
@@ -45,16 +57,15 @@ describe('QueueProcessorBase', () => {
         expect(sentryService.captureException).not.toHaveBeenCalled();
     });
 
-    it('propagates a Sentry reporting failure', () => {
-        sentryService.captureException.mockImplementation(() => {
-            throw new Error('sentry unavailable');
-        });
+    it('reports unrecoverable errors regardless of attempts remaining', () => {
         const job = createQueueJob<unknown, null, string>('job', {});
-        job.opts.attempts = 1;
+        job.opts.attempts = 3;
         Object.defineProperty(job, 'attemptsMade', { value: 1 });
+        const error = new Error('fatal');
+        error.name = 'UnrecoverableError';
 
-        expect(() => processor.onFailed(job, new Error('fatal'))).toThrow(
-            'sentry unavailable'
-        );
+        processor.onFailed(job, error);
+
+        expect(sentryService.captureException).toHaveBeenCalledWith(error);
     });
 });

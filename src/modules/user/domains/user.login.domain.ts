@@ -86,10 +86,7 @@ export class UserLoginDomain {
             await this.userTwoFactorRepository.increaseTwoFactorAttempt(
                 user.id
             );
-        user.twoFactor = {
-            ...attempted,
-            backupCodes: user.twoFactor?.backupCodes ?? [],
-        };
+        user.twoFactor = attempted;
 
         const isTwoFactorAttemptMaxed =
             this.authTwoFactorDomain.checkAttempt(user);
@@ -354,18 +351,7 @@ export class UserLoginDomain {
             }
         );
         if (!verified.isValid) {
-            const attempted =
-                await this.userTwoFactorRepository.increaseTwoFactorAttempt(
-                    user.id
-                );
-            user.twoFactor = {
-                ...attempted,
-                backupCodes: user.twoFactor!.backupCodes,
-            };
-
-            if (this.authTwoFactorDomain.checkAttempt(user)) {
-                await this.authCache.lockTwoFactorAttempt(user);
-            }
+            await this.recordTwoFactorFailure(user);
 
             throw new AuthTwoFactorInvalidException();
         }

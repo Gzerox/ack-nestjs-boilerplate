@@ -6,7 +6,7 @@ import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.do
 import { DatabaseService } from '@common/database/services/database.service';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
-import type { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import {
     EnumActivityLogAction,
     EnumDeviceNotificationProvider,
@@ -133,7 +133,7 @@ describe('DeviceDomain', () => {
             data: [],
             perPage: 20,
             hasNext: false,
-        } satisfies IResponsePagingReturn<IDeviceOwnershipWithSession>;
+        } satisfies IResponsePaginationReturn<IDeviceOwnershipWithSession>;
         deviceOwnershipRepository.findActiveWithPaginationCursor.mockResolvedValue(
             page
         );

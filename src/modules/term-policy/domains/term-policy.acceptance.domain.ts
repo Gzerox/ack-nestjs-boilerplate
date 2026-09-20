@@ -4,7 +4,7 @@ import type { IDatabaseTransactionClient } from '@common/database/interfaces/dat
 import { DatabaseService } from '@common/database/services/database.service';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import type { IPaginationQueryCursorParams } from '@common/pagination/interfaces/pagination.interface';
-import type { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { EnumActivityLogAction } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { AuthJwtAccessTokenInvalidException } from '@modules/auth/exceptions/auth.jwt-access-token-invalid.exception';
@@ -12,9 +12,9 @@ import { NotificationQueue } from '@modules/notification/queues/notification.que
 import { TermPolicyAlreadyAcceptedException } from '@modules/term-policy/exceptions/term-policy.already-accepted.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
 import { TermPolicyRequiredInvalidException } from '@modules/term-policy/exceptions/term-policy.required-invalid.exception';
-import { TermPolicyAcceptedColumnMap } from '@modules/term-policy/constants/term-policy.constant';
 import type { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
+import { UserTermPolicyContract } from '@modules/user/contracts/user.term-policy.contract';
 import type { IUser } from '@modules/user/interfaces/user.interface';
 import { UserDomain } from '@modules/user/domains/user.domain';
 import { Injectable } from '@nestjs/common';
@@ -50,7 +50,7 @@ export class TermPolicyAcceptanceDomain {
 
         if (
             !requiredTermPolicies.every(
-                type => user[TermPolicyAcceptedColumnMap[type]]
+                type => user[UserTermPolicyContract.columns[type]]
             )
         ) {
             throw new TermPolicyRequiredInvalidException();
@@ -60,7 +60,7 @@ export class TermPolicyAcceptanceDomain {
     async getListUserAccepted(
         userId: string,
         pagination: IPaginationQueryCursorParams<Prisma.TermPolicyUserAcceptanceWhereInput>
-    ): Promise<IResponsePagingReturn<ITermPolicyUserAcceptance>> {
+    ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>> {
         return this.termPolicyRepository.findUserAccepted(userId, pagination);
     }
 

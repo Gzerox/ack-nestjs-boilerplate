@@ -47,6 +47,7 @@ describe('TermPolicyAcceptanceDomain', () => {
                 createMock<IUser>({
                     termsOfServiceAccepted: true,
                     privacyAccepted: true,
+                    cookiesAccepted: false,
                 }),
                 []
             )
@@ -59,6 +60,7 @@ describe('TermPolicyAcceptanceDomain', () => {
                 createMock<IUser>({
                     termsOfServiceAccepted: true,
                     privacyAccepted: false,
+                    cookiesAccepted: false,
                 }),
                 []
             )

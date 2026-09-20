@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { RequestUuidSchema } from '@common/request/validations/request.uuid.validation';
 
 describe('RequestUuidSchema', () => {
-    it('accepts a UUID', () => {
-        expect(
-            RequestUuidSchema.safeParse('018f8a92-1d4b-7b31-a63a-f8ad45ef197b')
-                .success
-        ).toBe(true);
+    it('accepts a UUID string', () => {
+        const uuid = '018f4bd6-c8cc-72cb-bf48-3ff0600f6f17';
+
+        expect(RequestUuidSchema.parse(uuid)).toBe(uuid);
     });
 
-    it('rejects a non-UUID value', () => {
-        expect(RequestUuidSchema.safeParse('not-a-uuid').success).toBe(false);
+    it('rejects a MongoDB ObjectId', () => {
+        expect(() =>
+            RequestUuidSchema.parse('507f1f77bcf86cd799439011')
+        ).toThrow();
     });
 });

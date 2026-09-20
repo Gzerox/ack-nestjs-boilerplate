@@ -1,16 +1,16 @@
 import { DatabaseService } from '@common/database/services/database.service';
-import { EnumPaginationOrderDirectionType } from '@common/pagination/enums/pagination.enum';
 import type {
     IRequestGeoLocation,
     IRequestUserAgent,
 } from '@common/request/interfaces/request.interface';
-import { Prisma } from '@generated/prisma-client/client';
+import { EnumPaginationOrderDirectionType } from '@common/pagination/enums/pagination.enum';
 import type { IAnalyticCountBucket } from '@modules/analytic/interfaces/analytic.interface';
 import type { ISessionAnalyticRepository } from '@modules/session/interfaces/session.analytic-repository.interface';
 import type {
     ISessionAnalyticSession,
     ISessionAnalyticUserCount,
 } from '@modules/session/interfaces/session.interface';
+import { Prisma } from '@generated/prisma-client/client';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -21,10 +21,10 @@ export class SessionAnalyticRepository implements ISessionAnalyticRepository {
         startDate?: Date,
         endDate?: Date
     ): Promise<ISessionAnalyticSession[]> {
-        const sessions = await this.databaseService.client.session.findMany({
+        const rows = await this.databaseService.client.session.findMany({
             where: {
                 isRevoked: false,
-                geoLocation: { not: Prisma.JsonNullValueFilter.AnyNull },
+                geoLocation: { not: Prisma.DbNull },
                 ...(startDate && endDate
                     ? { createdAt: { gte: startDate, lt: endDate } }
                     : {}),
@@ -43,10 +43,10 @@ export class SessionAnalyticRepository implements ISessionAnalyticRepository {
             ],
         });
 
-        return sessions.map(session => ({
-            ...session,
-            geoLocation: session.geoLocation as IRequestGeoLocation | null,
-            userAgent: session.userAgent as IRequestUserAgent,
+        return rows.map(row => ({
+            ...row,
+            geoLocation: row.geoLocation as IRequestGeoLocation | null,
+            userAgent: row.userAgent as IRequestUserAgent,
         }));
     }
 

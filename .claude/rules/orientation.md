@@ -104,9 +104,9 @@ thought to list.
 | logging, Sentry, a sensitive key | `logging.md` |
 | credential, token, session, activity log, encryption, hashing, randomness, two-factor | `security.md` |
 | `src/migration/` | `seeding.md` |
-| a unit spec (`test/**/*.spec.ts`) | `testing.md` `testing-spec-style.md` |
-| an E2E spec (`test/e2e/**`) | `testing-e2e.md` `http.md` `router.md` `security.md` `validation.md` `dto.md` `exceptions.md` |
-| `docs/*.md`, `.claude/**` | `authoring.md` |
+| a spec | `testing.md` `testing-spec-style.md` |
+| run surface — `package.json` scripts/engines, `scripts/`, `ci/`, `docker-compose.yml`, `.github/workflows/`, `.github/dependabot.yml`, `nest-cli.json`, `vitest.config.ts`, `knip.json`, `tsconfig.json`, `tsconfig.build.json`, `eslint.config.mjs`, `.husky/` | `architecture.md` |
+| `docs/*.md`, root people files (`README.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`), `.github/**` except `copilot-instructions.md`, `.claude/**` | `authoring.md` |
 
 **Both halves bind whoever decides the shape, not only whoever types it.** A plan, a design, or
 an answer given in conversation commits the same violation the code would — earlier, and in a
@@ -121,30 +121,33 @@ table is the index so none is skipped:
 |---|---|
 | `explorer` | `security.md` (research queries), `agent-communication.md` |
 | `planner` | `agent-communication.md` |
-| `coder` | `testing.md` `testing-spec-style.md` (TDD spec of this plan), `agent-communication.md` |
+| `coder` | `testing.md` `testing-spec-style.md` (TDD spec of this plan or pin), `agent-communication.md` |
 | `seed-writer` | `seeding.md`, `agent-communication.md` |
 | `doc-writer` | `authoring.md`, `agent-communication.md` |
+| `pr-desc-writer` | `authoring.md`, `agent-communication.md` |
+| `harness-writer` | `authoring.md`, `agent-communication.md` |
 | `reviewer` | `agent-communication.md` |
 | `reviewer-e2e` | `agent-communication.md`. Every HTTP path also: `http.md` `router.md` `security.md` `validation.md` `dto.md` `exceptions.md` |
 | `test-writer` | `testing.md` `testing-spec-style.md` `agent-communication.md` |
-| `e2e-writer` | `testing-e2e.md` `agent-communication.md`. Every route also: `http.md` `router.md` `security.md` `validation.md` `dto.md` `exceptions.md` |
 | `ack-code` | the map, then the extras of whoever it dispatches |
 | `ack-spec` | `testing.md` `testing-spec-style.md` |
-| `ack-e2e` | `testing-e2e.md` `http.md` `router.md` `security.md` `validation.md` `dto.md` `exceptions.md` |
 | `ack-docs` / `ack-claude-config` | `authoring.md` |
+| `ack-pr-desc` | `authoring.md` |
 
 A skill takes this map before it dispatches. An agent takes the four, its extras, then every
 surface row the work touches — the FILE, not a memory of it.
 
 ## Docs are not a standing read (HARD)
 
-`docs/*.md` and the root `README.md` are for people. They are never loaded into a session
-and never a standing read for an agent.
+`docs/*.md`, the root people files (`README.md`, `SECURITY.md`, `CONTRIBUTING.md`,
+`CODE_OF_CONDUCT.md`), and `.github/**` except `copilot-instructions.md` are for people.
+They are never loaded into a session and never a standing read for an agent.
 
 **explorer and planner** open a named doc only when a rule's "Flow narrative" pointer is
 the question in hand and the rule file does not settle it. One file, the one the rule
 names. Never the `docs/` tree.
 
 Every other agent — `coder`, `seed-writer`, `test-writer`, `reviewer`, `reviewer-e2e`,
-`e2e-writer` — does not read `docs/` to do its job. `doc-writer` is the exception: those files
-are its subject.
+`harness-writer`, `pr-desc-writer` — does not read `docs/` or `.github/**` (except
+`copilot-instructions.md`, which `harness-writer` owns) to do its job. `doc-writer` is the
+exception: those files are its subject.

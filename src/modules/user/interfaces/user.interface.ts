@@ -11,6 +11,7 @@ import {
     EnumVerificationType,
     EnumWorkspaceMemberRole,
 } from '@generated/prisma-client/client';
+import type { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
 import type {
     Country,
     Prisma,
@@ -21,7 +22,6 @@ import type {
     UserMobileNumber,
     UserPhoto,
 } from '@generated/prisma-client/client';
-import type { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
 import type {
     UserAdminListSelect,
     UserAdminNearLockoutSelect,
@@ -128,7 +128,7 @@ export interface IUserSignUpWorkspaceInvite {
     type: EnumUserSignUpWorkspaceContextType.invite;
     workspaceId: string;
     workspaceInviteId: string;
-    invitedByUserId: string;
+    invitedByUserId: string | null;
     workspaceMemberRole: EnumWorkspaceMemberRole;
     projectId: string | null;
     projectMemberRole: EnumProjectMemberRole | null;
@@ -163,8 +163,15 @@ export interface IUserCreateContract {
     logsActingAdmin: boolean;
 }
 
+export type IUserTermPolicyColumn =
+    | 'termsOfServiceAccepted'
+    | 'privacyAccepted'
+    | 'cookiesAccepted'
+    | 'marketingAccepted';
+
 export interface IUserTermPolicyContract {
     defaults: Record<EnumTermPolicyType, boolean>;
+    columns: Record<EnumTermPolicyType, IUserTermPolicyColumn>;
     requiredTypes: EnumTermPolicyType[];
 }
 

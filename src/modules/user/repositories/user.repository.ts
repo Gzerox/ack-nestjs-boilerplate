@@ -9,11 +9,15 @@ import type {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
-import type { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
-import { TwoFactorActiveBackupCodesFilter } from '@modules/user/constants/user.constant';
+import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import type { UserClaimUsernameRequestDto } from '@modules/user/dtos/request/user.claim-username.request.dto';
 import type { UserUpdateProfileRequestDto } from '@modules/user/dtos/request/user.update-profile.request.dto';
 import type { UserUpdateStatusRequestDto } from '@modules/user/dtos/request/user.update-status.request.dto';
+import {
+    UserAdminListSelect,
+    UserWithRoleInclude,
+} from '@modules/user/constants/user.constant';
+import { UserTermPolicyContract } from '@modules/user/contracts/user.term-policy.contract';
 import type {
     IUser,
     IUserContact,
@@ -33,7 +37,6 @@ import {
 } from '@generated/prisma-client/client';
 import type { User } from '@generated/prisma-client/client';
 import type { IAuthPassword } from '@modules/auth/interfaces/auth.interface';
-import { TermPolicyAcceptedColumnMap } from '@modules/term-policy/constants/term-policy.constant';
 import type { IWorkspaceInviteInviter } from '@modules/workspace/interfaces/workspace.interface';
 
 @Injectable()
@@ -48,12 +51,7 @@ export class UserRepository implements IUserRepository {
     private buildUserCreateData(
         input: IUserCreateWithWorkspaceInput
     ): Prisma.UserUncheckedCreateInput {
-        const termPolicyAcceptedData = Object.fromEntries(
-            Object.entries(input.termPolicy).map(([type, accepted]) => [
-                TermPolicyAcceptedColumnMap[type as EnumTermPolicyType],
-                accepted,
-            ])
-        );
+        const lastWorkspaceChangedAt = this.helperDateService.create();
 
         return {
             id: input.userId,
@@ -67,8 +65,12 @@ export class UserRepository implements IUserRepository {
             isVerified: input.isVerified,
             status: EnumUserStatus.active,
             lastWorkspaceId: input.workspaceContext.workspaceId,
-            lastWorkspaceChangedAt: this.helperDateService.create(),
-            ...termPolicyAcceptedData,
+            lastWorkspaceChangedAt,
+            termsOfServiceAccepted:
+                input.termPolicy[EnumTermPolicyType.termsOfService],
+            privacyAccepted: input.termPolicy[EnumTermPolicyType.privacy],
+            cookiesAccepted: input.termPolicy[EnumTermPolicyType.cookies],
+            marketingAccepted: input.termPolicy[EnumTermPolicyType.marketing],
             createdBy: input.createdBy,
             deletedAt: null,
             ...(input.password
@@ -90,7 +92,7 @@ export class UserRepository implements IUserRepository {
         status?: Record<string, IPaginationIn>,
         roleId?: Record<string, IPaginationEqual>,
         countryId?: Record<string, IPaginationEqual>
-    ): Promise<IResponsePagingReturn<IUserList>> {
+    ): Promise<IResponsePaginationReturn<IUserList>> {
         return this.paginationService.offset<IUserList, Prisma.UserWhereInput>(
             this.databaseService.client.user,
             {
@@ -102,17 +104,7 @@ export class UserRepository implements IUserRepository {
                     ...roleId,
                     deletedAt: null,
                 },
-                include: {
-                    role: { include: { policies: true } },
-                    twoFactor: {
-                        include: {
-                            backupCodes: {
-                                where: TwoFactorActiveBackupCodesFilter,
-                            },
-                        },
-                    },
-                    photo: true,
-                },
+                select: UserAdminListSelect,
             }
         );
     }
@@ -161,16 +153,7 @@ export class UserRepository implements IUserRepository {
     async findOneWithRoleByEmail(email: string): Promise<IUser | null> {
         return this.databaseService.client.user.findUnique({
             where: { email, deletedAt: null },
-            include: {
-                role: { include: { policies: true } },
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
-            },
+            include: UserWithRoleInclude,
         });
     }
 
@@ -178,15 +161,8 @@ export class UserRepository implements IUserRepository {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null },
             include: {
-                role: { include: { policies: true } },
+                ...UserWithRoleInclude,
                 country: true,
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
                 photo: true,
                 mobileNumbers: {
                     include: {
@@ -201,15 +177,8 @@ export class UserRepository implements IUserRepository {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null, status: EnumUserStatus.active },
             include: {
-                role: { include: { policies: true } },
+                ...UserWithRoleInclude,
                 country: true,
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
                 photo: true,
                 mobileNumbers: {
                     include: {
@@ -223,16 +192,7 @@ export class UserRepository implements IUserRepository {
     async findOneWithRoleById(id: string): Promise<IUser | null> {
         return this.databaseService.client.user.findUnique({
             where: { id, deletedAt: null },
-            include: {
-                role: { include: { policies: true } },
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
-            },
+            include: UserWithRoleInclude,
         });
     }
 
@@ -241,16 +201,7 @@ export class UserRepository implements IUserRepository {
             where: {
                 email: { in: emails },
             },
-            include: {
-                role: { include: { policies: true } },
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
-            },
+            include: UserWithRoleInclude,
         });
     }
 
@@ -259,16 +210,7 @@ export class UserRepository implements IUserRepository {
             where: {
                 username: { in: usernames },
             },
-            include: {
-                role: { include: { policies: true } },
-                twoFactor: {
-                    include: {
-                        backupCodes: {
-                            where: TwoFactorActiveBackupCodesFilter,
-                        },
-                    },
-                },
-            },
+            include: UserWithRoleInclude,
         });
     }
 
@@ -286,7 +228,7 @@ export class UserRepository implements IUserRepository {
                 deletedAt: null,
             },
             include: {
-                role: { include: { policies: true } },
+                role: { select: { name: true } },
                 photo: true,
             },
             take,
@@ -531,7 +473,7 @@ export class UserRepository implements IUserRepository {
                 status: EnumUserStatus.active,
             },
             data: {
-                [TermPolicyAcceptedColumnMap[type]]: true,
+                [UserTermPolicyContract.columns[type]]: true,
             },
         });
     }
@@ -546,7 +488,7 @@ export class UserRepository implements IUserRepository {
                 status: EnumUserStatus.active,
             },
             data: {
-                [TermPolicyAcceptedColumnMap[type]]: false,
+                [UserTermPolicyContract.columns[type]]: false,
             },
         });
     }

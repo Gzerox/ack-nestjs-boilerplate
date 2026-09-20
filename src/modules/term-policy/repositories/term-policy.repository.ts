@@ -7,7 +7,7 @@ import type {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
-import type { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import type { TermPolicyCreateRequestDto } from '@modules/term-policy/dtos/request/term-policy.create.request.dto';
 import type { TermPolicyRemoveContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
 import type {
@@ -40,9 +40,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         }: IPaginationQueryOffsetParams<Prisma.TermPolicyWhereInput>,
         type?: Record<string, IPaginationIn>,
         status?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<ITermPolicy>> {
+    ): Promise<IResponsePaginationReturn<TermPolicy>> {
         return this.paginationService.offset<
-            ITermPolicy,
+            TermPolicy,
             Prisma.TermPolicyWhereInput
         >(this.databaseService.client.termPolicy, {
             ...others,
@@ -50,9 +50,6 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                 ...where,
                 ...type,
                 ...status,
-            },
-            include: {
-                contents: true,
             },
         });
     }
@@ -63,9 +60,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             ...others
         }: IPaginationQueryCursorParams<Prisma.TermPolicyWhereInput>,
         type?: Record<string, IPaginationIn>
-    ): Promise<IResponsePagingReturn<ITermPolicy>> {
+    ): Promise<IResponsePaginationReturn<TermPolicy>> {
         return this.paginationService.cursor<
-            ITermPolicy,
+            TermPolicy,
             Prisma.TermPolicyWhereInput
         >(this.databaseService.client.termPolicy, {
             ...others,
@@ -73,9 +70,6 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                 ...where,
                 ...type,
                 status: EnumTermPolicyStatus.published,
-            },
-            include: {
-                contents: true,
             },
         });
     }
@@ -86,7 +80,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.TermPolicyUserAcceptanceWhereInput>
-    ): Promise<IResponsePagingReturn<ITermPolicyUserAcceptance>> {
+    ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>> {
         return this.paginationService.cursor<
             ITermPolicyUserAcceptance,
             Prisma.TermPolicyUserAcceptanceWhereInput
@@ -221,7 +215,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         { type, version }: TermPolicyCreateRequestDto,
         contents: ITermPolicyContentCreate[]
-    ): Promise<ITermPolicy> {
+    ): Promise<TermPolicy> {
         return this.databaseService.client.termPolicy.create({
             data: {
                 id: termPolicyId,
@@ -233,9 +227,6 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                         data: contents,
                     },
                 },
-            },
-            include: {
-                contents: true,
             },
         });
     }
@@ -252,25 +243,24 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         content: ITermPolicyContentCreate
     ): Promise<TermPolicy> {
-        const [, termPolicy] = await this.databaseService.client.$transaction([
-            this.databaseService.client.termPolicyContent.update({
-                where: {
-                    termPolicyId_language: {
-                        termPolicyId,
-                        language: content.language,
+        return this.databaseService.client.termPolicy.update({
+            where: {
+                id: termPolicyId,
+            },
+            data: {
+                contents: {
+                    update: {
+                        where: {
+                            termPolicyId_language: {
+                                termPolicyId,
+                                language: content.language,
+                            },
+                        },
+                        data: content,
                     },
                 },
-                data: content,
-            }),
-            this.databaseService.client.termPolicy.update({
-                where: {
-                    id: termPolicyId,
-                },
-                data: {},
-            }),
-        ]);
-
-        return termPolicy;
+            },
+        });
     }
 
     async addContent(
@@ -293,24 +283,21 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         { language }: TermPolicyRemoveContentRequestDto
     ): Promise<TermPolicy> {
-        const [, termPolicy] = await this.databaseService.client.$transaction([
-            this.databaseService.client.termPolicyContent.delete({
-                where: {
-                    termPolicyId_language: {
-                        termPolicyId,
-                        language,
+        return this.databaseService.client.termPolicy.update({
+            where: {
+                id: termPolicyId,
+            },
+            data: {
+                contents: {
+                    delete: {
+                        termPolicyId_language: {
+                            termPolicyId,
+                            language,
+                        },
                     },
                 },
-            }),
-            this.databaseService.client.termPolicy.update({
-                where: {
-                    id: termPolicyId,
-                },
-                data: {},
-            }),
-        ]);
-
-        return termPolicy;
+            },
+        });
     }
 
     async publishInTx(
@@ -329,7 +316,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                 publishedAt,
                 contents: {
                     deleteMany: {},
-                    create: contents,
+                    createMany: {
+                        data: contents,
+                    },
                 },
             },
         });

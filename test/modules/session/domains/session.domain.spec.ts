@@ -5,7 +5,7 @@ import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.do
 import { EnumActivityLogAction } from '@generated/prisma-client';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
-import type { IResponsePagingReturn } from '@common/response/interfaces/response.interface';
+import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { SessionNotFoundException } from '@modules/session/exceptions/session.not-found.exception';
 import type { ISession } from '@modules/session/interfaces/session.interface';
 import { SessionRepository } from '@modules/session/repositories/session.repository';
@@ -73,7 +73,7 @@ describe('SessionDomain', () => {
             count: 1,
             perPage: 20,
             hasNext: false,
-        } satisfies IResponsePagingReturn<ISession>;
+        } satisfies IResponsePaginationReturn<ISession>;
         sessionRepository.findActiveWithPaginationCursor.mockResolvedValue(
             page
         );

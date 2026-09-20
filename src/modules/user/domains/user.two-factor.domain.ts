@@ -453,12 +453,10 @@ export class UserTwoFactorDomain {
         userId: string,
         createdBy: string
     ): Promise<IUserTwoFactor> {
-        const twoFactor = await this.userTwoFactorRepository.createDisabledInTx(
+        return this.userTwoFactorRepository.createDisabledInTx(
             tx,
             userId,
             createdBy
         );
-
-        return { ...twoFactor, backupCodes: [] };
     }
 }

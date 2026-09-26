@@ -2,7 +2,7 @@ import { EnumAppEnvironment } from '@app/enums/app.enum';
 import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import type { IMigrationUserData } from '@migration/interfaces/migration.interface';
 
-export const MigrationUserSuperAdminId = '019a0000-0000-7000-8000-000000000001';
+export const MigrationUserSuperAdminId = 'e838f465-4713-4cec-9519-00ca2288e5f3';
 
 const UserData: IMigrationUserData[] = [
     {

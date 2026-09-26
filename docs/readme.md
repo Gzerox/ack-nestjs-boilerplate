@@ -59,7 +59,7 @@ Install and configure the project.
 
 ### Core
 
-5. [Database][ref-doc-database]; Prisma + PostgreSQL, transactions, migrations, and the Database Module
+5. [Database][ref-doc-database]; Prisma + PostgreSQL, transactions, and the Database Module
 6. [Authentication][ref-doc-authentication]; JWT (ES256/ES512), session lifecycle, API key auth
 7. [Authorization][ref-doc-authorization]; `UserProtected`, `PolicyProtected`, `TermPolicyAcceptanceProtected`, `WorkspaceProtected`, `WorkspaceMemberProtected`, `ProjectProtected`, `ProjectMemberProtected`
 8. [Device][ref-doc-device]; Device fingerprinting, `DeviceOwnership`, max 1 session per device

@@ -60,7 +60,7 @@ This project follows a [Code of Conduct][ref-code-of-conduct]. By participating,
 | pnpm | >= 10.25.0 (pin `pnpm@12.5.1`) |
 | Docker | v28.5.x+ (recommended for local PostgreSQL, Redis, JWKS, BullBoard) |
 | Docker Compose | v2.40.x+ |
-| PostgreSQL | v18 (Compose locally, or a hosted server without Docker) |
+| PostgreSQL | v18 (Compose locally, or a managed instance without Docker) |
 | Redis | v8+ (Compose locally, or ElastiCache without Docker) |
 
 ### Steps
@@ -81,7 +81,7 @@ pnpm generate
 # Start infrastructure (PostgreSQL + Redis + JWKS server + BullBoard)
 docker-compose up -d
 
-# Apply the schema migrations (needs the PostgreSQL server above already running)
+# Apply the Prisma migrations (needs the PostgreSQL instance above already running)
 pnpm db:migrate
 
 # Run in development mode

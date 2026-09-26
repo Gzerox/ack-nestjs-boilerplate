@@ -311,7 +311,7 @@ Both rows are written on every lockout, including one where the user had no acti
 The transaction runs once:
 
 - A domain exception raised inside it travels out as it is.
-- Every other failure, a database write conflict (`P2034`) included, answers 500 (`AppUnknownException`). On that path nothing is purged and no row is staged, and the attempt counter stays at the limit, so the next login runs the lockout again.
+- Every other failure, a transaction write conflict (`P2034`) included, answers 500 (`AppUnknownException`). On that path nothing is purged and no row is staged, and the attempt counter stays at the limit, so the next login runs the lockout again.
 
 ```mermaid
 sequenceDiagram

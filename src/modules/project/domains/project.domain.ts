@@ -6,9 +6,15 @@ import type {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
-import { EnumActivityLogAction, Prisma } from '@generated/prisma-client/client';
+import {
+    EnumActivityLogAction,
+    EnumPolicyAction,
+    EnumPolicySubject,
+    Prisma,
+} from '@generated/prisma-client/client';
 import type { Project, WorkspaceMember } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
+import { PolicyDomain } from '@modules/policy/domains/policy.domain';
 import { ProjectNotFoundException } from '@modules/project/exceptions/project.not-found.exception';
 import { ProjectSlugAlreadyExistsException } from '@modules/project/exceptions/project.slug-already-exists.exception';
 import { ProjectSlugInvalidException } from '@modules/project/exceptions/project.slug-invalid.exception';
@@ -17,7 +23,6 @@ import type {
     IProjectUpdate,
 } from '@modules/project/interfaces/project.interface';
 import { ProjectRepository } from '@modules/project/repositories/project.repository';
-import { ProjectUtil } from '@modules/project/utils/project.util';
 import { WorkspaceNotFoundException } from '@modules/workspace/exceptions/workspace.not-found.exception';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,7 +36,7 @@ export class ProjectDomain {
 
     constructor(
         private readonly projectRepository: ProjectRepository,
-        private readonly projectUtil: ProjectUtil,
+        private readonly policyDomain: PolicyDomain,
         private readonly activityLogDomain: ActivityLogDomain,
         private readonly helperDateService: HelperDateService,
         private readonly helperStringService: HelperStringService,
@@ -94,15 +99,17 @@ export class ProjectDomain {
         );
     }
 
-    /** Lists projects in the workspace: a workspace `owner` sees every project, everyone else sees only the ones they hold a `ProjectMember` row for. */
+    /** Lists projects in the workspace: a caller holding the project read policy sees every project, everyone else sees only the ones they hold a `ProjectMember` row for. */
     async getListForMember(
         workspaceId: string,
         workspaceMember: WorkspaceMember,
         pagination: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>
     ): Promise<IResponsePaginationReturn<Project>> {
-        const isWorkspaceOwner =
-            this.projectUtil.isWorkspaceOwner(workspaceMember);
-        const memberUserId = isWorkspaceOwner ? null : workspaceMember.userId;
+        const canReadAllProjects = this.policyDomain.can(
+            EnumPolicyAction.read,
+            EnumPolicySubject.project
+        );
+        const memberUserId = canReadAllProjects ? null : workspaceMember.userId;
 
         return this.projectRepository.findWithPaginationCursorForWorkspace(
             workspaceId,

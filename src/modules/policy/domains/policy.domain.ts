@@ -1,4 +1,7 @@
+import { RequestStoreService } from '@common/request/services/request.store.service';
 import { AuthJwtAccessTokenInvalidException } from '@modules/auth/exceptions/auth.jwt-access-token-invalid.exception';
+import { PolicyStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
 import { PolicyExistException } from '@modules/policy/exceptions/policy.exist.exception';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { PolicyNotFoundException } from '@modules/policy/exceptions/policy.not-found.exception';
@@ -9,11 +12,17 @@ import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
 import { RoleNotFoundException } from '@modules/role/exceptions/role.not-found.exception';
 import { RoleDomain } from '@modules/role/domains/role.domain';
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
+import type { IRole } from '@modules/role/interfaces/role.interface';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { Injectable } from '@nestjs/common';
 import {
     EnumActivityLogAction,
-    EnumRoleType,
+    EnumRoleScope,
+} from '@generated/prisma-client/client';
+import type {
+    EnumPolicyAction,
+    EnumPolicySubject,
 } from '@generated/prisma-client/client';
 import type { Policy } from '@generated/prisma-client/client';
 import type { IUser } from '@modules/user/interfaces/user.interface';
@@ -24,16 +33,34 @@ export class PolicyDomain {
         private readonly policyAbilityFactory: PolicyAbilityFactory,
         private readonly policyRepository: PolicyRepository,
         private readonly roleDomain: RoleDomain,
-        private readonly activityLogDomain: ActivityLogDomain
+        private readonly activityLogDomain: ActivityLogDomain,
+        private readonly requestStoreService: RequestStoreService
     ) {}
 
-    private async validateRoleExists(roleId: string): Promise<void> {
-        const roleExists = await this.roleDomain.existsById(roleId);
-        if (!roleExists) {
+    private async validateRoleExists(roleId: string): Promise<IRole> {
+        const role = await this.roleDomain.getById(roleId);
+        if (!role) {
             throw new RoleNotFoundException();
         }
 
-        return;
+        return role;
+    }
+
+    private async validateRoleWritable(roleId: string): Promise<void> {
+        const role = await this.validateRoleExists(roleId);
+        if (
+            role.scope === EnumRoleScope.platform &&
+            role.key === EnumRolePlatformKey.superAdmin
+        ) {
+            throw new PolicyImmutableException();
+        }
+    }
+
+    can(action: EnumPolicyAction, subject: EnumPolicySubject): boolean {
+        const policies = this.requestStoreService.get<Policy[]>(PolicyStoreKey);
+        const ability = this.policyAbilityFactory.createForUser(policies ?? []);
+
+        return ability.can(action, subject);
     }
 
     validatePolicyGuard(
@@ -45,11 +72,7 @@ export class PolicyDomain {
             throw new AuthJwtAccessTokenInvalidException();
         }
 
-        const { role } = user;
-
-        if (role.type === EnumRoleType.superAdmin) {
-            return true;
-        } else if (requiredPolicies.length === 0) {
+        if (requiredPolicies.length === 0) {
             throw new PolicyPredefinedNotFoundException();
         }
 
@@ -77,7 +100,7 @@ export class PolicyDomain {
         roleId: string,
         data: PolicyRequestDto
     ): Promise<Policy> {
-        await this.validateRoleExists(roleId);
+        await this.validateRoleWritable(roleId);
 
         const exist = await this.policyRepository.existsByRoleIdAndSubject(
             roleId,
@@ -104,7 +127,7 @@ export class PolicyDomain {
         id: string,
         data: PolicyUpdateRequestDto
     ): Promise<Policy> {
-        await this.validateRoleExists(roleId);
+        await this.validateRoleWritable(roleId);
 
         const policyExists = await this.policyRepository.existsByRoleIdAndId(
             roleId,
@@ -127,7 +150,7 @@ export class PolicyDomain {
     }
 
     async deleteByAdmin(roleId: string, id: string): Promise<Policy> {
-        await this.validateRoleExists(roleId);
+        await this.validateRoleWritable(roleId);
 
         const policyExists = await this.policyRepository.existsByRoleIdAndId(
             roleId,

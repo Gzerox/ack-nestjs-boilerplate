@@ -24,7 +24,6 @@ import {
 } from '@modules/auth/decorators/auth.jwt.decorator';
 
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { TermPolicyContentPresignRequestSchema } from '@modules/term-policy/dtos/request/term-policy.content-presign.request.dto';
@@ -57,7 +56,6 @@ import { ApiTags } from '@nestjs/swagger';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 import type { TermPolicy } from '@generated/prisma-client/client';
@@ -82,7 +80,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -102,7 +99,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -124,7 +120,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.delete],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -150,7 +145,6 @@ export class TermPolicyAdminController {
             EnumPolicyAction.update,
         ],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -173,7 +167,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -198,7 +191,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -223,7 +215,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -250,7 +241,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -275,7 +265,6 @@ export class TermPolicyAdminController {
         subject: EnumPolicySubject.termPolicy,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

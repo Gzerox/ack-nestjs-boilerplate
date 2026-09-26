@@ -1,11 +1,10 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { DatabaseResponseSchema } from '@common/database/dtos/response/database.response.dto';
-import {
-    EnumProjectMemberRole,
-    EnumWorkspaceInviteStatus,
-    EnumWorkspaceMemberRole,
-} from '@generated/prisma-client/client';
+import { EnumWorkspaceInviteStatus } from '@generated/prisma-client/client';
+import { RoleShortSchema } from '@modules/role/dtos/role.short.dto';
+import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
 
 /**
  * Base workspace-invite shape: the stored invite row, without the hashed token.
@@ -23,17 +22,25 @@ export const WorkspaceInviteResponseSchema = DatabaseResponseSchema.omit({
         description: 'Email address the invite is sent to',
         example: faker.internet.email(),
     }),
-    workspaceRole: z.enum(EnumWorkspaceMemberRole).meta({
+    workspaceRole: RoleShortSchema.meta({
         description: 'Workspace role granted when the invite is accepted',
-        example: EnumWorkspaceMemberRole.member,
+        example: {
+            id: faker.string.uuid(),
+            key: EnumRoleWorkspaceKey.member,
+            name: 'Member',
+        },
     }),
     projectId: z.string().nullable().meta({
         description: 'Identifier of the project the invite also grants, if any',
         example: faker.string.uuid(),
     }),
-    projectRole: z.enum(EnumProjectMemberRole).nullable().meta({
+    projectRole: RoleShortSchema.nullable().meta({
         description: 'Project role granted when the invite is accepted, if any',
-        example: EnumProjectMemberRole.member,
+        example: {
+            id: faker.string.uuid(),
+            key: EnumRoleProjectKey.member,
+            name: 'Member',
+        },
     }),
     reference: z.string().meta({
         description: 'Human-readable reference of the invite',

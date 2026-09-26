@@ -323,7 +323,7 @@ export type UserForgotPasswordResetRequestDto = z.infer<
 
 ### Complete Admin Endpoint
 
-Zod-bound path params reach OpenAPI from the schema on `@Param`. Auth and role kits live on the Protected decorators.
+Zod-bound path params reach OpenAPI from the schema on `@Param`. Auth and policy kits live on the Protected decorators.
 
 ```typescript
 @Doc({ summary: 'get detail an user' })
@@ -333,14 +333,13 @@ Zod-bound path params reach OpenAPI from the schema on `@Param`. Auth and role k
     subject: EnumPolicySubject.user,
     action: [EnumPolicyAction.read],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()
 @RequestThrottle({ user: true })
 @Get('/get/:userId')
 async get(
-    @Param('userId', { schema: RequestMongoIdSchema }) userId: string
+    @Param('userId', { schema: RequestUuidSchema }) userId: string
 ): Promise<IResponseReturn<IUserProfile>> {
     return this.userHttpService.getOneByAdmin(userId);
 }
@@ -376,7 +375,6 @@ List query OpenAPI comes only from the zod schema on `@Query({ schema })`. `@Res
     subject: EnumPolicySubject.user,
     action: [EnumPolicyAction.read],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()

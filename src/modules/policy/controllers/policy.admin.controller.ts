@@ -1,4 +1,4 @@
-import { Doc } from '@common/doc/decorators/doc.decorator';
+import { Doc, DocErrors } from '@common/doc/decorators/doc.decorator';
 import { RequestThrottle } from '@common/request/decorators/request.decorator';
 import { RequestUuidSchema } from '@common/request/validations/request.uuid.validation';
 import { Response } from '@common/response/decorators/response.decorator';
@@ -6,10 +6,10 @@ import type { IResponseReturn } from '@common/response/interfaces/response.inter
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
+import { EnumPolicyStatusCodeError } from '@modules/policy/enums/policy.status-code.enum';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { PolicySchema } from '@modules/policy/dtos/policy.dto';
 import type { PolicyDto } from '@modules/policy/dtos/policy.dto';
@@ -20,7 +20,6 @@ import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy
 import { PolicyListResponseSchema } from '@modules/policy/dtos/response/policy.list.response.dto';
 import type { PolicyListResponseDto } from '@modules/policy/dtos/response/policy.list.response.dto';
 import { PolicyHttpService } from '@modules/policy/services/policy.http.service';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import {
@@ -28,6 +27,7 @@ import {
     Controller,
     Delete,
     Get,
+    HttpStatus,
     Param,
     Post,
     Put,
@@ -49,7 +49,6 @@ export class PolicyAdminController {
         subject: EnumPolicySubject.role,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -63,13 +62,16 @@ export class PolicyAdminController {
     }
 
     @Doc({ summary: 'grant a policy to a role' })
+    @DocErrors(HttpStatus.FORBIDDEN, {
+        statusCode: EnumPolicyStatusCodeError.immutable,
+        messagePath: 'policy.error.immutable',
+    })
     @Response('policy.create', { schema: PolicySchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
         subject: EnumPolicySubject.role,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -85,13 +87,16 @@ export class PolicyAdminController {
     }
 
     @Doc({ summary: 'update the action list of a role policy' })
+    @DocErrors(HttpStatus.FORBIDDEN, {
+        statusCode: EnumPolicyStatusCodeError.immutable,
+        messagePath: 'policy.error.immutable',
+    })
     @Response('policy.update', { schema: PolicySchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
         subject: EnumPolicySubject.role,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -109,13 +114,16 @@ export class PolicyAdminController {
     }
 
     @Doc({ summary: 'revoke a policy from a role' })
+    @DocErrors(HttpStatus.FORBIDDEN, {
+        statusCode: EnumPolicyStatusCodeError.immutable,
+        messagePath: 'policy.error.immutable',
+    })
     @Response('policy.delete')
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
         subject: EnumPolicySubject.role,
         action: [EnumPolicyAction.read, EnumPolicyAction.delete],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

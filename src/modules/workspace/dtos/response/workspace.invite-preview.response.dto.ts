@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
-import { EnumWorkspaceMemberRole } from '@generated/prisma-client/client';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
+import { RoleShortSchema } from '@modules/role/dtos/role.short.dto';
 
 /**
  * Safe, minimal invite preview for an unauthenticated accept-page — never the token or an
@@ -16,9 +17,13 @@ export const WorkspaceInvitePreviewResponseSchema = z.object({
         description: 'Display name of the person who sent the invite',
         example: faker.person.fullName(),
     }),
-    workspaceRole: z.enum(EnumWorkspaceMemberRole).meta({
+    workspaceRole: RoleShortSchema.meta({
         description: 'Workspace role the invite grants',
-        example: EnumWorkspaceMemberRole.member,
+        example: {
+            id: faker.string.uuid(),
+            key: EnumRoleWorkspaceKey.member,
+            name: 'Member',
+        },
     }),
     expiredAt: z.date().meta({
         description: 'When the invite expires',

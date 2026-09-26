@@ -1,9 +1,9 @@
 import {
     EnumWorkspaceInviteStatus,
-    EnumWorkspaceMemberRole,
     type Workspace,
-    type WorkspaceInvite,
 } from '@generated/prisma-client';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
+import type { IWorkspaceInviteWithRole } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceUtil } from '@modules/workspace/utils/workspace.util';
 
 describe('WorkspaceUtil', () => {
@@ -25,12 +25,20 @@ describe('WorkspaceUtil', () => {
         deletedBy: null,
     } satisfies Workspace;
 
+    const workspaceRole = {
+        id: 'admin-role-id',
+        key: EnumRoleWorkspaceKey.admin,
+        name: 'Admin',
+    };
+
     const invite = {
         id: 'invite-id',
         workspaceId: 'workspace-id',
         email: 'a@b.com',
-        workspaceRole: EnumWorkspaceMemberRole.admin,
+        workspaceRoleId: workspaceRole.id,
+        workspaceRole,
         projectId: null,
+        projectRoleId: null,
         projectRole: null,
         token: 'token',
         reference: 'ref',
@@ -43,10 +51,10 @@ describe('WorkspaceUtil', () => {
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
-    } satisfies WorkspaceInvite;
+    } satisfies IWorkspaceInviteWithRole;
 
     describe('mapInvitePreview', () => {
-        it('prefers the inviter name and forwards role and expiry', () => {
+        it('prefers the inviter name and forwards the role object and expiry', () => {
             expect(
                 util.mapInvitePreview(workspace, invite, {
                     name: 'Jane',
@@ -55,7 +63,7 @@ describe('WorkspaceUtil', () => {
             ).toEqual({
                 workspaceName: 'Acme',
                 inviterName: 'Jane',
-                workspaceRole: EnumWorkspaceMemberRole.admin,
+                workspaceRole,
                 expiredAt,
             });
         });

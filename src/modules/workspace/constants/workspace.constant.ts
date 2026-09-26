@@ -1,6 +1,7 @@
 import { Prisma } from '@generated/prisma-client/client';
 import { HttpStatus } from '@nestjs/common';
 import { DocResponseError } from '@common/doc/decorators/doc.decorator';
+import { RoleShortSelect } from '@modules/role/constants/role.constant';
 import { EnumWorkspaceStatusCodeError } from '@modules/workspace/enums/workspace.status-code.enum';
 
 /**
@@ -14,12 +15,6 @@ export const WorkspaceStoreKey = 'WorkspaceStore';
  * @public
  */
 export const WorkspaceMemberStoreKey = 'WorkspaceMemberStore';
-
-/**
- * Route metadata key holding the workspace roles `@WorkspaceMemberProtected` requires.
- * @public
- */
-export const WorkspaceRoleMetaKey = 'WorkspaceRoleMetaKey';
 
 /**
  * Workspace guard error kit for `@WorkspaceProtected`.
@@ -37,23 +32,30 @@ export const DocWorkspaceErrorResponses = {
 } as const;
 
 /**
- * Workspace role guard error kit for role-gated `@WorkspaceMemberProtected`.
- * @public
- */
-export const DocWorkspaceRoleErrorResponses = {
-    forbidden: DocResponseError(HttpStatus.FORBIDDEN, {
-        statusCode: EnumWorkspaceStatusCodeError.roleForbidden,
-        messagePath: 'workspace.error.roleForbidden',
-    }),
-} as const;
-
-/**
  * Matches a `Workspace` that is not soft-deleted; spread it or list it under `AND` in an active-only read.
  * @public
  */
 export const WorkspaceActiveFilter = {
     deletedAt: null,
 } as const satisfies Prisma.WorkspaceWhereInput;
+
+/**
+ * Relations the member guard read loads: the workspace role with its policies.
+ * @public
+ */
+export const WorkspaceMemberRoleInclude = {
+    role: { include: { policies: true } },
+} as const satisfies Prisma.WorkspaceMemberInclude;
+
+/**
+ * Relations an invite read loads so a response and a notification carry the role names: the
+ * workspace role and, when the invite also grants a project, the project role.
+ * @public
+ */
+export const WorkspaceInviteRoleInclude = {
+    workspaceRole: { select: RoleShortSelect },
+    projectRole: { select: RoleShortSelect },
+} as const satisfies Prisma.WorkspaceInviteInclude;
 
 /**
  * Columns a user-scope workspace invite list read returns; the invite token is never among them.
@@ -63,9 +65,9 @@ export const WorkspaceInviteUserListSelect = {
     id: true,
     workspaceId: true,
     email: true,
-    workspaceRole: true,
+    workspaceRole: { select: RoleShortSelect },
     projectId: true,
-    projectRole: true,
+    projectRole: { select: RoleShortSelect },
     reference: true,
     expiredAt: true,
     status: true,

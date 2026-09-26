@@ -84,6 +84,18 @@ describe('PolicyGuard', () => {
         );
     });
 
+    it('propagates the domain rejection unchanged', async () => {
+        const context: MockProxy<ExecutionContext> = mock<ExecutionContext>();
+        const error = new Error('forbidden');
+        reflector.get.mockReturnValue([]);
+        requestStoreGet.mockReturnValue(null);
+        policyDomain.validatePolicyGuard.mockImplementation(() => {
+            throw error;
+        });
+
+        await expect(guard.canActivate(context)).rejects.toBe(error);
+    });
+
     it('uses an empty required-policy list when metadata is absent', async () => {
         const context: MockProxy<ExecutionContext> = mock<ExecutionContext>();
         reflector.get.mockReturnValue(undefined);

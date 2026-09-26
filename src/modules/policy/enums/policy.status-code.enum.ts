@@ -7,4 +7,5 @@ export enum EnumPolicyStatusCodeError {
     predefinedNotFound = 51101,
     notFound = 51102,
     exist = 51103,
+    immutable = 51104,
 }

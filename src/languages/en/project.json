@@ -19,7 +19,6 @@
     "error": {
         "notFound": "Sorry, we couldn't find the project.",
         "memberForbidden": "You are not a member of this project.",
-        "roleForbidden": "You do not have the required role in this project.",
         "memberPeerForbidden": "You are not allowed to perform this action on this member.",
         "memberNotFound": "Sorry, we couldn't find that project member.",
         "memberAlreadyAssigned": "This user is already assigned to the project.",

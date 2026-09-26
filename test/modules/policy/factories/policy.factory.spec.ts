@@ -54,6 +54,40 @@ describe('PolicyAbilityFactory', () => {
         ).toBe(false);
     });
 
+    it('denies everything for an empty policy list', () => {
+        const ability = factory.createForUser([]);
+
+        expect(ability.can(EnumPolicyAction.read, EnumPolicySubject.user)).toBe(
+            false
+        );
+        expect(
+            factory.handlerPolicies(ability, [
+                {
+                    subject: EnumPolicySubject.user,
+                    action: [EnumPolicyAction.read],
+                },
+            ])
+        ).toBe(false);
+    });
+
+    it('accepts an empty required list and rejects when one subject fails', () => {
+        const ability = factory.createForUser([policy]);
+
+        expect(factory.handlerPolicies(ability, [])).toBe(true);
+        expect(
+            factory.handlerPolicies(ability, [
+                {
+                    subject: EnumPolicySubject.user,
+                    action: [EnumPolicyAction.read],
+                },
+                {
+                    subject: EnumPolicySubject.role,
+                    action: [EnumPolicyAction.read],
+                },
+            ])
+        ).toBe(false);
+    });
+
     it('applies an all-subject manage rule using CASL semantics', () => {
         const ability = factory.createForUser([
             {

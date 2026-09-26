@@ -20,7 +20,6 @@ import {
 } from '@modules/auth/decorators/auth.jwt.decorator';
 
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 
 import { SessionResponseSchema } from '@modules/session/dtos/response/session.response.dto';
 import type { ISessionList } from '@modules/session/interfaces/session.interface';
@@ -33,7 +32,6 @@ import { ApiTags } from '@nestjs/swagger';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 @ApiTags('modules.admin.user.session')
@@ -57,7 +55,6 @@ export class SessionAdminController {
             action: [EnumPolicyAction.read],
         }
     )
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -85,7 +82,6 @@ export class SessionAdminController {
             action: [EnumPolicyAction.read, EnumPolicyAction.delete],
         }
     )
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -118,7 +114,6 @@ export class SessionAdminController {
             action: [EnumPolicyAction.read, EnumPolicyAction.delete],
         }
     )
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

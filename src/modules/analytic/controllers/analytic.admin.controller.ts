@@ -117,7 +117,6 @@ import { AnalyticDashboardHttpService } from '@modules/analytic/services/analyti
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { Controller, Get, Param, Query } from '@nestjs/common';
@@ -125,7 +124,6 @@ import { ApiTags } from '@nestjs/swagger';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 import { AnalyticFraudSummaryResponseSchema } from '@modules/analytic/dtos/response/analytic.fraud-summary.response.dto';
@@ -172,7 +170,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -197,7 +194,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -222,7 +218,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -247,7 +242,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -272,7 +266,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -297,7 +290,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -322,7 +314,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -347,7 +338,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -368,7 +358,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -389,7 +378,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -410,7 +398,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -435,7 +422,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -460,7 +446,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -485,7 +470,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -510,7 +494,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -535,7 +518,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -560,7 +542,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -585,7 +566,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -610,7 +590,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -631,7 +610,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -656,7 +634,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -681,7 +658,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -706,7 +682,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -734,7 +709,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -759,7 +733,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -780,7 +753,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -805,7 +777,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -832,7 +803,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -857,7 +827,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -878,7 +847,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -903,7 +871,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -928,7 +895,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -953,7 +919,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -974,7 +939,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -999,7 +963,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1018,7 +981,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1037,7 +999,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1062,7 +1023,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1083,7 +1043,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1102,7 +1061,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1121,7 +1079,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1146,7 +1103,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1167,7 +1123,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1186,7 +1141,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1211,7 +1165,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1236,7 +1189,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1261,7 +1213,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1282,7 +1233,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1307,7 +1257,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1332,7 +1281,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1354,7 +1302,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1378,7 +1325,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1403,7 +1349,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1425,7 +1370,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1449,7 +1393,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1471,7 +1414,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1496,7 +1438,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1518,7 +1459,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1542,7 +1482,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1564,7 +1503,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1590,7 +1528,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1614,7 +1551,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1635,7 +1571,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1657,7 +1592,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1684,7 +1618,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1706,7 +1639,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1732,7 +1664,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1756,7 +1687,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1780,7 +1710,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1802,7 +1731,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1828,7 +1756,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1850,7 +1777,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1872,7 +1798,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1894,7 +1819,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1916,7 +1840,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1938,7 +1861,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1963,7 +1885,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -1985,7 +1906,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2009,7 +1929,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2031,7 +1950,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2052,7 +1970,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2074,7 +1991,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2095,7 +2011,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2117,7 +2032,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -2142,7 +2056,6 @@ export class AnalyticAdminController {
         subject: EnumPolicySubject.analytic,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

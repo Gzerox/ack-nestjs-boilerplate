@@ -1,6 +1,7 @@
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import {
-    EnumRoleType,
+    EnumRoleScope,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -43,7 +44,8 @@ describe('UserProfileResponseSchema', () => {
                 ...audit,
                 name: 'User',
                 description: null,
-                type: EnumRoleType.user,
+                scope: EnumRoleScope.platform,
+                key: EnumRolePlatformKey.user,
                 policies: [],
             },
             passwordExpired: null,

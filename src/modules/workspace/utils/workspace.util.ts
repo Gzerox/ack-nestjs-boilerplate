@@ -1,10 +1,8 @@
-import type {
-    Workspace,
-    WorkspaceInvite,
-} from '@generated/prisma-client/client';
+import type { Workspace } from '@generated/prisma-client/client';
 import type {
     IWorkspaceInviteInviter,
     IWorkspaceInvitePreviewSummary,
+    IWorkspaceInviteWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
 import { Injectable } from '@nestjs/common';
 
@@ -12,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 export class WorkspaceUtil {
     mapInvitePreview(
         workspace: Workspace,
-        invite: WorkspaceInvite,
+        invite: IWorkspaceInviteWithRole,
         inviter: IWorkspaceInviteInviter | null
     ): IWorkspaceInvitePreviewSummary {
         return {

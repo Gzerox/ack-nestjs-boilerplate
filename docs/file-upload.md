@@ -381,7 +381,6 @@ export type UserImportRequestDto = z.infer<typeof UserImportRequestSchema>;
   subject: EnumPolicySubject.user,
   action: [EnumPolicyAction.read, EnumPolicyAction.create],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()
@@ -896,7 +895,6 @@ The second presign endpoint signs a term policy content upload. `TermPolicyAdmin
     EnumPolicyAction.update,
   ],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()

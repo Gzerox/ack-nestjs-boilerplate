@@ -3,9 +3,14 @@ import { DatabaseService } from '@common/database/services/database.service';
 import type { IPaginationQueryCursorParams } from '@common/pagination/interfaces/pagination.interface';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
-import { EnumProjectMemberRole, Prisma } from '@generated/prisma-client/client';
+import { Prisma } from '@generated/prisma-client/client';
 import type { ProjectMember } from '@generated/prisma-client/client';
-import type { IProjectMember } from '@modules/project/interfaces/project.interface';
+import { ProjectMemberRoleInclude } from '@modules/project/constants/project.constant';
+import type {
+    IProjectMember,
+    IProjectMemberWithRole,
+} from '@modules/project/interfaces/project.interface';
+import { RoleShortSelect } from '@modules/role/constants/role.constant';
 import { UserRefSelect } from '@modules/user/constants/user.constant';
 import type { IProjectMemberRepository } from '@modules/project/interfaces/project.member-repository.interface';
 import { Injectable } from '@nestjs/common';
@@ -29,15 +34,29 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
+    async findOneWithRoleByProjectAndUser(
+        projectId: string,
+        userId: string
+    ): Promise<IProjectMemberWithRole | null> {
+        return this.databaseService.client.projectMember.findFirst({
+            where: {
+                projectId,
+                userId,
+            },
+            include: ProjectMemberRoleInclude,
+        });
+    }
+
     async findByIdAndProject(
         projectMemberId: string,
         projectId: string
-    ): Promise<ProjectMember | null> {
+    ): Promise<IProjectMemberWithRole | null> {
         return this.databaseService.client.projectMember.findFirst({
             where: {
                 id: projectMemberId,
                 projectId,
             },
+            include: ProjectMemberRoleInclude,
         });
     }
 
@@ -61,6 +80,9 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
                 user: {
                     select: UserRefSelect,
                 },
+                role: {
+                    select: RoleShortSelect,
+                },
             },
         });
     }
@@ -68,19 +90,22 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
     async create(
         projectId: string,
         userId: string,
-        role: EnumProjectMemberRole,
+        roleId: string,
         createdBy: string
     ): Promise<IProjectMember> {
         return this.databaseService.client.projectMember.create({
             data: {
                 projectId,
                 userId,
-                role,
+                roleId,
                 createdBy,
             },
             include: {
                 user: {
                     select: UserRefSelect,
+                },
+                role: {
+                    select: RoleShortSelect,
                 },
             },
         });
@@ -90,32 +115,32 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         tx: IDatabaseTransactionClient,
         projectId: string,
         userId: string,
-        role: EnumProjectMemberRole,
+        roleId: string,
         createdBy: string
     ): Promise<IProjectMember> {
         return tx.projectMember.create({
             data: {
                 projectId,
                 userId,
-                role,
+                roleId,
                 createdBy,
             },
             include: {
                 user: {
                     select: UserRefSelect,
                 },
+                role: {
+                    select: RoleShortSelect,
+                },
             },
         });
     }
 
-    async updateRole(
-        targetMemberId: string,
-        newRole: EnumProjectMemberRole
-    ): Promise<void> {
+    async updateRole(targetMemberId: string, roleId: string): Promise<void> {
         await this.databaseService.client.projectMember.update({
             where: { id: targetMemberId },
             data: {
-                role: newRole,
+                roleId,
             },
         });
     }

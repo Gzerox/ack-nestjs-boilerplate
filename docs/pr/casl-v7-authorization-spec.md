@@ -4,7 +4,7 @@
 
 This specification defines a CASL v7 authorization model for the PostgreSQL and Prisma
 application. It covers platform roles, workspace and project boundaries, stored rule evaluation,
-object checks, field checks, and Prisma query filtering.
+object checks, and Prisma query filtering.
 
 The implementation uses `@casl/ability` v7 and adds `@casl/prisma` when the Prisma query
 adapter lands. Policy decisions remain in the policy domain and feature domains. Controllers
@@ -16,7 +16,7 @@ continue to delegate HTTP work, and repositories continue to own Prisma query sh
 - Evaluate one request-scoped ability consistently in guards and domains.
 - Preserve the workspace and project guards as resource-boundary checks.
 - Support object-level checks and PostgreSQL/Prisma query filters.
-- Validate persisted rules, fields, condition paths, and placeholders before storage.
+- Validate persisted rules, conditions, and placeholders before storage.
 - Give every permission-controlled operation an explicit subject/action pair.
 - Keep role, policy, workspace, and project behavior covered by focused unit tests.
 
@@ -27,6 +27,7 @@ continue to delegate HTTP work, and repositories continue to own Prisma query sh
 - Infer authorization from route names or HTTP verbs.
 - Add unrestricted JSON conditions or arbitrary request placeholders.
 - Change all feature repositories in the first implementation phase.
+- Restrict rules to individual fields. Field-level permissions can extend the rule contract later.
 - Allow workspaces or projects to create, update, or delete their own roles.
 
 ## Existing Authorization Surface
@@ -55,7 +56,7 @@ Platform roles and workspace/project memberships describe different dimensions o
 - User and shared workspace routes keep `@WorkspaceProtected()` and the membership-resolving
   `@WorkspaceMemberProtected()` form as the workspace boundary. Project routes also keep
   `@ProjectProtected()` and `@ProjectMemberProtected()`.
-- CASL adds capability, record, and field decisions after those guards establish the caller and
+- CASL adds capability and record decisions after those guards establish the caller and
   workspace/project context. CASL does not turn a cross-workspace project into an accessible
   record.
 - Workspace-owner project authority is expressed by the owner's workspace-role rules. It remains
@@ -139,70 +140,54 @@ last-owner protection, peer management, and role-scope validation remain domain 
 
 ### Actions
 
-`manage` remains CASL's only wildcard action and `all` remains its wildcard subject. `manage` is
-valid only with `all`, and `all` accepts no other action. The seeded `manage`/`all` super-admin
-rule is not editable through the role-policy API.
+`manage` remains CASL's only wildcard action and `all` remains its wildcard subject. `manage`
+with `all` is the super-admin rule; it is not editable through the role-policy API and `all`
+accepts no other action. `manage` on a subject means every action on that subject and is valid
+on any persisted subject.
 
-Actions split into two catalogs rather than one flat enum:
+The table below is descriptive: it lists the actions the routes in this spec use per subject. It
+is not an enforced catalog, and any (subject, action) pair may be stored.
 
-- **Generic actions** — `EnumPolicyAction { manage, read, create, update, delete }`. Every
-  subject that persists a resource uses these CRUD verbs for ordinary lifecycle operations.
-  `manage` stays `all`-only, as above.
-- **Per-subject workflow actions** — one small enum per subject that needs a domain verb beyond
-  CRUD, named `Enum<Subject>Action`:
-  - `EnumWorkspaceAction { transferOwnership }`
-  - `EnumWorkspaceInviteAction { resend, revoke, claim }`
-  - `EnumWorkspaceJoinRequestAction { accept, reject }`
-  - `EnumProjectMemberAction { assign }`
+Every subject uses one action vocabulary, `EnumPolicyAction { manage, read, create, update,
+delete }`, stored in the `Policy.action` column as a typed Prisma enum array. There are no
+per-subject workflow enums: a domain operation maps to a CRUD verb, or to `manage` when it is a
+privileged action that must not be granted on its own.
 
-  `workspaceMember` and `project` need no domain verb beyond CRUD and keep only the generic
-  enum: removing a member is the generic `delete` action on `workspaceMember`, and removing a
-  project member is the generic `delete` action on `projectMember`, replacing the previous
-  `remove` verb.
+| Subject                | Actions                              | Operations covered                                                             |
+| ---------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `workspace`            | `read`, `update`, `delete`, `manage` | `manage` covers ownership transfer and implies `read`/`update`/`delete`         |
+| `workspaceMember`      | `update`, `delete`                   | role change, member removal                                                    |
+| `workspaceInvite`      | `create`, `manage`                   | `manage` covers create, resend, and revoke                                     |
+| `workspaceJoinRequest` | `update`                             | accept and reject (a status transition; cannot be granted separately)          |
+| `project`              | `read`, `create`, `update`, `delete` | project lifecycle                                                              |
+| `projectMember`        | `create`, `update`, `delete`         | `create` assigns a member; role change; removal                                |
 
-A subject's full action catalog is the union of `EnumPolicyAction` (minus `manage`, which stays
-`all`-only) and its own workflow enum, if it has one. The registry's `actions` field is typed as a
-union over both:
-
-```ts
-type PolicySubjectAction<TWorkflow extends string = never> =
-    | Exclude<EnumPolicyAction, 'manage'>
-    | TWorkflow;
-```
-
-This mirrors the codebase's existing precedent for subject-scoped enums living in the schema
-(`EnumWorkspaceInviteStatus`, `EnumWorkspaceJoinRequestStatus`), extended to actions. Because a
-single PostgreSQL/Prisma column cannot span multiple enum types, the persisted `action` column
-moves from a typed Prisma enum array to a validated `String[]` — the domain layer checks each
-stored string against the subject's registry entry (`EnumPolicyAction` members plus that
-subject's workflow enum members) the same way `fields` and `conditions` are already validated
-outside the database (see the Stored Rule Contract section below).
-
-The workspace/project action catalog is:
-
-| Subject                | Generic actions                      | Workflow actions (`Enum<Subject>Action`)                 |
-| ----------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| `workspace`            | `read`, `create`, `update`, `delete`   | `EnumWorkspaceAction`: `transferOwnership`                  |
-| `workspaceMember`      | `read`, `update`, `delete`             | none                                                         |
-| `workspaceInvite`      | `read`, `create`                       | `EnumWorkspaceInviteAction`: `resend`, `revoke`, `claim`    |
-| `workspaceJoinRequest` | `read`, `create`                       | `EnumWorkspaceJoinRequestAction`: `accept`, `reject`        |
-| `project`              | `read`, `create`, `update`, `delete`   | none                                                        |
-| `projectMember`        | `read`, `update`, `delete`             | `EnumProjectMemberAction`: `assign`                         |
-
-The same naming rule applies to platform resources: CRUD verbs are reused where the subject makes
-their meaning complete; a workflow enum is added only for a subject with a domain verb beyond
-CRUD, such as assigning a role, revoking a session, rotating an API key, or publishing a term
-policy. Every enum contains only actions backed by an endpoint or domain operation.
+Granting `manage` on `workspaceInvite` therefore grants resend and revoke together with create,
+and granting it on `workspace` grants ownership transfer. Only the workspace `owner` role holds
+`workspace:manage`; the domain still restricts transfer to the owner.
 
 `update` on `workspace` covers name, description, visibility, and slug changes. `update` on
 `project` covers name, description, and slug changes. These operations receive separate actions
 only when the product needs different grants.
 
-Workspace switching requires no CASL permission. It succeeds when the caller belongs to the
-target workspace and fails otherwise. Leaving a workspace or project is also a self-service
-membership operation with no CASL permission. Listing workspaces also requires no CASL
-permission — see the `workspace:list` exception in "Scoping Placeholder Conventions" below. The
-domains still enforce identity, membership, last-owner, and related business invariants.
+The following operations require no CASL permission and have no subject or action:
+
+- Workspace `list`, `create`, `leave`, and `switch`. Every authenticated user may perform them,
+  and each only ever touches workspaces the caller has access to. Switching succeeds when the
+  caller belongs to the target workspace and fails otherwise. Leaving a workspace or project is a
+  self-service membership operation.
+- Workspace member `list`, workspace invite `list`, and workspace join-request `list`. Membership
+  in the workspace is the gate, so any member may list them.
+- Project `list` and project member `list`. Membership in the workspace (project list) or the
+  project (member list) is the gate, so any such member may list. The project list result set is
+  filtered by visibility as a query concern.
+- Project member `leave`. Every project member may leave; the domain enforces last-admin style
+  invariants.
+- Workspace invite `claim`. The invite token and the authenticated caller are both required.
+- Workspace join-request `create`. The domain verifies that the target workspace is public and
+  that the caller is not already a member.
+
+The domains still enforce identity, membership, last-owner, and related business invariants.
 
 ### Subjects
 
@@ -217,147 +202,52 @@ project
 projectMember
 ```
 
-Each subject maps to one persisted resource with its own fields, conditions, and Prisma query
+Each subject maps to one persisted resource with its own conditions and Prisma query
 shape. Subjects use camelCase model-aligned names rather than colon-delimited values. For example,
 `workspaceInvite` maps directly to `WorkspaceInvite`; `workspace:invite` would require an
 additional enum-to-model translation without changing the permission boundary.
 
-`PolicySubjectRegistry` maps every enum value to its Prisma model name, permitted fields,
-condition paths, mandatory scope placeholder, and subject-instance adapter. Enum values remain
-camelCase; Prisma model names remain PascalCase. This avoids using an enum string as a model
-constructor or a Prisma delegate.
+Everything the policy layer needs about a subject is derived, except its tenant scope:
 
-Every subject definition also carries a `scopePlaceholder`, naming the placeholder condition its
-stored rules must include (see
-[Scoping Placeholder Conventions](#scoping-placeholder-conventions) below for the normative rule
-and its two exceptions, `workspace:create` and `workspaceJoinRequest:create`):
+- **Model name.** The subject with its first letter upper-cased (`workspaceInvite` becomes
+  `WorkspaceInvite`), checked against `Prisma.ModelName`. This avoids using an enum string as a
+  model constructor or a Prisma delegate.
+- **Condition paths.** Validated against the target model's Prisma metadata: scalar columns plus
+  the explicit relation path `role.key`.
+- **Actions.** Any `EnumPolicyAction` may be stored for any subject. An action that no route
+  checks for a subject never matches anything, and only platform administrators write policies.
+- **Tenant scope.** The one part that lives in code, as `PolicySubjectScope`:
 
 ```ts
-type IPolicySubjectDefinition<TWorkflowAction extends string = never> = {
-    modelName: Prisma.ModelName;
-    actions: readonly (Exclude<EnumPolicyAction, 'manage'> | TWorkflowAction)[];
-    fields: readonly string[];
-    conditionPaths: readonly string[];
-    scopePlaceholder: '${workspace.id}' | '${project.id}' | null;
+type IPolicyScope = {
+    level: 'workspace' | 'project';
+    key: string;
+    placeholder: '${workspace.id}' | '${project.id}';
 };
 
-const PolicySubjectRegistry = {
-    workspace: {
-        modelName: 'Workspace',
-        actions: [
-            EnumPolicyAction.read,
-            EnumPolicyAction.create,
-            EnumPolicyAction.update,
-            EnumPolicyAction.delete,
-            EnumWorkspaceAction.transferOwnership,
-        ],
-        fields: ['name', 'slug', 'description', 'isPublic'],
-        conditionPaths: ['id', 'createdBy', 'isPublic', 'deletedAt'],
-        // Mandatory `${workspace.id}` -> `workspaceId` condition, except `create`: no
-        // workspace exists yet for the row being created (see §5 exception).
-        scopePlaceholder: '${workspace.id}',
-    },
-    workspaceMember: {
-        modelName: 'WorkspaceMember',
-        actions: [
-            EnumPolicyAction.read,
-            EnumPolicyAction.update,
-            EnumPolicyAction.delete,
-        ],
-        fields: ['roleId'],
-        conditionPaths: ['id', 'workspaceId', 'userId', 'roleId', 'role.key'],
-        scopePlaceholder: '${workspace.id}',
-    },
-    workspaceInvite: {
-        modelName: 'WorkspaceInvite',
-        actions: [
-            EnumPolicyAction.read,
-            EnumPolicyAction.create,
-            EnumWorkspaceInviteAction.resend,
-            EnumWorkspaceInviteAction.revoke,
-            EnumWorkspaceInviteAction.claim,
-        ],
-        fields: [
-            'email',
-            'workspaceRoleId',
-            'projectId',
-            'projectRoleId',
-            'expiredAt',
-            'status',
-        ],
-        conditionPaths: [
-            'id',
-            'workspaceId',
-            'projectId',
-            'status',
-            'invitedByUserId',
-            'acceptedByUserId',
-        ],
-        scopePlaceholder: '${workspace.id}',
-    },
-    workspaceJoinRequest: {
-        modelName: 'WorkspaceJoinRequest',
-        actions: [
-            EnumPolicyAction.read,
-            EnumPolicyAction.create,
-            EnumWorkspaceJoinRequestAction.accept,
-            EnumWorkspaceJoinRequestAction.reject,
-        ],
-        fields: ['message', 'status', 'rejectReasonCode'],
-        conditionPaths: [
-            'id',
-            'workspaceId',
-            'userId',
-            'status',
-            'reviewedByUserId',
-        ],
-        // Mandatory `${workspace.id}` -> `workspaceId` condition, except `create`: the caller
-        // is not yet a member of the target workspace (see §5 exception).
-        scopePlaceholder: '${workspace.id}',
-    },
-    project: {
-        modelName: 'Project',
-        actions: [
-            EnumPolicyAction.read,
-            EnumPolicyAction.create,
-            EnumPolicyAction.update,
-            EnumPolicyAction.delete,
-        ],
-        fields: ['name', 'slug', 'description'],
-        conditionPaths: ['id', 'workspaceId', 'createdBy', 'deletedAt'],
-        // Mandatory `${project.id}` -> `projectId` condition, in addition to the workspace
-        // scope a project inherits transitively through `workspaceId`.
-        scopePlaceholder: '${project.id}',
-    },
-    projectMember: {
-        modelName: 'ProjectMember',
-        actions: [
-            EnumPolicyAction.read,
-            EnumProjectMemberAction.assign,
-            EnumPolicyAction.update,
-            EnumPolicyAction.delete,
-        ],
-        fields: ['roleId'],
-        conditionPaths: ['id', 'projectId', 'userId', 'roleId', 'role.key'],
-        // Mandatory `${project.id}` -> `projectId` condition. `assign` is the exception noted
-        // in §5: the permission itself is the only gate for "can assign any member in the
-        // project", so an `assign` rule carries the `projectId` scope but no member-instance
-        // (`id`) condition.
-        scopePlaceholder: '${project.id}',
-    },
-} as const satisfies Record<string, IPolicySubjectDefinition>;
+const PolicySubjectScope = {
+    workspace: { level: 'workspace', key: 'id', placeholder: '${workspace.id}' },
+    workspaceMember: { level: 'workspace', key: 'workspaceId', placeholder: '${workspace.id}' },
+    workspaceInvite: { level: 'workspace', key: 'workspaceId', placeholder: '${workspace.id}' },
+    workspaceJoinRequest: { level: 'workspace', key: 'workspaceId', placeholder: '${workspace.id}' },
+    project: { level: 'project', key: 'id', placeholder: '${project.id}' },
+    projectMember: { level: 'project', key: 'projectId', placeholder: '${project.id}' },
+} as const satisfies Partial<Record<EnumPolicySubject, IPolicyScope>>;
 ```
 
-The registry includes definitions for every existing platform subject before rule validation is
-enabled for that subject. Rule validation rejects an action that is not registered for its
-subject — checked against the union of `EnumPolicyAction` and that subject's workflow enum, not
-against a single flat action enum. Relation paths use Prisma relation syntax and are listed
-explicitly.
+A subject absent from the map is platform-level and carries no mandatory scope. `level` drives
+role-scope validation: platform roles may hold any subject and are exempt from the mandatory scope
+pair (the platform `admin` holds `read` on `workspace` and `project` without a scope condition),
+workspace roles hold platform-level, workspace-level, and project-level subjects (the workspace
+`owner` holds project rules), and project roles hold project-level subjects only. The mandatory
+scope pair applies only to workspace and project roles. See
+[Scoping Placeholder Conventions](#scoping-placeholder-conventions) for the normative rule.
 
-`workspace:list` carries no registry entry at all: every authenticated user can list workspaces,
-so the operation has no subject and no action. Visibility and membership still filter the result
-set, but that is a query concern the repository applies directly, not a policy decision. See
-[Scoping Placeholder Conventions](#scoping-placeholder-conventions) below.
+The operations listed under [Actions](#actions) as requiring no CASL permission (workspace
+`list`/`create`/`leave`/`switch`, member/invite/join-request `list`, invite `claim`, and
+join-request `create`) carry no subject and no action. Visibility and membership still filter
+their result sets, but that is a query concern the repository applies directly, not a policy
+decision.
 
 ### Scoping Placeholder Conventions
 
@@ -365,23 +255,38 @@ Every workspace-scoped and project-scoped subject rule carries the placeholder c
 ties it to the active boundary. This was implied by the placeholder allow-list and the "Default
 Scoped Role Rules" prose; it is a normative rule:
 
+- The rules below bind rules held by **workspace and project roles**. Platform-role rules are
+  exempt from the mandatory scope pair.
 - Every **workspace-scoped** subject (`workspace`, `workspaceMember`, `workspaceInvite`,
-  `workspaceJoinRequest`) rule's stored condition MUST include a `workspaceId` key resolved from
-  the `${workspace.id}` placeholder, populated from the request's `x-workspace-id` header.
+  `workspaceJoinRequest`) rule held by a workspace role MUST include a `workspaceId` key (`id` for the
+  `workspace` subject itself) resolved from
+  the `${workspace.id}` placeholder, populated from the request's `x-workspace-id` header on
+  user and shared routes and from the validated `:workspaceId` path param on admin routes.
 - Every **project-scoped** subject (`project`, `projectMember`) rule's stored condition MUST
-  include a `projectId` key resolved from the `${project.id}` placeholder, populated from the
+  include a `projectId` key (`id` for the `project` subject itself) resolved from the `${project.id}` placeholder, populated from the
   request's `:projectId` route param. This is in addition to the workspace scope a project rule
   already carries transitively, because a project belongs to a workspace.
-- Rule validation rejects a workspace- or project-scoped subject's condition that omits its
-  mandatory key, **except** the following documented exceptions:
-  - `workspace:create` — no workspace exists yet for the row being created.
-  - `workspaceJoinRequest:create` — the caller is not yet a member of the target workspace.
-  - `projectMember:assign` — the permission itself is the only gate: holding it means "can
-    assign any member in the project." The rule still carries the `projectId` scope; it just
-    carries no member-instance (`id`) condition.
-- `workspace:list` needs no entry in this rule at all: it carries no subject and no action (see
-  above), so it has no condition to validate. Listing is a query concern — visibility and
-  membership filter the result set directly — not a policy decision.
+- Conditions are generated and checked in three steps:
+  1. Seeds and the rule DTO build the stored `conditions` through
+     `scopedCondition(subject, action, extra?)`, which returns
+     `{ [key]: placeholder, ...extra }` from `PolicySubjectScope`. For example, a
+     `workspaceMember` rule is stored as `{ "workspaceId": "${workspace.id}" }`.
+  2. Rule validation requires every non-inverted rule of a scoped subject to carry
+     `conditions[key] === placeholder` at the top level or inside a top-level `AND`. A pair nested
+     under `OR` or `NOT` does not count. Inverted rules are exempt.
+  3. At request time `PolicyConditionPlaceholderUtil` replaces the placeholder with the resolved
+     id, so CASL receives `{ "workspaceId": "<uuid>" }`. Nothing is injected implicitly: the
+     stored rule is the single source of truth, and `toWhere` reuses the same condition.
+- The mandatory scope pair is waived only for `project:create`. The ability is built from the
+  caller's role in the workspace `WorkspaceProtected` already verified, and creation takes its
+  `workspaceId` from that same context, so a `workspaceId` condition on the new row could never
+  fail. `projectMember:create` (assigning a member) keeps its `projectId` scope but carries no
+  member-instance (`id`) condition: holding the permission means "can assign any member in the
+  project."
+- Operations without a subject (see [Actions](#actions)) need no entry in this rule at
+  all: they carry no action, so they have no condition to validate. Listing is a
+  query concern — visibility and membership filter the result set directly — not a policy
+  decision.
 
 The placeholder allow-list `PolicyConditionPlaceholderUtil` resolves is:
 
@@ -408,8 +313,7 @@ rule ordering unambiguous.
 ```ts
 interface IPolicyRuleStorage {
     subject: EnumPolicySubject;
-    action: string[];
-    fields: string[];
+    action: EnumPolicyAction[];
     conditions: Prisma.JsonValue | null;
     inverted: boolean;
     reason: string | null;
@@ -417,17 +321,12 @@ interface IPolicyRuleStorage {
 }
 ```
 
-`action` is `string[]`, not a typed Prisma enum array. Splitting actions into a generic enum plus
-one workflow enum per subject (see [Actions](#actions)) means no single Postgres/Prisma enum
-type can describe every subject's action column. The policy domain validates each stored string
-against the subject's registry entry — `EnumPolicyAction` members plus that subject's workflow
-enum members, if any — before persistence, the same way it already validates `fields` and
-`conditions` outside the database.
+`action` is `EnumPolicyAction[]`. Any (subject, action) pair may be stored. The policy domain
+validates `conditions` and `fields` against the subject's model and scope map outside the
+database, not the pair itself.
 
-The Prisma `Policy` model's `action` column changes from a typed enum array to `action String[]`.
-It also gains `fields String[] @default([])`, `conditions Json?`, `inverted Boolean
-@default(false)`, `reason String?`, and `priority Int`. An empty `fields` list maps to an
-unrestricted CASL rule; a non-empty list maps to field-restricted access. The unique constraint
+The Prisma `Policy` model keeps `action EnumPolicyAction[]` and gains `conditions Json?`,
+`inverted Boolean @default(false)`, `reason String?`, and `priority Int`. The unique constraint
 on `(roleId, subject)` is replaced with `@@unique([roleId, priority])` and an index on
 `[roleId, subject, priority]`.
 
@@ -441,14 +340,14 @@ matching rule precedence, so a project rule can narrow a workspace rule and a wo
 narrow a platform rule. An absent narrower rule does not revoke a broader allow; a narrowing role
 uses an explicit inverted rule.
 
-The role-policy API exposes a rule request DTO with one subject, action array, optional fields,
+The role-policy API exposes a rule request DTO with one subject, action array,
 optional conditions, optional inverted flag, optional reason, and an explicit priority. A bulk
 replace endpoint may accept an array of that DTO to make ordering transactional. The existing
 single-row endpoints retain the same semantics through the new DTO.
 
 ## PostgreSQL and Prisma Conditions
 
-Persisted conditions use the Prisma `WhereInput` dialect for the registry model. They do not use
+Persisted conditions use the Prisma `WhereInput` dialect for the subject's model. They do not use
 Mongo operators or dotted paths. For example, an ownership rule is stored as:
 
 ```json
@@ -477,15 +376,15 @@ values from the placeholder allow-list in
 subject's rules must use.
 
 The validator rejects unknown placeholders, partial interpolation, prototype-pollution keys,
-unlisted fields, unlisted relation paths, unsupported Prisma operators, and values incompatible
-with the target field. Conditions are JSON data, not executable expressions.
+condition columns that do not belong to the target model, unsupported relation paths,
+unsupported Prisma operators, and values incompatible with the target field. Conditions are JSON data, not executable expressions.
 
-The adapter builds `PrismaAbility` with `createPrismaAbility`. It uses the registry's model name
+The adapter builds `PrismaAbility` with `createPrismaAbility`. It uses the subject's derived model name
 when deriving `accessibleBy(ability, action)[modelName]`. Repository queries compose that result
 with business predicates through `AND`, including active-row and workspace/project predicates.
 They never spread an authorization filter into another `where` object.
 
-Object checks use `subject(registry[subject].modelName, record)` with a loaded, typed record.
+Object checks use `subject(modelName(subject), record)` with a loaded, typed record.
 They do not rely on `constructor` detection for Prisma plain objects.
 
 ## Ability Lifecycle
@@ -495,17 +394,10 @@ They do not rely on `constructor` detection for Prisma plain objects.
 ```ts
 buildForRequest(context: IPolicyRequestContext): IPolicyAbility;
 getCurrentAbility(): IPolicyAbility;
-can(action: PolicySubjectAction, subject: IPolicySubjectInput): boolean;
-assertCan(action: PolicySubjectAction, subject: IPolicySubjectInput): void;
-toWhere(action: PolicySubjectAction, subject: EnumPolicySubject): Prisma.JsonObject;
-permittedFields(action: PolicySubjectAction, subject: IPolicySubjectInput): string[];
+can(action: EnumPolicyAction, subject: IPolicySubjectInput): boolean;
+assertCan(action: EnumPolicyAction, subject: IPolicySubjectInput): void;
+toWhere(action: EnumPolicyAction, subject: EnumPolicySubject): Prisma.JsonObject;
 ```
-
-`PolicySubjectAction` is the non-generic collapse of the `PolicySubjectAction<TWorkflow>` union
-from [Actions](#actions) — `Exclude<EnumPolicyAction, 'manage'> | string` — because a single
-domain-level API surface spans every subject and cannot be parameterized per call. `PolicyDomain`
-validates the action against the resolved subject's registry entry before evaluating the
-ability, which recovers the subject-specific union at the validation boundary.
 
 The policy domain creates an ability once, stores it under a dedicated request-store key, and
 reuses it for route checks and downstream domain calls. The context is read from the resolved
@@ -522,7 +414,7 @@ equivalent policy metadata. The super-admin role receives a persisted `manage`/`
 proceeds through the same ability construction and CASL evaluation as every other role. This
 keeps permission data as the single source of authorization decisions.
 
-## Object and Field Enforcement
+## Object Enforcement
 
 Feature domains perform object decisions after loading the target record through their
 repository. A route guard can check a resource already resolved by `WorkspaceGuard` or
@@ -539,11 +431,6 @@ where the repository API can express it. This makes authorization and mutation o
 operation. A missing affected row follows the endpoint's established not-found or forbidden
 contract without revealing an inaccessible row.
 
-Field checks evaluate the actual subject instance when conditional field rules exist. The domain
-loads the pre-update record, obtains permitted fields for that record, rejects disallowed request
-keys, and passes only allowed fields to the repository. Response serialization applies the same
-field policy when a response contains subject data.
-
 ## Workspace and Project Policy Matrix
 
 The following CASL decisions are added incrementally after the existing workspace and project
@@ -551,20 +438,23 @@ guards succeed.
 
 | Operation group                                | Subject                | Actions                                                                      | Existing boundary context                                | Notes                                              |
 | ------------------------------------------------ | ------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------- |
-| Workspace list                                 | `none`                 | `none`                                                                        | authenticated user                                       | No CASL metadata; no `workspaceId` condition. Result set filtered by membership/visibility as a query concern (§5). |
-| Workspace get                                  | `workspace`            | `read`                                                                        | workspace member where required                          | `workspaceId` condition per §5.                    |
-| Workspace create/update/visibility/slug/delete | `workspace`            | `create`, `update`, `delete`                                                  | authenticated user or current workspace member           | `create` is the §5 exception: no `workspaceId` condition. |
-| Ownership transfer                             | `workspace`            | `EnumWorkspaceAction.transferOwnership`                                       | current workspace membership                              | `workspaceId` condition per §5.                    |
-| Workspace switch                               | none                   | none                                                                          | membership in the selected workspace                      |                                                     |
-| Member list/role/remove                        | `workspaceMember`      | `read`, `update`, `delete`                                                    | current workspace and member                               | `workspaceId` condition per §5.                    |
-| Workspace leave                                | none                   | none                                                                          | caller's current workspace membership                     |                                                     |
-| Invite list/create                             | `workspaceInvite`      | `read`, `create`                                                              | current member or token-verified invite claimant           | `workspaceId` condition per §5.                    |
-| Invite resend/revoke/claim                     | `workspaceInvite`      | `EnumWorkspaceInviteAction.resend`, `.revoke`, `.claim`                       | current member or token-verified invite claimant           | `workspaceId` condition per §5.                    |
-| Join request create/list                       | `workspaceJoinRequest` | `create`, `read`                                                              | public workspace requester or current workspace member     | `create` is the §5 exception: no `workspaceId` condition. |
-| Join request accept/reject                     | `workspaceJoinRequest` | `EnumWorkspaceJoinRequestAction.accept`, `.reject`                           | current workspace member                                    | `workspaceId` condition per §5.                    |
-| Project list/get/create/update/slug/delete     | `project`              | `read`, `create`, `update`, `delete`                                          | current workspace and project visibility/member context    | `workspaceId` and `projectId` conditions per §5.   |
-| Project member list/role/remove                | `projectMember`        | `read`, `update`, `delete`                                                    | current workspace, project, and project membership          | `projectId` condition per §5.                      |
-| Project member assign                          | `projectMember`        | `EnumProjectMemberAction.assign`                                              | current workspace, project, and project membership          | `projectId` condition, no member-instance condition (§5 exception). |
+| Workspace list/create/switch/leave | none | none | authenticated user; switch and leave need membership in the target workspace | No CASL metadata. List result set filtered by membership/visibility as a query concern (§5). |
+| Workspace get (user and admin) | `workspace` | `read` | workspace member (user) or platform admin | `workspaceId` condition per §5; admin routes resolve it from `:workspaceId`. |
+| Workspace update/visibility/slug/delete | `workspace` | `update`, `delete` | current workspace member | `workspaceId` condition per §5. |
+| Ownership transfer | `workspace` | `manage` | current workspace membership | `workspaceId` condition per §5. |
+| Member list | none | none | current workspace member | No CASL metadata; membership is the gate. |
+| Member role/remove | `workspaceMember` | `update`, `delete` | current workspace and member | `workspaceId` condition per §5. |
+| Invite list/claim | none | none | current member (list) or token-verified invite claimant (claim) | No CASL metadata. |
+| Invite create/resend/revoke | `workspaceInvite` | `manage` | current workspace member | `workspaceId` condition per §5. |
+| Join request create/list | none | none | public workspace requester (create) or current workspace member (list) | No CASL metadata. |
+| Join request accept/reject | `workspaceJoinRequest` | `update` | current workspace member | `workspaceId` condition per §5. |
+| Project list (user) | none | none | current workspace member | No CASL metadata; result set filtered by visibility as a query concern. |
+| Admin workspace/project list and workspace member list | `workspace` / `project` | `read` | platform admin | Platform-role rule, no scope condition; admin get uses `:workspaceId`/`:projectId` per §5. |
+| Project get/update/slug/delete | `project` | `read`, `update`, `delete` | current workspace and project membership | `projectId` condition per §5 (`id` on the project row). |
+| Project create | `project` | `create` | current workspace member | No scope condition (§5 exception). |
+| Project member list | none | none | current project member | No CASL metadata; membership is the gate. |
+| Project member role/remove | `projectMember` | `update`, `delete` | current workspace, project, and project membership | `projectId` condition per §5. |
+| Project member assign | `projectMember` | `create` | current workspace, project, and project membership | `projectId` condition, no member-instance condition (§5 exception). |
 | Project leave                                  | none                   | none                                                                          | caller's current project membership                        |                                                     |
 
 ## Default Scoped Role Rules
@@ -583,34 +473,40 @@ subject's mandatory placeholder condition from §5 unless the row says otherwise
 
 | Role     | Scope     | Capabilities                                                                                                                                                                                                                                                                                       |
 | -------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `owner`  | workspace | `workspace`: `read`, `update`, `delete`, `EnumWorkspaceAction.transferOwnership`; `workspaceMember`: `read`, `update`, `delete`; `workspaceInvite`: `read`, `create`, `EnumWorkspaceInviteAction.resend`/`.revoke`; `workspaceJoinRequest`: `read`, `EnumWorkspaceJoinRequestAction.accept`/`.reject`; every `project` and `projectMember` action |
-| `admin`  | workspace | `workspace`: `read`, `update`; `workspaceMember`: `read`, `update`, `delete`; `workspaceInvite`: `read`, `create`, `EnumWorkspaceInviteAction.resend`/`.revoke`; `workspaceJoinRequest`: `read`, `EnumWorkspaceJoinRequestAction.accept`/`.reject`; `project`: `create`, `delete`                     |
-| `member` | workspace | `workspace`: `read`; `workspaceMember`: `read`                                                                                                                                                                                                                                                        |
-| `admin`  | project   | `project`: `read`, `update`; `projectMember`: `read`, `EnumProjectMemberAction.assign` (no member-instance condition, §5 exception), `update`, `delete`                                                                                                                                               |
-| `member` | project   | `project`: `read`; `projectMember`: `read`                                                                                                                                                                                                                                                            |
-| `viewer` | project   | `project`: `read`; `projectMember`: `read`                                                                                                                                                                                                                                                            |
+| `owner`  | workspace | `workspace`: `manage`; `workspaceMember`: `update`, `delete`; `workspaceInvite`: `manage`; `workspaceJoinRequest`: `update`; every `project` and `projectMember` action |
+| `admin`  | workspace | `workspace`: `read`, `update`; `workspaceMember`: `update`, `delete`; `workspaceInvite`: `manage`; `workspaceJoinRequest`: `update`; `project`: `create`, `delete`                     |
+| `member` | workspace | `workspace`: `read`                                                                                                                                                                                                                                                        |
+| `admin`  | project   | `project`: `read`, `update`; `projectMember`: `create` (no member-instance condition, §5 exception), `update`, `delete`                                                                                                                                               |
+| `member` | project   | `project`: `read`                                                                                                                                                                                                                                                            |
+| `viewer` | project   | `project`: `read`                                                                                                                                                                                                                                                            |
 
 The workspace `admin` role has the project actions granted directly by the current route guards.
 It does not receive project read or update authority through its workspace role; those actions
 require a project membership. The workspace `owner` role retains project authority through its
 workspace-scoped CASL rules.
 
+Project and project-member listing are gated by workspace and project membership alone, so no
+role carries a `projectMember` `read` rule.
+
 Role administration uses the existing `role` subject. Platform administrators can read the
 complete preset catalog and update role display metadata and ordered policy rows. Role creation,
 deletion, key changes, and scope changes are not exposed. Workspace owners, workspace admins,
 and project admins cannot administer roles or policies.
 
-Policy updates validate the subject/action catalog for the role's scope. Workspace roles cannot
-receive platform actions, and project roles cannot receive platform or workspace actions. The
+Policy updates validate each rule's subject against the role's scope using the scope map.
+Platform roles may hold any subject and carry no mandatory scope pair, workspace roles hold
+platform-level, workspace-level, and project-level subjects, and project roles hold project-level
+subjects only. The
 workspace `owner` role remains the only role recognized by ownership-transfer and last-owner
 domain invariants.
 
-Workspace creation and join-request creation happen before a workspace membership exists. The
-base authenticated-user role grants `read` and `create` on `workspace`, `claim` on
-`workspaceInvite`, and `create` on `workspaceJoinRequest`, with the matching conditions.
-The join-request domain still verifies that the target workspace is public and that the caller
-is not already a member. Invite claim remains token-verified and has no workspace-role rule; the
-authenticated-user rule and invite token are both required.
+Workspace creation, join-request creation, and invite claim happen before a workspace
+membership exists, so they carry no CASL rule and no base authenticated-user grant. The
+join-request domain verifies that the target workspace is public and that the caller is not
+already a member. Invite claim is token-verified; the authenticated caller and the invite token
+are both required.
+
+Member, invite, and join-request listing are gated by workspace membership alone.
 
 Workspace switching and workspace/project leave are membership-derived operations. The switch
 domain validates membership for the selected workspace; leave routes resolve the current caller's
@@ -625,22 +521,16 @@ continues to protect membership invariants.
 The initial policy seed is explicit rather than derived from every enum member.
 
 - `superAdmin`: `manage` on `all`.
-- `admin`: platform-management rules plus `read` on `workspace`, `workspaceMember`, and `project`
-  for existing admin-scope endpoints. Additional actions, generic or per-subject workflow
-  (`EnumWorkspaceAction`, `EnumWorkspaceInviteAction`, `EnumWorkspaceJoinRequestAction`,
-  `EnumProjectMemberAction`), are added only with matching admin endpoints.
-- `user`: grants `read` and `create` on `workspace`, `EnumWorkspaceInviteAction.claim` on
-  `workspaceInvite`, and `create` on `workspaceJoinRequest`. The `workspace:create` and
-  `workspaceJoinRequest:create` rules are the two documented exceptions in
-  [Scoping Placeholder Conventions](#scoping-placeholder-conventions) — no `workspaceId`
-  condition, since no workspace exists yet or the caller is not yet a member. The `claim` rule on
-  `workspaceInvite` still carries its `workspaceId` condition.
+- `admin`: platform-management rules plus `read` on `workspace` and `project` for existing
+  admin-scope endpoints (the admin workspace member list is gated by `workspace:read`).
+  Additional actions are added only with matching admin endpoints.
+- `user`: seeds no workspace-family rule. Workspace `list`/`create`, invite `claim`, and
+  join-request `create` carry no CASL permission.
 - Workspace roles: seed `owner`, `admin`, and `member` once with the workspace rows in the scoped
-  role matrix, using `EnumWorkspaceAction`/`EnumWorkspaceInviteAction`/
-  `EnumWorkspaceJoinRequestAction` for the workflow verbs.
+  role matrix.
 - Project roles: seed `admin`, `member`, and `viewer` once with the project rows in the scoped
-  role matrix, using `EnumProjectMemberAction` for `assign` (§5 exception: `projectId` condition
-  only, no member-instance condition).
+  role matrix (`projectMember:create` is the §5 exception: `projectId` condition only, no
+  member-instance condition).
 
 The seed upsert key changes from `(roleId, subject)` to `(roleId, priority)`. Seed updates
 replace managed rules deterministically and preserve priorities.
@@ -670,18 +560,16 @@ replace managed rules deterministically and preserve priorities.
 
 ### Phase 3: Schema, DTO, and Seed Migration
 
-- Add rule columns, priority constraint/indexes, the generic `EnumPolicyAction`, the per-subject
-  workflow enums (`EnumWorkspaceAction`, `EnumWorkspaceInviteAction`,
-  `EnumWorkspaceJoinRequestAction`, `EnumProjectMemberAction`), and generated client updates.
-- Change the `Policy.action` column from a typed enum array to `String[]`, validated at the
-  domain layer against the subject's registry entry.
+- Add rule columns, priority constraint/indexes, the new `EnumPolicySubject` values, and
+  generated client updates. `Policy.action` stays `EnumPolicyAction[]`, stored as-is; the
+  policy domain validates scope conditions, not the (subject, action) pair.
 - Replace the one-subject-per-row DTO and response shape with the rule DTO.
 - Update repository reads, writes, policy routes, seed data, and schema migration.
 - Migrate existing rows to deterministic priorities and seed the super-admin `manage/all` rule.
 
 ### Phase 4: Typed Prisma Ability
 
-- Add the subject registry, condition validator, placeholder resolver, and typed Prisma ability.
+- Add the subject scope map, condition validator, placeholder resolver, and typed Prisma ability.
 - Build normal and inverted rules in priority order.
 - Store and reuse one request-scoped ability.
 - Keep static `@PolicyProtected()` checks working through `PolicyGuard`.
@@ -698,10 +586,9 @@ replace managed rules deterministically and preserve priorities.
 - Introduce `AND`-composed authorization filters in a representative list and detail flow.
 - Add repository integration coverage outside the unit suite for generated Prisma conditions.
 
-### Phase 7: Field Filtering and Explicit Actions
+### Phase 7: Explicit Actions
 
-- Enforce conditional write fields and response fields for a representative subject.
-- Normalize actions to the generic `EnumPolicyAction` plus each subject's workflow enum, then add
+- Normalize actions to `EnumPolicyAction` (CRUD plus `manage`), then add
   policy metadata to every permission-controlled endpoint, including the mandatory
   `workspaceId`/`projectId` scope placeholder per subject and its documented exceptions.
 - Update role-policy API examples and durable authorization documentation with the shipped
@@ -709,14 +596,13 @@ replace managed rules deterministically and preserve priorities.
 
 ## Test Matrix
 
-- Rule DTO validation: enum values, priority, fields, Prisma operators, relation paths,
-  placeholders, action/subject compatibility, per-subject action-union membership (generic
-  `EnumPolicyAction` plus the subject's workflow enum, if any), mandatory scope-placeholder
-  presence per subject (with the `workspace:create`, `workspaceJoinRequest:create`, and
-  `projectMember:assign` exceptions), and unsafe object keys.
+- Rule DTO validation: enum values, priority, Prisma operators, relation paths,
+  placeholders, role-scope validation from the scope map, mandatory scope-placeholder presence per scoped
+  subject (with the `project:create` waiver and the member-instance-free
+  `projectMember:create` rule), and unsafe object keys.
 - Ability factory: allow, deny, ordered precedence, condition resolution, `manage/all`, and
   immutable CASL rule arrays.
-- Policy domain: request-scoped reuse, `can`, `assertCan`, object subjects, field decisions,
+- Policy domain: request-scoped reuse, `can`, `assertCan`, object subjects,
   and Prisma `where` generation.
 - Guards: static metadata, missing context, platform policy behavior, workspace/project stacking,
   scoped-role resolution, and no admin dependency on a workspace header.
@@ -724,8 +610,11 @@ replace managed rules deterministically and preserve priorities.
   unauthorized mutations use constrained database predicates; owner and peer-management
   invariants survive role-policy changes.
 - Permission inventory: every permission-controlled operation maps to one subject/action pair;
-  workspace switch and workspace/project leave remain membership-only operations.
-- Seed data: platform, workspace, and project role sets map to valid actions, subjects, scopes,
+  the operations listed under Actions as needing no permission (workspace list/create/switch/
+  leave, member/invite/join-request list, invite claim, join-request create) stay
+  membership- or authentication-only, and a plain workspace member can list members, invites,
+  and join requests.
+- Seed data: platform, workspace, and project role sets map to valid subjects, scopes (per the scope map),
   and priorities.
 
 Run unit checks with `pnpm test policy`, `pnpm test role`, `pnpm test workspace`, and
@@ -741,12 +630,12 @@ test environment.
 - The fixed role catalog is seeded once, with unique keys inside each scope.
 - PostgreSQL schema stores ordered CASL rules and permits multiple rules for one role/subject.
 - Conditions use validated Prisma `WhereInput` semantics.
-- The subject registry separately covers workspace, workspace member, workspace invite, workspace
-  join request, project, and project member resources before they accept persisted rules.
-- Lifecycle permissions use the generic `EnumPolicyAction` (`read`, `create`, `update`,
-  `delete`); workflow permissions use a per-subject `Enum<Subject>Action` (a concise domain
-  verb). The registry rejects invalid action/subject pairs, and the persisted `action` column is
-  `String[]` validated at the domain layer, not a single typed Prisma enum array.
+- The subject scope map separately covers workspace, workspace member, workspace invite,
+  workspace join request, project, and project member resources before they accept persisted
+  rules.
+- Every permission uses `EnumPolicyAction` (`manage`, `read`, `create`, `update`, `delete`);
+  privileged operations such as ownership transfer and invite resend/revoke map to `manage`. The
+  persisted `action` column is a typed `EnumPolicyAction[]`.
 - The ability is request-scoped and the super-admin role evaluates through CASL.
 - `@RoleProtected()`, `RoleGuard`, and the super-admin bypass are removed after equivalent CASL
   metadata covers their routes.
@@ -756,13 +645,14 @@ test environment.
   administration and custom roles are outside the first version.
 - Workspace and project guards remain resource boundaries.
 - Every permission-controlled operation has explicit CASL policy metadata and a domain assertion.
-- Workspace switch and workspace/project leave use membership and domain invariants without a
+- Workspace list/create/switch/leave, project leave, member/invite/join-request list, invite
+  claim, and join-request create use authentication, membership, and domain invariants without a
   CASL permission.
-- Object, field, and query enforcement are introduced only with their matching domain and
+- Object and query enforcement are introduced only with their matching domain and
   repository behavior.
 - Seeds, DTOs, OpenAPI responses, activity contracts, and tests move with every new action or
   subject.
 - Workspace-scoped and project-scoped subject rules carry their mandatory `workspaceId`/
-  `projectId` condition, except the documented `create`-before-membership and
-  `projectMember:assign` exceptions.
-- `workspace:list` requires no policy metadata: no subject, no action, no condition.
+  `projectId` condition, except the documented `project:create` exception.
+- Operations without a subject require no policy metadata: no subject, no action, no
+  condition.

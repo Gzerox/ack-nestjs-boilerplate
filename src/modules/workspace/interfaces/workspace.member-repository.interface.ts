@@ -6,14 +6,17 @@ import type {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
-import {
-    EnumWorkspaceMemberRole,
-    Prisma,
-} from '@generated/prisma-client/client';
-import type { WorkspaceMember } from '@generated/prisma-client/client';
-import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
+import type { Prisma, WorkspaceMember } from '@generated/prisma-client/client';
+import type {
+    IWorkspaceMember,
+    IWorkspaceMemberWithRole,
+} from '@modules/workspace/interfaces/workspace.interface';
 
 export interface IWorkspaceMemberRepository {
+    findOneWithRoleByWorkspaceAndUser(
+        workspaceId: string,
+        userId: string
+    ): Promise<IWorkspaceMemberWithRole | null>;
     findOneByWorkspaceAndUser(
         workspaceId: string,
         userId: string
@@ -21,7 +24,7 @@ export interface IWorkspaceMemberRepository {
     findByIdAndWorkspace(
         workspaceMemberId: string,
         workspaceId: string
-    ): Promise<WorkspaceMember | null>;
+    ): Promise<IWorkspaceMemberWithRole | null>;
     countOwnedActiveByUser(userId: string): Promise<number>;
     countOwners(workspaceId: string): Promise<number>;
     findReviewersByWorkspace(
@@ -46,19 +49,22 @@ export interface IWorkspaceMemberRepository {
     createOwnerInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
-        userId: string
+        userId: string,
+        roleId: string
     ): Promise<WorkspaceMember>;
     createInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
         userId: string,
-        role: EnumWorkspaceMemberRole,
+        roleId: string,
         actorId: string
     ): Promise<WorkspaceMember>;
-    updateRole(
-        targetMemberId: string,
-        newRole: EnumWorkspaceMemberRole
-    ): Promise<void>;
+    updateRole(targetMemberId: string, roleId: string): Promise<void>;
     removeMember(targetMemberId: string): Promise<void>;
-    transferOwnership(fromMemberId: string, toMemberId: string): Promise<void>;
+    transferOwnership(
+        fromMemberId: string,
+        toMemberId: string,
+        ownerRoleId: string,
+        adminRoleId: string
+    ): Promise<void>;
 }

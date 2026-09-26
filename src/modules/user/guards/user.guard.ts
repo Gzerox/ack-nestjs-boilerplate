@@ -7,9 +7,10 @@ import {
     UserGuardIsVerifiedMetaKey,
     UserStoreKey,
 } from '@modules/user/constants/user.constant';
+import { PolicyStoreKey } from '@modules/policy/constants/policy.constant';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 
-/** Validates the authenticated user and stores it in the request context for `UserCurrent`. */
+/** Validates the authenticated user and stores it, and the policies of its role, in the request context for `UserCurrent` and the policy guard. */
 @Injectable()
 export class UserGuard implements CanActivate {
     constructor(
@@ -33,6 +34,7 @@ export class UserGuard implements CanActivate {
         );
 
         this.requestStoreService.set(UserStoreKey, user);
+        this.requestStoreService.set(PolicyStoreKey, user.role.policies);
 
         return true;
     }

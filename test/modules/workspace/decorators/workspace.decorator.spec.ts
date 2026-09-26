@@ -4,11 +4,9 @@ import { mock } from 'vitest-mock-extended';
 import type { ClsService } from 'nestjs-cls';
 import { ClsServiceManager } from 'nestjs-cls';
 
-import { EnumWorkspaceMemberRole } from '@generated/prisma-client';
 import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import {
     WorkspaceMemberStoreKey,
-    WorkspaceRoleMetaKey,
     WorkspaceStoreKey,
 } from '@modules/workspace/constants/workspace.constant';
 import {
@@ -17,6 +15,8 @@ import {
     WorkspaceMemberProtected,
     WorkspaceProtected,
 } from '@modules/workspace/decorators/workspace.decorator';
+import { WorkspaceGuard } from '@modules/workspace/guards/workspace.guard';
+import { WorkspaceMemberGuard } from '@modules/workspace/guards/workspace.member.guard';
 
 vi.mock('nestjs-cls', () => ({
     ClsServiceManager: { getClsService: vi.fn() },
@@ -26,9 +26,6 @@ vi.mock('@modules/workspace/guards/workspace.guard', () => ({
 }));
 vi.mock('@modules/workspace/guards/workspace.member.guard', () => ({
     WorkspaceMemberGuard: vi.fn(),
-}));
-vi.mock('@modules/workspace/guards/workspace.role.guard', () => ({
-    WorkspaceRoleGuard: vi.fn(),
 }));
 
 const extractFactory = (decorator: () => ParameterDecorator) => {
@@ -45,26 +42,19 @@ const extractFactory = (decorator: () => ParameterDecorator) => {
 };
 
 describe('workspace decorators', () => {
-    it('registers workspace and membership guard variants', () => {
+    it('mounts the workspace guard and the membership guard as the only metadata of each decorator', () => {
         const workspaceHandler = vi.fn();
         const memberHandler = vi.fn();
-        const roleHandler = vi.fn();
         WorkspaceProtected()({}, 'workspace', { value: workspaceHandler });
         WorkspaceMemberProtected()({}, 'member', { value: memberHandler });
-        WorkspaceMemberProtected(EnumWorkspaceMemberRole.admin)({}, 'role', {
-            value: roleHandler,
-        });
-        expect(
-            Reflect.getMetadata(GUARDS_METADATA, workspaceHandler)
-        ).toHaveLength(1);
-        expect(
-            Reflect.getMetadata(GUARDS_METADATA, memberHandler)
-        ).toHaveLength(1);
-        expect(Reflect.getMetadata(GUARDS_METADATA, roleHandler)).toHaveLength(
-            2
-        );
-        expect(Reflect.getMetadata(WorkspaceRoleMetaKey, roleHandler)).toEqual([
-            EnumWorkspaceMemberRole.admin,
+        expect(Reflect.getMetadata(GUARDS_METADATA, workspaceHandler)).toEqual([
+            WorkspaceGuard,
+        ]);
+        expect(Reflect.getMetadata(GUARDS_METADATA, memberHandler)).toEqual([
+            WorkspaceMemberGuard,
+        ]);
+        expect(Reflect.getMetadataKeys(memberHandler)).toEqual([
+            GUARDS_METADATA,
         ]);
     });
 

@@ -1,10 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-    EnumProjectMemberRole,
-    EnumWorkspaceMemberRole,
-} from '@generated/prisma-client';
+import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
 import { EnumRequestStatusCodeError } from '@common/request/enums/request.status-code.enum';
 import { EnumWorkspaceStatusCodeError } from '@modules/workspace/enums/workspace.status-code.enum';
 import { EnumProjectStatusCodeError } from '@modules/project/enums/project.status-code.enum';
@@ -31,6 +29,7 @@ import {
 import {
     addProjectMember,
     createWorkspaceProject,
+    getProjectRoleId,
 } from '@test/e2e/support/project.fixture';
 
 describe('Project user routes', () => {
@@ -410,7 +409,7 @@ describe('Project user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             const project = await createWorkspaceProject(
                 app,
@@ -434,21 +433,27 @@ describe('Project user routes', () => {
             )
                 .send({
                     userId: member.id,
-                    role: EnumProjectMemberRole.member,
+                    roleId: await getProjectRoleId(
+                        app,
+                        EnumRoleProjectKey.member
+                    ),
                 })
                 .expect(201);
 
             expect(response.body.data).toMatchObject({
                 projectId,
                 userId: member.id,
-                role: EnumProjectMemberRole.member,
+                role: expect.objectContaining({
+                    key: EnumRoleProjectKey.member,
+                }),
             });
             const persisted = await getPrismaClient(
                 app
             ).projectMember.findFirstOrThrow({
                 where: { projectId, userId: member.id },
+                include: { role: true },
             });
-            expect(persisted.role).toBe(EnumProjectMemberRole.member);
+            expect(persisted.role.key).toBe(EnumRoleProjectKey.member);
         });
 
         it('rejects assigning a user who is already a project member', async () => {
@@ -457,13 +462,13 @@ describe('Project user routes', () => {
                 app,
                 workspaceId,
                 already.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             await addProjectMember(
                 app,
                 projectId,
                 already.id,
-                EnumProjectMemberRole.member
+                EnumRoleProjectKey.member
             );
 
             try {
@@ -477,7 +482,10 @@ describe('Project user routes', () => {
                 )
                     .send({
                         userId: already.id,
-                        role: EnumProjectMemberRole.member,
+                        roleId: await getProjectRoleId(
+                            app,
+                            EnumRoleProjectKey.member
+                        ),
                     })
                     .expect(400);
 
@@ -509,7 +517,10 @@ describe('Project user routes', () => {
                 )
                     .send({
                         userId: outsider.id,
-                        role: EnumProjectMemberRole.member,
+                        roleId: await getProjectRoleId(
+                            app,
+                            EnumRoleProjectKey.member
+                        ),
                     })
                     .expect(404);
 
@@ -536,7 +547,10 @@ describe('Project user routes', () => {
             )
                 .send({
                     userId: 'not-a-uuid',
-                    role: EnumProjectMemberRole.member,
+                    roleId: await getProjectRoleId(
+                        app,
+                        EnumRoleProjectKey.member
+                    ),
                 })
                 .expect(422);
 
@@ -582,7 +596,7 @@ describe('Project user routes', () => {
                 app,
                 projectId,
                 member.id,
-                EnumProjectMemberRole.member
+                EnumRoleProjectKey.member
             );
 
             await withUserAuth(
@@ -593,15 +607,21 @@ describe('Project user routes', () => {
                 accessToken,
                 workspaceId
             )
-                .send({ role: EnumProjectMemberRole.viewer })
+                .send({
+                    roleId: await getProjectRoleId(
+                        app,
+                        EnumRoleProjectKey.viewer
+                    ),
+                })
                 .expect(200);
 
             const persisted = await getPrismaClient(
                 app
             ).projectMember.findUniqueOrThrow({
                 where: { id: projectMember.id },
+                include: { role: true },
             });
-            expect(persisted.role).toBe(EnumProjectMemberRole.viewer);
+            expect(persisted.role.key).toBe(EnumRoleProjectKey.viewer);
         });
 
         it('404s for a project member id that does not belong to the project', async () => {
@@ -613,7 +633,12 @@ describe('Project user routes', () => {
                 accessToken,
                 workspaceId
             )
-                .send({ role: EnumProjectMemberRole.viewer })
+                .send({
+                    roleId: await getProjectRoleId(
+                        app,
+                        EnumRoleProjectKey.viewer
+                    ),
+                })
                 .expect(404);
 
             expect(response.body).toMatchObject({
@@ -662,7 +687,7 @@ describe('Project user routes', () => {
                 app,
                 projectId,
                 member.id,
-                EnumProjectMemberRole.member
+                EnumRoleProjectKey.member
             );
 
             await withUserAuth(
@@ -712,13 +737,13 @@ describe('Project user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             const projectMember = await addProjectMember(
                 app,
                 projectId,
                 member.id,
-                EnumProjectMemberRole.member
+                EnumRoleProjectKey.member
             );
             const { accessToken: memberToken } = await loginActiveUser(
                 app,

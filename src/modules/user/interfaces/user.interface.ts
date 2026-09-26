@@ -2,14 +2,12 @@ import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
 import {
     EnumActivityLogAction,
     EnumPasswordHistoryType,
-    EnumProjectMemberRole,
     EnumTermPolicyType,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
     EnumVerificationType,
-    EnumWorkspaceMemberRole,
 } from '@generated/prisma-client/client';
 import type { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
 import type {
@@ -129,9 +127,9 @@ export interface IUserSignUpWorkspaceInvite {
     workspaceId: string;
     workspaceInviteId: string;
     invitedByUserId: string | null;
-    workspaceMemberRole: EnumWorkspaceMemberRole;
+    workspaceRoleId: string;
     projectId: string | null;
-    projectMemberRole: EnumProjectMemberRole | null;
+    projectRoleId: string | null;
 }
 
 export type IUserSignUpWorkspaceContext =

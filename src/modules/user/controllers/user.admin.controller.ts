@@ -29,11 +29,9 @@ import { UserImportHttpService } from '@modules/user/services/user.import.http.s
 import { UserPasswordHttpService } from '@modules/user/services/user.password.http.service';
 import { UserTwoFactorHttpService } from '@modules/user/services/user.two-factor.http.service';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 import { UserProtected } from '@modules/user/decorators/user.decorator';
@@ -98,7 +96,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -117,7 +114,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -137,7 +133,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -158,7 +153,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -185,7 +179,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -209,7 +202,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -233,7 +225,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -265,7 +256,6 @@ export class UserAdminController {
         subject: EnumPolicySubject.user,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

@@ -6,9 +6,12 @@ import type { MockProxy } from 'vitest-mock-extended';
 
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
-    EnumWorkspaceMemberRole,
-    type WorkspaceMember,
+    EnumPolicyAction,
+    EnumPolicySubject,
+    EnumRoleScope,
 } from '@generated/prisma-client';
+import { PolicyStoreKey } from '@modules/policy/constants/policy.constant';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
 import { UserStoreKey } from '@modules/user/constants/user.constant';
 import {
     WorkspaceMemberStoreKey,
@@ -16,6 +19,7 @@ import {
 } from '@modules/workspace/constants/workspace.constant';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { WorkspaceMemberGuard } from '@modules/workspace/guards/workspace.member.guard';
+import type { IWorkspaceMemberWithRole } from '@modules/workspace/interfaces/workspace.interface';
 
 describe('WorkspaceMemberGuard', () => {
     const workspaceMemberDomain: MockProxy<WorkspaceMemberDomain> =
@@ -24,11 +28,35 @@ describe('WorkspaceMemberGuard', () => {
         mock<RequestStoreService>();
     const context: MockProxy<ExecutionContext> = mock<ExecutionContext>();
     const joinedAt = new Date('2026-01-01T00:00:00.000Z');
-    const member: WorkspaceMember = {
+    const policies = [
+        {
+            id: 'policy-id',
+            roleId: 'role-id',
+            subject: EnumPolicySubject.workspace,
+            action: [EnumPolicyAction.read],
+            createdAt: joinedAt,
+            createdBy: null,
+            updatedAt: joinedAt,
+            updatedBy: null,
+        },
+    ];
+    const member: IWorkspaceMemberWithRole = {
         id: 'member-id',
         workspaceId: 'workspace-id',
         userId: 'user-id',
-        role: EnumWorkspaceMemberRole.member,
+        roleId: 'role-id',
+        role: {
+            id: 'role-id',
+            scope: EnumRoleScope.workspace,
+            key: EnumRoleWorkspaceKey.member,
+            name: 'Member',
+            description: null,
+            createdAt: joinedAt,
+            createdBy: null,
+            updatedAt: joinedAt,
+            updatedBy: null,
+            policies,
+        },
         joinedAt,
         createdAt: joinedAt,
         createdBy: null,
@@ -38,6 +66,8 @@ describe('WorkspaceMemberGuard', () => {
     let guard: WorkspaceMemberGuard;
 
     beforeEach(async () => {
+        vi.resetAllMocks();
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 WorkspaceMemberGuard,
@@ -74,6 +104,39 @@ describe('WorkspaceMemberGuard', () => {
         expect(requestStoreService.set).toHaveBeenCalledWith(
             WorkspaceMemberStoreKey,
             member
+        );
+    });
+
+    it('overwrites the policy store with the policies of the workspace role', async () => {
+        requestStoreService.get.mockImplementation((key: unknown) => {
+            if (key === WorkspaceStoreKey) return { id: 'workspace-id' };
+            if (key === UserStoreKey) return { id: 'user-id' };
+            return undefined;
+        });
+        workspaceMemberDomain.validateWorkspaceMemberGuard.mockResolvedValue(
+            member
+        );
+
+        await guard.canActivate(context);
+
+        expect(requestStoreService.set).toHaveBeenCalledWith(
+            PolicyStoreKey,
+            policies
+        );
+    });
+
+    it('stores an empty policy list when the workspace role carries none', async () => {
+        requestStoreService.get.mockReturnValue(undefined);
+        workspaceMemberDomain.validateWorkspaceMemberGuard.mockResolvedValue({
+            ...member,
+            role: { ...member.role, policies: [] },
+        });
+
+        await guard.canActivate(context);
+
+        expect(requestStoreService.set).toHaveBeenCalledWith(
+            PolicyStoreKey,
+            []
         );
     });
 

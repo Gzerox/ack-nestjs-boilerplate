@@ -1,10 +1,11 @@
 import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import type { IPaginationQueryCursorParams } from '@common/pagination/interfaces/pagination.interface';
-import { RequestStoreService } from '@common/request/services/request.store.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import {
     EnumActivityLogAction,
-    EnumProjectMemberRole,
+    EnumPolicyAction,
+    EnumPolicySubject,
+    EnumRoleScope,
     Prisma,
 } from '@generated/prisma-client/client';
 import type {
@@ -14,16 +15,19 @@ import type {
 } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { AuthJwtAccessTokenInvalidException } from '@modules/auth/exceptions/auth.jwt-access-token-invalid.exception';
-import { ProjectWorkspaceOwnerStoreKey } from '@modules/project/constants/project.constant';
+import { PolicyDomain } from '@modules/policy/domains/policy.domain';
 import { ProjectMemberAlreadyAssignedException } from '@modules/project/exceptions/project.member-already-assigned.exception';
 import { ProjectMemberForbiddenException } from '@modules/project/exceptions/project.member-forbidden.exception';
 import { ProjectMemberNotFoundException } from '@modules/project/exceptions/project.member-not-found.exception';
 import { ProjectMemberPeerForbiddenException } from '@modules/project/exceptions/project.member-peer-forbidden.exception';
 import { ProjectNotFoundException } from '@modules/project/exceptions/project.not-found.exception';
-import { ProjectRoleForbiddenException } from '@modules/project/exceptions/project.role-forbidden.exception';
-import type { IProjectMember } from '@modules/project/interfaces/project.interface';
+import type {
+    IProjectMember,
+    IProjectMemberWithRole,
+} from '@modules/project/interfaces/project.interface';
 import { ProjectMemberRepository } from '@modules/project/repositories/project.member.repository';
-import { ProjectUtil } from '@modules/project/utils/project.util';
+import { RoleDomain } from '@modules/role/domains/role.domain';
+import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
 import { WorkspaceMemberNotFoundException } from '@modules/workspace/exceptions/workspace.member-not-found.exception';
 import { Injectable } from '@nestjs/common';
 
@@ -31,26 +35,21 @@ import { Injectable } from '@nestjs/common';
 export class ProjectMemberDomain {
     constructor(
         private readonly projectMemberRepository: ProjectMemberRepository,
-        private readonly projectUtil: ProjectUtil,
+        private readonly policyDomain: PolicyDomain,
         private readonly activityLogDomain: ActivityLogDomain,
-        private readonly requestStoreService: RequestStoreService
+        private readonly roleDomain: RoleDomain
     ) {}
 
-    private currentActorIsWorkspaceOwner(): boolean {
-        const isWorkspaceOwner = this.requestStoreService.get<boolean>(
-            ProjectWorkspaceOwnerStoreKey
-        );
-
-        return isWorkspaceOwner ?? false;
-    }
-
     private assertProjectMemberPeerAllowed(
-        isWorkspaceOwner: boolean,
-        ...rolesInvolved: EnumProjectMemberRole[]
+        ...roleKeysInvolved: string[]
     ): void {
+        const canManageMembers = this.policyDomain.can(
+            EnumPolicyAction.manage,
+            EnumPolicySubject.projectMember
+        );
         if (
-            !isWorkspaceOwner &&
-            rolesInvolved.includes(EnumProjectMemberRole.admin)
+            !canManageMembers &&
+            roleKeysInvolved.includes(EnumRoleProjectKey.admin)
         ) {
             throw new ProjectMemberPeerForbiddenException();
         }
@@ -58,8 +57,9 @@ export class ProjectMemberDomain {
 
     async validateProjectMemberGuard(
         projectId: string | null,
-        userId: string | null
-    ): Promise<ProjectMember> {
+        userId: string | null,
+        required: boolean
+    ): Promise<IProjectMemberWithRole | null> {
         if (!userId) {
             throw new AuthJwtAccessTokenInvalidException();
         } else if (!projectId) {
@@ -67,44 +67,21 @@ export class ProjectMemberDomain {
         }
 
         const member =
-            await this.projectMemberRepository.findOneByProjectAndUser(
+            await this.projectMemberRepository.findOneWithRoleByProjectAndUser(
                 projectId,
                 userId
             );
         if (!member) {
-            throw new ProjectMemberForbiddenException();
+            if (required) {
+                throw new ProjectMemberForbiddenException();
+            }
+
+            return null;
         }
+
+        this.roleDomain.assertScope(member.role, EnumRoleScope.project);
 
         return member;
-    }
-
-    async validateProjectRoleGuard(
-        projectId: string | null,
-        workspaceMember: WorkspaceMember | null,
-        allowedProjectRoles: EnumProjectMemberRole[]
-    ): Promise<boolean> {
-        if (!projectId) {
-            throw new ProjectNotFoundException();
-        } else if (!workspaceMember) {
-            throw new ProjectRoleForbiddenException();
-        }
-
-        const isWorkspaceOwner =
-            this.projectUtil.isWorkspaceOwner(workspaceMember);
-        if (isWorkspaceOwner) {
-            return true;
-        }
-
-        const member =
-            await this.projectMemberRepository.findOneByProjectAndUser(
-                projectId,
-                workspaceMember.userId
-            );
-        if (!member || !allowedProjectRoles.includes(member.role)) {
-            throw new ProjectRoleForbiddenException();
-        }
-
-        return false;
     }
 
     async getMembersList(
@@ -121,14 +98,14 @@ export class ProjectMemberDomain {
         tx: IDatabaseTransactionClient,
         projectId: string,
         userId: string,
-        role: EnumProjectMemberRole,
+        roleId: string,
         createdBy: string
     ): Promise<IProjectMember> {
         return this.projectMemberRepository.createInTx(
             tx,
             projectId,
             userId,
-            role,
+            roleId,
             createdBy
         );
     }
@@ -137,10 +114,13 @@ export class ProjectMemberDomain {
         project: Project,
         actorId: string,
         targetMember: WorkspaceMember | null,
-        role: EnumProjectMemberRole
+        roleId: string
     ): Promise<IProjectMember> {
-        const isWorkspaceOwner = this.currentActorIsWorkspaceOwner();
-        this.assertProjectMemberPeerAllowed(isWorkspaceOwner, role);
+        const role = await this.roleDomain.resolve(
+            roleId,
+            EnumRoleScope.project
+        );
+        this.assertProjectMemberPeerAllowed(role.key);
 
         if (!targetMember || targetMember.workspaceId !== project.workspaceId) {
             throw new WorkspaceMemberNotFoundException();
@@ -178,7 +158,7 @@ export class ProjectMemberDomain {
         const member = await this.projectMemberRepository.create(
             project.id,
             targetMember.userId,
-            role,
+            role.id,
             actorId
         );
 
@@ -191,7 +171,7 @@ export class ProjectMemberDomain {
         project: Project,
         actorId: string,
         targetMemberId: string,
-        newRole: EnumProjectMemberRole
+        roleId: string
     ): Promise<void> {
         const targetMember =
             await this.projectMemberRepository.findByIdAndProject(
@@ -202,12 +182,11 @@ export class ProjectMemberDomain {
             throw new ProjectMemberNotFoundException();
         }
 
-        const isWorkspaceOwner = this.currentActorIsWorkspaceOwner();
-        this.assertProjectMemberPeerAllowed(
-            isWorkspaceOwner,
-            targetMember.role,
-            newRole
+        const role = await this.roleDomain.resolve(
+            roleId,
+            EnumRoleScope.project
         );
+        this.assertProjectMemberPeerAllowed(targetMember.role.key, role.key);
 
         const events = [
             this.activityLogDomain.prepare({
@@ -229,7 +208,7 @@ export class ProjectMemberDomain {
             events.push(roleUpdatedByAdminEvent);
         }
 
-        await this.projectMemberRepository.updateRole(targetMember.id, newRole);
+        await this.projectMemberRepository.updateRole(targetMember.id, role.id);
 
         this.activityLogDomain.stagePrepared(events);
     }
@@ -252,11 +231,7 @@ export class ProjectMemberDomain {
             throw new ProjectMemberPeerForbiddenException();
         }
 
-        const isWorkspaceOwner = this.currentActorIsWorkspaceOwner();
-        this.assertProjectMemberPeerAllowed(
-            isWorkspaceOwner,
-            targetMember.role
-        );
+        this.assertProjectMemberPeerAllowed(targetMember.role.key);
 
         const events = [
             this.activityLogDomain.prepare({

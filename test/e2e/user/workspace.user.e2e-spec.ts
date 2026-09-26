@@ -3,10 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+    EnumRoleScope,
     EnumWorkspaceJoinRejectReason,
     EnumWorkspaceJoinRequestStatus,
-    EnumWorkspaceMemberRole,
 } from '@generated/prisma-client';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
 import { EnumRequestStatusCodeError } from '@common/request/enums/request.status-code.enum';
 import { EnumWorkspaceStatusCodeError } from '@modules/workspace/enums/workspace.status-code.enum';
 import { useE2eApp } from '@test/e2e/support/app';
@@ -34,6 +35,7 @@ import {
     createWorkspaceInvite,
     createWorkspaceJoinRequestFixture,
     deleteWorkspaceFixture,
+    getWorkspaceRoleId,
 } from '@test/e2e/support/workspace.fixture';
 
 describe('Workspace user routes', () => {
@@ -120,8 +122,9 @@ describe('Workspace user routes', () => {
                             userId: owner.id,
                         },
                     },
+                    include: { role: true },
                 });
-                expect(member.role).toBe(EnumWorkspaceMemberRole.owner);
+                expect(member.role.key).toBe(EnumRoleWorkspaceKey.owner);
             } finally {
                 await deleteWorkspaceFixture(app, createdId);
             }
@@ -501,7 +504,7 @@ describe('Workspace user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             // Separate workspace for the failure cases: the success case demotes the caller.
             const failWorkspace = await createPublicWorkspace(app, owner.id);
@@ -535,6 +538,7 @@ describe('Workspace user routes', () => {
                             userId: owner.id,
                         },
                     },
+                    include: { role: true },
                 }),
                 prisma.workspaceMember.findUniqueOrThrow({
                     where: {
@@ -543,10 +547,11 @@ describe('Workspace user routes', () => {
                             userId: member.id,
                         },
                     },
+                    include: { role: true },
                 }),
             ]);
-            expect(ownerRow.role).toBe(EnumWorkspaceMemberRole.admin);
-            expect(memberRow.role).toBe(EnumWorkspaceMemberRole.owner);
+            expect(ownerRow.role.key).toBe(EnumRoleWorkspaceKey.admin);
+            expect(memberRow.role.key).toBe(EnumRoleWorkspaceKey.owner);
         });
 
         it('rejects transferring ownership to oneself', async () => {
@@ -646,7 +651,7 @@ describe('Workspace user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             const { accessToken: memberToken } = await loginActiveUser(
                 app,
@@ -771,7 +776,7 @@ describe('Workspace user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             const memberId = (
                 await getPrismaClient(app).workspaceMember.findUniqueOrThrow({
@@ -784,6 +789,17 @@ describe('Workspace user routes', () => {
                 })
             ).id;
 
+            const adminRole = await getPrismaClient(app).role.findUniqueOrThrow(
+                {
+                    where: {
+                        scope_key: {
+                            scope: EnumRoleScope.workspace,
+                            key: EnumRoleWorkspaceKey.admin,
+                        },
+                    },
+                }
+            );
+
             try {
                 await withUserAuth(
                     e2ePatch(
@@ -793,7 +809,7 @@ describe('Workspace user routes', () => {
                     accessToken,
                     workspaceId
                 )
-                    .send({ role: EnumWorkspaceMemberRole.admin })
+                    .send({ roleId: adminRole.id })
                     .expect(200);
 
                 const persisted = await getPrismaClient(
@@ -801,13 +817,23 @@ describe('Workspace user routes', () => {
                 ).workspaceMember.findUniqueOrThrow({
                     where: { id: memberId },
                 });
-                expect(persisted.role).toBe(EnumWorkspaceMemberRole.admin);
+                expect(persisted.roleId).toBe(adminRole.id);
             } finally {
                 await deleteUserFixture(app, member.id);
             }
         });
 
         it('404s for a member id that does not belong to the workspace', async () => {
+            const adminRole = await getPrismaClient(app).role.findUniqueOrThrow(
+                {
+                    where: {
+                        scope_key: {
+                            scope: EnumRoleScope.workspace,
+                            key: EnumRoleWorkspaceKey.admin,
+                        },
+                    },
+                }
+            );
             const response = await withUserAuth(
                 e2ePatch(
                     app,
@@ -816,7 +842,7 @@ describe('Workspace user routes', () => {
                 accessToken,
                 workspaceId
             )
-                .send({ role: EnumWorkspaceMemberRole.admin })
+                .send({ roleId: adminRole.id })
                 .expect(404);
 
             expect(response.body).toMatchObject({
@@ -856,7 +882,7 @@ describe('Workspace user routes', () => {
                 app,
                 workspaceId,
                 member.id,
-                EnumWorkspaceMemberRole.member
+                EnumRoleWorkspaceKey.member
             );
             const memberId = (
                 await getPrismaClient(app).workspaceMember.findUniqueOrThrow({
@@ -935,9 +961,14 @@ describe('Workspace user routes', () => {
         let owner: IE2eUserFixture;
         let accessToken: string;
         let workspaceId: string;
+        let memberRoleId: string;
 
         beforeAll(async () => {
             app = getApp();
+            memberRoleId = await getWorkspaceRoleId(
+                app,
+                EnumRoleWorkspaceKey.member
+            );
             owner = await createActiveUser(app);
             ({ accessToken } = await loginActiveUser(app, owner));
             const workspace = await createPublicWorkspace(app, owner.id);
@@ -960,7 +991,7 @@ describe('Workspace user routes', () => {
             )
                 .send({
                     email,
-                    workspaceRole: EnumWorkspaceMemberRole.member,
+                    workspaceRoleId: memberRoleId,
                 })
                 .expect(201);
 
@@ -984,7 +1015,7 @@ describe('Workspace user routes', () => {
             )
                 .send({
                     email,
-                    workspaceRole: EnumWorkspaceMemberRole.member,
+                    workspaceRoleId: memberRoleId,
                 })
                 .expect(201);
 
@@ -995,7 +1026,7 @@ describe('Workspace user routes', () => {
             )
                 .send({
                     email,
-                    workspaceRole: EnumWorkspaceMemberRole.member,
+                    workspaceRoleId: memberRoleId,
                 })
                 .expect(400);
 

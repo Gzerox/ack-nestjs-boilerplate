@@ -50,7 +50,7 @@ export class ProjectMemberHttpService {
     async assignMember(
         project: Project,
         actorId: string,
-        { userId, role }: ProjectMemberAssignRequestDto
+        { userId, roleId }: ProjectMemberAssignRequestDto
     ): Promise<IResponseReturn<IProjectMember>> {
         const targetMember =
             await this.workspaceMemberDomain.getOneByWorkspaceAndUser(
@@ -61,7 +61,7 @@ export class ProjectMemberHttpService {
             project,
             actorId,
             targetMember,
-            role
+            roleId
         );
 
         return { data: member };
@@ -71,13 +71,13 @@ export class ProjectMemberHttpService {
         project: Project,
         actorId: string,
         targetMemberId: string,
-        { role }: ProjectMemberUpdateRoleRequestDto
+        { roleId }: ProjectMemberUpdateRoleRequestDto
     ): Promise<void> {
         await this.projectMemberDomain.updateMemberRole(
             project,
             actorId,
             targetMemberId,
-            role
+            roleId
         );
     }
 

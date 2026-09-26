@@ -465,12 +465,11 @@ Feature modules own the rest of the keys, each declared in its own `constants/` 
 | `AuthPayloadStoreKey` | `AuthJwtAccessGuard`, `AuthJwtRefreshGuard` | the verified JWT payload |
 | `UserStoreKey` | `UserGuard` | the loaded `IUser` |
 | `ApiKeyStoreKey` | `ApiKeyXApiKeyGuard` | the authenticated `ApiKey` |
-| `PolicyStoreKey` | `RoleGuard` | the role's policies, empty for a `superAdmin` |
+| `PolicyStoreKey` | `UserGuard`, `WorkspaceMemberGuard`, `ProjectMemberGuard` | the platform role's policies, replaced by the workspace role's policies on a workspace route, with the project role's policies appended when a project member row exists |
 | `WorkspaceStoreKey` | `WorkspaceGuard` | the resolved `Workspace` |
 | `WorkspaceMemberStoreKey` | `WorkspaceMemberGuard` | the caller's `WorkspaceMember` row |
 | `ProjectStoreKey` | `ProjectGuard` | the resolved `Project` |
 | `ProjectMemberStoreKey` | `ProjectMemberGuard` | the caller's `ProjectMember` row |
-| `ProjectWorkspaceOwnerStoreKey` | `ProjectRoleGuard` | `true` when the caller passed as workspace owner rather than as a project member |
 | `ActivityLogStageStoreKey` | `ActivityLogDomain.stagePrepared` | the staged activity events of the request |
 | `PaginationStoreKey` | HTTP services via `PaginationQueryUtil` `storePatch` | the response-metadata block `ResponsePaginationInterceptor` emits |
 
@@ -559,9 +558,9 @@ StoreReader<K extends Extract<keyof Model, string>>(field?: K): ParameterDecorat
 | `@WorkspaceCurrent(field?)` | `Workspace` | `WorkspaceStoreKey` | `WorkspaceGuard` |
 | `@WorkspaceMemberCurrent(field?)` | `WorkspaceMember` | `WorkspaceMemberStoreKey` | `WorkspaceMemberGuard` |
 | `@ProjectCurrent(field?)` | `Project` | `ProjectStoreKey` | `ProjectGuard` |
-| `@ProjectMemberCurrent(field?)` | `ProjectMember` | `ProjectMemberStoreKey` | `ProjectMemberGuard`, bound by the role-less `@ProjectMemberProtected()` |
+| `@ProjectMemberCurrent(field?)` | `ProjectMember` | `ProjectMemberStoreKey` | `ProjectMemberGuard`, bound by the strict `@ProjectMemberProtected()` |
 
-`@ProjectMemberCurrent()` is valid only on a route carrying the role-less `@ProjectMemberProtected()`. The role form binds `ProjectRoleGuard` instead, which stores no member row, so the read throws there.
+`@ProjectMemberCurrent()` is valid only on a route carrying the strict `@ProjectMemberProtected()`. With `{ required: false }` the guard stores no member row when the caller has none, so the read throws there.
 
 `@AuthJwtPayload<T, K>(field?)` reads `request.user` rather than the store, and fails the same way: an empty `request.user`, or a missing field on it, throws `RequestContextMissingException`. See [Authentication][ref-doc-authentication].
 

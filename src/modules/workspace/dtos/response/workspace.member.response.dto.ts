@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import { DatabaseResponseSchema } from '@common/database/dtos/response/database.response.dto';
-import { EnumWorkspaceMemberRole } from '@generated/prisma-client/client';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
+import { RoleShortSchema } from '@modules/role/dtos/role.short.dto';
 import { UserRefResponseSchema } from '@modules/user/dtos/response/user.ref.response.dto';
 
 /**
@@ -45,9 +46,13 @@ export const WorkspaceMemberResponseSchema = DatabaseResponseSchema.omit({
             },
         },
     }),
-    role: z.enum(EnumWorkspaceMemberRole).meta({
+    role: RoleShortSchema.meta({
         description: 'Workspace role of the member',
-        example: EnumWorkspaceMemberRole.member,
+        example: {
+            id: faker.string.uuid(),
+            key: EnumRoleWorkspaceKey.member,
+            name: 'Member',
+        },
     }),
     joinedAt: z.date().meta({
         description: 'When the user joined the workspace',

@@ -3,7 +3,6 @@ import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.u
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client/client';
-import type { WorkspaceMember } from '@generated/prisma-client/client';
 import {
     WorkspaceMemberDefaultAvailableOrderBy,
     WorkspaceMemberDefaultRole,
@@ -12,7 +11,10 @@ import type { WorkspaceAdminMemberListRequestDto } from '@modules/workspace/dtos
 import type { WorkspaceMemberListRequestDto } from '@modules/workspace/dtos/request/workspace.member-list.request.dto';
 import type { WorkspaceMemberUpdateRoleRequestDto } from '@modules/workspace/dtos/request/workspace.member-update-role.request.dto';
 import type { WorkspaceTransferOwnershipRequestDto } from '@modules/workspace/dtos/request/workspace.transfer-ownership.request.dto';
-import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
+import type {
+    IWorkspaceMember,
+    IWorkspaceMemberWithRole,
+} from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -26,7 +28,7 @@ export class WorkspaceMemberHttpService {
 
     async transferOwnership(
         workspaceId: string,
-        actorMember: WorkspaceMember,
+        actorMember: IWorkspaceMemberWithRole,
         { targetUserId }: WorkspaceTransferOwnershipRequestDto
     ): Promise<void> {
         await this.workspaceMemberDomain.transferOwnership(
@@ -38,7 +40,7 @@ export class WorkspaceMemberHttpService {
 
     async leaveWorkspace(
         workspaceId: string,
-        member: WorkspaceMember
+        member: IWorkspaceMemberWithRole
     ): Promise<void> {
         await this.workspaceMemberDomain.leaveWorkspace(workspaceId, member);
     }
@@ -55,7 +57,7 @@ export class WorkspaceMemberHttpService {
                 }
             );
         const role = this.paginationQueryUtil.inEnum(
-            Prisma.WorkspaceMemberScalarFieldEnum.role,
+            'role',
             query.role,
             WorkspaceMemberDefaultRole
         );
@@ -82,21 +84,21 @@ export class WorkspaceMemberHttpService {
 
     async updateMemberRole(
         workspaceId: string,
-        actorMember: WorkspaceMember,
+        actorMember: IWorkspaceMemberWithRole,
         targetMemberId: string,
-        { role }: WorkspaceMemberUpdateRoleRequestDto
+        { roleId }: WorkspaceMemberUpdateRoleRequestDto
     ): Promise<void> {
         await this.workspaceMemberDomain.updateMemberRole(
             workspaceId,
             actorMember,
             targetMemberId,
-            role
+            roleId
         );
     }
 
     async removeMember(
         workspaceId: string,
-        actorMember: WorkspaceMember,
+        actorMember: IWorkspaceMemberWithRole,
         targetMemberId: string
     ): Promise<void> {
         await this.workspaceMemberDomain.removeMember(

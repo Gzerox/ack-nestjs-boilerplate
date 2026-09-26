@@ -7,13 +7,17 @@ import { PaginationStoreKey } from '@common/pagination/constants/pagination.cons
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { EnumWorkspaceMemberRole } from '@generated/prisma-client/client';
-import type { WorkspaceMember } from '@generated/prisma-client/client';
+import { EnumRoleScope } from '@generated/prisma-client/client';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
+import { WorkspaceMemberDefaultAvailableOrderBy } from '@modules/workspace/constants/workspace.list.constant';
 import type { WorkspaceAdminMemberListRequestDto } from '@modules/workspace/dtos/request/workspace.admin-member-list.request.dto';
 import type { WorkspaceMemberListRequestDto } from '@modules/workspace/dtos/request/workspace.member-list.request.dto';
 import type { WorkspaceMemberUpdateRoleRequestDto } from '@modules/workspace/dtos/request/workspace.member-update-role.request.dto';
 import type { WorkspaceTransferOwnershipRequestDto } from '@modules/workspace/dtos/request/workspace.transfer-ownership.request.dto';
-import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
+import type {
+    IWorkspaceMember,
+    IWorkspaceMemberWithRole,
+} from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { WorkspaceMemberHttpService } from '@modules/workspace/services/workspace.member.http.service';
 
@@ -29,18 +33,35 @@ describe('WorkspaceMemberHttpService', () => {
         id: 'member-id',
         workspaceId: 'workspace-id',
         userId: 'user-id',
-        role: EnumWorkspaceMemberRole.owner,
+        roleId: 'owner-role-id',
+        role: {
+            id: 'owner-role-id',
+            scope: EnumRoleScope.workspace,
+            key: EnumRoleWorkspaceKey.owner,
+            name: 'Owner',
+            description: null,
+            createdAt: now,
+            createdBy: null,
+            updatedAt: now,
+            updatedBy: null,
+            policies: [],
+        },
         joinedAt: now,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
-    } satisfies WorkspaceMember;
+    } satisfies IWorkspaceMemberWithRole;
     const memberListItem = {
         id: 'member-id',
         workspaceId: 'workspace-id',
         userId: 'user-id',
-        role: EnumWorkspaceMemberRole.member,
+        roleId: 'member-role-id',
+        role: {
+            id: 'member-role-id',
+            key: EnumRoleWorkspaceKey.member,
+            name: 'Member',
+        },
         joinedAt: now,
         createdAt: now,
         createdBy: null,
@@ -177,6 +198,18 @@ describe('WorkspaceMemberHttpService', () => {
 
             const result = await service.getMembersList('workspace-id', query);
 
+            expect(paginationQueryUtil.cursor).toHaveBeenCalledWith(query, {
+                availableOrderBy: WorkspaceMemberDefaultAvailableOrderBy,
+            });
+            expect(paginationQueryUtil.inEnum).toHaveBeenCalledWith(
+                'role',
+                'admin',
+                [
+                    EnumRoleWorkspaceKey.owner,
+                    EnumRoleWorkspaceKey.admin,
+                    EnumRoleWorkspaceKey.member,
+                ]
+            );
             expect(requestStoreService.merge).toHaveBeenCalledWith(
                 PaginationStoreKey,
                 {
@@ -219,9 +252,9 @@ describe('WorkspaceMemberHttpService', () => {
     });
 
     describe('updateMemberRole', () => {
-        it('delegates to the domain with the new role', async () => {
+        it('delegates to the domain with the new role id', async () => {
             const dto = {
-                role: EnumWorkspaceMemberRole.admin,
+                roleId: 'admin-role-id',
             } satisfies WorkspaceMemberUpdateRoleRequestDto;
 
             await service.updateMemberRole(
@@ -235,7 +268,7 @@ describe('WorkspaceMemberHttpService', () => {
                 'workspace-id',
                 actorMember,
                 'target-member-id',
-                EnumWorkspaceMemberRole.admin
+                'admin-role-id'
             );
         });
     });
@@ -275,6 +308,9 @@ describe('WorkspaceMemberHttpService', () => {
                 query
             );
 
+            expect(paginationQueryUtil.offset).toHaveBeenCalledWith(query, {
+                availableOrderBy: WorkspaceMemberDefaultAvailableOrderBy,
+            });
             expect(requestStoreService.merge).toHaveBeenCalledWith(
                 PaginationStoreKey,
                 offsetStorePatch

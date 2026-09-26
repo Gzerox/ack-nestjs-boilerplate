@@ -286,8 +286,8 @@ export const UserListRequestSchema = PaginationOffsetQuerySchema.extend({
         example: `${UserDefaultAvailableOrderBy[0]}:desc`,
     }),
     status: z.string().optional().meta({ … }),
-    roleId: RequestMongoIdSchema.optional().meta({ … }),
-    countryId: RequestMongoIdSchema.optional().meta({ … }),
+    roleId: RequestUuidSchema.optional().meta({ … }),
+    countryId: RequestUuidSchema.optional().meta({ … }),
 });
 ```
 
@@ -617,7 +617,6 @@ A list route travels `Controller → HTTP Service → Domain → Repository`. Th
     subject: EnumPolicySubject.user,
     action: [EnumPolicyAction.read],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()

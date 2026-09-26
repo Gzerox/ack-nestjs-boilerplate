@@ -4,11 +4,12 @@ import { mock } from 'vitest-mock-extended';
 import type { ClsService } from 'nestjs-cls';
 import { ClsServiceManager } from 'nestjs-cls';
 
-import { EnumProjectMemberRole } from '@generated/prisma-client';
+import { HttpStatus } from '@nestjs/common';
+import { DocResponseEntryMetaKey } from '@common/doc/constants/doc.constant';
 import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import {
     ProjectMemberStoreKey,
-    ProjectRoleMetaKey,
+    ProjectMemberRequiredMetaKey,
     ProjectStoreKey,
 } from '@modules/project/constants/project.constant';
 import {
@@ -17,6 +18,9 @@ import {
     ProjectMemberProtected,
     ProjectProtected,
 } from '@modules/project/decorators/project.decorator';
+import { ProjectGuard } from '@modules/project/guards/project.guard';
+import { ProjectMemberGuard } from '@modules/project/guards/project.member.guard';
+import { EnumProjectStatusCodeError } from '@modules/project/enums/project.status-code.enum';
 
 vi.mock('nestjs-cls', () => ({
     ClsServiceManager: { getClsService: vi.fn() },
@@ -26,9 +30,6 @@ vi.mock('@modules/project/guards/project.guard', () => ({
 }));
 vi.mock('@modules/project/guards/project.member.guard', () => ({
     ProjectMemberGuard: vi.fn(),
-}));
-vi.mock('@modules/project/guards/project.role.guard', () => ({
-    ProjectRoleGuard: vi.fn(),
 }));
 
 const extractFactory = (decorator: () => ParameterDecorator) => {
@@ -45,27 +46,53 @@ const extractFactory = (decorator: () => ParameterDecorator) => {
 };
 
 describe('project decorators', () => {
-    it('registers project and membership guard variants', () => {
+    it('mounts the project guard for ProjectProtected', () => {
         const projectHandler = vi.fn();
-        const memberHandler = vi.fn();
-        const roleHandler = vi.fn();
         ProjectProtected()({}, 'project', { value: projectHandler });
-        ProjectMemberProtected()({}, 'member', { value: memberHandler });
-        ProjectMemberProtected(EnumProjectMemberRole.admin)({}, 'role', {
-            value: roleHandler,
-        });
-        expect(
-            Reflect.getMetadata(GUARDS_METADATA, projectHandler)
-        ).toHaveLength(1);
-        expect(
-            Reflect.getMetadata(GUARDS_METADATA, memberHandler)
-        ).toHaveLength(1);
-        expect(Reflect.getMetadata(GUARDS_METADATA, roleHandler)).toHaveLength(
-            1
-        );
-        expect(Reflect.getMetadata(ProjectRoleMetaKey, roleHandler)).toEqual([
-            EnumProjectMemberRole.admin,
+        expect(Reflect.getMetadata(GUARDS_METADATA, projectHandler)).toEqual([
+            ProjectGuard,
         ]);
+    });
+
+    it('mounts the one member guard, strict by default, and documents memberForbidden', () => {
+        const handler = vi.fn();
+        ProjectMemberProtected()({}, 'member', { value: handler });
+        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([
+            ProjectMemberGuard,
+        ]);
+        expect(Reflect.getMetadata(ProjectMemberRequiredMetaKey, handler)).toBe(
+            true
+        );
+        expect(Reflect.getMetadata(DocResponseEntryMetaKey, handler)).toEqual([
+            expect.objectContaining({
+                httpStatus: HttpStatus.FORBIDDEN,
+                statusCode: EnumProjectStatusCodeError.memberForbidden,
+            }),
+        ]);
+    });
+
+    it('treats an empty options object as strict', () => {
+        const handler = vi.fn();
+        ProjectMemberProtected({})({}, 'member', { value: handler });
+        expect(Reflect.getMetadata(ProjectMemberRequiredMetaKey, handler)).toBe(
+            true
+        );
+    });
+
+    it('mounts the same guard non-rejecting with required false and no project-member error', () => {
+        const handler = vi.fn();
+        ProjectMemberProtected({ required: false })({}, 'member', {
+            value: handler,
+        });
+        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([
+            ProjectMemberGuard,
+        ]);
+        expect(Reflect.getMetadata(ProjectMemberRequiredMetaKey, handler)).toBe(
+            false
+        );
+        expect(
+            Reflect.getMetadata(DocResponseEntryMetaKey, handler)
+        ).toBeUndefined();
     });
 
     it.each([

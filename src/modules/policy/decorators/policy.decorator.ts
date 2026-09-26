@@ -31,7 +31,7 @@ export function PolicyProtected(
 }
 
 /**
- * Reads the caller's role policies that `RoleGuard` stored; an empty list is a valid value, and a missing store entry throws.
+ * Reads the caller's role policies that the user and member guards stored; an empty list is a valid value, and a missing store entry throws.
  * @public
  */
 export const PolicyCurrent = createParamDecorator((): Policy[] => {

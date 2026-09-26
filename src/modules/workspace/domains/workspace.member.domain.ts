@@ -7,20 +7,26 @@ import type {
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import {
     EnumActivityLogAction,
-    EnumWorkspaceMemberRole,
+    EnumRoleScope,
     Prisma,
 } from '@generated/prisma-client/client';
 import type { WorkspaceMember } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { AuthJwtAccessTokenInvalidException } from '@modules/auth/exceptions/auth.jwt-access-token-invalid.exception';
+import { RoleDomain } from '@modules/role/domains/role.domain';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
+import { RoleNotFoundException } from '@modules/role/exceptions/role.not-found.exception';
 import { WorkspaceLastOwnerException } from '@modules/workspace/exceptions/workspace.last-owner.exception';
 import { WorkspaceMemberForbiddenException } from '@modules/workspace/exceptions/workspace.member-forbidden.exception';
 import { WorkspaceMemberNotFoundException } from '@modules/workspace/exceptions/workspace.member-not-found.exception';
 import { WorkspaceMemberPeerForbiddenException } from '@modules/workspace/exceptions/workspace.member-peer-forbidden.exception';
 import { WorkspaceNotFoundException } from '@modules/workspace/exceptions/workspace.not-found.exception';
-import { WorkspaceRoleForbiddenException } from '@modules/workspace/exceptions/workspace.role-forbidden.exception';
+import { WorkspaceOwnerRoleNotAssignableException } from '@modules/workspace/exceptions/workspace.owner-role-not-assignable.exception';
 import { WorkspaceSelfTransferException } from '@modules/workspace/exceptions/workspace.self-transfer.exception';
-import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
+import type {
+    IWorkspaceMember,
+    IWorkspaceMemberWithRole,
+} from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberRepository } from '@modules/workspace/repositories/workspace.member.repository';
 import { WorkspaceRepository } from '@modules/workspace/repositories/workspace.repository';
 import { Injectable } from '@nestjs/common';
@@ -30,29 +36,42 @@ export class WorkspaceMemberDomain {
     constructor(
         private readonly workspaceMemberRepository: WorkspaceMemberRepository,
         private readonly workspaceRepository: WorkspaceRepository,
-        private readonly activityLogDomain: ActivityLogDomain
+        private readonly activityLogDomain: ActivityLogDomain,
+        private readonly roleDomain: RoleDomain
     ) {}
 
     private assertPeerActionAllowed(
-        actorMember: WorkspaceMember,
-        targetMember: WorkspaceMember
+        actorMember: IWorkspaceMemberWithRole,
+        targetMember: IWorkspaceMemberWithRole
     ): void {
-        if (targetMember.role === EnumWorkspaceMemberRole.owner) {
+        if (targetMember.role.key === EnumRoleWorkspaceKey.owner) {
             throw new WorkspaceMemberPeerForbiddenException();
         }
 
         if (
-            actorMember.role === EnumWorkspaceMemberRole.admin &&
-            targetMember.role === EnumWorkspaceMemberRole.admin
+            actorMember.role.key === EnumRoleWorkspaceKey.admin &&
+            targetMember.role.key === EnumRoleWorkspaceKey.admin
         ) {
             throw new WorkspaceMemberPeerForbiddenException();
         }
     }
 
+    private async resolveRoleByKey(key: EnumRoleWorkspaceKey): Promise<string> {
+        const role = await this.roleDomain.getByScopeAndKey(
+            EnumRoleScope.workspace,
+            key
+        );
+        if (!role) {
+            throw new RoleNotFoundException();
+        }
+
+        return role.id;
+    }
+
     async validateWorkspaceMemberGuard(
         workspaceId: string | null,
         userId: string | null
-    ): Promise<WorkspaceMember> {
+    ): Promise<IWorkspaceMemberWithRole> {
         if (!userId) {
             throw new AuthJwtAccessTokenInvalidException();
         } else if (!workspaceId) {
@@ -60,7 +79,7 @@ export class WorkspaceMemberDomain {
         }
 
         const member =
-            await this.workspaceMemberRepository.findOneByWorkspaceAndUser(
+            await this.workspaceMemberRepository.findOneWithRoleByWorkspaceAndUser(
                 workspaceId,
                 userId
             );
@@ -68,25 +87,7 @@ export class WorkspaceMemberDomain {
             throw new WorkspaceMemberForbiddenException();
         }
 
-        return member;
-    }
-
-    /** Enforces `allowedRoles` against the caller's membership. An `owner` satisfies every role check structurally and is therefore never listed in a route's `allowedRoles`. */
-    validateWorkspaceRoleGuard(
-        member: WorkspaceMember | null,
-        allowedRoles: EnumWorkspaceMemberRole[]
-    ): WorkspaceMember {
-        if (!member) {
-            throw new WorkspaceRoleForbiddenException();
-        }
-
-        if (member.role === EnumWorkspaceMemberRole.owner) {
-            return member;
-        }
-
-        if (!allowedRoles.includes(member.role)) {
-            throw new WorkspaceRoleForbiddenException();
-        }
+        this.roleDomain.assertScope(member.role, EnumRoleScope.workspace);
 
         return member;
     }
@@ -105,14 +106,14 @@ export class WorkspaceMemberDomain {
         tx: IDatabaseTransactionClient,
         workspaceId: string,
         userId: string,
-        role: EnumWorkspaceMemberRole,
+        roleId: string,
         actorId: string
     ): Promise<WorkspaceMember> {
         return this.workspaceMemberRepository.createInTx(
             tx,
             workspaceId,
             userId,
-            role,
+            roleId,
             actorId
         );
     }
@@ -134,6 +135,11 @@ export class WorkspaceMemberDomain {
         if (!targetMember) {
             throw new WorkspaceMemberNotFoundException();
         }
+
+        const [ownerRoleId, adminRoleId] = await Promise.all([
+            this.resolveRoleByKey(EnumRoleWorkspaceKey.owner),
+            this.resolveRoleByKey(EnumRoleWorkspaceKey.admin),
+        ]);
 
         const events = [
             this.activityLogDomain.prepare({
@@ -158,7 +164,9 @@ export class WorkspaceMemberDomain {
 
         await this.workspaceMemberRepository.transferOwnership(
             actorMember.id,
-            targetMember.id
+            targetMember.id,
+            ownerRoleId,
+            adminRoleId
         );
 
         this.activityLogDomain.stagePrepared(events);
@@ -166,9 +174,9 @@ export class WorkspaceMemberDomain {
 
     async leaveWorkspace(
         workspaceId: string,
-        member: WorkspaceMember
+        member: IWorkspaceMemberWithRole
     ): Promise<void> {
-        if (member.role === EnumWorkspaceMemberRole.owner) {
+        if (member.role.key === EnumRoleWorkspaceKey.owner) {
             const ownerCount =
                 await this.workspaceMemberRepository.countOwners(workspaceId);
             if (ownerCount <= 1) {
@@ -204,9 +212,9 @@ export class WorkspaceMemberDomain {
 
     async updateMemberRole(
         workspaceId: string,
-        actorMember: WorkspaceMember,
+        actorMember: IWorkspaceMemberWithRole,
         targetMemberId: string,
-        newRole: EnumWorkspaceMemberRole
+        roleId: string
     ): Promise<void> {
         const targetMember =
             await this.workspaceMemberRepository.findByIdAndWorkspace(
@@ -218,6 +226,14 @@ export class WorkspaceMemberDomain {
         }
 
         this.assertPeerActionAllowed(actorMember, targetMember);
+
+        const role = await this.roleDomain.resolve(
+            roleId,
+            EnumRoleScope.workspace
+        );
+        if (role.key === EnumRoleWorkspaceKey.owner) {
+            throw new WorkspaceOwnerRoleNotAssignableException();
+        }
 
         const events = [
             this.activityLogDomain.prepare({
@@ -242,7 +258,7 @@ export class WorkspaceMemberDomain {
 
         await this.workspaceMemberRepository.updateRole(
             targetMember.id,
-            newRole
+            role.id
         );
 
         this.activityLogDomain.stagePrepared(events);
@@ -250,7 +266,7 @@ export class WorkspaceMemberDomain {
 
     async removeMember(
         workspaceId: string,
-        actorMember: WorkspaceMember,
+        actorMember: IWorkspaceMemberWithRole,
         targetMemberId: string
     ): Promise<void> {
         const targetMember =

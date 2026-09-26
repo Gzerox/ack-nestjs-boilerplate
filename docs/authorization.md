@@ -3,7 +3,6 @@
 Decorator locations:
 
 - **UserProtected**: `src/modules/user/decorators`
-- **RoleProtected**: `src/modules/role/decorators`
 - **PolicyProtected**: `src/modules/policy/decorators`
 - **TermPolicyAcceptanceProtected**: `src/modules/term-policy/decorators`
 
@@ -11,14 +10,14 @@ The workspace and project decorators (`WorkspaceProtected`, `WorkspaceMemberProt
 
 ## Overview
 
-Guards stack as:
+Authorization is CASL only. Guards stack as:
 
-- user
-- role
-- policy
+- user (loads the platform role's policies)
+- workspace and project membership (each adds the policies of the member's role)
+- policy (decides)
 - term-policy acceptance
 
-NestJS applies each layer on the route handler.
+NestJS applies each layer on the route handler. A role decides nothing by itself: it is a named set of policies, and `PolicyGuard` evaluates the policies the earlier guards collected.
 
 ## Related Documents
 
@@ -27,7 +26,7 @@ NestJS applies each layer on the route handler.
 - [Term Policy Documentation][ref-doc-term-policy] - Acceptance gating
 - [Device Documentation][ref-doc-device] - Device revoke and sessions
 - [Workspace Documentation][ref-doc-workspace] - Workspace guards and `x-workspace-id`
-- [Project Documentation][ref-doc-project] - Project guards and owner bypass
+- [Project Documentation][ref-doc-project] - Project guards and project roles
 - [Feature Flag Documentation][ref-doc-feature-flag] - `@FeatureFlagProtected` in the stack
 - [Security and Middleware Documentation][ref-doc-security-and-middleware] - Rate limits and headers
 
@@ -43,13 +42,7 @@ NestJS applies each layer on the route handler.
   - [Guards](#guards)
     - [UserGuard](#userguard)
   - [Important Notes](#important-notes)
-- [Role Protected](#role-protected)
-  - [Decorators](#decorators-1)
-    - [RoleProtected() Decorator](#roleprotected-decorator)
-  - [Getting Current Role](#getting-current-role)
-  - [Guards](#guards-1)
-    - [RoleGuard](#roleguard)
-  - [Important Notes](#important-notes-1)
+- [Roles and the Policy Store](#roles-and-the-policy-store)
 - [Policy Protected](#policy-protected)
   - [Decorators](#decorators-2)
     - [PolicyProtected() Decorator](#policyprotected-decorator)
@@ -64,10 +57,10 @@ NestJS applies each layer on the route handler.
     - [TermPolicyGuard](#termpolicyguard)
   - [Important Notes](#important-notes-3)
 - [Workspace and Project Protected](#workspace-and-project-protected)
-- [Creating Custom Roles](#creating-custom-roles)
-  - [How to Create a New Role](#how-to-create-a-new-role)
-  - [Role Configuration](#role-configuration)
-  - [Assigning Roles to Users](#assigning-roles-to-users)
+- [Role Catalog and Policies](#role-catalog-and-policies)
+  - [Role Catalog](#role-catalog)
+  - [Managing Roles and Policies](#managing-roles-and-policies)
+  - [Assigning Roles](#assigning-roles)
   - [Important Notes](#important-notes-4)
 
 ## Decorator Order
@@ -79,31 +72,30 @@ NestJS evaluates stacked decorators bottom-up, so the guard NEAREST the method e
 @Response('example.action')                // 2.  @Response / @ResponsePagination / @ResponseFile
 @TermPolicyAcceptanceProtected()           // 3.  Term policy acceptance
 @PolicyProtected({ ... })                  // 4.  CASL policy ability
-@RoleProtected(EnumRoleType.admin)         // 5.  Role type
-@ProjectMemberProtected(...)               // 6.  Project member role
-@ProjectProtected()                        // 7.  Project resolution from :projectId
-@WorkspaceMemberProtected(...)             // 8.  Workspace member role
-@WorkspaceProtected()                      // 9.  Workspace resolution from x-workspace-id
-@UserProtected()                           // 10. User status
-@FeatureFlagProtected('exampleKey')        // 11. Feature flag
-@AuthJwtAccessProtected()                  // 12. JWT access or refresh
-@ApiKeyProtected()                         // 13. API key
-@HttpCode(HttpStatus.OK)                   // 14. HTTP status, only when it differs from the default
-@Get('/endpoint')                          // 15. HTTP method, always last
+@ProjectMemberProtected(...)               // 5.  Project role policies
+@ProjectProtected()                        // 6.  Project resolution from :projectId
+@WorkspaceMemberProtected()                // 7.  Workspace role policies
+@WorkspaceProtected()                      // 8.  Workspace resolution from x-workspace-id
+@UserProtected()                           // 9.  User status and platform role policies
+@FeatureFlagProtected('exampleKey')        // 10. Feature flag
+@AuthJwtAccessProtected()                  // 11. JWT access or refresh
+@ApiKeyProtected()                         // 12. API key
+@HttpCode(HttpStatus.OK)                   // 13. HTTP status, only when it differs from the default
+@Get('/endpoint')                          // 14. HTTP method, always last
 ```
 
-A route takes only the slots it needs; the relative order of the ones it takes never changes. Guard execution therefore runs `@ApiKeyProtected()` → `@AuthJwtAccessProtected()` → `@FeatureFlagProtected()` → `@UserProtected()` → `@WorkspaceProtected()` → `@WorkspaceMemberProtected()` → `@ProjectProtected()` → `@ProjectMemberProtected()` → `@RoleProtected()` → `@PolicyProtected()` → `@TermPolicyAcceptanceProtected()`.
+A route takes only the slots it needs; the relative order of the ones it takes never changes. Guard execution therefore runs `@ApiKeyProtected()` → `@AuthJwtAccessProtected()` → `@FeatureFlagProtected()` → `@UserProtected()` → `@WorkspaceProtected()` → `@WorkspaceMemberProtected()` → `@ProjectProtected()` → `@ProjectMemberProtected()` → `@PolicyProtected()` → `@TermPolicyAcceptanceProtected()`.
 
 - A social-login guard (`@AuthSocialGoogleProtected()`) takes the JWT slot for that route.
 - `@RequestThrottle({ ... })` sits outside this order. It mounts an interceptor, so it runs after every guard whatever its position in the stack. Routes declare it below `@ApiKeyProtected()`, so the rate limit reads next to the guards protecting the same route. See [Security and Middleware][ref-doc-security-and-middleware].
 - Activity logging takes no slot. Domains build events with `ActivityLogDomain.prepare` and queue them with `ActivityLogDomain.stagePrepared`, and the global `ActivityLogInterceptor` writes them after the handler settles. See [Activity Log][ref-doc-activity-log].
 - A guard that depends on state an earlier guard sets sits ABOVE that guard in source, so it runs after it.
 - `@FeatureFlagProtected()` sits ABOVE `@AuthJwtAccessProtected()` so the flag guard sees `request.user`. Below it the guard always takes its anonymous branch, which makes `targetUserIds` and any rollout below 100% inert on that route.
-- The workspace and project slots are used by the `/user` scope. The `/admin` scope reaches the same resources through `@RoleProtected()` + `@PolicyProtected()` instead, and takes the workspace or project id from the path.
+- The workspace and project slots are used by the `/user` scope. The `/admin` scope reaches the same resources through `@PolicyProtected()` alone, which evaluates the caller's platform role policies, and takes the workspace or project id from the path.
 
 ## User Protected
 
-`UserProtected` applies `UserGuard`, which reads the JWT `userId` and loads the user. Email verification defaults to on.
+`UserProtected` applies `UserGuard`, which reads the JWT `userId`, loads the user with its platform role, and stores the role's policies in the policy store. Email verification defaults to on.
 
 ### Decorators
 
@@ -167,6 +159,7 @@ The `UserProtected` decorator follows this validation sequence:
 5. **Status Validation**: Confirms user status is `active`
 6. **Password Expiry**: Checks if password has expired
 7. **Email Verification**: Validates email verification if required
+8. **Policy Store**: Stores the user's platform role policies under `PolicyStoreKey`
 
 **Flow Diagram:**
 
@@ -191,7 +184,7 @@ flowchart TD
     CheckPassword -->|No| CheckVerified{isVerified required<br/>AND user not verified?}
     
     CheckVerified -->|Yes| ErrorVerified[Throw UserEmailNotVerifiedException<br/>403 Forbidden]
-    CheckVerified -->|No| SetUser[Store user via<br/>RequestStoreService.set UserStoreKey, user]
+    CheckVerified -->|No| SetUser[Store user under UserStoreKey<br/>and role policies under PolicyStoreKey]
     
     SetUser --> Success([Access Granted])
     
@@ -207,100 +200,37 @@ flowchart TD
 
 - `@UserProtected()` requires `@AuthJwtAccessProtected()` to run first, so JWT sits below `@UserProtected()` in source (nearest the method). Nest runs guards bottom-up.
 - `@AuthJwtAccessProtected()` populates `request.user` from JWT token. See [Authentication Documentation][ref-doc-authentication] for details
-- This decorator stores the validated user via `RequestStoreService.set(UserStoreKey, user)` (read back with `RequestStoreService.get(UserStoreKey)`, e.g. by `@UserCurrent()`), which is required by downstream guards
+- This decorator stores the validated user via `RequestStoreService.set(UserStoreKey, user)` (read back with `RequestStoreService.get(UserStoreKey)`, e.g. by `@UserCurrent()`) and the platform role's policies via `RequestStoreService.set(PolicyStoreKey, user.role.policies)`, both required by downstream guards
 
-## Role Protected
+## Roles and the Policy Store
 
-`RoleProtected` is RBAC: `RoleGuard` accepts only a role type listed on the decorator.
+One `Role` model covers every level. A role has a `scope` (`platform`, `workspace`, or `project`), an immutable `key`, and a `name` and `description` an admin edits. The pair `(scope, key)` is unique. The role a user, a workspace member, or a project member holds is a foreign key (`roleId`) to that model, and each role owns the policies that define what it may do.
 
-### Decorators
+No decorator gates a route by role. The role reaches a route through the policy store: an array of `Policy` rows kept in the request store under `PolicyStoreKey`, which `PolicyGuard` reads.
 
-#### RoleProtected Decorator
-
-**Method decorator** that applies `RoleGuard` to route handlers.
-
-**Parameters:**
-- `...requiredRoles` (EnumRoleType[]): One or more role types required to access the route
-
-**Available Role Types:**
-- `EnumRoleType.superAdmin` - Super administrator with unrestricted access
-- `EnumRoleType.admin` - Administrator role
-- `EnumRoleType.user` - Standard user role
-
-**Usage:**
-
-```typescript
-@RoleProtected(EnumRoleType.admin)
-@UserProtected()
-@AuthJwtAccessProtected()
-@Get('/list')
-async list(
-  @Query({ schema: UserListRequestSchema }) query: UserListRequestDto
-): Promise<IResponsePaginationReturn<IUserList>> {
-  return this.userHttpService.getListOffsetByAdmin(query);
-}
-```
-
-The decorator accepts more than one type (`@RoleProtected(EnumRoleType.admin, EnumRoleType.user)`). The caller needs one of the listed types. Admin user routes in this checkout pass `EnumRoleType.admin` alone.
-
-**`superAdmin` is absent from every `@RoleProtected()` list.** The guard returns before the required-role list is read for a `superAdmin`, so listing it would grant nothing.
-
-### Getting Current Role
-
-To access the current user's role, use the `@UserCurrent()` decorator and access the `role` property:
-
-`@UserCurrent()` returns the stored `IUser`. The role on that object is what `UserGuard` loaded: `user.role.type`, `user.role.name`, and `user.role.policies`.
-
-### Guards
-
-#### `RoleGuard`
-
-The guard implementation that validates user roles and stashes the role's policies.
-
-The `RoleProtected` decorator follows this validation sequence:
-
-1. **User Validation**: Verifies that the stored user (`RequestStoreService.get(UserStoreKey)`) exists
-2. **Super Admin Bypass**: If user role is `superAdmin`, grants immediate access with an empty policy array
-3. **Required Roles Check**: Validates that required roles are defined
-4. **Role Match**: Confirms user's role type matches one of the required roles
-5. **Policy Population**: Stores `role.policies` via `RequestStoreService.set(PolicyStoreKey, policies)` for downstream use
-
-**Flow Diagram:**
+| Guard | Effect on `PolicyStoreKey` |
+|---|---|
+| `UserGuard` | Writes the policies of the user's platform role |
+| `WorkspaceMemberGuard` | Overwrites the store with the policies of the member's workspace role |
+| `ProjectMemberGuard` | Appends the policies of the member's project role to what the workspace guard wrote |
+| `PolicyGuard` | Reads the store and decides |
 
 ```mermaid
 flowchart TD
-    Start([Request Received]) --> JwtGuard[ @AuthJwtAccessProtected<br/>Extract JWT token]
-    JwtGuard --> UserGuard[ @UserProtected<br/>Validate and load user]
-    UserGuard --> CheckUser{Stored user UserStoreKey<br/>exists?}
-    
-    CheckUser -->|No| ErrorUser[Throw AuthJwtAccessTokenInvalidException<br/>401 Unauthorized]
-    CheckUser -->|Yes| CheckSuperAdmin{User role is<br/>superAdmin?}
-    
-    CheckSuperAdmin -->|Yes| GrantSuperAdmin[Grant access with<br/>empty policy array]
-    CheckSuperAdmin -->|No| CheckRequired{Required roles<br/>defined?}
-    
-    CheckRequired -->|No| ErrorPredefined[Throw RolePredefinedNotFoundException<br/>500 Internal Server Error]
-    CheckRequired -->|Yes| CheckRoleMatch{User role matches<br/>required roles?}
-    
-    CheckRoleMatch -->|No| ErrorForbidden[Throw RoleForbiddenException<br/>403 Forbidden]
-    CheckRoleMatch -->|Yes| SetAbilities[Store policies via<br/>RequestStoreService.set PolicyStoreKey, policies]
-    
-    GrantSuperAdmin --> Success([Access Granted])
-    SetAbilities --> Success
-    
-    ErrorUser --> End([Request Rejected])
-    ErrorPredefined --> End
-    ErrorForbidden --> End
+    User[UserGuard<br/>platform role policies] --> Route{Route scope}
+    Route -->|/admin| Policy[PolicyGuard]
+    Route -->|/user workspace| WS[WorkspaceMemberGuard<br/>workspace role policies replace the store]
+    WS --> PM{Project route?}
+    PM -->|No| Policy
+    PM -->|Yes| PG[ProjectMemberGuard<br/>project role policies appended]
+    PG --> Policy
 ```
 
-### Important Notes
+Reading the current role: `@UserCurrent()` returns the stored `IUser`, whose `role` carries `id`, `scope`, `key`, `name`, and `policies`. `@WorkspaceMemberCurrent()` and `@ProjectMemberCurrent()` return the membership row with its role.
 
-- `@RoleProtected()` reads the user `@UserProtected()` stored, which in turn depends on `@AuthJwtAccessProtected()`
-- The stack reads top to bottom `@RoleProtected()` → `@UserProtected()` → `@AuthJwtAccessProtected()`. See [Authentication Documentation][ref-doc-authentication] for `@AuthJwtAccessProtected()` details
-- This decorator stores the role's policies via `RequestStoreService.set(PolicyStoreKey, policies)` (read back with `RequestStoreService.get(PolicyStoreKey)`), which is what `PolicyGuard` evaluates
-- Without a stored user the guard throws `AuthJwtAccessTokenInvalidException` (401)
-- Users with `superAdmin` role type have unrestricted access to all `@RoleProtected` routes, regardless of the specified required roles. The guard returns an empty policy array for super admins, as they bypass the policy check.
+A domain that has to branch on a capability calls `PolicyDomain.can(action, subject)`. It builds a CASL ability from the policy store of the current request and answers `true` or `false`.
 
+`superAdmin` holds a persisted policy `manage` on `all`. That row is what lets it pass every `PolicyGuard`, and the policies of the `superAdmin` role cannot be created, updated, or deleted (`PolicyImmutableException`, 403, `51104`). The platform `admin` role holds an explicit subject list, not `all`.
 
 ## Policy Protected
 
@@ -335,7 +265,11 @@ flowchart TD
 - `EnumPolicySubject.device` - Device management
 - `EnumPolicySubject.workspace` - Workspace management
 - `EnumPolicySubject.project` - Project management
-- `EnumPolicySubject.analytic` - Admin analytic dashboard, anomaly, and fraud read routes
+- `EnumPolicySubject.analytic` - Admin analytic dashboard, anomaly, and fraud read routes, and the workspace analytic routes
+- `EnumPolicySubject.workspaceMember` - Workspace member role change and removal
+- `EnumPolicySubject.workspaceInvite` - Workspace invite create, resend, and revoke
+- `EnumPolicySubject.workspaceJoinRequest` - Workspace join request accept and reject
+- `EnumPolicySubject.projectMember` - Project member assign, role change, and removal
 
 **Usage:**
 
@@ -344,7 +278,6 @@ flowchart TD
   subject: EnumPolicySubject.user,
   action: [EnumPolicyAction.read]
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @Get('/list')
@@ -358,12 +291,11 @@ async list(
   subject: EnumPolicySubject.user,
   action: [EnumPolicyAction.read, EnumPolicyAction.update]
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @Patch('/update/:userId/status')
 async updateStatus(
-  @Param('userId', { schema: RequestMongoIdSchema }) userId: string,
+  @Param('userId', { schema: RequestUuidSchema }) userId: string,
   @AuthJwtPayload('userId') updatedBy: string,
   @Body({ schema: UserUpdateStatusRequestSchema }) body: UserUpdateStatusRequestDto
 ): Promise<IResponseReturn<void>> {
@@ -380,13 +312,12 @@ async updateStatus(
     action: [EnumPolicyAction.read, EnumPolicyAction.delete]
   }
 )
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @Delete('/revoke/:sessionId')
 async revoke(
-  @Param('userId', { schema: RequestMongoIdSchema }) userId: string,
-  @Param('sessionId', { schema: RequestMongoIdSchema }) sessionId: string,
+  @Param('userId', { schema: RequestUuidSchema }) userId: string,
+  @Param('sessionId', { schema: RequestUuidSchema }) sessionId: string,
   @AuthJwtPayload('userId') revokedBy: string
 ): Promise<IResponseReturn<void>> {
   return this.sessionHttpService.revokeByAdmin(userId, sessionId, revokedBy);
@@ -402,38 +333,33 @@ The guard reads the user and the stored policies off the request store and hands
 The `PolicyProtected` decorator follows this validation sequence:
 
 1. **User Validation**: Verifies that the stored user (`RequestStoreService.get(UserStoreKey)`) exists
-2. **Super Admin Bypass**: If user role is `superAdmin`, grants immediate access
-3. **Required Policies Check**: Validates that required policies are declared on the handler
-4. **Ability Creation**: Creates CASL ability rules from the stored policies (`RequestStoreService.get(PolicyStoreKey)`)
-5. **Permission Validation**: Checks that every required `(subject, action)` pair is allowed
-6. **Access Decision**: Grants or denies access based on permission match
+2. **Required Policies Check**: Validates that required policies are declared on the handler
+3. **Ability Creation**: Creates CASL ability rules from the stored policies (`RequestStoreService.get(PolicyStoreKey)`)
+4. **Permission Validation**: Checks that every required `(subject, action)` pair is allowed
+5. **Access Decision**: Grants or denies access based on permission match
 
 **Flow Diagram:**
 
 ```mermaid
 flowchart TD
     Start([Request Received]) --> JwtGuard[ @AuthJwtAccessProtected<br/>Extract JWT token]
-    JwtGuard --> UserGuard[ @UserProtected<br/>Validate and load user]
-    UserGuard --> RoleGuard[ @RoleProtected<br/>Validate role and load abilities]
-    RoleGuard --> CheckUser{Stored user UserStoreKey<br/>exists?}
-    
+    JwtGuard --> UserGuard[ @UserProtected<br/>Validate user, store platform policies]
+    UserGuard --> Members[ Workspace and project member guards<br/>replace or extend the stored policies]
+    Members --> CheckUser{Stored user UserStoreKey<br/>exists?}
+
     CheckUser -->|No| ErrorUser[Throw AuthJwtAccessTokenInvalidException<br/>401 Unauthorized]
-    CheckUser -->|Yes| CheckSuperAdmin{User role is<br/>superAdmin?}
-    
-    CheckSuperAdmin -->|Yes| GrantSuperAdmin[Grant immediate access]
-    CheckSuperAdmin -->|No| CheckRequired{Required abilities<br/>defined?}
-    
+    CheckUser -->|Yes| CheckRequired{Required abilities<br/>defined?}
+
     CheckRequired -->|No| ErrorPredefined[Throw PolicyPredefinedNotFoundException<br/>500 Internal Server Error]
     CheckRequired -->|Yes| CreateAbilities[Create CASL ability rules<br/>from RequestStoreService.get PolicyStoreKey]
-    
-    CreateAbilities --> ValidateAbilities{All required abilities<br/>present in user abilities?}
-    
+
+    CreateAbilities --> ValidateAbilities{All required abilities<br/>present in stored policies?}
+
     ValidateAbilities -->|No| ErrorForbidden[Throw PolicyForbiddenException<br/>403 Forbidden]
     ValidateAbilities -->|Yes| GrantAccess[Grant access]
-    
-    GrantSuperAdmin --> Success([Access Granted])
-    GrantAccess --> Success
-    
+
+    GrantAccess --> Success([Access Granted])
+
     ErrorUser --> End([Request Rejected])
     ErrorPredefined --> End
     ErrorForbidden --> End
@@ -445,16 +371,21 @@ The project uses [CASL][casl] for permission checks:
 
 **PolicyAbilityFactory:**
 
-- `createForUser(policies)`: Builds CASL ability rules from the role's stored policies
+- `createForUser(policies)`: Builds CASL ability rules from the stored policies
 - `handlerPolicies(userPolicies, policies)`: Returns true only when every required action on each subject is allowed, using CASL's `can()`
+
+**PolicyDomain:**
+
+- `validatePolicyGuard(user, policies, requiredPolicies)`: The guard's decision
+- `can(action, subject)`: A boolean check against the current request's policy store, for a domain that branches on a capability
 
 ### Important Notes
 
-- `@PolicyProtected()` reads the policies `@RoleProtected()` stored and the user `@UserProtected()` stored, both of which depend on `@AuthJwtAccessProtected()`
-- The stack reads top to bottom `@PolicyProtected()` → `@RoleProtected()` → `@UserProtected()` → `@AuthJwtAccessProtected()`. See [Authentication Documentation][ref-doc-authentication] for `@AuthJwtAccessProtected()` details
+- `@PolicyProtected()` reads the policies the user and member guards stored and the user `@UserProtected()` stored, all of which depend on `@AuthJwtAccessProtected()`
+- The stack reads top to bottom `@PolicyProtected()` → `@ProjectMemberProtected()` → `@WorkspaceMemberProtected()` → `@UserProtected()` → `@AuthJwtAccessProtected()`. See [Authentication Documentation][ref-doc-authentication] for `@AuthJwtAccessProtected()` details
 - Without a stored user the guard throws `AuthJwtAccessTokenInvalidException` (401)
-- Users with `superAdmin` role type have unrestricted access to all `@PolicyProtected` routes, bypassing all ability checks.
-- Every action of a required policy has to be present in the user's policies. Requiring `[EnumPolicyAction.update, EnumPolicyAction.delete]` on the `EnumPolicySubject.user` subject grants access only when the user holds both actions, not just one.
+- `superAdmin` passes every `@PolicyProtected` route through its persisted `manage` on `all` policy. CASL treats `manage` as every action and `all` as every subject.
+- Every action of a required policy has to be present in the stored policies. Requiring `[EnumPolicyAction.update, EnumPolicyAction.delete]` on the `EnumPolicySubject.user` subject grants access only when the caller holds both actions, not just one.
 
 ## Term Policy Acceptance Protected
 
@@ -508,7 +439,7 @@ The `TermPolicyAcceptanceProtected` decorator follows this validation sequence:
 
 1. **User Validation**: Verifies that the stored user (`RequestStoreService.get(UserStoreKey)`) exists
 2. **Default Policy Check**: If no required policies specified, sets defaults to `termsOfService` and `privacy`
-3. **Term Policy Lookup**: Retrieves user's term policy acceptance status from the stored user's `termPolicy`
+3. **Term Policy Lookup**: Reads the user's acceptance flags (`termsOfServiceAccepted`, `privacyAccepted`, `marketingAccepted`, `cookiesAccepted`) from the stored user
 4. **Acceptance Validation**: Checks if all required term policies are accepted
 5. **Access Decision**: Grants access only if all required policies are accepted
 
@@ -526,7 +457,7 @@ flowchart TD
     CheckRequired -->|No| SetDefault[Set default policies:<br/>termsOfService and privacy]
     CheckRequired -->|Yes| UseSpecified[Use specified policies]
     
-    SetDefault --> GetTermPolicy[Get user.termPolicy<br/>acceptance status]
+    SetDefault --> GetTermPolicy[Read user acceptance<br/>flags]
     UseSpecified --> GetTermPolicy
     
     GetTermPolicy --> CheckAcceptance{All required policies<br/>accepted by user?}
@@ -551,49 +482,57 @@ flowchart TD
 
 ## Workspace and Project Protected
 
-Four decorators scope a `/user` request to one workspace and, inside it, to one project. They occupy slots 6-9 of the stack above and are documented in full by the modules that own them.
+Four decorators scope a `/user` request to one workspace and, inside it, to one project. They occupy slots 5-8 of the stack above and are documented in full by the modules that own them.
 
-| Decorator | Guards it binds | Selects the resource from |
-|---|---|---|
-| `@WorkspaceProtected()` | `WorkspaceGuard` | The `x-workspace-id` header |
-| `@WorkspaceMemberProtected(...roles)` | `WorkspaceMemberGuard`, plus `WorkspaceRoleGuard` when roles are given | The membership of the resolved workspace |
-| `@ProjectProtected()` | `ProjectGuard` | The `:projectId` route param, constrained to the resolved workspace |
-| `@ProjectMemberProtected(...roles)` | `ProjectMemberGuard` with no arguments, `ProjectRoleGuard` with roles | The membership of the resolved project |
+| Decorator | Guard it binds | Selects the resource from | Policy store |
+|---|---|---|---|
+| `@WorkspaceProtected()` | `WorkspaceGuard` | The `x-workspace-id` header | Unchanged |
+| `@WorkspaceMemberProtected()` | `WorkspaceMemberGuard` | The membership of the resolved workspace | Overwritten with the workspace role's policies |
+| `@ProjectProtected()` | `ProjectGuard` | The `:projectId` route param, constrained to the resolved workspace | Unchanged |
+| `@ProjectMemberProtected({ required?: boolean })` | `ProjectMemberGuard` | The membership of the resolved project | The project role's policies appended |
 
 Three properties matter wherever these appear:
 
 - **Each guard reads what the previous one stored and never re-fetches or re-authenticates.** Dropping one from the stack leaves the next reading an empty store key, which surfaces as a `notFound` or `forbidden` rather than a crash.
-- **A workspace `owner` is privileged.** It satisfies every workspace role, and it reaches every project in the workspace without holding a `ProjectMember` row.
-- **The `/admin` scope takes none of them.** Admin routes reach the same resources through `@RoleProtected()` + `@PolicyProtected()` and take the workspace or project id from the path.
+- **`@ProjectMemberProtected()` is strict by default.** A caller with no `ProjectMember` row is rejected with `ProjectMemberForbiddenException`. With `{ required: false }` that caller passes with the workspace policies alone, so a workspace role that holds the capability (the `owner` holds `project` and `projectMember` `manage`) still decides. Project leave uses the strict form.
+- **The `/admin` scope takes none of them.** Admin routes reach the same resources through `@PolicyProtected()` and take the workspace or project id from the path.
 
 For the guard bodies, the exceptions and status codes each one throws, the store keys, and the `@WorkspaceCurrent()` / `@ProjectCurrent()` parameter decorators, see [Workspace][ref-doc-workspace] and [Project][ref-doc-project].
 
-## Creating Custom Roles
+## Role Catalog and Policies
 
-The boilerplate supports creating custom roles through the role management API. A role carries a set of policies, each naming one subject and the actions allowed on it.
+### Role Catalog
 
-A custom role is any role other than `superAdmin`, `admin`, and `user`. Examples: ContentModerator, Accountant, CustomerSupport. Each role carries its own policies.
+The seeded catalog is fixed. Roles are neither created nor deleted through the API.
 
-### How to Create a New Role
+| Scope | Keys |
+|---|---|
+| `platform` | `superAdmin`, `admin`, `user` |
+| `workspace` | `owner`, `admin`, `member` |
+| `project` | `admin`, `member`, `viewer` |
 
-A role and its policies are two separate admin surfaces: `POST /admin/role/create` creates the role, and `POST /admin/role/:roleId/policy/create` attaches one policy to it. The API documentation is available in your Swagger docs at `/docs`.
+The keys live in `EnumRolePlatformKey`, `EnumRoleWorkspaceKey`, and `EnumRoleProjectKey`. Seeded policies per role:
 
-**Basic steps:**
+| Role | Policies |
+|---|---|
+| platform `superAdmin` | `manage` on `all` |
+| platform `admin` | every action on `activityLog`, `analytic`, `apiKey`, `device`, `featureFlag`, `passwordHistory`, `role`, `session`, `termPolicy`, `user`; `read` on `workspace` and `project` |
+| platform `user` | none |
+| workspace `owner` | `manage` on `workspace`, `workspaceInvite`, `project`, `projectMember`; `update` and `delete` on `workspaceMember`; `update` on `workspaceJoinRequest`; `read` on `analytic` |
+| workspace `admin` | `read` and `update` on `workspace`; `update` and `delete` on `workspaceMember`; `manage` on `workspaceInvite`; `update` on `workspaceJoinRequest`; `create` and `delete` on `project`; `read` on `analytic` |
+| workspace `member` | `read` on `workspace` |
+| project `admin` | `read` and `update` on `project`; `create`, `update`, and `delete` on `projectMember` |
+| project `member` | `read` on `project` |
+| project `viewer` | `read` on `project` |
 
-1. Authenticate as an admin user
-2. Call the role creation endpoint with name, type, and description
-3. Call the policy creation endpoint once per subject the role may reach
-4. The role is available for assignment to users as soon as it exists
+### Managing Roles and Policies
 
-**Example role creation request** (`POST /admin/role/create`):
+A role and its policies are two admin surfaces:
 
-```json
-{
-  "name": "contentmoderator",
-  "description": "Role for moderating user-generated content",
-  "type": "admin"
-}
-```
+- `GET /admin/role/list` and `GET /admin/role/get/:roleId` read roles, and the list filters by `scope` (comma-delimited).
+- `PUT /admin/role/update/:roleId` edits `name` and `description` only. The `key` and `scope` never change.
+- `GET /admin/role/:roleId/policy/list`, `POST .../policy/create`, `PUT .../policy/update/:policyId`, and `DELETE .../policy/delete/:policyId` manage the policies of one role. The API documentation is in Swagger under the configured `doc.prefix`.
+- `GET /shared/role/list?scope=workspace|project` returns the catalog a client picks a role from, as `{ id, key, name }` rows.
 
 **Example policy creation request** (`POST /admin/role/:roleId/policy/create`), one call per subject:
 
@@ -604,54 +543,40 @@ A role and its policies are two separate admin surfaces: `POST /admin/role/creat
 }
 ```
 
-### Role Configuration
-
-**Role Properties:**
-
-- **name**: Unique identifier for the role (alphanumeric, lowercase, 3-30 characters)
-- **description**: Optional description explaining the role's purpose (max 500 characters)
-- **type**: Role type from `EnumRoleType` (superAdmin, admin, or user)
+A role holds at most one policy per subject: creating a second policy for a subject already covered is rejected. The `superAdmin` role rejects every policy write.
 
 **Policy Structure:**
 
-Each policy row consists of:
-- **subject**: The resource type (e.g., user, role, apiKey, session, termPolicy, activityLog, analytic)
-- **action**: Array of allowed actions (manage, read, create, update, delete)
+- **subject**: The resource type from `EnumPolicySubject`: all, apiKey, role, user, session, activityLog, passwordHistory, termPolicy, featureFlag, device, workspace, project, analytic, workspaceMember, workspaceInvite, workspaceJoinRequest, projectMember
+- **action**: Array of allowed actions from `EnumPolicyAction`: manage, read, create, update, delete
 
-A role holds at most one policy per subject: creating a second policy for a subject already covered is rejected.
+### Assigning Roles
 
-**Available subjects and actions are defined in:**
-- `EnumPolicySubject`: all, apiKey, role, user, session, activityLog, passwordHistory, termPolicy, featureFlag, device, workspace, project, analytic
-- `EnumPolicyAction`: manage, read, create, update, delete
+Request bodies name a role by UUID and the API checks the role's scope against the assignment:
 
-### Assigning Roles to Users
+| Assignment | Field | Required scope |
+|---|---|---|
+| Admin user creation | `roleId` | `platform` |
+| Workspace member role change | `roleId` | `workspace`; `owner` is rejected (`WorkspaceOwnerRoleNotAssignableException`, 400, `51620`) |
+| Workspace invite | `workspaceRoleId`, optional `projectRoleId` | `workspace` and `project` |
+| Project member assign and role change | `roleId` | `project` |
 
-Once a custom role is created, it can be assigned to users through:
+A role of another scope is rejected with `RoleScopeMismatchException` (400, `50501`). Responses that carry a role return `role: { id, key, name }`.
 
-1. **User creation**: Specify the `roleId` when creating new users
-2. **User update**: Update existing users to assign them the new role
-
-**How it works automatically:**
-
-- When a user is assigned a role, they immediately inherit every policy attached to that role
-- The `RoleGuard` loads the user's role and its policies during the request
-- The `PolicyGuard` validates permissions based on the role's policies
-- No application restart or additional configuration is needed
-
-**Permission enforcement flow:**
+A user or member inherits every policy of the assigned role on the next request. No restart or extra configuration is involved.
 
 ```mermaid
 flowchart LR
-    User[User logs in] --> LoadRole[Role & policies loaded<br/>from database]
-    LoadRole --> RoleGuard[RoleGuard validates<br/>role type]
-    RoleGuard --> PolicyGuard[PolicyGuard validates<br/>specific permissions]
-    PolicyGuard --> Access[Access granted/denied<br/>based on policies]
+    User[User logs in] --> LoadRole[Role and policies loaded<br/>from database]
+    LoadRole --> Guards[UserGuard and member guards<br/>fill the policy store]
+    Guards --> PolicyGuard[PolicyGuard validates<br/>specific permissions]
+    PolicyGuard --> Access[Access granted or denied<br/>based on policies]
 ```
 
 ### Important Notes
 
-- **Role names are unique**: creating a second role with an existing name is rejected
-- **A role in use cannot be deleted**: deletion is rejected (`RoleUsedException`) while any user holds the role
+- **Role keys are immutable**: the `(scope, key)` pair identifies a catalog role, and the role admin API neither creates nor deletes roles
+- **A workspace `owner` reaches every project of its workspace** through the `project` and `projectMember` policies its workspace role holds, so no `ProjectMember` row is needed
 
 
 <!-- REFERENCES -->

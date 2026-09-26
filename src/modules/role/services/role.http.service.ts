@@ -7,16 +7,18 @@ import type {
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
 import {
+    RoleCursorAvailableOrderBy,
     RoleDefaultAvailableOrderBy,
     RoleDefaultAvailableSearch,
-    RoleDefaultType,
+    RoleDefaultScope,
 } from '@modules/role/constants/role.list.constant';
 import type { RoleAdminListRequestDto } from '@modules/role/dtos/request/role.admin-list.request.dto';
+import type { RoleSharedListRequestDto } from '@modules/role/dtos/request/role.shared-list.request.dto';
 import type { RoleSystemListRequestDto } from '@modules/role/dtos/request/role.system-list.request.dto';
-import type { RoleCreateRequestDto } from '@modules/role/dtos/request/role.create.request.dto';
 import type { RoleUpdateRequestDto } from '@modules/role/dtos/request/role.update.request.dto';
 import type { RoleListResponseDto } from '@modules/role/dtos/response/role.list.response.dto';
 import type { RoleDto } from '@modules/role/dtos/role.dto';
+import type { IRoleSharedList } from '@modules/role/interfaces/role.interface';
 import { RoleDomain } from '@modules/role/domains/role.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -36,22 +38,22 @@ export class RoleHttpService {
                 availableSearch: RoleDefaultAvailableSearch,
                 availableOrderBy: RoleDefaultAvailableOrderBy,
             });
-        const type = this.paginationQueryUtil.inEnum(
-            Prisma.RoleScalarFieldEnum.type,
-            query.type,
-            RoleDefaultType
+        const scope = this.paginationQueryUtil.inEnum(
+            Prisma.RoleScalarFieldEnum.scope,
+            query.scope,
+            RoleDefaultScope
         );
         this.requestStoreService.merge(PaginationStoreKey, {
             ...storePatch,
             filters: {
                 ...storePatch.filters,
-                ...(type?.storeFilter ?? {}),
+                ...(scope?.storeFilter ?? {}),
             },
         });
 
         const { data, ...others } = await this.roleDomain.getListOffsetByAdmin(
             params,
-            type?.where
+            scope?.where
         );
         const roles: RoleListResponseDto[] = data.map(
             ({ _count, ...role }) => ({
@@ -72,24 +74,24 @@ export class RoleHttpService {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.RoleWhereInput>(query, {
                 availableSearch: RoleDefaultAvailableSearch,
-                availableOrderBy: RoleDefaultAvailableOrderBy,
+                availableOrderBy: RoleCursorAvailableOrderBy,
             });
-        const type = this.paginationQueryUtil.inEnum(
-            Prisma.RoleScalarFieldEnum.type,
-            query.type,
-            RoleDefaultType
+        const scope = this.paginationQueryUtil.inEnum(
+            Prisma.RoleScalarFieldEnum.scope,
+            query.scope,
+            RoleDefaultScope
         );
         this.requestStoreService.merge(PaginationStoreKey, {
             ...storePatch,
             filters: {
                 ...storePatch.filters,
-                ...(type?.storeFilter ?? {}),
+                ...(scope?.storeFilter ?? {}),
             },
         });
 
         const { data, ...others } = await this.roleDomain.getListCursorBySystem(
             params,
-            type?.where
+            scope?.where
         );
         const roles: RoleListResponseDto[] = data.map(
             ({ _count, ...role }) => ({
@@ -104,18 +106,32 @@ export class RoleHttpService {
         };
     }
 
+    async getListShared(
+        query: RoleSharedListRequestDto
+    ): Promise<IResponsePaginationReturn<IRoleSharedList>> {
+        const { params, storePatch } =
+            this.paginationQueryUtil.cursor<Prisma.RoleWhereInput>(query, {
+                availableOrderBy: RoleCursorAvailableOrderBy,
+            });
+        const scope = this.paginationQueryUtil.equalString(
+            Prisma.RoleScalarFieldEnum.scope,
+            query.scope
+        );
+        this.requestStoreService.merge(PaginationStoreKey, {
+            ...storePatch,
+            filters: {
+                ...storePatch.filters,
+                ...(scope?.storeFilter ?? {}),
+            },
+        });
+
+        return this.roleDomain.getListCursorShared(params, scope?.where);
+    }
+
     async getOne(id: string): Promise<IResponseReturn<RoleDto>> {
         const role = await this.roleDomain.getOne(id);
 
         return { data: role };
-    }
-
-    async createByAdmin(
-        body: RoleCreateRequestDto
-    ): Promise<IResponseReturn<RoleDto>> {
-        const created = await this.roleDomain.createByAdmin(body);
-
-        return { data: created };
     }
 
     async updateByAdmin(
@@ -125,11 +141,5 @@ export class RoleHttpService {
         const updated = await this.roleDomain.updateByAdmin(id, body);
 
         return { data: updated };
-    }
-
-    async deleteByAdmin(id: string): Promise<IResponseReturn<void>> {
-        await this.roleDomain.deleteByAdmin(id);
-
-        return {};
     }
 }

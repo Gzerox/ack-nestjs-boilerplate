@@ -1,5 +1,6 @@
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import type { Workspace } from '@generated/prisma-client/client';
+import { PolicyStoreKey } from '@modules/policy/constants/policy.constant';
 import type { IUser } from '@modules/user/interfaces/user.interface';
 import { UserStoreKey } from '@modules/user/constants/user.constant';
 import {
@@ -12,7 +13,8 @@ import type { CanActivate, ExecutionContext } from '@nestjs/common';
 
 /**
  * Confirms the already-authenticated user (loaded by `UserGuard`, which must run before this guard)
- * is a member of the workspace resolved by `WorkspaceGuard`. Never re-fetches or re-authenticates.
+ * is a member of the workspace resolved by `WorkspaceGuard`, stores the membership, and overwrites
+ * the policy store with the policies of the member's workspace role. Never re-fetches or re-authenticates.
  */
 @Injectable()
 export class WorkspaceMemberGuard implements CanActivate {
@@ -33,6 +35,7 @@ export class WorkspaceMemberGuard implements CanActivate {
             );
 
         this.requestStoreService.set(WorkspaceMemberStoreKey, member);
+        this.requestStoreService.set(PolicyStoreKey, member.role.policies);
 
         return true;
     }

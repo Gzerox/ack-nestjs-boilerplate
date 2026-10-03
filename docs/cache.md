@@ -13,6 +13,7 @@ The stack is **cache-manager v7**, **Keyv** as the storage interface, and `@keyv
 - [Configuration Documentation][ref-doc-configuration] - Redis config keys
 - [Environment Documentation][ref-doc-environment] - `CACHE_REDIS_URL` / Compose vs ElastiCache
 - [Authentication Documentation][ref-doc-authentication] - Session cache
+- [Workspace Feature Flag][ref-doc-workspace-feature-flag] - Workspace-scoped feature and configuration cache
 - [Response Documentation][ref-doc-response] - Response caching
 - [Installation Documentation][ref-doc-installation] - Local Redis via Docker Compose
 
@@ -26,6 +27,7 @@ The stack is **cache-manager v7**, **Keyv** as the storage interface, and `@keyv
   - [CacheMainModule](#cachemainmodule)
   - [SessionDomainModule](#sessiondomainmodule)
   - [Session Cache](#session-cache)
+  - [Workspace Feature Cache](#workspace-feature-cache)
   - [Redis Failures](#redis-failures)
 - [Configuration](#configuration)
   - [Redis Configuration](#redis-configuration)
@@ -93,6 +95,7 @@ A cache manager is injected into a dedicated cache class, an interceptor, or a h
 - `ApiKeyCache`
 - `AuthCache`
 - `FeatureFlagCache`
+- `WorkspaceFeatureFlagCache`
 - `PolicyCache`
 - `AnalyticCache`
 - `HealthRedisIndicator`
@@ -103,9 +106,19 @@ A cache manager is injected into a dedicated cache class, an interceptor, or a h
 | Placeholders | Filled by | Patterns |
 |---|---|---|
 | one | `String.prototype.replace('{name}', () => value)` | `ApiKey:{key}`, `FeatureFlag:{key}`, `Policy:Role:{roleId}`, `Apis:{key}`, `TwoFactor:Challenge:{token}`, `TwoFactor:Lock:{userId}` |
-| two or more | `HelperStringService.fillPattern(pattern, values)` | `User:{userId}:Session:{sessionId}`, the four `Analytic:*` patterns, the throttle storage patterns |
+| two or more | `HelperStringService.fillPattern(pattern, values)` | `User:{userId}:Session:{sessionId}`, `WorkspaceFeatureFlag:{workspaceId}:{key}`, the four `Analytic:*` patterns, the throttle storage patterns |
 
 The function form of `replace` stops a value containing `$&` or `$1` from being read as a replacement pattern. `fillPattern` scans `{token}` once and substitutes from the value map, so a substituted value is never re-read as a token, and a token with no entry raises `HelperPatternTokenMissingException` (`52202`, 500).
+
+### Workspace Feature Cache
+
+`WorkspaceFeatureFlagCache` (`src/modules/workspace/caches/workspace.feature-flag.cache.ts`) stores one raw workspace feature row and its configuration rows under `WorkspaceFeatureFlag:{workspaceId}:{key}`. The entry uses the one-hour workspace-feature TTL from configuration.
+
+The cache is read through `WorkspaceFeatureFlagDomain` and `WorkspaceFeatureFlagGuard`. On a miss, the workspace feature repository loads the row and the cache writes the result. The guard reads the decorated feature after `WorkspaceGuard` stores the active workspace, then stores the result and effective configuration in request context. Later HTTP services and domains reuse that request-local value.
+
+The cached value contains raw dates and configuration values. Feature windows, configuration windows, registry defaults, and schema checks are evaluated on every read. An admin update to a feature row or one of its configuration entries deletes the matching workspace-feature key.
+
+Redis failures are logged and treated as cache misses. The repository remains the source of truth, and a later successful read can repopulate Redis.
 
 ### SessionDomainModule
 
@@ -255,6 +268,7 @@ For cache operations (set, get, delete, etc.), see:
 [ref-doc-configuration]: configuration.md
 [ref-doc-environment]: environment.md
 [ref-doc-authentication]: authentication.md
+[ref-doc-workspace-feature-flag]: features/workspace-feature-flag.md
 [ref-doc-response]: response.md
 [ref-doc-security-and-middleware]: security-and-middleware.md
 [ref-doc-installation]: installation.md

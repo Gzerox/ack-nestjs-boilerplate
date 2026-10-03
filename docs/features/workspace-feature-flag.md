@@ -128,6 +128,7 @@ export const WorkspaceFeatureRegistry = {
         defaultEnable: true,
         configs: {
             maxProjects: { schema: z.number().int().positive(), default: 10 },
+            maxMembers: { schema: z.number().int().positive(), default: 100 },
             allowGuests: { schema: z.boolean(), default: false },
         },
     },
@@ -139,6 +140,7 @@ export const WorkspaceFeatureRegistry = {
 - Every registry feature key must also exist as a global `FeatureFlag` row, because the global row is the kill switch. A boot check, and the seed, assert it. There is no foreign key from configuration rows to the catalog.
 - The registry supplies the default set for workspace creation (`defaultEnable`) and the default value for every configuration key.
 - Feature and configuration keys are camelCase, following the same rule as global flag keys.
+- `project.maxMembers` limits the number of members assigned to one project. Its default is `100`.
 
 ## Evaluation
 
@@ -220,12 +222,54 @@ The effective configuration is resolved once per request when several layers nee
 
 Numeric limits are enforced in the transaction that performs the related write. The limit read, relevant count, and write use the same transaction and protect the relevant workspace so concurrent requests cannot both pass the limit check.
 
+### HTTP request loading
+
+The workspace feature is loaded during the guard phase of a user or shared HTTP request:
+
+```mermaid
+sequenceDiagram
+    participant R as Request
+    participant F as FeatureFlagGuard
+    participant W as WorkspaceGuard
+    participant WF as WorkspaceFeatureFlagGuard
+    participant M as WorkspaceMemberGuard
+    participant P as Project and policy guards
+    participant C as Controller
+
+    R->>F: Validate global workspace flag
+    F->>W: Continue after authentication
+    W->>W: Resolve workspace header or route parameter
+    W->>WF: Store active workspace
+    WF->>WF: Read project feature through cache/domain
+    WF->>WF: Store feature and effective configuration in request context
+    WF->>M: Continue
+    M->>P: Continue with membership and policy state
+    P->>C: Execute controller
+```
+
+`WorkspaceFeatureFlagGuard` is attached by `@WorkspaceFeatureFlagProtected('project')`. In source order it sits below `@WorkspaceMemberProtected()` and above `@WorkspaceProtected()`, so Nest executes it after `WorkspaceGuard` and before membership, project, and policy guards. Middleware only captures the workspace identifier, and response interceptors run after the guards, so neither is the feature-loading boundary.
+
+The guard loads only the feature named by the decorator. The raw row and its effective configuration are stored in `RequestStoreService`, allowing the HTTP service and domain calls in the same request to reuse the value without another Redis or database read. A domain operation that runs outside an HTTP request uses the same workspace feature domain and cache directly.
+
+`maxMembers` is read from the request-local project configuration for project-member assignment. The project-member domain re-resolves the value through the workspace feature domain when it is called from a non-HTTP flow, then checks the current member count and creates the member in one transaction.
+
 ## Cache
 
-- Key: `WorkspaceFeatureFlag:{workspaceId}:{key}`, TTL 1 hour, configured in `workspace.config.ts`. The cached value is the feature row with its configuration rows.
-- Read-through and best-effort: a cache failure is logged and falls through to the database.
-- An admin update to the row or to any of its configuration entries deletes the entry.
-- The cache holds raw rows and dates. The window checks and effective verdict are evaluated on every read, so activation and expiry do not depend on a cache write or invalidation event.
+`WorkspaceFeatureFlagCache` is the read-through cache used by `WorkspaceFeatureFlagDomain` and `WorkspaceFeatureFlagGuard`. It uses the global `CacheMainProvider`, the shared cache Redis connection, and a configured one-hour TTL.
+
+| Item | Contract |
+|---|---|
+| Key | `WorkspaceFeatureFlag:{workspaceId}:{key}` |
+| Value | The workspace feature row with its configuration rows, including raw dates and values |
+| Read miss | Load the row from the workspace feature repository, then write it to Redis |
+| Redis read or write failure | Log the failure and continue with the repository result or the next read path |
+| Feature update | Delete the workspace and feature key after the database write |
+| Configuration update or removal | Delete the same workspace and feature key after the database write |
+| Expiration | One hour from configuration, while validity windows are checked on every read |
+
+The cache stores raw persistence data, not an enabled/disabled verdict or an effective configuration snapshot. This keeps `validFrom`, `validTo`, and registry-default changes observable on every request. Request-local storage removes repeated lookups during one HTTP request, while Redis avoids repeated database reads across requests.
+
+Cache invalidation is part of every admin feature-row and configuration write. A failed invalidation is logged as a best-effort cache failure; the database remains the source of truth and the next read can repopulate the entry.
 
 ## Lifecycle
 

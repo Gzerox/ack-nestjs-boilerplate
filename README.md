@@ -65,9 +65,8 @@ A good fit when you are building:
     @Doc({ summary: '…' })
     @Response('example.get')          // or @ResponsePagination / @ResponseFile
     @TermPolicyAcceptanceProtected(...)
-    @PolicyProtected({...})
-    @RoleProtected(...)
-    @ProjectMemberProtected(...)      // never on /admin
+    @PlatformPolicyProtected({...})   // or the workspace / project policy decorator that fits the route
+    @ProjectMemberProtected(...)      // never on /admin; strict by default, { required: false } lets a workspace role that holds the policy through
     @ProjectProtected()               // never on /admin
     @WorkspaceMemberProtected(...)    // never on /admin
     @WorkspaceProtected()             // never on /admin
@@ -144,7 +143,7 @@ See [package.json][ref-package-json] for the full list.
 - **JWT + stateful sessions** - ES256 access and ES512 refresh tokens, Redis-backed sessions, and instant revocation
 - **Social sign-in** - Google OAuth and Apple Sign In for mobile and web
 - **TOTP 2FA** - Authenticator apps, encrypted secrets, and backup recovery codes
-- **RBAC & CASL policies** - Roles and fine-grained abilities on top of workspace and project membership
+- **Scoped roles & CASL policies** - Platform, workspace, and project roles from one seeded catalog; each role carries CASL policies that decide every route
 - **API keys & rate limits** - `x-api-key` guards plus Redis sliding-window limits (per IP, per user, per route)
 
 ### 🌐 Workspaces & Projects

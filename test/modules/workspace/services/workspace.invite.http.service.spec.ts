@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
@@ -8,20 +9,29 @@ import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+    EnumRoleScope,
     EnumWorkspaceInviteStatus,
-    EnumWorkspaceMemberRole,
 } from '@generated/prisma-client/client';
-import type {
-    Workspace,
-    WorkspaceInvite,
-} from '@generated/prisma-client/client';
+import type { Workspace } from '@generated/prisma-client/client';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
+import type { PolicyAbility } from '@modules/policy/interfaces/policy.interface';
+import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
+import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enum';
 import { EnumWorkspaceInviteExpiry } from '@modules/workspace/enums/workspace.enum';
 import type { WorkspaceInviteClaimRequestDto } from '@modules/workspace/dtos/request/workspace.invite-claim.request.dto';
 import type { WorkspaceInviteCreateRequestDto } from '@modules/workspace/dtos/request/workspace.invite-create.request.dto';
 import type { WorkspaceInviteListRequestDto } from '@modules/workspace/dtos/request/workspace.invite-list.request.dto';
 import type { WorkspaceInviteResendRequestDto } from '@modules/workspace/dtos/request/workspace.invite-resend.request.dto';
+import type { WorkspaceInviteResponseDto } from '@modules/workspace/dtos/response/workspace.invite.response.dto';
 import type { WorkspaceInvitePreviewResponseDto } from '@modules/workspace/dtos/response/workspace.invite-preview.response.dto';
-import type { IWorkspaceInviteList } from '@modules/workspace/interfaces/workspace.interface';
+import type {
+    IWorkspaceInviteList,
+    IWorkspaceInviteWithRole,
+} from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceInviteDomain } from '@modules/workspace/domains/workspace.invite.domain';
 import { WorkspaceInviteHttpService } from '@modules/workspace/services/workspace.invite.http.service';
 import { WorkspaceUtil } from '@modules/workspace/utils/workspace.util';
@@ -34,6 +44,9 @@ describe('WorkspaceInviteHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
+    const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
+        mock<PolicyAbilityDomain>();
+    const ability: MockProxy<PolicyAbility> = mock<PolicyAbility>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const expiredAt = new Date('2026-02-01T00:00:00.000Z');
     const workspace = {
@@ -49,12 +62,26 @@ describe('WorkspaceInviteHttpService', () => {
         deletedAt: null,
         deletedBy: null,
     } satisfies Workspace;
+    const workspaceRole = {
+        id: 'workspace-role-id',
+        scope: EnumRoleScope.workspace,
+        key: EnumRoleWorkspaceKey.member,
+        name: 'Member',
+    };
+    const projectRole = {
+        id: 'project-role-id',
+        scope: EnumRoleScope.project,
+        key: EnumRoleProjectKey.viewer,
+        name: 'Viewer',
+    };
     const invite = {
         id: 'invite-id',
         workspaceId: 'workspace-id',
         email: 'invitee@example.com',
-        workspaceRole: EnumWorkspaceMemberRole.member,
+        workspaceRoleId: workspaceRole.id,
+        workspaceRole,
         projectId: null,
+        projectRoleId: null,
         projectRole: null,
         token: 'token',
         reference: 'reference',
@@ -67,12 +94,30 @@ describe('WorkspaceInviteHttpService', () => {
         createdBy: 'inviter-id',
         updatedAt: now,
         updatedBy: 'inviter-id',
-    } satisfies WorkspaceInvite;
+    } satisfies IWorkspaceInviteWithRole;
+    const inviteResponse: WorkspaceInviteResponseDto = {
+        id: invite.id,
+        workspaceId: invite.workspaceId,
+        email: invite.email,
+        workspaceRole: invite.workspaceRole,
+        projectId: invite.projectId,
+        projectRole: invite.projectRole,
+        reference: invite.reference,
+        expiredAt: invite.expiredAt,
+        status: invite.status,
+        invitedByUserId: invite.invitedByUserId,
+        acceptedAt: invite.acceptedAt,
+        acceptedByUserId: invite.acceptedByUserId,
+        createdAt: invite.createdAt,
+        createdBy: invite.createdBy,
+        updatedAt: invite.updatedAt,
+        updatedBy: invite.updatedBy,
+    };
     const inviteListItem = {
         id: 'invite-id',
         workspaceId: 'workspace-id',
         email: 'invitee@example.com',
-        workspaceRole: EnumWorkspaceMemberRole.member,
+        workspaceRole,
         projectId: null,
         projectRole: null,
         reference: 'reference',
@@ -113,6 +158,7 @@ describe('WorkspaceInviteHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        policyAbilityDomain.requireStored.mockReturnValue(ability);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -121,6 +167,7 @@ describe('WorkspaceInviteHttpService', () => {
                     provide: WorkspaceInviteDomain,
                     useValue: workspaceInviteDomain,
                 },
+                { provide: PolicyAbilityDomain, useValue: policyAbilityDomain },
                 { provide: WorkspaceUtil, useValue: workspaceUtil },
                 {
                     provide: PaginationQueryUtil,
@@ -195,15 +242,16 @@ describe('WorkspaceInviteHttpService', () => {
     });
 
     describe('createInvite', () => {
-        it('delegates to the domain and wraps the created invite', async () => {
+        it('delegates to the domain and returns the invite the util maps', async () => {
             const dto = {
                 email: 'invitee@example.com',
-                workspaceRole: EnumWorkspaceMemberRole.member,
-                projectId: undefined,
-                projectRole: undefined,
+                workspaceRoleId: workspaceRole.id,
+                projectId: 'project-id',
+                projectRoleId: projectRole.id,
                 expiryDuration: EnumWorkspaceInviteExpiry.sevenDays,
             } satisfies WorkspaceInviteCreateRequestDto;
             workspaceInviteDomain.createInvite.mockResolvedValue(invite);
+            workspaceUtil.mapInvite.mockReturnValue(inviteResponse);
 
             const result = await service.createInvite(
                 workspace,
@@ -211,27 +259,56 @@ describe('WorkspaceInviteHttpService', () => {
                 dto
             );
 
-            expect(result).toEqual({ data: invite });
+            expect(result).toEqual({ data: inviteResponse });
+            expect(policyAbilityDomain.requireStored).toHaveBeenCalledWith(
+                PolicyAbilityStoreKey
+            );
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                ability,
+                EnumPolicyAction.create,
+                subject(EnumPolicySubject.WorkspaceInvite, {
+                    workspaceId: workspace.id,
+                })
+            );
+            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(invite);
             expect(workspaceInviteDomain.createInvite).toHaveBeenCalledWith(
                 workspace,
                 'actor-id',
                 {
                     email: dto.email,
-                    workspaceRole: dto.workspaceRole,
+                    workspaceRoleId: dto.workspaceRoleId,
                     projectId: dto.projectId,
-                    projectRole: dto.projectRole,
+                    projectRoleId: dto.projectRoleId,
                     expiryDuration: dto.expiryDuration,
                 }
             );
         });
     });
 
+    describe('createInvite policy denial', () => {
+        it('does not call the domain when the policy denies the invite', async () => {
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(
+                service.createInvite(workspace, 'actor-id', {
+                    email: 'invitee@example.com',
+                    workspaceRoleId: workspaceRole.id,
+                } as WorkspaceInviteCreateRequestDto)
+            ).rejects.toThrow(PolicyForbiddenException);
+            expect(workspaceInviteDomain.createInvite).not.toHaveBeenCalled();
+        });
+    });
+
     describe('resendInvite', () => {
-        it('delegates to the domain and wraps the resent invite', async () => {
+        it('delegates to the domain and returns the invite the util maps', async () => {
             const dto = {
                 expiryDuration: EnumWorkspaceInviteExpiry.sevenDays,
             } satisfies WorkspaceInviteResendRequestDto;
+            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
             workspaceInviteDomain.resendInvite.mockResolvedValue(invite);
+            workspaceUtil.mapInvite.mockReturnValue(inviteResponse);
 
             const result = await service.resendInvite(
                 workspace,
@@ -240,7 +317,17 @@ describe('WorkspaceInviteHttpService', () => {
                 dto
             );
 
-            expect(result).toEqual({ data: invite });
+            expect(result).toEqual({ data: inviteResponse });
+            expect(workspaceInviteDomain.getInvite).toHaveBeenCalledWith(
+                'workspace-id',
+                'invite-id'
+            );
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                ability,
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.WorkspaceInvite, invite)
+            );
+            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(invite);
             expect(workspaceInviteDomain.resendInvite).toHaveBeenCalledWith(
                 workspace,
                 'actor-id',
@@ -250,9 +337,48 @@ describe('WorkspaceInviteHttpService', () => {
         });
     });
 
+    describe('resendInvite policy denial', () => {
+        it('does not call the domain when the policy denies the invite', async () => {
+            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(
+                service.resendInvite(workspace, 'actor-id', 'invite-id', {})
+            ).rejects.toThrow(PolicyForbiddenException);
+            expect(workspaceInviteDomain.resendInvite).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('revokeInvite policy denial', () => {
+        it('does not call the domain when the policy denies the invite', async () => {
+            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(
+                service.revokeInvite('workspace-id', 'actor-id', 'invite-id')
+            ).rejects.toThrow(PolicyForbiddenException);
+            expect(workspaceInviteDomain.revokeInvite).not.toHaveBeenCalled();
+        });
+    });
+
     describe('revokeInvite', () => {
-        it('delegates to the domain', async () => {
+        it('checks WorkspaceInvite delete on the loaded invite, then delegates to the domain', async () => {
+            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
             await service.revokeInvite('workspace-id', 'actor-id', 'invite-id');
+
+            expect(workspaceInviteDomain.getInvite).toHaveBeenCalledWith(
+                'workspace-id',
+                'invite-id'
+            );
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                ability,
+                EnumPolicyAction.delete,
+                subject(EnumPolicySubject.WorkspaceInvite, invite)
+            );
 
             expect(workspaceInviteDomain.revokeInvite).toHaveBeenCalledWith(
                 'workspace-id',

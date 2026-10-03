@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -5,11 +6,12 @@ import type {
     IResponsePaginationReturn,
     IResponseReturn,
 } from '@common/response/interfaces/response.interface';
-import { Prisma } from '@generated/prisma-client/client';
-import type {
-    Workspace,
-    WorkspaceInvite,
+import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+    Prisma,
 } from '@generated/prisma-client/client';
+import type { Workspace } from '@generated/prisma-client/client';
 import {
     WorkspaceInviteDefaultAvailableOrderBy,
     WorkspaceInviteDefaultAvailableSearch,
@@ -19,8 +21,12 @@ import type { WorkspaceInviteListRequestDto } from '@modules/workspace/dtos/requ
 import type { WorkspaceInviteClaimRequestDto } from '@modules/workspace/dtos/request/workspace.invite-claim.request.dto';
 import type { WorkspaceInviteCreateRequestDto } from '@modules/workspace/dtos/request/workspace.invite-create.request.dto';
 import type { WorkspaceInviteResendRequestDto } from '@modules/workspace/dtos/request/workspace.invite-resend.request.dto';
+import type { WorkspaceInviteResponseDto } from '@modules/workspace/dtos/response/workspace.invite.response.dto';
 import type { WorkspaceInvitePreviewResponseDto } from '@modules/workspace/dtos/response/workspace.invite-preview.response.dto';
 import { WorkspaceInviteDomain } from '@modules/workspace/domains/workspace.invite.domain';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import type { PolicyAbility } from '@modules/policy/interfaces/policy.interface';
 import { WorkspaceUtil } from '@modules/workspace/utils/workspace.util';
 import type { IWorkspaceInviteList } from '@modules/workspace/interfaces/workspace.interface';
 import { Injectable } from '@nestjs/common';
@@ -29,10 +35,30 @@ import { Injectable } from '@nestjs/common';
 export class WorkspaceInviteHttpService {
     constructor(
         private readonly workspaceInviteDomain: WorkspaceInviteDomain,
+        private readonly policyAbilityDomain: PolicyAbilityDomain,
         private readonly workspaceUtil: WorkspaceUtil,
         private readonly paginationQueryUtil: PaginationQueryUtil,
         private readonly requestStoreService: RequestStoreService
     ) {}
+
+    private async assertInviteCan(
+        action: EnumPolicyAction,
+        workspaceId: string,
+        workspaceInviteId: string
+    ): Promise<void> {
+        const invite = await this.workspaceInviteDomain.getInvite(
+            workspaceId,
+            workspaceInviteId
+        );
+        const ability = this.policyAbilityDomain.requireStored<PolicyAbility>(
+            PolicyAbilityStoreKey
+        );
+        this.policyAbilityDomain.assertCan(
+            ability,
+            action,
+            subject(EnumPolicySubject.WorkspaceInvite, invite)
+        );
+    }
 
     async getInvitesList(
         workspaceId: string,
@@ -77,19 +103,29 @@ export class WorkspaceInviteHttpService {
         actorId: string,
         {
             email,
-            workspaceRole,
+            workspaceRoleId,
             projectId,
-            projectRole,
+            projectRoleId,
             expiryDuration,
         }: WorkspaceInviteCreateRequestDto
-    ): Promise<IResponseReturn<WorkspaceInvite>> {
+    ): Promise<IResponseReturn<WorkspaceInviteResponseDto>> {
+        const ability = this.policyAbilityDomain.requireStored<PolicyAbility>(
+            PolicyAbilityStoreKey
+        );
+        this.policyAbilityDomain.assertCan(
+            ability,
+            EnumPolicyAction.create,
+            subject(EnumPolicySubject.WorkspaceInvite, {
+                workspaceId: workspace.id,
+            })
+        );
         const invite = await this.workspaceInviteDomain.createInvite(
             workspace,
             actorId,
-            { email, workspaceRole, projectId, projectRole, expiryDuration }
+            { email, workspaceRoleId, projectId, projectRoleId, expiryDuration }
         );
 
-        return { data: invite };
+        return { data: this.workspaceUtil.mapInvite(invite) };
     }
 
     async resendInvite(
@@ -97,7 +133,12 @@ export class WorkspaceInviteHttpService {
         actorId: string,
         workspaceInviteId: string,
         { expiryDuration }: WorkspaceInviteResendRequestDto
-    ): Promise<IResponseReturn<WorkspaceInvite>> {
+    ): Promise<IResponseReturn<WorkspaceInviteResponseDto>> {
+        await this.assertInviteCan(
+            EnumPolicyAction.update,
+            workspace.id,
+            workspaceInviteId
+        );
         const invite = await this.workspaceInviteDomain.resendInvite(
             workspace,
             actorId,
@@ -105,7 +146,7 @@ export class WorkspaceInviteHttpService {
             expiryDuration
         );
 
-        return { data: invite };
+        return { data: this.workspaceUtil.mapInvite(invite) };
     }
 
     async revokeInvite(
@@ -113,6 +154,11 @@ export class WorkspaceInviteHttpService {
         actorId: string,
         workspaceInviteId: string
     ): Promise<void> {
+        await this.assertInviteCan(
+            EnumPolicyAction.delete,
+            workspaceId,
+            workspaceInviteId
+        );
         await this.workspaceInviteDomain.revokeInvite(
             workspaceId,
             actorId,

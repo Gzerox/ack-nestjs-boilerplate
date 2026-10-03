@@ -1,47 +1,92 @@
-import { AbilityBuilder, createMongoAbility } from '@casl/ability';
-import type { ExtractSubjectType } from '@casl/ability';
-import { Injectable } from '@nestjs/common';
-import { EnumPolicyAction } from '@generated/prisma-client/client';
-import type { Policy } from '@generated/prisma-client/client';
+import { createPrismaAbility } from '@casl/prisma';
 import type {
-    IPolicyAbilityRule,
-    IPolicyAbilitySubject,
+    IPolicyConditions,
+    IPolicyRule,
+    PolicyAbility,
+    PolicyAbilityRule,
+    PolicyPlaceholderValues,
 } from '@modules/policy/interfaces/policy.interface';
-import type { PolicyRequestDto } from '@modules/policy/dtos/request/policy.request.dto';
+import { isPolicyPlaceholder } from '@modules/policy/constants/policy.constant';
+import { Injectable } from '@nestjs/common';
 
-/**
- * Builds and evaluates CASL ability rules for policy checks.
- */
+/** Builds the typed Prisma CASL ability from persisted policies and a placeholder map. */
 @Injectable()
 export class PolicyAbilityFactory {
-    createForUser(policies: Policy[]): IPolicyAbilityRule {
-        const { can, build } = new AbilityBuilder<IPolicyAbilityRule>(
-            createMongoAbility
+    private isPlainJsonObject(value: unknown): value is IPolicyConditions {
+        return (
+            value !== null && typeof value === 'object' && !Array.isArray(value)
         );
+    }
 
-        for (const policy of policies) {
-            can(policy.action, policy.subject);
+    private interpolate(
+        conditions: IPolicyConditions,
+        values: PolicyPlaceholderValues
+    ): IPolicyConditions | null {
+        const entries: IPolicyConditions = {};
+
+        for (const [key, value] of Object.entries(conditions)) {
+            if (typeof value === 'object' && value !== null) {
+                return null;
+            }
+
+            const resolved = isPolicyPlaceholder(value) ? values[value] : value;
+            if (resolved === undefined) {
+                return null;
+            }
+
+            entries[key] = resolved;
         }
 
-        return build({
-            // Read https://casl.js.org/v6/en/guide/subject-type-detection#use-classes-as-subject-types for details
-            detectSubjectType: (item: {
-                constructor: ExtractSubjectType<IPolicyAbilitySubject>;
-            }) => item.constructor,
-        });
+        return entries;
     }
 
     /**
-     * Returns true only when the user holds every required action on each subject.
+     * Resolves one persisted policy into a plain ability rule. An allow whose placeholder has no
+     * value, or whose conditions are not flat scalars, is omitted (`null`); an inverted rule in that
+     * state becomes an unconditional deny on its subject and actions. Both fail closed.
      */
-    handlerPolicies(
-        userPolicies: IPolicyAbilityRule,
-        policies: PolicyRequestDto[]
-    ): boolean {
-        return policies.every((policy: PolicyRequestDto) =>
-            policy.action.every((action: EnumPolicyAction) =>
-                userPolicies.can(action, policy.subject)
-            )
+    private toAbilityRule(
+        policy: IPolicyRule,
+        placeholders: PolicyPlaceholderValues
+    ): PolicyAbilityRule | null {
+        const { conditions } = policy;
+        const base: PolicyAbilityRule = {
+            subject: policy.subject,
+            action: policy.action,
+            inverted: policy.inverted,
+            ...(policy.reason ? { reason: policy.reason } : {}),
+        };
+        if (conditions === null) {
+            return base;
+        }
+
+        const resolved = this.isPlainJsonObject(conditions)
+            ? this.interpolate(conditions, placeholders)
+            : null;
+        if (resolved !== null) {
+            return { ...base, conditions: resolved };
+        }
+
+        return policy.inverted ? base : null;
+    }
+
+    /**
+     * Builds the typed Prisma CASL ability from persisted policies. Placeholders resolve first
+     * with a fail-closed drop; inverted rules are then added after allows so a matching deny is
+     * authoritative.
+     */
+    build(
+        policies: IPolicyRule[],
+        placeholders: PolicyPlaceholderValues
+    ): PolicyAbility {
+        const rules = policies.flatMap(
+            policy => this.toAbilityRule(policy, placeholders) ?? []
         );
+        const orderedRules = [
+            ...rules.filter(rule => !rule.inverted),
+            ...rules.filter(rule => rule.inverted),
+        ];
+
+        return createPrismaAbility<PolicyAbility>(orderedRules);
     }
 }

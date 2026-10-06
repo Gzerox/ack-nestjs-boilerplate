@@ -4,7 +4,7 @@ Status: proposed. Nothing in this document is implemented yet.
 
 ## Overview
 
-`FeatureFlag` is the seeded feature catalog and the platform operational control. Each flag declares one rollout subject and can declare typed configuration through seeded `FeatureFlagConfig` rows. A workspace customizes a configuration by storing a sparse `FeatureFlagOverride` row with an optional validity window.
+`FeatureFlag` is the seeded feature catalog and the platform operational control. Each flag declares one rollout subject and can declare typed configuration through seeded `FeatureFlagConfig` rows. A workspace customizes a configuration with sparse `FeatureFlagOverride` rows. One undated row can hold its standing value, while dated rows can replace that value for bounded or open-ended periods.
 
 The global flag and the scoped configuration answer different questions:
 
@@ -18,9 +18,9 @@ For an operation designated for full scoped evaluation, effective feature availa
 Goals:
 
 1. Keep feature identity, global availability, rollout subject, targeting, and configuration definitions in one seeded catalog.
-2. Let a workspace override supported configuration values permanently or within a validity window.
+2. Let a workspace keep a standing override and schedule non-overlapping dated overrides that restore the standing or platform value when they expire.
 3. Return every feature and configuration with its platform value, effective value, and effective source.
-4. Keep the storage shape extensible to project and other entity scopes without adding one table per feature.
+4. Add workspace-wide feature configurations such as Album or Trip without changing the override schema or adding one table per feature.
 
 Access:
 
@@ -61,7 +61,7 @@ Access:
 Configuration definitions are normalized children of the flag:
 
 - `FeatureFlagConfig` declares one supported configuration key, its description, and its mutable platform value.
-- `FeatureFlagOverride` stores a workspace-specific replacement for one configuration definition.
+- `FeatureFlagOverride` stores workspace-specific standing and dated replacements for one configuration definition.
 
 `FeatureFlag` carries no configuration metadata. Configuration keys such as `signUpAllowed`, `forgotAllowed`, `enabled`, and `maxProjects` are `FeatureFlagConfig` rows attached to their flags.
 
@@ -71,7 +71,7 @@ Feature flags and configuration definitions have no create or delete administrat
 
 `FeatureFlagConfig` is not scoped. It defines the complete configuration catalog and its current platform value.
 
-Scope belongs to `FeatureFlagOverride`. A workspace override references one definition and one workspace. With no active override, the definition's platform `value` is effective.
+Scope belongs to `FeatureFlagOverride`. A workspace override references one definition and one workspace. An active dated override wins over the workspace's undated override. With neither, the definition's platform `value` is effective.
 
 For example:
 
@@ -80,22 +80,24 @@ FeatureFlag: project, isEnable = true
   FeatureFlagConfig: enabled, value = true
   FeatureFlagConfig: maxProjects, value = 10
 
-Workspace A override: enabled = false
-Workspace B override: maxProjects = 25
+Workspace A standing override: enabled = false
+Workspace B standing override: maxProjects = 25
+Workspace B dated override: maxProjects = 50, valid for June
 ```
 
-The effective values are `enabled = false` and `maxProjects = 10` for Workspace A, and `enabled = true` and `maxProjects = 25` for Workspace B.
+The effective values are `enabled = false` and `maxProjects = 10` for Workspace A. Workspace B resolves `enabled = true` and `maxProjects = 50` during June, then returns to its standing `maxProjects = 25` value.
 
 ### Sparse overrides
 
-Workspace creation inserts no configuration rows. An override exists only when the workspace differs from the current platform value or schedules a temporary value.
+Workspace creation inserts no configuration rows. An override exists only when the workspace differs from the current platform value or schedules a dated value.
 
 Sparse rows provide these properties:
 
 - Adding a feature or configuration definition needs no workspace backfill.
-- Deleting an override immediately restores the platform value.
-- Expired and not-yet-active overrides fall back to the platform value without a data write.
-- Each override has its own audit fields and validity window.
+- Removing an undated override immediately restores the platform value when no dated override is active.
+- An expired dated override restores the undated workspace value, or the current platform value when no undated row exists.
+- Future and expired dated rows do not affect the effective value.
+- Each override has its own audit and nullable validity fields.
 
 ### Module ownership
 
@@ -109,15 +111,15 @@ The workspace module owns workspace selection, membership, policies, and workspa
 
 The `FeatureFlag` model contains:
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid | `uuidv7()` default |
-| `key` | string | Seeded unique feature key |
-| `description` | string | Seeded feature description |
-| `isEnable` | boolean | Global kill switch |
-| `rolloutPercent` | integer | Global deterministic rollout |
+| Field            | Type                  | Notes                                                          |
+| ---------------- | --------------------- | -------------------------------------------------------------- |
+| `id`             | uuid                  | `uuidv7()` default                                             |
+| `key`            | string                | Seeded unique feature key                                      |
+| `description`    | string                | Seeded feature description                                     |
+| `isEnable`       | boolean               | Global kill switch                                             |
+| `rolloutPercent` | integer               | Global deterministic rollout                                   |
 | `rolloutSubject` | `user` or `workspace` | Seed-owned subject used for targeting and percentage bucketing |
-| audit fields | | Existing audit fields |
+| audit fields     |                       | Existing audit fields                                          |
 
 The model has no `metadata` field. Its `configs` relation points to `FeatureFlagConfig`. `targetUsers` and `targetWorkspaces` provide explicit targets for the corresponding rollout subject.
 
@@ -125,9 +127,9 @@ The model has no `metadata` field. Its `configs` relation points to `FeatureFlag
 
 Targeting uses typed relations with database foreign keys:
 
-| Model | Fields | Constraints |
-|---|---|---|
-| `FeatureFlagUser` | `id`, `featureFlagId`, `userId` | Unique on `(featureFlagId, userId)`; both relations cascade on hard deletion |
+| Model                  | Fields                               | Constraints                                                                       |
+| ---------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| `FeatureFlagUser`      | `id`, `featureFlagId`, `userId`      | Unique on `(featureFlagId, userId)`; both relations cascade on hard deletion      |
 | `FeatureFlagWorkspace` | `id`, `featureFlagId`, `workspaceId` | Unique on `(featureFlagId, workspaceId)`; both relations cascade on hard deletion |
 
 Only the relation matching `FeatureFlag.rolloutSubject` may contain rows. Each flag has at most 100 explicit targets. Target rows are operational rollout state, not authorization or entitlement records.
@@ -136,14 +138,14 @@ Only the relation matching `FeatureFlag.rolloutSubject` may contain rows. Each f
 
 `FeatureFlagConfig`, table `feature_flag_configs`:
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid | `uuidv7()` default |
-| `featureFlagId` | uuid | FK to `FeatureFlag`, `onDelete: Cascade` |
-| `key` | string | Seeded configuration key |
-| `description` | string | Seeded configuration description |
-| `value` | json | Current platform value, initialized from and validated by the registry |
-| `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | | Audit fields |
+| Field                                              | Type   | Notes                                                                  |
+| -------------------------------------------------- | ------ | ---------------------------------------------------------------------- |
+| `id`                                               | uuid   | `uuidv7()` default                                                     |
+| `featureFlagId`                                    | uuid   | FK to `FeatureFlag`, `onDelete: Cascade`                               |
+| `key`                                              | string | Seeded configuration key                                               |
+| `description`                                      | string | Seeded configuration description                                       |
+| `value`                                            | json   | Current platform value, initialized from and validated by the registry |
+| `createdAt`, `createdBy`, `updatedAt`, `updatedBy` |        | Audit fields                                                           |
 
 - `@@unique([featureFlagId, key])`
 - `@@index([featureFlagId])`
@@ -152,27 +154,34 @@ Only the relation matching `FeatureFlag.rolloutSubject` may contain rows. Each f
 
 `FeatureFlagOverride`, table `feature_flag_overrides`:
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid | `uuidv7()` default |
-| `featureFlagConfigId` | uuid | FK to `FeatureFlagConfig`, `onDelete: Cascade` |
-| `workspaceId` | uuid | FK to `Workspace`, `onDelete: Cascade` |
-| `value` | json | Replacement validated by the configuration schema |
-| `validFrom` | datetime, nullable | Inclusive start |
-| `validTo` | datetime, nullable | Exclusive end |
-| `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | | Audit fields |
+| Field                                              | Type               | Notes                                             |
+| -------------------------------------------------- | ------------------ | ------------------------------------------------- |
+| `id`                                               | uuid               | `uuidv7()` default                                |
+| `featureFlagConfigId`                              | uuid               | FK to `FeatureFlagConfig`, `onDelete: Cascade`    |
+| `workspaceId`                                      | uuid               | FK to `Workspace`, `onDelete: Cascade`            |
+| `value`                                            | json               | Replacement validated by the configuration schema |
+| `validFrom`                                        | datetime, nullable | Inclusive start                                   |
+| `validTo`                                          | datetime, nullable | Exclusive end                                     |
+| `createdAt`, `createdBy`, `updatedAt`, `updatedBy` |                    | Audit fields                                      |
 
-- `@@unique([featureFlagConfigId, workspaceId])`
 - `@@index([workspaceId, featureFlagConfigId])`
 
-One workspace has at most one override for a configuration. A schedule with several successive values is outside the first implementation.
+The database distinguishes undated and dated overrides from their validity fields. It stores no override kind or priority:
+
+- A partial unique index on `(featureFlagConfigId, workspaceId)` where both validity fields are null permits at most one undated override.
+- A PostgreSQL GiST exclusion constraint on `featureFlagConfigId`, `workspaceId`, and `tstzrange(validFrom, validTo, '[)')` rejects overlapping dated overrides. Its predicate includes rows where either validity field is non-null.
+- The exclusion constraint uses the `btree_gist` extension for UUID equality and is added through the customized Prisma migration.
 
 Validity rules:
 
-- Both dates null means the override is always active.
-- One null means the window is open-ended on that side.
+- Both dates null identifies the undated workspace override.
+- Either date populated identifies a dated override. A null bound leaves that side open.
+- A null `validFrom` with a populated `validTo` applies immediately and expires at `validTo`.
+- A populated `validFrom` with a null `validTo` begins at `validFrom` and remains effective until an administrator ends or replaces it.
 - When both dates are set, `validTo` is later than `validFrom`.
 - Windows are half-open, `[validFrom, validTo)`, and compared in UTC.
+- Dated overrides for the same workspace and configuration never overlap, so at most one can be active at an instant.
+- Expired dated rows are immutable history. Future rows can be edited or cancelled before their start.
 - Window activation and expiration create no notification or activity entry.
 - Soft-deleting a workspace keeps its overrides. Hard deletion cascades to them.
 
@@ -232,10 +241,10 @@ export const FeatureFlagRegistry = {
 
 ### Initial workspace feature catalog
 
-| Feature | Subject | Scoped configuration | Owned capability |
-|---|---|---|---|
-| `workspace` | user | `invitation`, `joinRequest`, `analytics` | Workspace listing, creation, switching, core management, membership, ownership, and public workspace visibility |
-| `project` | workspace | `enabled`, `maxProjects` | Project and project-membership operations inside a workspace |
+| Feature     | Subject   | Scoped configuration                     | Owned capability                                                                                                |
+| ----------- | --------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `workspace` | user      | `invitation`, `joinRequest`, `analytics` | Workspace listing, creation, switching, core management, membership, ownership, and public workspace visibility |
+| `project`   | workspace | `enabled`, `maxProjects`                 | Project and project-membership operations inside a workspace                                                    |
 
 The following are not separate features:
 
@@ -269,10 +278,10 @@ The global kill switch remains independent from workspace configuration and alwa
 A workspace configuration resolves as follows:
 
 1. Resolve the `FeatureFlagConfig` by feature key and configuration key.
-2. Find the workspace's `FeatureFlagOverride` for that definition.
-3. Validate the stored value against the registry schema.
-4. Use the override when it is valid and active at the current time.
-5. Otherwise use `FeatureFlagConfig.value`.
+2. Find the workspace's active dated override for that definition using the current database time.
+3. Use and validate that dated value when it exists.
+4. Otherwise find and validate the workspace's undated override.
+5. Otherwise use and validate `FeatureFlagConfig.value`.
 
 The resolver returns the effective value and its source:
 
@@ -280,7 +289,7 @@ The resolver returns the effective value and its source:
 type FeatureFlagConfigSource = 'platform' | 'workspaceOverride';
 ```
 
-An invalid persisted platform or override value is a server misconfiguration and fails resolution instead of silently substituting another value. Window checks run against the current time on every resolution; the cache never stores an effective verdict.
+An invalid persisted platform or selected override value is a server misconfiguration and fails resolution instead of silently substituting another value. A dated override is active when `validFrom` is null or not later than the current time, and `validTo` is null or later than the current time. Window checks run against the current time on every resolution; the cache never stores an effective verdict.
 
 ### Effective feature availability
 
@@ -292,7 +301,7 @@ global FeatureFlag evaluation passes
 resolved workspace enabled configuration is true
 ```
 
-`FeatureFlag.isEnable = false` rejects every workspace regardless of overrides. A false workspace override disables only that workspace. A missing or inactive override uses the current platform `enabled` value.
+`FeatureFlag.isEnable = false` rejects every workspace regardless of overrides. A false workspace override disables only that workspace. An inactive dated override falls through to the undated workspace value and then to the current platform `enabled` value.
 
 Boolean configuration keys used as gates reject `false` with `serviceUnavailable` and reject a non-boolean registry definition with `predefinedKeyTypeInvalid`.
 
@@ -360,12 +369,12 @@ Not every workspace-bound operation begins with `WorkspaceGuard`:
 
 The route and domain coverage is:
 
-| Feature | Full scoped evaluation | Global kill switch only | Ungated cleanup |
-|---|---|---|---|
-| `workspace.configs.invitation` | Create, resend, preview, claim, invite-based sign-up | List and revoke | Expiry sweep |
-| `workspace.configs.joinRequest` | Create | List, accept, reject | Cancellation during workspace deletion |
-| `project` | Every user-scope project operation | none | Workspace deletion still soft-deletes projects transactionally |
-| `workspace.configs.analytics` | Every user-scope workspace analytic operation | none | none |
+| Feature                         | Full scoped evaluation                               | Global kill switch only | Ungated cleanup                                                |
+| ------------------------------- | ---------------------------------------------------- | ----------------------- | -------------------------------------------------------------- |
+| `workspace.configs.invitation`  | Create, resend, preview, claim, invite-based sign-up | List and revoke         | Expiry sweep                                                   |
+| `workspace.configs.joinRequest` | Create                                               | List, accept, reject    | Cancellation during workspace deletion                         |
+| `project`                       | Every user-scope project operation                   | none                    | Workspace deletion still soft-deletes projects transactionally |
+| `workspace.configs.analytics`   | Every user-scope workspace analytic operation        | none                    | none                                                           |
 
 This distinction lets scoped disablement stop new participation without trapping administrators with pending records. Setting the feature's global `isEnable` to false remains an emergency kill switch and closes all guarded synchronous surfaces.
 
@@ -389,7 +398,7 @@ This keeps concurrency control in the domain that owns the resource and avoids a
 - Updating global operational state deletes the global flag entry.
 - Replacing explicit targets deletes the global flag entry after the database transaction commits.
 - Updating a platform configuration value deletes the global flag entry containing its definitions.
-- Setting or removing a workspace override deletes that workspace-feature override entry.
+- Creating, updating, replacing, ending, or removing a workspace override deletes that workspace-feature override entry.
 - Validity windows and effective sources are evaluated on every read.
 
 ## Lifecycle
@@ -404,7 +413,7 @@ No metadata data migration or backfill is required. The schema change removes `F
 
 ### Workspace creation
 
-Workspace creation writes no feature configuration data. Every workspace inherits platform values until an administrator creates an override.
+Workspace creation writes no feature configuration data. Every workspace inherits platform values until an administrator creates an undated or dated override.
 
 ### Adding a feature
 
@@ -424,12 +433,12 @@ Removing a seeded definition deletes its override rows through the foreign-key c
 
 The feature-flag list exposes the seeded catalog, rollout subject, explicit target IDs, and current platform values:
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/admin/feature-flag/list` | List flags with their configuration definitions and platform values |
-| PATCH | `/admin/feature-flag/update/:featureFlagId/status` | Update `isEnable` and `rolloutPercent` |
-| PUT | `/admin/feature-flag/update/:featureFlagId/targets` | Replace the complete target set matching the feature's rollout subject |
-| PATCH | `/admin/feature-flag/update/:featureFlagId/config/:key` | Update one existing platform configuration value |
+| Method | Path                                                    | Purpose                                                                |
+| ------ | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/admin/feature-flag/list`                              | List flags with their configuration definitions and platform values    |
+| PATCH  | `/admin/feature-flag/update/:featureFlagId/status`      | Update `isEnable` and `rolloutPercent`                                 |
+| PUT    | `/admin/feature-flag/update/:featureFlagId/targets`     | Replace the complete target set matching the feature's rollout subject |
+| PATCH  | `/admin/feature-flag/update/:featureFlagId/config/:key` | Update one existing platform configuration value                       |
 
 The target body contains `targetIds`. An empty array clears targeting. The domain rejects duplicate IDs, more than 100 targets, unknown users or workspaces, and targets whose type does not match the registry rollout subject. Replacement runs transactionally and invalidates the global cache after commit.
 
@@ -439,35 +448,49 @@ The configuration update validates `value` against the registry schema and inval
 
 The user route is gated by the existing workspace protection and is open to every member of the active workspace:
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/user/workspace/feature-flag` | List all features with effective configuration for the active workspace |
+| Method | Path                           | Purpose                                                                 |
+| ------ | ------------------------------ | ----------------------------------------------------------------------- |
+| GET    | `/user/workspace/feature-flag` | List all features with effective configuration for the active workspace |
 
-Each configuration response includes `key`, `description`, `platformValue`, `effectiveValue`, `source`, and an optional override containing `value`, `validFrom`, `validTo`, and `isActive`. A future or expired override is visible while the effective source remains `platform`.
+Each configuration response includes `key`, `description`, `platformValue`, `effectiveValue`, `source`, and the selected override when one is effective. The override contains `id`, `value`, `validFrom`, and `validTo`. Future and expired rows are administration history and are not returned to workspace members.
 
 ### Workspace administration
 
 The admin scope addresses the workspace by path because it does not use `x-workspace-id`:
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/admin/workspace/:workspaceId/feature-flag` | List effective feature configuration for a workspace |
-| PUT | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key` | Set or replace one workspace override |
-| DELETE | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key` | Remove an override and restore the platform value |
+| Method | Path                                                                                            | Purpose                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| GET    | `/admin/workspace/:workspaceId/feature-flag`                                                    | List effective configuration, the undated override, and dated override history for a workspace |
+| PUT    | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key`                         | Set or replace the undated workspace override                                                  |
+| DELETE | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key`                         | Remove the undated override                                                                    |
+| POST   | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key/override`                | Create a dated override                                                                        |
+| PATCH  | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key/override/:overrideId`    | Update a future dated override                                                                 |
+| DELETE | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key/override/:overrideId`    | Cancel a future override or end an active override                                             |
+| POST   | `/admin/workspace/:workspaceId/feature-flag/:featureFlagId/config/:key/override/replace-active` | Atomically replace the active dated override                                                   |
 
-The PUT body contains `value`, `validFrom`, and `validTo`. Every write invalidates the corresponding workspace-feature cache entry.
+The undated PUT body contains only `value`. Dated create and future-update bodies contain `value`, `validFrom`, and `validTo`, with at least one validity field populated. An ordinary create or update that overlaps another dated row is rejected.
+
+Deleting a future row removes it. Deleting an active row changes its `validTo` to the transaction timestamp, which preserves its effective history. An expired row cannot be changed or deleted.
+
+Active replacement captures one database timestamp, ends the current dated row at that timestamp, and inserts the replacement with the same timestamp as `validFrom`. Its body contains `value` and nullable `validTo`; a null `validTo` makes the replacement open-ended. The operation rejects a replacement that overlaps a separate future row.
+
+Every override write locks the workspace row with PostgreSQL `FOR UPDATE`, runs transactionally, and leaves the exclusion constraint as the final concurrency guard. Cache invalidation follows the commit.
 
 ## Activity Log
 
 Reads create no activity. Platform target, platform configuration, and workspace override writes add platform-admin actions:
 
-| Action | Written by | Metadata |
-|---|---|---|
-| `adminFeatureFlagTargetsUpdate` | PUT replacing explicit targets | Feature key, rollout subject, previous target count, and resulting target count |
-| `adminFeatureFlagConfigUpdate` | PATCH of a platform configuration value | Feature key, configuration key, previous value, and resulting value |
-| `adminWorkspaceFeatureFlagOverrideUpdate` | PUT or DELETE on an override | Feature key, configuration key, resulting value, `validFrom`, `validTo`, and whether the override was removed |
+| Action                                      | Written by                               | Metadata                                                                                                         |
+| ------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `adminFeatureFlagTargetsUpdate`             | PUT replacing explicit targets           | Feature key, rollout subject, previous target count, and resulting target count                                  |
+| `adminFeatureFlagConfigUpdate`              | PATCH of a platform configuration value  | Feature key, configuration key, previous value, and resulting value                                              |
+| `adminWorkspaceFeatureFlagOverrideUpdate`   | PUT or DELETE of the undated override    | Feature key, configuration key, previous value, resulting value, and whether the override was removed            |
+| `adminWorkspaceFeatureFlagOverrideSchedule` | POST or PATCH of a dated override        | Override ID, feature key, configuration key, value, `validFrom`, and `validTo`                                   |
+| `adminWorkspaceFeatureFlagOverrideCancel`   | DELETE of a future dated override        | Override ID, feature key, configuration key, `validFrom`, and `validTo`                                          |
+| `adminWorkspaceFeatureFlagOverrideEnd`      | DELETE of an active dated override       | Override ID, feature key, configuration key, previous `validTo`, and resulting `validTo`                         |
+| `adminWorkspaceFeatureFlagOverrideReplace`  | POST replacing the active dated override | Previous and resulting override IDs, feature key, configuration key, resulting value, `validFrom`, and `validTo` |
 
-The platform target and configuration actions use `user: payload`. The workspace override action additionally uses `workspace: target`, so it appears in the affected workspace's activity list.
+The platform target and configuration actions use `user: payload`. Workspace override actions additionally use `workspace: target`, so they appear in the affected workspace's activity list. Natural activation and expiration write no activity because no administrative action occurs at those boundaries.
 
 ## Status Codes
 
@@ -481,49 +504,46 @@ The feature reuses `feature-flag` errors for catalog and gate evaluation:
 
 The feature-flag block gains:
 
-| member | statusCode | HTTP | messagePath | Description |
-|---|---:|---:|---|---|
-| `rolloutSubjectInvalid` | `50607` | 500 | `featureFlag.error.rolloutSubjectInvalid` | Evaluation did not receive the subject required by the registry definition. |
-| `targetInvalid` | `50608` | 400 | `featureFlag.error.targetInvalid` | The target list contains duplicates, exceeds 100 entries, or does not match the rollout subject. |
-| `targetNotFound` | `50609` | 404 | `featureFlag.error.targetNotFound` | At least one requested user or workspace target does not exist. |
+| member                  | statusCode | HTTP | messagePath                               | Description                                                                                      |
+| ----------------------- | ---------: | ---: | ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `rolloutSubjectInvalid` |    `50607` |  500 | `featureFlag.error.rolloutSubjectInvalid` | Evaluation did not receive the subject required by the registry definition.                      |
+| `targetInvalid`         |    `50608` |  400 | `featureFlag.error.targetInvalid`         | The target list contains duplicates, exceeds 100 entries, or does not match the rollout subject. |
+| `targetNotFound`        |    `50609` |  404 | `featureFlag.error.targetNotFound`        | At least one requested user or workspace target does not exist.                                  |
 
 The workspace block gains:
 
-| member | statusCode | HTTP | messagePath | Description |
-|---|---:|---:|---|---|
-| `featureFlagOverrideWindowInvalid` | `51621` | 400 | `workspace.error.featureFlagOverrideWindowInvalid` | The override validity window does not end after it starts. |
-| `featureFlagConfigInvalid` | `51622` | 400 | `workspace.error.featureFlagConfigInvalid` | The configuration key is unavailable for the feature or its value fails validation. |
+| member                             | statusCode | HTTP | messagePath                                        | Description                                                                                       |
+| ---------------------------------- | ---------: | ---: | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `featureFlagOverrideWindowInvalid` |    `51621` |  400 | `workspace.error.featureFlagOverrideWindowInvalid` | The override validity window does not end after it starts.                                        |
+| `featureFlagConfigInvalid`         |    `51622` |  400 | `workspace.error.featureFlagConfigInvalid`         | The configuration key is unavailable for the feature or its value fails validation.               |
+| `featureFlagOverrideConflict`      |    `51623` |  409 | `workspace.error.featureFlagOverrideConflict`      | The requested dated override overlaps another dated override for the workspace and configuration. |
+| `featureFlagOverrideImmutable`     |    `51624` |  409 | `workspace.error.featureFlagOverrideImmutable`     | The requested operation would change or delete an expired override.                               |
+| `featureFlagOverrideNotFound`      |    `51625` |  404 | `workspace.error.featureFlagOverrideNotFound`      | The requested override does not exist in the addressed workspace, feature, and configuration.     |
 
 There is no missing-workspace-feature-row error because workspace feature rows do not exist.
 
 ## Future Scopes
 
-Project-level configuration extends `FeatureFlagOverride` when a concrete need for different settings inside one workspace is implemented:
+Features such as `album` and `trip` use the existing catalog and override shape when their configuration applies to the whole workspace. Adding one creates its seeded `FeatureFlag` and `FeatureFlagConfig` definitions; every entity in a workspace inherits that workspace's effective values without a schema change or override backfill.
 
-- Add nullable `projectId` with an FK to `Project`.
-- Keep `workspaceId` populated on project overrides for workspace-wide listing and cleanup.
-- Enforce `(projectId, workspaceId)` against `Project(id, workspaceId)`.
-- Resolve project override, then workspace override, then the platform value.
-- Add the database constraints and indexes required to distinguish workspace and project rows.
+`FeatureFlagOverride` remains workspace-scoped. It does not gain a polymorphic `scopeType` and `scopeId`, nullable foreign keys for hypothetical entity types, or a generic priority. Those shapes either discard foreign-key integrity or make every new entity alter a shared table.
 
-Project rollout remains workspace-based: every project in one workspace receives the same feature decision. A future project rollout subject requires a concrete use case, a registry subject, and a typed target relation.
-
-Other configuration scopes follow the same override pattern. Adding a feature or configuration never changes the schema; adding a new configuration or rollout scope does.
+A concrete requirement for different values between individual projects, albums, or trips introduces a typed entity-specific override model with a real foreign key. Its resolver defines the entity-to-workspace-to-platform precedence at that time. Project rollout remains workspace-based until a concrete project-subject rollout requirement adds a registry subject and typed target relation.
 
 ## Implementation Steps
 
 Test-first, in this order:
 
-1. Define the rollout-subject enum, `FeatureFlagWorkspace`, `FeatureFlagConfig`, `FeatureFlagOverride`, their relations, and activity actions; `FeatureFlag` carries no `metadata`. The owner applies the schema with `pnpm db:migrate`.
+1. Define the rollout-subject enum, `FeatureFlagWorkspace`, `FeatureFlagConfig`, `FeatureFlagOverride`, their relations, and activity actions; `FeatureFlag` carries no `metadata`. Add the partial unique index for the undated override and the `btree_gist` exclusion constraint for dated windows through the customized migration. The owner applies the schema with `pnpm db:migrate`.
 2. Add the concrete `FeatureFlagRegistry`, derived key types, rollout-subject validation, per-key Zod validation, and the boot integrity check.
 3. Make the feature-flag seed materialize the catalog and configuration definitions, initialize new platform values from registry defaults, and preserve mutable operational values.
 4. Add subject-aware rollout evaluation, typed target replacement, post-commit cache invalidation, structured decision reasons, and the platform target endpoint.
-5. Add configuration and override repository methods, resolution domain methods, cache behavior, and request-store reuse, including transaction-aware uncached resolution for limit enforcement.
+5. Add configuration and override repository methods, dated-then-undated resolution, cache behavior, and request-store reuse, including transaction-aware uncached resolution for limit enforcement.
 6. Add workspace exceptions, feature-flag status codes, and i18n messages.
 7. Add `@WorkspaceFeatureFlagProtected` and its guard, backed by the shared rollout and configuration resolver.
 8. Enforce `workspace.configs.invitation` and `workspace.configs.joinRequest` in their owning domains, including token, sign-up, review, and cleanup behavior.
 9. Move project routes to `project`, workspace analytic routes to `workspace.configs.analytics`, and leave core workspace lifecycle on `workspace`.
-10. Add platform configuration updates, workspace override writes, and all corresponding activity-log contracts.
+10. Add platform configuration updates, undated override writes, dated scheduling and history, workspace-row locking, transactional active replacement, overlap handling, and all corresponding activity-log contracts.
 11. Return rollout subjects, targets, configuration definitions, and platform values from the platform admin list; the feature-flag API exposes no metadata update surface.
 12. Add workspace user/admin DTOs, HTTP services, and controller routes.
 13. Apply `maxProjects` in the project creation transaction after locking the workspace row with PostgreSQL `FOR UPDATE`.

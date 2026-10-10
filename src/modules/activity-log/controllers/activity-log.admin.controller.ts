@@ -11,8 +11,7 @@ import type { IActivityLog } from '@modules/activity-log/interfaces/activity-log
 import { ActivityLogHttpService } from '@modules/activity-log/services/activity-log.http.service';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
-import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
+import { PlatformPolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { Controller, Get, Param, Query } from '@nestjs/common';
@@ -20,7 +19,6 @@ import { ApiTags } from '@nestjs/swagger';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 @ApiTags('modules.admin.activityLog')
@@ -38,17 +36,16 @@ export class ActivityLogAdminController {
         schema: ActivityLogResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyProtected(
+    @PlatformPolicyProtected(
         {
-            subject: EnumPolicySubject.user,
+            subject: EnumPolicySubject.User,
             action: [EnumPolicyAction.read],
         },
         {
-            subject: EnumPolicySubject.activityLog,
+            subject: EnumPolicySubject.ActivityLog,
             action: [EnumPolicyAction.read],
         }
     )
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -60,7 +57,7 @@ export class ActivityLogAdminController {
         @Param('userId', { schema: RequestUuidSchema })
         userId: string
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
-        return this.activityLogHttpService.getListOffsetByUser(userId, query);
+        return this.activityLogHttpService.getListOffset({ userId }, query);
     }
 
     @Doc({ summary: 'get all activity logs of a workspace' })
@@ -68,17 +65,16 @@ export class ActivityLogAdminController {
         schema: ActivityLogResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyProtected(
+    @PlatformPolicyProtected(
         {
-            subject: EnumPolicySubject.workspace,
+            subject: EnumPolicySubject.Workspace,
             action: [EnumPolicyAction.read],
         },
         {
-            subject: EnumPolicySubject.activityLog,
+            subject: EnumPolicySubject.ActivityLog,
             action: [EnumPolicyAction.read],
         }
     )
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -92,9 +88,8 @@ export class ActivityLogAdminController {
         @Query('userId', { schema: RequestUuidSchema.optional() })
         userId?: string
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
-        return this.activityLogHttpService.getListOffsetByWorkspace(
-            workspaceId,
-            userId ?? null,
+        return this.activityLogHttpService.getListOffset(
+            { workspaceId, ...(userId ? { userId } : {}) },
             query
         );
     }

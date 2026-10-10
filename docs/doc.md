@@ -103,7 +103,7 @@ async profile(
 
 ### DocErrors
 
-Public escape hatch for endpoint-specific module-flow errors an endpoint opts into the OpenAPI document. Controllers do not call `DocResponseError` directly; they use `@DocErrors`.
+Public escape hatch for endpoint-specific module-flow errors an endpoint opts into the OpenAPI document. `DocResponseError` is the internal builder; `@DocErrors` is the decorator form an endpoint uses.
 
 **Parameters:**
 
@@ -323,17 +323,16 @@ export type UserForgotPasswordResetRequestDto = z.infer<
 
 ### Complete Admin Endpoint
 
-Zod-bound path params reach OpenAPI from the schema on `@Param`. Auth and role kits live on the Protected decorators.
+Zod-bound path params reach OpenAPI from the schema on `@Param`. Auth and policy kits live on the Protected decorators.
 
 ```typescript
 @Doc({ summary: 'get detail an user' })
 @Response('user.get', { schema: UserProfileResponseSchema })
 @TermPolicyAcceptanceProtected()
-@PolicyProtected({
-    subject: EnumPolicySubject.user,
+@PlatformPolicyProtected({
+    subject: EnumPolicySubject.User,
     action: [EnumPolicyAction.read],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()
@@ -372,11 +371,10 @@ List query OpenAPI comes only from the zod schema on `@Query({ schema })`. `@Res
 @Doc({ summary: 'get all users' })
 @ResponsePagination('user.list', { schema: UserListResponseSchema })
 @TermPolicyAcceptanceProtected()
-@PolicyProtected({
-    subject: EnumPolicySubject.user,
+@PlatformPolicyProtected({
+    subject: EnumPolicySubject.User,
     action: [EnumPolicyAction.read],
 })
-@RoleProtected(EnumRoleType.admin)
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()

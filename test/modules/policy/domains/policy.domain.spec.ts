@@ -2,100 +2,71 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
+    EnumRoleScope,
     EnumActivityLogAction,
-    EnumUserGender,
-    EnumUserSignUpFrom,
-    EnumUserSignUpWith,
-    EnumUserStatus,
     type Policy,
 } from '@generated/prisma-client';
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
-import { AuthJwtAccessTokenInvalidException } from '@modules/auth/exceptions/auth.jwt-access-token-invalid.exception';
-import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
-import { PolicyExistException } from '@modules/policy/exceptions/policy.exist.exception';
+import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
 import { PolicyNotFoundException } from '@modules/policy/exceptions/policy.not-found.exception';
-import { PolicyPredefinedNotFoundException } from '@modules/policy/exceptions/policy.predefined-not-found.exception';
-import { PolicyAbilityFactory } from '@modules/policy/factories/policy.factory';
+import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy.create.request.dto';
+import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
+import { PolicyCache } from '@modules/policy/caches/policy.cache';
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
 import { PolicyDomain } from '@modules/policy/domains/policy.domain';
 import { RoleDomain } from '@modules/role/domains/role.domain';
+import type { IRoleWithPolicies } from '@modules/role/interfaces/role.interface';
 import { RoleNotFoundException } from '@modules/role/exceptions/role.not-found.exception';
-import type { IUser } from '@modules/user/interfaces/user.interface';
 
 describe('PolicyDomain', () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
     const policy = {
         id: 'policy-id',
         roleId: 'role-id',
-        subject: EnumPolicySubject.user,
+        subject: EnumPolicySubject.User,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
+        conditions: null,
+        inverted: false,
+        reason: null,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
     } satisfies Policy;
-    const user = {
-        id: 'user-id',
-        name: 'User',
-        username: 'user',
-        isVerified: true,
-        verifiedAt: now,
-        email: 'user@example.com',
-        roleId: 'role-id',
-        password: 'hash',
-        passwordExpired: null,
-        passwordCreated: now,
-        passwordAttempt: 0,
-        signUpAt: now,
-        signUpFrom: EnumUserSignUpFrom.website,
-        signUpWith: EnumUserSignUpWith.credential,
-        status: EnumUserStatus.active,
-        gender: EnumUserGender.male,
-        countryId: 'country-id',
-        lastLoginAt: null,
-        lastIPAddress: null,
-        lastLoginFrom: null,
-        lastLoginWith: null,
-        lastWorkspaceId: null,
-        lastWorkspaceChangedAt: null,
+    const role = {
+        id: 'role-id',
+        scope: EnumRoleScope.platform,
+        key: EnumRolePlatformKey.admin,
+        name: 'Admin',
+        description: null,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
-        deletedAt: null,
-        deletedBy: null,
-        termsOfServiceAccepted: true,
-        privacyAccepted: true,
-        cookiesAccepted: false,
-        marketingAccepted: false,
-        role: {
-            id: 'role-id',
-            name: 'User',
-            description: null,
-            type: EnumRoleType.user,
-            createdAt: now,
-            createdBy: null,
-            updatedAt: now,
-            updatedBy: null,
-            policies: [policy],
-        },
-        twoFactor: null,
-    } satisfies IUser;
-    const required = [
-        {
-            subject: EnumPolicySubject.user,
-            action: [EnumPolicyAction.read, EnumPolicyAction.update],
-        },
-    ];
+        policies: [],
+    } satisfies IRoleWithPolicies;
+    const superAdminRole = {
+        ...role,
+        id: 'super-admin-role-id',
+        key: EnumRolePlatformKey.superAdmin,
+        name: 'Super Admin',
+    } satisfies IRoleWithPolicies;
+    const ruleRequest: PolicyCreateRequestDto = {
+        subject: EnumPolicySubject.User,
+        action: [EnumPolicyAction.read],
+    };
+    const ruleUpdate: PolicyUpdateRequestDto = {
+        action: [EnumPolicyAction.read],
+        inverted: true,
+        reason: 'why',
+    };
     const policyRepository: MockProxy<PolicyRepository> =
         mock<PolicyRepository>();
-    const policyAbilityFactory: MockProxy<PolicyAbilityFactory> =
-        mock<PolicyAbilityFactory>();
+    const policyCache: MockProxy<PolicyCache> = mock<PolicyCache>();
     const roleDomain: MockProxy<RoleDomain> = mock<RoleDomain>();
     const activityLogDomain: MockProxy<ActivityLogDomain> =
         mock<ActivityLogDomain>();
@@ -103,19 +74,12 @@ describe('PolicyDomain', () => {
     let service: PolicyDomain;
 
     beforeEach(async () => {
-        policyAbilityFactory.createForUser.mockReturnValue(
-            mock<ReturnType<PolicyAbilityFactory['createForUser']>>()
-        );
-        policyAbilityFactory.handlerPolicies.mockReturnValue(true);
-
+        vi.resetAllMocks();
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 PolicyDomain,
-                {
-                    provide: PolicyAbilityFactory,
-                    useValue: policyAbilityFactory,
-                },
                 { provide: PolicyRepository, useValue: policyRepository },
+                { provide: PolicyCache, useValue: policyCache },
                 { provide: RoleDomain, useValue: roleDomain },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
             ],
@@ -124,72 +88,15 @@ describe('PolicyDomain', () => {
         service = moduleRef.get(PolicyDomain);
     });
 
-    it('rejects a request without an authenticated user', () => {
-        expect(() =>
-            service.validatePolicyGuard(null, [policy], required)
-        ).toThrow(AuthJwtAccessTokenInvalidException);
-    });
+    it('returns no policies when the role does not exist', async () => {
+        policyRepository.findManyByRoleId.mockResolvedValue([]);
 
-    it('allows a super administrator without predefined policy metadata', () => {
-        expect(
-            service.validatePolicyGuard(
-                {
-                    ...user,
-                    role: { ...user.role, type: EnumRoleType.superAdmin },
-                },
-                null,
-                []
-            )
-        ).toBe(true);
-    });
-
-    it('rejects a non-super-admin route with no required policy metadata', () => {
-        expect(() => service.validatePolicyGuard(user, [policy], [])).toThrow(
-            PolicyPredefinedNotFoundException
-        );
-    });
-
-    it('allows a user holding every required action', () => {
-        expect(service.validatePolicyGuard(user, [policy], required)).toBe(
-            true
-        );
-    });
-
-    it('rejects when any required action is absent', () => {
-        policyAbilityFactory.handlerPolicies.mockReturnValue(false);
-        expect(() =>
-            service.validatePolicyGuard(
-                user,
-                [policy],
-                [
-                    {
-                        subject: EnumPolicySubject.user,
-                        action: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.delete,
-                        ],
-                    },
-                ]
-            )
-        ).toThrow(PolicyForbiddenException);
-    });
-
-    it('uses an empty policy set when the guard receives null policies', () => {
-        service.validatePolicyGuard(user, null, required);
-
-        expect(policyAbilityFactory.createForUser).toHaveBeenCalledWith([]);
-    });
-
-    it('rejects role-scoped reads when the role does not exist', async () => {
-        roleDomain.existsById.mockResolvedValue(false);
-
-        await expect(service.findManyByRole('missing')).rejects.toBeInstanceOf(
-            RoleNotFoundException
-        );
+        await expect(service.findManyByRole('missing')).resolves.toEqual([]);
+        expect(roleDomain.getById).not.toHaveBeenCalled();
     });
 
     it('returns policies for an existing role', async () => {
-        roleDomain.existsById.mockResolvedValue(true);
+        roleDomain.getById.mockResolvedValue(role);
         policyRepository.findManyByRoleId.mockResolvedValue([policy]);
 
         await expect(service.findManyByRole('role-id')).resolves.toEqual([
@@ -197,64 +104,144 @@ describe('PolicyDomain', () => {
         ]);
     });
 
-    it('rejects duplicate policy creation', async () => {
-        roleDomain.existsById.mockResolvedValue(true);
-        policyRepository.existsByRoleIdAndSubject.mockResolvedValue(true);
+    it('forwards the role where to the repository', async () => {
+        const roleWhere = { scope: EnumRoleScope.platform };
+        policyRepository.findManyByRoleId.mockResolvedValue([policy]);
 
-        await expect(
-            service.createByAdmin('role-id', required[0])
-        ).rejects.toBeInstanceOf(PolicyExistException);
-    });
+        await service.findManyByRole('role-id', roleWhere);
 
-    it('creates a policy and stages its activity', async () => {
-        const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
-        roleDomain.existsById.mockResolvedValue(true);
-        policyRepository.existsByRoleIdAndSubject.mockResolvedValue(false);
-        policyRepository.create.mockResolvedValue(policy);
-        activityLogDomain.prepare.mockReturnValue(event);
-
-        await expect(
-            service.createByAdmin('role-id', required[0])
-        ).resolves.toBe(policy);
-        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
-            action: EnumActivityLogAction.adminPolicyCreate,
-        });
-        expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([event]);
-    });
-
-    it.each([
-        [
-            'update',
-            (id: string) =>
-                service.updateByAdmin('role-id', id, {
-                    action: [EnumPolicyAction.read],
-                }),
-        ],
-        ['delete', (id: string) => service.deleteByAdmin('role-id', id)],
-    ])('rejects %s when the policy does not exist', async (_name, run) => {
-        roleDomain.existsById.mockResolvedValue(true);
-        policyRepository.existsByRoleIdAndId.mockResolvedValue(false);
-
-        await expect(run('missing')).rejects.toBeInstanceOf(
-            PolicyNotFoundException
+        expect(policyRepository.findManyByRoleId).toHaveBeenCalledWith(
+            'role-id',
+            roleWhere
         );
     });
 
-    it('updates a policy and stages its activity', async () => {
-        const data = { action: [EnumPolicyAction.read] };
-        roleDomain.existsById.mockResolvedValue(true);
-        policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
-        policyRepository.update.mockResolvedValue(policy);
+    describe('findManyByRoleIds', () => {
+        it('reads the rules of every role through the policy cache', async () => {
+            policyCache.getByRoleIdsAndCache.mockResolvedValue([policy]);
+
+            await expect(service.findManyByRoleIds('a', 'b')).resolves.toEqual([
+                policy,
+            ]);
+            expect(policyCache.getByRoleIdsAndCache).toHaveBeenCalledWith([
+                'a',
+                'b',
+            ]);
+            expect(policyRepository.findManyByRoleIds).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('createByAdmin', () => {
+        it('creates a policy and stages its activity', async () => {
+            const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.create.mockResolvedValue(policy);
+            activityLogDomain.prepare.mockReturnValue(event);
+
+            await expect(
+                service.createByAdmin('role-id', ruleRequest)
+            ).resolves.toBe(policy);
+            expect(policyRepository.create).toHaveBeenCalledWith(
+                'role-id',
+                ruleRequest
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.adminPolicyCreate,
+            });
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                event,
+            ]);
+            expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith(
+                'role-id'
+            );
+        });
+
+        it('rethrows any other write error and stages nothing', async () => {
+            const error = new Error('boom');
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.create.mockRejectedValue(error);
+
+            await expect(
+                service.createByAdmin('role-id', ruleRequest)
+            ).rejects.toBe(error);
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+    });
+
+    it('rejects the write when the cache invalidation fails', async () => {
+        const error = new Error('redis down');
+        roleDomain.getOne.mockResolvedValue(role);
+        policyRepository.create.mockResolvedValue(policy);
+        policyCache.deleteCacheByRoleId.mockRejectedValue(error);
 
         await expect(
-            service.updateByAdmin('role-id', policy.id, data)
-        ).resolves.toBe(policy);
-        expect(policyRepository.update).toHaveBeenCalledWith(policy.id, data);
-        expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+            service.createByAdmin('role-id', ruleRequest)
+        ).rejects.toBe(error);
+        expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+    });
+
+    describe('updateByAdmin', () => {
+        it('rejects when the policy does not exist on the role', async () => {
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(null);
+
+            await expect(
+                service.updateByAdmin('role-id', 'missing', ruleUpdate)
+            ).rejects.toBeInstanceOf(PolicyNotFoundException);
+            expect(policyRepository.update).not.toHaveBeenCalled();
+        });
+
+        it('updates a policy and stages its activity', async () => {
+            const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
+            policyRepository.update.mockResolvedValue(policy);
+            activityLogDomain.prepare.mockReturnValue(event);
+
+            await expect(
+                service.updateByAdmin('role-id', policy.id, ruleUpdate)
+            ).resolves.toBe(policy);
+            expect(policyRepository.update).toHaveBeenCalledWith(
+                policy.id,
+                ruleUpdate
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.adminPolicyUpdate,
+            });
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                event,
+            ]);
+            expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith(
+                'role-id'
+            );
+        });
+
+        it('rethrows any other write error and stages nothing', async () => {
+            const error = new Error('boom');
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
+            policyRepository.update.mockRejectedValue(error);
+
+            await expect(
+                service.updateByAdmin('role-id', policy.id, ruleUpdate)
+            ).rejects.toBe(error);
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('deleteByAdmin', () => {
+        it('rejects when the policy does not exist', async () => {
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.existsByRoleIdAndId.mockResolvedValue(false);
+
+            await expect(
+                service.deleteByAdmin('role-id', 'missing')
+            ).rejects.toBeInstanceOf(PolicyNotFoundException);
+        });
     });
 
     it('deletes a policy and stages its activity', async () => {
-        roleDomain.existsById.mockResolvedValue(true);
+        roleDomain.getOne.mockResolvedValue(role);
         policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
         policyRepository.delete.mockResolvedValue(policy);
 
@@ -263,5 +250,90 @@ describe('PolicyDomain', () => {
         );
         expect(policyRepository.delete).toHaveBeenCalledWith(policy.id);
         expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith('role-id');
+    });
+
+    describe('super administrator policy immutability', () => {
+        it.each([
+            [
+                'create',
+                () => service.createByAdmin(superAdminRole.id, ruleRequest),
+            ],
+            [
+                'update',
+                () =>
+                    service.updateByAdmin(
+                        superAdminRole.id,
+                        policy.id,
+                        ruleUpdate
+                    ),
+            ],
+            [
+                'delete',
+                () => service.deleteByAdmin(superAdminRole.id, policy.id),
+            ],
+        ])(
+            'rejects %s before any repository read or write and before any activity log stage',
+            async (_name, run) => {
+                roleDomain.getOne.mockResolvedValue(superAdminRole);
+
+                await expect(run()).rejects.toBeInstanceOf(
+                    PolicyImmutableException
+                );
+                expect(
+                    policyRepository.findOneByRoleIdAndId
+                ).not.toHaveBeenCalled();
+                expect(
+                    policyRepository.existsByRoleIdAndId
+                ).not.toHaveBeenCalled();
+                expect(policyRepository.create).not.toHaveBeenCalled();
+                expect(policyRepository.update).not.toHaveBeenCalled();
+                expect(policyRepository.delete).not.toHaveBeenCalled();
+                expect(activityLogDomain.prepare).not.toHaveBeenCalled();
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+                expect(policyCache.deleteCacheByRoleId).not.toHaveBeenCalled();
+            }
+        );
+
+        it.each([
+            ['a workspace role sharing the key', EnumRoleScope.workspace],
+            ['a project role sharing the key', EnumRoleScope.project],
+        ])('does not reject %s', async (_name, scope) => {
+            roleDomain.getOne.mockResolvedValue({
+                ...superAdminRole,
+                scope,
+            });
+            policyRepository.create.mockResolvedValue(policy);
+
+            await expect(
+                service.createByAdmin('role-id', {
+                    subject: EnumPolicySubject.ProjectMember,
+                    action: [EnumPolicyAction.update],
+                    conditions: { projectId: '${projectId}' },
+                })
+            ).resolves.toBe(policy);
+        });
+
+        it('lets a non super administrator platform role through', async () => {
+            roleDomain.getOne.mockResolvedValue(role);
+            policyRepository.create.mockResolvedValue(policy);
+
+            await expect(
+                service.createByAdmin('role-id', ruleRequest)
+            ).resolves.toBe(policy);
+        });
+
+        it.each([
+            ['create', () => service.createByAdmin('missing', ruleRequest)],
+            [
+                'update',
+                () => service.updateByAdmin('missing', policy.id, ruleUpdate),
+            ],
+            ['delete', () => service.deleteByAdmin('missing', policy.id)],
+        ])('rejects %s on a missing role', async (_name, run) => {
+            roleDomain.getOne.mockRejectedValue(new RoleNotFoundException());
+
+            await expect(run()).rejects.toBeInstanceOf(RoleNotFoundException);
+        });
     });
 });

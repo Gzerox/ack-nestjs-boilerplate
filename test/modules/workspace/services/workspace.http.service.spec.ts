@@ -2,12 +2,21 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+} from '@generated/prisma-client/client';
 import type { Workspace } from '@generated/prisma-client/client';
+import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import type { WorkspaceAdminListRequestDto } from '@modules/workspace/dtos/request/workspace.admin-list.request.dto';
 import type { WorkspaceCreateRequestDto } from '@modules/workspace/dtos/request/workspace.create.request.dto';
 import type { WorkspaceSwitchRequestDto } from '@modules/workspace/dtos/request/workspace.switch.request.dto';
@@ -20,6 +29,8 @@ import { WorkspaceHttpService } from '@modules/workspace/services/workspace.http
 
 describe('WorkspaceHttpService', () => {
     const workspaceDomain: MockProxy<WorkspaceDomain> = mock<WorkspaceDomain>();
+    const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
+        mock<PolicyAbilityDomain>();
     const paginationQueryUtil: MockProxy<PaginationQueryUtil> =
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
@@ -84,6 +95,8 @@ describe('WorkspaceHttpService', () => {
         availableOrderBy: ['createdAt', 'name'],
     };
 
+    const accessibleWorkspaceWhere = { isPublic: true };
+
     let service: WorkspaceHttpService;
 
     beforeEach(async () => {
@@ -93,6 +106,7 @@ describe('WorkspaceHttpService', () => {
             providers: [
                 WorkspaceHttpService,
                 { provide: WorkspaceDomain, useValue: workspaceDomain },
+                { provide: PolicyAbilityDomain, useValue: policyAbilityDomain },
                 {
                     provide: PaginationQueryUtil,
                     useValue: paginationQueryUtil,
@@ -175,12 +189,16 @@ describe('WorkspaceHttpService', () => {
             workspaceDomain.updateWorkspace.mockResolvedValue(workspace);
 
             const result = await service.updateWorkspace(
-                'workspace-id',
+                workspace,
                 'actor-id',
                 dto
             );
 
             expect(result).toEqual({ data: workspace });
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(workspaceDomain.updateWorkspace).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id',
@@ -199,12 +217,16 @@ describe('WorkspaceHttpService', () => {
             );
 
             const result = await service.updateWorkspaceIsPublic(
-                'workspace-id',
+                workspace,
                 'actor-id',
                 dto
             );
 
             expect(result).toEqual({ data: workspace });
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(
                 workspaceDomain.updateWorkspaceIsPublic
             ).toHaveBeenCalledWith('workspace-id', 'actor-id', true);
@@ -219,12 +241,16 @@ describe('WorkspaceHttpService', () => {
             workspaceDomain.updateWorkspaceSlug.mockResolvedValue(workspace);
 
             const result = await service.updateWorkspaceSlug(
-                'workspace-id',
+                workspace,
                 'actor-id',
                 dto
             );
 
             expect(result).toEqual({ data: workspace });
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(workspaceDomain.updateWorkspaceSlug).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id',
@@ -250,8 +276,12 @@ describe('WorkspaceHttpService', () => {
 
     describe('softDeleteWorkspace', () => {
         it('delegates to the domain', async () => {
-            await service.softDeleteWorkspace('workspace-id', 'actor-id');
+            await service.softDeleteWorkspace(workspace, 'actor-id');
 
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(workspaceDomain.softDeleteWorkspace).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id'
@@ -273,6 +303,9 @@ describe('WorkspaceHttpService', () => {
                 storeFilter: { isPublic: true },
             } as never);
             workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
+            policyAbilityDomain.accessibleWhere.mockReturnValue(
+                accessibleWorkspaceWhere
+            );
 
             const result = await service.getListForAdmin(query);
 
@@ -285,7 +318,8 @@ describe('WorkspaceHttpService', () => {
             );
             expect(workspaceDomain.getListForAdmin).toHaveBeenCalledWith(
                 offsetParams,
-                { isPublic: { equals: true } }
+                { isPublic: { equals: true } },
+                accessibleWorkspaceWhere
             );
             expect(result).toEqual(offsetPage);
         });
@@ -298,6 +332,9 @@ describe('WorkspaceHttpService', () => {
             } as never);
             paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
             workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
+            policyAbilityDomain.accessibleWhere.mockReturnValue(
+                accessibleWorkspaceWhere
+            );
 
             await service.getListForAdmin(query);
 
@@ -310,20 +347,92 @@ describe('WorkspaceHttpService', () => {
             );
             expect(workspaceDomain.getListForAdmin).toHaveBeenCalledWith(
                 offsetParams,
-                undefined
+                undefined,
+                accessibleWorkspaceWhere
             );
+        });
+
+        it('asks the policy domain for the read predicate of the stored ability', async () => {
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
+            workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
+            policyAbilityDomain.accessibleWhere.mockReturnValue(
+                accessibleWorkspaceWhere
+            );
+
+            await service.getListForAdmin({});
+
+            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                EnumPolicySubject.Workspace
+            );
+        });
+
+        it('throws RequestContextMissingException when no ability is stored and never lists', async () => {
+            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+                throw new RequestContextMissingException(PolicyAbilityStoreKey);
+            });
+
+            await expect(service.getListForAdmin({})).rejects.toThrow(
+                RequestContextMissingException
+            );
+            expect(workspaceDomain.getListForAdmin).not.toHaveBeenCalled();
+        });
+
+        it('propagates the policy rejection when the ability holds no read rule and never lists', async () => {
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
+            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(service.getListForAdmin({})).rejects.toThrow(
+                PolicyForbiddenException
+            );
+            expect(workspaceDomain.getListForAdmin).not.toHaveBeenCalled();
         });
     });
 
-    describe('getByIdForAdmin', () => {
-        it('delegates to the domain and wraps the workspace', async () => {
+    describe('getForAdmin', () => {
+        it('checks read on the loaded workspace and wraps it', async () => {
             workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
 
-            const result = await service.getByIdForAdmin('workspace-id');
+            const result = await service.getForAdmin(workspace.id);
 
-            expect(result).toEqual({ data: workspace });
             expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
-                'workspace-id'
+                workspace.id
+            );
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
+            expect(result).toEqual({ data: workspace });
+        });
+
+        it('throws PolicyForbiddenException when the record is denied', async () => {
+            workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(service.getForAdmin(workspace.id)).rejects.toThrow(
+                PolicyForbiddenException
+            );
+        });
+
+        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new RequestContextMissingException(PolicyAbilityStoreKey);
+            });
+
+            await expect(service.getForAdmin(workspace.id)).rejects.toThrow(
+                RequestContextMissingException
             );
         });
     });
@@ -337,6 +446,40 @@ describe('WorkspaceHttpService', () => {
             expect(result).toEqual({ data: workspace });
             expect(workspaceDomain.previewWorkspace).toHaveBeenCalledWith(
                 'acme'
+            );
+        });
+    });
+
+    describe('getEffectivePermissions', () => {
+        it('wraps the permissions the policy ability domain reports', () => {
+            const permissions = [
+                { subject: 'Workspace', actions: ['read'] },
+            ] as never;
+            policyAbilityDomain.getEffectivePermissions.mockReturnValue(
+                permissions
+            );
+
+            const result = service.getEffectivePermissions(workspace);
+
+            expect(
+                policyAbilityDomain.getEffectivePermissions
+            ).toHaveBeenCalledWith([
+                subject(EnumPolicySubject.Workspace, workspace),
+            ]);
+            expect(result).toEqual({ data: { permissions } });
+        });
+
+        it('throws when the ability is absent from the store', () => {
+            policyAbilityDomain.getEffectivePermissions.mockImplementation(
+                () => {
+                    throw new RequestContextMissingException(
+                        PolicyAbilityStoreKey
+                    );
+                }
+            );
+
+            expect(() => service.getEffectivePermissions(workspace)).toThrow(
+                RequestContextMissingException
             );
         });
     });

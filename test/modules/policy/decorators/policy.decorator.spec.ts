@@ -1,69 +1,71 @@
 import 'reflect-metadata';
-import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
-import { mock } from 'vitest-mock-extended';
-import type { ClsService } from 'nestjs-cls';
-import { ClsServiceManager } from 'nestjs-cls';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 
-import { EnumPolicyAction, EnumPolicySubject } from '@generated/prisma-client';
-import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import {
-    PolicyRequiredMetaKey,
-    PolicyStoreKey,
-} from '@modules/policy/constants/policy.constant';
+    EnumPolicyAction,
+    EnumPolicySubject,
+} from '@generated/prisma-client/client';
+import { PolicyRequiredMetaKey } from '@modules/policy/constants/policy.constant';
 import {
-    PolicyCurrent,
+    PlatformPolicyProtected,
+    PolicyAbilityProtected,
     PolicyProtected,
 } from '@modules/policy/decorators/policy.decorator';
+import { EnumPolicyPlatformSubject } from '@modules/policy/enums/policy.enum';
+import { PolicyAbilityGuard } from '@modules/policy/guards/policy.ability.guard';
+import { PolicyGuard } from '@modules/policy/guards/policy.guard';
 
-vi.mock('nestjs-cls', () => ({
-    ClsServiceManager: { getClsService: vi.fn() },
-}));
-vi.mock('@modules/policy/guards/policy.guard', () => ({
-    PolicyGuard: vi.fn(),
-}));
-
-const extractFactory = () => {
-    const target = { constructor: vi.fn() };
-    PolicyCurrent()(target, 'handler', 0);
-    const metadata = Reflect.getMetadata(
-        ROUTE_ARGS_METADATA,
-        target.constructor,
-        'handler'
-    );
-    return metadata[Object.keys(metadata)[0]].factory as () => unknown;
+const apply = (decorator: MethodDecorator): (() => void) => {
+    const handler = vi.fn();
+    decorator({}, 'handler', { value: handler });
+    return handler;
 };
 
-describe('policy decorators', () => {
-    it('registers the policy guard and required policy metadata', () => {
-        const handler = vi.fn();
-        const required = {
-            subject: EnumPolicySubject.user,
+describe('PolicyProtected', () => {
+    it('stacks the ability guard before the policy guard and sets the requirements', () => {
+        const requirement = {
+            subject: EnumPolicySubject.Project,
             action: [EnumPolicyAction.read],
         };
-        PolicyProtected(required)({}, 'handler', { value: handler });
-        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toHaveLength(1);
+        const handler = apply(PolicyProtected(requirement));
+
+        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([
+            PolicyAbilityGuard,
+            PolicyGuard,
+        ]);
         expect(Reflect.getMetadata(PolicyRequiredMetaKey, handler)).toEqual([
-            required,
+            requirement,
         ]);
     });
+});
 
-    it('returns an empty or populated policy context', () => {
-        const cls = mock<ClsService>();
-        vi.mocked(ClsServiceManager.getClsService).mockReturnValue(cls);
-        cls.get.mockReturnValueOnce([]);
-        expect(extractFactory()()).toEqual([]);
-        const policies = [{ id: 'policy-id' }];
-        cls.get.mockReturnValueOnce(policies);
-        expect(extractFactory()()).toBe(policies);
-        expect(cls.get).toHaveBeenCalledWith(PolicyStoreKey);
+describe('PolicyAbilityProtected', () => {
+    it('stacks only the ability guard without requirements', () => {
+        const handler = apply(PolicyAbilityProtected());
+
+        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([
+            PolicyAbilityGuard,
+        ]);
+        expect(
+            Reflect.getMetadata(PolicyRequiredMetaKey, handler)
+        ).toBeUndefined();
     });
+});
 
-    it.each([undefined, null])('rejects missing policy context', value => {
-        const cls = mock<ClsService>();
-        cls.get.mockReturnValue(value);
-        vi.mocked(ClsServiceManager.getClsService).mockReturnValue(cls);
-        expect(() => extractFactory()()).toThrow(
-            RequestContextMissingException
-        );
+describe('PlatformPolicyProtected', () => {
+    it('stacks the ability guard before the policy guard and sets the requirements', () => {
+        const requirement = {
+            subject: EnumPolicyPlatformSubject.User,
+            action: [EnumPolicyAction.read],
+        };
+        const handler = apply(PlatformPolicyProtected(requirement));
+
+        expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([
+            PolicyAbilityGuard,
+            PolicyGuard,
+        ]);
+        expect(Reflect.getMetadata(PolicyRequiredMetaKey, handler)).toEqual([
+            requirement,
+        ]);
     });
 });

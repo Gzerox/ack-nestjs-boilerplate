@@ -262,7 +262,7 @@ sequenceDiagram
     Redis-->>API: Session cached
     
     API-->>Client: Response with tokens
-    Note over Client: data.isTwoFactorEnable: false<br/>data.lastWorkspaceId, data.lastWorkspaceChangedAt<br/>data.tokens: { tokenType: Bearer,<br/>roleType: user/admin/superAdmin,<br/>expiresIn: 3600,<br/>accessToken, refreshToken }
+    Note over Client: data.isTwoFactorEnable: false<br/>data.lastWorkspaceId, data.lastWorkspaceChangedAt<br/>data.tokens: { tokenType: Bearer,<br/>roleKey: user/admin/superAdmin,<br/>roleScope: platform,<br/>expiresIn: 3600,<br/>accessToken, refreshToken }
     
     Client->>Client: Store tokens securely
     
@@ -1135,7 +1135,7 @@ Global prefix `/api` and version `v1` apply as elsewhere.
 | `DELETE` | `/admin/user/:userId/session/revoke/:sessionId` | Revoke one session of a user |
 | `DELETE` | `/admin/user/:userId/session/revoke-all` | Revoke every active session of a user |
 
-The admin routes carry `@RoleProtected(EnumRoleType.admin)` and `@PolicyProtected` on `user: [read]` plus `session: [read]` (list) or `session: [read, delete]` (both revoke routes), and no workspace guard. Every session route is throttled with `@RequestThrottle({ user: true })`.
+The admin routes carry `@PlatformPolicyProtected` on `User: [read]` plus `Session: [read]` (list) or `Session: [read, delete]` (both revoke routes), and no workspace guard. Every session route is throttled with `@RequestThrottle({ user: true })`.
 
 **Revoke one.** `DELETE /shared/user/session/revoke/:sessionId` and the admin `DELETE /admin/user/:userId/session/revoke/:sessionId`:
 

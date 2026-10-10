@@ -103,11 +103,11 @@ Commands that are **not** database seeds (run separately; not in `migration:seed
 
 **Seed transactions.** A seed that writes several rows:
 
-1. opens one `DatabaseService.withTransaction` in callback form
+1. opens one `DatabaseService.withTransaction` in callback form (the `workspace` seed opens one per user)
 2. issues every statement on `tx` one after another
 3. passes `{ timeout }` from `database.seedTransactionTimeoutInMs` (60 seconds)
 
-The same timeout applies to the transactions the `user` and `workspace` seeds open in `remove()`.
+The same timeout applies to the transaction the `user` seed opens in `remove()`.
 
 Work that does not touch the database runs before the transaction:
 
@@ -133,7 +133,7 @@ Every other `remove()` that deletes rows runs its delete on `client` with no tra
 - `apiKey`: Default and system API keys
 - `country`: Country data (name, codes, phone code, continent, timezone)
 - `featureFlag`: Feature flags (login methods, sign up, change password, and similar)
-- `role`: Roles (superadmin, admin, user)
+- `role`: The nine fixed roles, three per scope (platform, workspace, project)
 - `policy`: Policy rows attached to each seeded role
 - `termPolicy`: Term policy documents (cookies, marketing, privacy, terms of service)
 - `user`: Initial accounts (Super Admin, Admin, User) with country, role, and credentials
@@ -176,15 +176,37 @@ This prefix is added from `APP_ENV` when a new API key is created, so a key from
 
 ### Roles
 
-Three user roles are created with different permission levels:
+Roles are rows of one `Role` table. `scope` (`platform`, `workspace`, `project`) plus an immutable `key` identify a role, with `@@unique([scope, key])`. The `role` seed creates a fixed catalog of nine rows, each an upsert on `(scope, key)`:
 
-| Role | Type | Description | Seeded policies |
-|------|------|-------------|-----------------|
-| superadmin | `superAdmin` | Super Admin Role | None: `superAdmin` bypasses the policy check entirely |
-| admin | `admin` | Admin Role | Every policy action on every policy subject |
-| user | `user` | User Role | None |
+| Scope | Key | Name |
+|---|---|---|
+| `platform` | `superAdmin` | Super Admin |
+| `platform` | `admin` | Admin |
+| `platform` | `user` | User |
+| `workspace` | `owner` | Owner |
+| `workspace` | `admin` | Admin |
+| `workspace` | `member` | Member |
+| `project` | `admin` | Admin |
+| `project` | `member` | Member |
+| `project` | `viewer` | Viewer |
 
-**Admin role policies**: the `policy` seed writes one row per `EnumPolicySubject`, each carrying every member of `EnumPolicyAction` (`manage`, `read`, `create`, `update`, `delete`). It reads the roles by name first and aborts without writing when one is missing, and each row is an upsert on `(roleId, subject)`, so re-running it is safe.
+The keys live in `EnumRolePlatformKey`, `EnumRoleWorkspaceKey`, and `EnumRoleProjectKey`. A role listed under these keys is a catalog role: the role admin API updates its `name` and `description` and never deletes it. `POST /admin/role/create` adds a role whose key is a key supplied in the request, and `DELETE /admin/role/delete/:roleId` removes a non-catalog role that nothing references (see [Authorization](authorization.md)).
+
+**Seeded policies.** The `policy` seed writes each role's rules. A rule carries `subject`, `action[]`, `conditions`, `inverted`, and `reason`. It reads the roles by `(scope, key)` first and aborts without writing when one is missing. In one transaction it deletes every policy row of the seeded roles and recreates them from the declarative catalog, so re-running it is safe. Workspace and project rules on a scoped subject carry the scope condition (for example `workspaceId: ${workspaceId}` or `projectId: ${projectId}`), so a rule reaches the active workspace or project only.
+
+| Role | Seeded policies |
+|---|---|
+| platform `superAdmin` | `manage` on `all` |
+| platform `admin` | every action on `ActivityLog`, `ApiKey`, `Device`, `FeatureFlag`, `PasswordHistory`, `Role`, `Session`, `TermPolicy`, `User`; `read` on `analytic`, `Workspace`, and `Project` |
+| platform `user` | none |
+| workspace `owner` | `manage` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `update` on `WorkspaceJoinRequest`; `create`, then `read`, `update`, and `delete` on `Project`; `create`, `update`, and `delete` on `ProjectMember`; `read` on `analytic` |
+| workspace `admin` | `read` and `update` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `update` on `WorkspaceJoinRequest`; `create`, then `delete` on `Project`; `read` on `analytic` |
+| workspace `member` | `read` on `Workspace`; `read` on `WorkspaceMember` |
+| project `admin` | `read` and `update` on `Project`; `create`, `update`, and `delete` on `ProjectMember` |
+| project `member` | `read` on `Project` |
+| project `viewer` | `read` on `Project` |
+
+The `superAdmin` policy set is immutable through the API. Full authorization flow: [Authorization](authorization.md).
 
 ### Users
 
@@ -208,17 +230,15 @@ The seeded users differ per environment. This is controlled by `MigrationUserDat
 | admin@mail.com | admin | Admin | admin | `aaAA@123` | ID (Indonesia) | all |
 | user@mail.com | user | User | user | `aaAA@123` | ID (Indonesia) | `local` only |
 
-The superadmin row carries the fixed id `MigrationUserSuperAdminId`; the other rows get an id drawn before the transaction. Every created user row, and its nested two-factor, notification-setting, password-history, verification, and term-policy acceptance rows, name the superadmin as `createdBy` (and as `updatedBy` where the model has the column).
+The superadmin row carries the fixed id `MigrationUserSuperAdminId`; the other rows get a UUID v7 drawn through `DatabaseUtil.createId()`. Every created user row, and its nested two-factor, notification-setting, password-history, verification, and term-policy acceptance rows, name the superadmin as `createdBy` (and as `updatedBy` where the model has the column). Each user is created with the `privacyAccepted` and `termsOfServiceAccepted` flags set.
 
 Each created user also gets its activity rows in the same transaction:
 
 | Row | Belongs to | `createdBy` | Metadata |
 |---|---|---|---|
-| `userCreated` | The superadmin | The superadmin | Empty |
-| `userCreatedByAdmin` | The admin and the user | The superadmin | `actorUserId`, `timestamp` |
-| `adminUserCreate`, one per admin or user row the run creates | The superadmin | The superadmin | `targetUserId`, `targetUsername`, `timestamp` |
+| `userCreated` | Each created user | The superadmin | Empty |
 | `userVerifiedEmail` | Each created user | The superadmin | Empty |
-| `userAcceptTermPolicy`, one per accepted policy (terms of service, privacy) | Each created user | The user itself, as for every `user = payload` action | Empty |
+| `userAcceptTermPolicy`, one per accepted policy (terms of service, privacy) | Each created user | The superadmin | `termPolicyType`, `termPolicyId` |
 
 A user whose email already exists is left as it is apart from `updatedBy`, and gets no new nested or activity row.
 
@@ -251,7 +271,7 @@ Four term policy documents are created:
 | `privacy` | 1 | EN | Privacy policy document |
 | `termsOfService` | 1 | EN | Terms of Service document |
 
-The `termPolicy` seed creates each record with an empty `contents` array and `status: published`. The document bodies are Handlebars templates in `src/modules/term-policy/templates/*.hbs`, one per type. Linking them onto S3 is `templateTermPolicy`: [Term Policy][ref-doc-term-policy].
+The `termPolicy` seed creates each record with no `TermPolicyContent` rows and `status: published`. The document bodies are Handlebars templates in `src/modules/term-policy/templates/*.hbs`, one per type. Linking them onto S3 is `templateTermPolicy`: [Term Policy][ref-doc-term-policy].
 
 
 ## Models
@@ -262,7 +282,7 @@ Every model in `prisma/schema.prisma` maps to a PostgreSQL table through `@@map`
 |---|---|---|
 | `ApiKey` | `api_keys` | API key credentials for machine access |
 | `Role` | `roles` | Roles |
-| `Policy` | `policies` | The `(subject, action[])` rows a role grants, evaluated through CASL |
+| `Policy` | `policies` | The rules a role holds (`subject`, `action[]`, `conditions`, `inverted`, `reason`), indexed on `(roleId, subject)`, evaluated through CASL |
 | `Country` | `countries` | Country reference data |
 | `UserMobileNumber` | `user_mobile_numbers` | A user's mobile numbers and their verification state |
 | `User` | `users` | User accounts |
@@ -398,11 +418,11 @@ A physical delete follows the `onDelete` action declared on each relation in `pr
 
 | Action | Relations |
 |---|---|
-| `Cascade` | Every required foreign key under `User` (`UserMobileNumber`, `Verification`, `PasswordHistory`, `ActivityLog`, `Session`, `DeviceOwnership`, `TwoFactor`, `TermPolicyUserAcceptance`, `ForgotPassword`, `Notification`, `NotificationUserSetting`, `WorkspaceMember`, `WorkspaceJoinRequest`, `ProjectMember`); `Session.deviceOwnership`; `DeviceOwnership.device`; `NotificationDelivery.notification`; `Verification.mobileNumber`; `ActivityLog.workspace`; `WorkspaceMember`, `WorkspaceJoinRequest`, `WorkspaceInvite` and `Project` to `Workspace`; `WorkspaceInvite.project`; `ProjectMember` to `Project` |
+| `Cascade` | Every required foreign key under `User` (`UserMobileNumber`, `UserPhoto`, `Verification`, `PasswordHistory`, `ActivityLog`, `Session`, `DeviceOwnership`, `TwoFactor`, `TermPolicyUserAcceptance`, `ForgotPassword`, `Notification`, `NotificationUserSetting`, `FeatureFlagUser`, `WorkspaceMember`, `WorkspaceJoinRequest`, `ProjectMember`); `Policy.role`; `Session.deviceOwnership`; `DeviceOwnership.device`; `NotificationDelivery.notification`; `Verification.mobileNumber`; `TwoFactorBackupCode.twoFactor`; `TermPolicyContent.termPolicy`; `FeatureFlagUser.featureFlag`; `ActivityLog.workspace`; `WorkspaceMember`, `WorkspaceJoinRequest`, `WorkspaceInvite` and `Project` to `Workspace`; `WorkspaceInvite.project`; `ProjectMember` to `Project` |
 | `SetNull` | `Session.revokedBy`, `DeviceOwnership.revokedBy`, `WorkspaceInvite.invitedBy` (nullable), `WorkspaceInvite.acceptedBy`, `WorkspaceJoinRequest.reviewedBy`, `User.lastWorkspace` |
-| `Restrict` | `User.role`, `User.country`, `UserMobileNumber.country`, `TermPolicyUserAcceptance.termPolicy` |
+| `Restrict` | `User.role`, `WorkspaceMember.role`, `ProjectMember.role`, `WorkspaceInvite.workspaceRole`, `WorkspaceInvite.projectRole`, `User.country`, `UserMobileNumber.country`, `TermPolicyUserAcceptance.termPolicy` |
 
-Deleting a `User` row therefore removes its sessions, device ownerships, two-factor rows, verifications, password history, notifications, term policy acceptances, workspace and project memberships, and activity log rows, and nulls the actor references other rows hold to it. Deleting a `Workspace` row removes its members, join requests, invites, projects (and their members), and workspace-scoped activity log rows. `migration:remove` for `user` and `workspace` is one `deleteMany` each and relies on this.
+Deleting a `Role` row that any user, member, or invite still references is rejected, and a `Role` delete removes its `Policy` rows. Deleting a `User` row therefore removes its photo, sessions, device ownerships, two-factor rows, verifications, password history, notifications, term policy acceptances, workspace and project memberships, and activity log rows, and nulls the actor references other rows hold to it. Deleting a `Workspace` row removes its members, join requests, invites, projects (and their members), and workspace-scoped activity log rows. `migration:remove` for `user` and `workspace` is one `deleteMany` each and relies on this.
 
 ## Generated Unique Values
 

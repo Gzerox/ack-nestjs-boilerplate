@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -91,34 +90,20 @@ export class WorkspaceJoinRequestHttpService {
         };
     }
 
-    private async assertJoinRequestUpdatable(
-        workspaceId: string,
-        workspaceJoinRequestId: string
-    ): Promise<void> {
-        const joinRequest =
-            await this.workspaceJoinRequestDomain.getJoinRequest(
-                workspaceId,
-                workspaceJoinRequestId
-            );
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
-        );
-    }
-
     async acceptJoinRequest(
         workspace: Workspace,
         reviewerId: string,
         workspaceJoinRequestId: string
     ): Promise<void> {
-        await this.assertJoinRequestUpdatable(
-            workspace.id,
-            workspaceJoinRequestId
+        const scopeWhere = this.policyAbilityDomain.scope(
+            EnumPolicyAction.update,
+            EnumPolicySubject.WorkspaceJoinRequest
         );
         await this.workspaceJoinRequestDomain.acceptJoinRequest(
             workspace,
             reviewerId,
-            workspaceJoinRequestId
+            workspaceJoinRequestId,
+            scopeWhere
         );
     }
 
@@ -128,15 +113,16 @@ export class WorkspaceJoinRequestHttpService {
         workspaceJoinRequestId: string,
         { rejectReasonCode }: WorkspaceJoinRequestRejectRequestDto
     ): Promise<void> {
-        await this.assertJoinRequestUpdatable(
-            workspace.id,
-            workspaceJoinRequestId
+        const scopeWhere = this.policyAbilityDomain.scope(
+            EnumPolicyAction.update,
+            EnumPolicySubject.WorkspaceJoinRequest
         );
         await this.workspaceJoinRequestDomain.rejectJoinRequest(
             workspace,
             reviewerId,
             workspaceJoinRequestId,
-            rejectReasonCode
+            rejectReasonCode,
+            scopeWhere
         );
     }
 }

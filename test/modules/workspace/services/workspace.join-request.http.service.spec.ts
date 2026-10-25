@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
@@ -92,9 +91,6 @@ describe('WorkspaceJoinRequestHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
-        workspaceJoinRequestDomain.getJoinRequest.mockResolvedValue(
-            joinRequest
-        );
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -229,8 +225,8 @@ describe('WorkspaceJoinRequestHttpService', () => {
     });
 
     describe('acceptJoinRequest', () => {
-        it('does not call the domain when the policy denies the join request', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('does not call the domain when the ability holds no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -246,30 +242,32 @@ describe('WorkspaceJoinRequestHttpService', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('checks WorkspaceJoinRequest update on the loaded request, then delegates to the domain', async () => {
+        it('passes scope(update, WorkspaceJoinRequest) as additionalWhere', async () => {
             await service.acceptJoinRequest(
                 workspace,
                 'reviewer-id',
                 'join-request-id'
             );
 
-            expect(
-                workspaceJoinRequestDomain.getJoinRequest
-            ).toHaveBeenCalledWith('workspace-id', 'join-request-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
+                EnumPolicySubject.WorkspaceJoinRequest
             );
-
             expect(
                 workspaceJoinRequestDomain.acceptJoinRequest
-            ).toHaveBeenCalledWith(workspace, 'reviewer-id', 'join-request-id');
+            ).toHaveBeenCalledWith(
+                workspace,
+                'reviewer-id',
+                'join-request-id',
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('rejectJoinRequest', () => {
-        it('does not call the domain when the policy denies the join request', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('does not call the domain when the ability holds no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -286,7 +284,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('checks WorkspaceJoinRequest update on the loaded request, then delegates with the reject reason', async () => {
+        it('passes scope(update, WorkspaceJoinRequest) as additionalWhere and the reject reason', async () => {
             const dto = {
                 rejectReasonCode: EnumWorkspaceJoinRejectReason.other,
             } satisfies WorkspaceJoinRequestRejectRequestDto;
@@ -298,9 +296,9 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 dto
             );
 
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
+                EnumPolicySubject.WorkspaceJoinRequest
             );
             expect(
                 workspaceJoinRequestDomain.rejectJoinRequest
@@ -308,8 +306,10 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 workspace,
                 'reviewer-id',
                 'join-request-id',
-                EnumWorkspaceJoinRejectReason.other
+                EnumWorkspaceJoinRejectReason.other,
+                scopeWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 });

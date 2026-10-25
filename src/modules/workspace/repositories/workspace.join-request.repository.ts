@@ -39,14 +39,18 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         return count > 0;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndWorkspace(
         workspaceJoinRequestId: string,
-        workspaceId: string
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest | null> {
         return this.databaseService.client.workspaceJoinRequest.findFirst({
             where: {
-                id: workspaceJoinRequestId,
-                workspaceId,
+                AND: [
+                    additionalWhere ?? {},
+                    { id: workspaceJoinRequestId, workspaceId },
+                ],
             },
         });
     }
@@ -93,36 +97,62 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async acceptInTx(
         tx: IDatabaseTransactionClient,
         workspaceJoinRequestId: string,
         reviewerId: string,
-        reviewedAt: Date
-    ): Promise<void> {
-        await tx.workspaceJoinRequest.update({
-            where: { id: workspaceJoinRequestId },
+        reviewedAt: Date,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+    ): Promise<WorkspaceJoinRequest | null> {
+        const { count } = await tx.workspaceJoinRequest.updateMany({
+            where: {
+                AND: [additionalWhere ?? {}, { id: workspaceJoinRequestId }],
+            },
             data: {
                 status: EnumWorkspaceJoinRequestStatus.accepted,
                 reviewedByUserId: reviewerId,
                 reviewedAt,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return tx.workspaceJoinRequest.findUnique({
+            where: { id: workspaceJoinRequestId },
+        });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async reject(
         workspaceJoinRequestId: string,
         reviewerId: string,
         rejectReasonCode: EnumWorkspaceJoinRejectReason,
-        reviewedAt: Date
-    ): Promise<void> {
-        await this.databaseService.client.workspaceJoinRequest.update({
+        reviewedAt: Date,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+    ): Promise<WorkspaceJoinRequest | null> {
+        const { count } =
+            await this.databaseService.client.workspaceJoinRequest.updateMany({
+                where: {
+                    AND: [
+                        additionalWhere ?? {},
+                        { id: workspaceJoinRequestId },
+                    ],
+                },
+                data: {
+                    status: EnumWorkspaceJoinRequestStatus.rejected,
+                    rejectReasonCode,
+                    reviewedByUserId: reviewerId,
+                    reviewedAt,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspaceJoinRequest.findUnique({
             where: { id: workspaceJoinRequestId },
-            data: {
-                status: EnumWorkspaceJoinRequestStatus.rejected,
-                rejectReasonCode,
-                reviewedByUserId: reviewerId,
-                reviewedAt,
-            },
         });
     }
 

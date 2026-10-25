@@ -13,6 +13,7 @@ import {
     EnumRoleScope,
     EnumWorkspaceJoinRejectReason,
     EnumWorkspaceJoinRequestStatus,
+    type Prisma,
     type Workspace,
     type WorkspaceJoinRequest,
     type WorkspaceMember,
@@ -129,6 +130,8 @@ describe('WorkspaceJoinRequestDomain', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         roleDomain.getByScopeAndKeyInTx.mockResolvedValue(memberRole);
+        joinRepository.acceptInTx.mockResolvedValue(joinRequest);
+        joinRepository.reject.mockResolvedValue(joinRequest);
         databaseService.withTransaction.mockImplementation(async callback =>
             callback(transactionClient)
         );
@@ -302,24 +305,51 @@ describe('WorkspaceJoinRequestDomain', () => {
         }
     );
 
-    it('loads the join request the route addresses within the workspace', async () => {
-        joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
+    describe('getJoinRequest', () => {
+        const additionalWhere: Prisma.WorkspaceJoinRequestWhereInput = {
+            status: EnumWorkspaceJoinRequestStatus.pending,
+        };
 
-        await expect(
-            domain.getJoinRequest('workspace-id', 'join-id')
-        ).resolves.toBe(joinRequest);
-        expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-            'join-id',
-            'workspace-id'
+        it('forwards additionalWhere to findByIdAndWorkspace', async () => {
+            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
+
+            await expect(
+                domain.getJoinRequest(
+                    'workspace-id',
+                    'join-id',
+                    additionalWhere
+                )
+            ).resolves.toBe(joinRequest);
+            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                'join-id',
+                'workspace-id',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls findByIdAndWorkspace with undefined and returns the same result', async () => {
+            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
+
+            await expect(
+                domain.getJoinRequest('workspace-id', 'join-id')
+            ).resolves.toBe(joinRequest);
+            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                'join-id',
+                'workspace-id',
+                undefined
+            );
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceJoinRequestNotFoundException when findByIdAndWorkspace returns null (additionalWhere: %j)',
+            async scoped => {
+                joinRepository.findByIdAndWorkspace.mockResolvedValue(null);
+
+                await expect(
+                    domain.getJoinRequest('workspace-id', 'join-id', scoped)
+                ).rejects.toBeInstanceOf(WorkspaceJoinRequestNotFoundException);
+            }
         );
-    });
-
-    it('reports a join request outside the workspace as not found', async () => {
-        joinRepository.findByIdAndWorkspace.mockResolvedValue(null);
-
-        await expect(
-            domain.getJoinRequest('workspace-id', 'join-id')
-        ).rejects.toBeInstanceOf(WorkspaceJoinRequestNotFoundException);
     });
 
     it.each([
@@ -364,7 +394,8 @@ describe('WorkspaceJoinRequestDomain', () => {
             expect.anything(),
             'join-id',
             'reviewer-id',
-            reviewedAt
+            reviewedAt,
+            undefined
         );
         expect(
             notificationQueue.sendWorkspaceJoinAccepted
@@ -402,6 +433,122 @@ describe('WorkspaceJoinRequestDomain', () => {
         expect(
             notificationQueue.sendWorkspaceJoinAccepted
         ).not.toHaveBeenCalled();
+    });
+
+    describe('acceptJoinRequest additionalWhere', () => {
+        const additionalWhere: Prisma.WorkspaceJoinRequestWhereInput = {
+            status: EnumWorkspaceJoinRequestStatus.pending,
+        };
+
+        it('forwards additionalWhere to the pre-read and to acceptInTx', async () => {
+            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
+            helperDateService.create.mockReturnValue(now);
+
+            await domain.acceptJoinRequest(
+                workspace,
+                'reviewer-id',
+                'join-id',
+                additionalWhere
+            );
+
+            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                'join-id',
+                'workspace-id',
+                additionalWhere
+            );
+            expect(joinRepository.acceptInTx).toHaveBeenCalledWith(
+                expect.anything(),
+                'join-id',
+                'reviewer-id',
+                now,
+                additionalWhere
+            );
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceJoinRequestNotFoundException inside the transaction when acceptInTx returns null, staging and notifying nothing (additionalWhere: %j)',
+            async scoped => {
+                joinRepository.findByIdAndWorkspace.mockResolvedValue(
+                    joinRequest
+                );
+                helperDateService.create.mockReturnValue(now);
+                joinRepository.acceptInTx.mockResolvedValue(null);
+
+                await expect(
+                    domain.acceptJoinRequest(
+                        workspace,
+                        'reviewer-id',
+                        'join-id',
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceJoinRequestNotFoundException);
+                expect(memberDomain.createInTx).toHaveBeenCalledBefore(
+                    joinRepository.acceptInTx
+                );
+                expect(databaseService.withTransaction).toHaveBeenCalledOnce();
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+                expect(
+                    notificationQueue.sendWorkspaceJoinAccepted
+                ).not.toHaveBeenCalled();
+            }
+        );
+    });
+
+    describe('rejectJoinRequest additionalWhere', () => {
+        const additionalWhere: Prisma.WorkspaceJoinRequestWhereInput = {
+            status: EnumWorkspaceJoinRequestStatus.pending,
+        };
+
+        it('forwards additionalWhere to the pre-read and to reject', async () => {
+            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
+            helperDateService.create.mockReturnValue(now);
+
+            await domain.rejectJoinRequest(
+                workspace,
+                'reviewer-id',
+                'join-id',
+                EnumWorkspaceJoinRejectReason.other,
+                additionalWhere
+            );
+
+            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                'join-id',
+                'workspace-id',
+                additionalWhere
+            );
+            expect(joinRepository.reject).toHaveBeenCalledWith(
+                'join-id',
+                'reviewer-id',
+                EnumWorkspaceJoinRejectReason.other,
+                now,
+                additionalWhere
+            );
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceJoinRequestNotFoundException and stages and notifies nothing when reject returns null (additionalWhere: %j)',
+            async scoped => {
+                joinRepository.findByIdAndWorkspace.mockResolvedValue(
+                    joinRequest
+                );
+                helperDateService.create.mockReturnValue(now);
+                joinRepository.reject.mockResolvedValue(null);
+
+                await expect(
+                    domain.rejectJoinRequest(
+                        workspace,
+                        'reviewer-id',
+                        'join-id',
+                        EnumWorkspaceJoinRejectReason.other,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceJoinRequestNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+                expect(
+                    notificationQueue.sendWorkspaceJoinRejected
+                ).not.toHaveBeenCalled();
+            }
+        );
     });
 
     it('checks the join-request feature before loading the request to reject', async () => {
@@ -479,7 +626,8 @@ describe('WorkspaceJoinRequestDomain', () => {
             'join-id',
             'reviewer-id',
             EnumWorkspaceJoinRejectReason.other,
-            reviewedAt
+            reviewedAt,
+            undefined
         );
         expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.workspaceJoinRejected,

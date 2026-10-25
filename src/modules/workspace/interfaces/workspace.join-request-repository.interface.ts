@@ -16,9 +16,11 @@ export interface IWorkspaceJoinRequestRepository {
         workspaceId: string,
         userId: string
     ): Promise<boolean>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndWorkspace(
         workspaceJoinRequestId: string,
-        workspaceId: string
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
@@ -35,18 +37,22 @@ export interface IWorkspaceJoinRequestRepository {
         userId,
         message,
     }: IWorkspaceJoinRequestCreateData): Promise<WorkspaceJoinRequest>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     acceptInTx(
         tx: IDatabaseTransactionClient,
         workspaceJoinRequestId: string,
         reviewerId: string,
-        reviewedAt: Date
-    ): Promise<void>;
+        reviewedAt: Date,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+    ): Promise<WorkspaceJoinRequest | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     reject(
         workspaceJoinRequestId: string,
         reviewerId: string,
         rejectReasonCode: EnumWorkspaceJoinRejectReason,
-        reviewedAt: Date
-    ): Promise<void>;
+        reviewedAt: Date,
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+    ): Promise<WorkspaceJoinRequest | null>;
     cancelPendingByWorkspaceInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string

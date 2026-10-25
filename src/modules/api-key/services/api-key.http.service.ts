@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -95,14 +94,14 @@ export class ApiKeyHttpService {
         id: string,
         { isActive }: ApiKeyUpdateStatusRequestDto
     ): Promise<IResponseReturn<ApiKey>> {
-        const stored = await this.apiKeyDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.ApiKey, stored)
+            EnumPolicySubject.ApiKey
         );
         const updated = await this.apiKeyDomain.updateStatusByAdmin(
             id,
-            isActive
+            isActive,
+            scopeWhere
         );
 
         return {
@@ -114,12 +113,15 @@ export class ApiKeyHttpService {
         id: string,
         { name }: ApiKeyUpdateRequestDto
     ): Promise<IResponseReturn<ApiKey>> {
-        const stored = await this.apiKeyDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.ApiKey, stored)
+            EnumPolicySubject.ApiKey
         );
-        const updated = await this.apiKeyDomain.updateByAdmin(id, name);
+        const updated = await this.apiKeyDomain.updateByAdmin(
+            id,
+            name,
+            scopeWhere
+        );
 
         return {
             data: updated,
@@ -130,15 +132,15 @@ export class ApiKeyHttpService {
         id: string,
         { startAt, endAt }: ApiKeyUpdateDateRequestDto
     ): Promise<IResponseReturn<ApiKey>> {
-        const stored = await this.apiKeyDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.ApiKey, stored)
+            EnumPolicySubject.ApiKey
         );
         const updated = await this.apiKeyDomain.updateDatesByAdmin(
             id,
             startAt,
-            endAt
+            endAt,
+            scopeWhere
         );
 
         return {
@@ -149,24 +151,25 @@ export class ApiKeyHttpService {
     async resetByAdmin(
         id: string
     ): Promise<IResponseReturn<ApiKeyCreateResponseDto>> {
-        const stored = await this.apiKeyDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.ApiKey, stored)
+            EnumPolicySubject.ApiKey
         );
-        const { apiKey, secret } = await this.apiKeyDomain.resetByAdmin(id);
+        const { apiKey, secret } = await this.apiKeyDomain.resetByAdmin(
+            id,
+            scopeWhere
+        );
         const reset = this.apiKeyUtil.mapCreate(apiKey, secret);
 
         return { data: reset };
     }
 
     async deleteByAdmin(id: string): Promise<IResponseReturn<ApiKey>> {
-        const stored = await this.apiKeyDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.delete,
-            subject(EnumPolicySubject.ApiKey, stored)
+            EnumPolicySubject.ApiKey
         );
-        const deleted = await this.apiKeyDomain.deleteByAdmin(id);
+        const deleted = await this.apiKeyDomain.deleteByAdmin(id, scopeWhere);
 
         return {
             data: deleted,

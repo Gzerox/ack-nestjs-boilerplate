@@ -256,8 +256,8 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         roleId: string,
         additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<WorkspaceMember | null> {
-        const { count } =
-            await this.databaseService.client.workspaceMember.updateMany({
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.workspaceMember.updateMany({
                 where: {
                     AND: [additionalWhere ?? {}, { id: targetMemberId }],
                 },
@@ -265,12 +265,13 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
                     roleId,
                 },
             });
-        if (count === 0) {
-            return null;
-        }
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.workspaceMember.findUnique({
-            where: { id: targetMemberId },
+            return tx.workspaceMember.findUnique({
+                where: { id: targetMemberId },
+            });
         });
     }
 

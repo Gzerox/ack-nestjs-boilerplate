@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 
 /**
- * Revisioned read-through cache over the raw policy rows of a role. The key embeds
+ * Read-through cache, keyed by role revision, over the raw policy rows of a role. The key embeds
  * `Role.policyRevision`, so a policy writer bumps the revision and the next request reads a new
  * key; nothing is deleted and old revision keys expire by TTL.
  */

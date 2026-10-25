@@ -138,19 +138,21 @@ export class ProjectRepository implements IProjectRepository {
         { name, description }: ProjectUpdateRequestDto,
         additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
-        const { count } = await this.databaseService.client.project.updateMany({
-            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
-            data: {
-                name,
-                description,
-            },
-        });
-        if (count === 0) {
-            return null;
-        }
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.project.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id: projectId }] },
+                data: {
+                    name,
+                    description,
+                },
+            });
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.project.findUnique({
-            where: { id: projectId },
+            return tx.project.findUnique({
+                where: { id: projectId },
+            });
         });
     }
 
@@ -160,18 +162,20 @@ export class ProjectRepository implements IProjectRepository {
         slug: string,
         additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
-        const { count } = await this.databaseService.client.project.updateMany({
-            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
-            data: {
-                slug,
-            },
-        });
-        if (count === 0) {
-            return null;
-        }
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.project.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id: projectId }] },
+                data: {
+                    slug,
+                },
+            });
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.project.findUnique({
-            where: { id: projectId },
+            return tx.project.findUnique({
+                where: { id: projectId },
+            });
         });
     }
 
@@ -182,25 +186,27 @@ export class ProjectRepository implements IProjectRepository {
         deletedBy: string,
         additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
-        const { count } = await this.databaseService.client.project.updateMany({
-            where: {
-                AND: [
-                    additionalWhere ?? {},
-                    { id: projectId },
-                    ProjectActiveFilter,
-                ],
-            },
-            data: {
-                deletedAt,
-                deletedBy,
-            },
-        });
-        if (count === 0) {
-            return null;
-        }
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.project.updateMany({
+                where: {
+                    AND: [
+                        additionalWhere ?? {},
+                        { id: projectId },
+                        ProjectActiveFilter,
+                    ],
+                },
+                data: {
+                    deletedAt,
+                    deletedBy,
+                },
+            });
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.project.findUnique({
-            where: { id: projectId },
+            return tx.project.findUnique({
+                where: { id: projectId },
+            });
         });
     }
 

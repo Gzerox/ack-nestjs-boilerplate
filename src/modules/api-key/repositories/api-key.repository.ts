@@ -28,18 +28,20 @@ export class ApiKeyRepository implements IApiKeyRepository {
         data: Prisma.ApiKeyUpdateManyMutationInput,
         additionalWhere?: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
-        const { count } = await this.databaseService.client.apiKey.updateMany({
-            where: {
-                AND: [additionalWhere ?? {}, { id }],
-            },
-            data,
-        });
-        if (count === 0) {
-            return null;
-        }
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.apiKey.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id }],
+                },
+                data,
+            });
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.apiKey.findUnique({
-            where: { id },
+            return tx.apiKey.findUnique({
+                where: { id },
+            });
         });
     }
 

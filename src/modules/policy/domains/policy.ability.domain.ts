@@ -78,11 +78,12 @@ export class PolicyAbilityDomain {
             const reason = matchedRule?.inverted
                 ? matchedRule.reason
                 : undefined;
+            const subject = this.toSubjectName(target);
             throw new PolicyForbiddenException({
                 reason,
                 missing: [
                     {
-                        subject: this.toSubjectName(target),
+                        subject,
                         actions: [action],
                     },
                 ],
@@ -104,12 +105,16 @@ export class PolicyAbilityDomain {
         const ability = this.getAbility();
 
         return targets
-            .map(target => ({
-                subject: this.toSubjectName(target),
-                actions: Object.values(EnumPolicyAction).filter(action =>
-                    ability.can(action, target)
-                ),
-            }))
+            .map(target => {
+                const subject = this.toSubjectName(target);
+
+                return {
+                    subject,
+                    actions: Object.values(EnumPolicyAction).filter(action =>
+                        ability.can(action, target)
+                    ),
+                };
+            })
             .filter(permission => permission.actions.length > 0);
     }
 }

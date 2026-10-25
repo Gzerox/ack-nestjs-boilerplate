@@ -42,11 +42,12 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         additionalWhere?: Prisma.TermPolicyWhereInput
     ): Promise<boolean> {
+        const updatedAt = this.helperDateService.create();
         const { count } = await tx.termPolicy.updateMany({
             where: {
                 AND: [additionalWhere ?? {}, { id: termPolicyId }],
             },
-            data: { updatedAt: this.helperDateService.create() },
+            data: { updatedAt },
         });
 
         return count > 0;

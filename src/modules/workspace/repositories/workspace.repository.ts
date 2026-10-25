@@ -144,20 +144,21 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         { name, description }: WorkspaceUpdateRequestDto,
         additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
-        const { count } =
-            await this.databaseService.client.workspace.updateMany({
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.workspace.updateMany({
                 where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
                 data: {
                     name,
                     description,
                 },
             });
-        if (count === 0) {
-            return null;
-        }
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.workspace.findUnique({
-            where: { id: workspaceId },
+            return tx.workspace.findUnique({
+                where: { id: workspaceId },
+            });
         });
     }
 
@@ -167,19 +168,20 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         isPublic: boolean,
         additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
-        const { count } =
-            await this.databaseService.client.workspace.updateMany({
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.workspace.updateMany({
                 where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
                 data: {
                     isPublic,
                 },
             });
-        if (count === 0) {
-            return null;
-        }
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.workspace.findUnique({
-            where: { id: workspaceId },
+            return tx.workspace.findUnique({
+                where: { id: workspaceId },
+            });
         });
     }
 
@@ -189,19 +191,20 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         slug: string,
         additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
-        const { count } =
-            await this.databaseService.client.workspace.updateMany({
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.workspace.updateMany({
                 where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
                 data: {
                     slug,
                 },
             });
-        if (count === 0) {
-            return null;
-        }
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.workspace.findUnique({
-            where: { id: workspaceId },
+            return tx.workspace.findUnique({
+                where: { id: workspaceId },
+            });
         });
     }
 

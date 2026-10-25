@@ -197,17 +197,19 @@ export class RoleRepository implements IRoleRepository {
         data: IRoleUpdate,
         additionalWhere?: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null> {
-        const { count } = await this.databaseService.client.role.updateMany({
-            where: { AND: [additionalWhere ?? {}, { id }] },
-            data,
-        });
-        if (count === 0) {
-            return null;
-        }
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.role.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id }] },
+                data,
+            });
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.role.findUnique({
-            where: { id },
-            include: RolePoliciesInclude,
+            return tx.role.findUnique({
+                where: { id },
+                include: RolePoliciesInclude,
+            });
         });
     }
 

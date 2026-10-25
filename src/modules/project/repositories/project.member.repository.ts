@@ -171,8 +171,8 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         roleId: string,
         additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<ProjectMember | null> {
-        const { count } =
-            await this.databaseService.client.projectMember.updateMany({
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.projectMember.updateMany({
                 where: {
                     AND: [additionalWhere ?? {}, { id: targetMemberId }],
                 },
@@ -180,12 +180,13 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
                     roleId,
                 },
             });
-        if (count === 0) {
-            return null;
-        }
+            if (count === 0) {
+                return null;
+            }
 
-        return this.databaseService.client.projectMember.findUnique({
-            where: { id: targetMemberId },
+            return tx.projectMember.findUnique({
+                where: { id: targetMemberId },
+            });
         });
     }
 

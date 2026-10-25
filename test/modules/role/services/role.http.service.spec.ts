@@ -43,6 +43,7 @@ describe('RoleHttpService', () => {
         key: EnumRolePlatformKey.admin,
         name: 'Admin',
         description: null,
+        policyRevision: 0,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
@@ -55,6 +56,7 @@ describe('RoleHttpService', () => {
         key: EnumRolePlatformKey.admin,
         name: 'Admin',
         description: null,
+        policyRevision: 0,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
@@ -304,6 +306,7 @@ describe('RoleHttpService', () => {
                 key: 'owner',
                 name: 'Owner',
                 description: 'Owns the workspace',
+                policyRevision: 0,
             };
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -352,6 +355,7 @@ describe('RoleHttpService', () => {
                     key: 'owner',
                     name: 'Owner',
                     description: 'Owns the workspace',
+                    policyRevision: 0,
                 },
             ]);
             expect(result.data[0]).not.toHaveProperty('_count');

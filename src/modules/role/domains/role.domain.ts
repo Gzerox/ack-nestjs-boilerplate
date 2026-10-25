@@ -109,6 +109,13 @@ export class RoleDomain {
         return this.roleRepository.findOneByScopeAndKeyInTx(tx, scope, key);
     }
 
+    async incrementPolicyRevisionInTx(
+        tx: IDatabaseTransactionClient,
+        roleId: string
+    ): Promise<void> {
+        await this.roleRepository.incrementPolicyRevisionInTx(tx, roleId);
+    }
+
     assertScope(
         role: Pick<IRole, 'scope'>,
         expectedScope: EnumRoleScope

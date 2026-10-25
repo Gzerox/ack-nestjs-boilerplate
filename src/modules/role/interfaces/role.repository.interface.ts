@@ -67,6 +67,10 @@ export interface IRoleRepository {
         scope: EnumRoleScope,
         key: string
     ): Promise<IRole | null>;
+    incrementPolicyRevisionInTx(
+        tx: IDatabaseTransactionClient,
+        roleId: string
+    ): Promise<void>;
     existsByScopeAndKey(scope: EnumRoleScope, key: string): Promise<boolean>;
     create(data: IRoleCreate): Promise<IRoleWithPolicies>;
     /** Extra caller-supplied constraint, AND-composed first. */

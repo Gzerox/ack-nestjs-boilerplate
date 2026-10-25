@@ -162,6 +162,16 @@ export class RoleRepository implements IRoleRepository {
         });
     }
 
+    async incrementPolicyRevisionInTx(
+        tx: IDatabaseTransactionClient,
+        roleId: string
+    ): Promise<void> {
+        await tx.role.update({
+            where: { id: roleId },
+            data: { policyRevision: { increment: 1 } },
+        });
+    }
+
     async existsByScopeAndKey(
         scope: EnumRoleScope,
         key: string

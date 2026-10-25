@@ -34,6 +34,7 @@ describe('PolicyHttpService', () => {
         key: 'admin',
         name: 'Admin',
         description: null,
+        policyRevision: 0,
         createdAt: now,
         createdBy: null,
         updatedAt: now,

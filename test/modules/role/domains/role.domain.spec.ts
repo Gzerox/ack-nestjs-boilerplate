@@ -62,6 +62,7 @@ describe('RoleDomain', () => {
         key: EnumRolePlatformKey.admin,
         name: 'Admin',
         description: null,
+        policyRevision: 0,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
@@ -239,6 +240,19 @@ describe('RoleDomain', () => {
                 EnumRoleScope.workspace,
                 EnumRoleWorkspaceKey.owner
             );
+        });
+    });
+
+    describe('incrementPolicyRevisionInTx', () => {
+        it('forwards tx and roleId to the repository increment', async () => {
+            roleRepository.incrementPolicyRevisionInTx.mockResolvedValue();
+
+            await expect(
+                service.incrementPolicyRevisionInTx(tx, role.id)
+            ).resolves.toBeUndefined();
+            expect(
+                roleRepository.incrementPolicyRevisionInTx
+            ).toHaveBeenCalledWith(tx, role.id);
         });
     });
 

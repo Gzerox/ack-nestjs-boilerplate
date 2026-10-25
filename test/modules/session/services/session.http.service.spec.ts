@@ -84,6 +84,7 @@ describe('SessionHttpService', () => {
             id: 'role-id',
             name: 'User',
             description: null,
+            policyRevision: 0,
             scope: EnumRoleScope.platform,
             key: EnumRolePlatformKey.user,
             createdAt: now,

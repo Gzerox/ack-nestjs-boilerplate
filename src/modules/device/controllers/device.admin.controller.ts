@@ -53,7 +53,7 @@ export class DeviceAdminController {
             action: [EnumPolicyAction.read],
         },
         {
-            subject: EnumPolicySubject.Device,
+            subject: EnumPolicySubject.DeviceOwnership,
             action: [EnumPolicyAction.read],
         }
     )
@@ -80,7 +80,7 @@ export class DeviceAdminController {
             action: [EnumPolicyAction.read],
         },
         {
-            subject: EnumPolicySubject.Device,
+            subject: EnumPolicySubject.DeviceOwnership,
             action: [EnumPolicyAction.read, EnumPolicyAction.delete],
         }
     )

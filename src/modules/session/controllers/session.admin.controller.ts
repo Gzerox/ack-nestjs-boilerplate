@@ -107,7 +107,7 @@ export class SessionAdminController {
     @PlatformPolicyProtected(
         {
             subject: EnumPolicySubject.User,
-            action: [EnumPolicyAction.read],
+            action: [EnumPolicyAction.read, EnumPolicyAction.update],
         },
         {
             subject: EnumPolicySubject.Session,

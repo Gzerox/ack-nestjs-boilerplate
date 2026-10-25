@@ -178,12 +178,24 @@ A project member must already be a workspace member. `assignMember` resolves the
 
 | Operation | Rules |
 |---|---|
-| Assign | Peer rule on the requested role. Throws `ProjectMemberAlreadyAssignedException` (400, `51704`) when the user already belongs |
-| Update role | Peer rule on **both** the target's current role and the new role. Unknown member throws `ProjectMemberNotFoundException` (404, `51703`) |
-| Remove | Peer rule on the target's role. Removing yourself throws `ProjectMemberPeerForbiddenException` (403, `51702`); use leave instead. The row is hard-deleted |
-| Leave | No peer check. The last project `admin` is rejected. The caller's own row is hard-deleted |
+| Assign | `authorize(create, subject(ProjectMember, { projectId, userId, roleId }))` evaluates the create rules against the prospective row. Throws `ProjectMemberAlreadyAssignedException` (400, `51704`) when the user already belongs |
+| Update role | The target is loaded through `scope(update, ProjectMember)`. Unknown member throws `ProjectMemberNotFoundException` (404, `51703`) |
+| Remove | The target is loaded through `scope(delete, ProjectMember)`. Removing yourself throws `ProjectMemberPeerForbiddenException` (403, `51702`); use leave instead. The row is hard-deleted |
+| Leave | The last project `admin` is rejected. The caller's own row is hard-deleted |
 
-**Peer rule.** `assertProjectMemberPeerAllowed` throws `ProjectMemberPeerForbiddenException` (403, `51702`) when the actor's ability lacks `projectMember:[update]` and any role involved in the operation is `admin`. `ProjectMemberHttpService` computes that capability from the request ability and passes it to the domain.
+**Who may manage members.** `ProjectMember` permissions and their conditions decide who may assign, change, or remove members, including members holding `admin`. The domain adds two fixed checks: self-removal throws `ProjectMemberPeerForbiddenException`, and the last project `admin` cannot be demoted, removed, or leave.
+
+**Restricting admin management.** A custom project role keeps admin membership out of reach with conditions on its `ProjectMember` rules. Update and delete are scoped on the stored row, so Prisma evaluates a condition on the `role` relation. Create is judged against the prospective row, which carries `projectId`, `userId`, and `roleId` only, so a relation condition on `role.key` cannot be evaluated there. The create rule lists the assignable roles through `roleId` instead (the UUIDs of the permitted project roles stand in for the placeholders):
+
+```json
+[
+  { "action": "create", "subject": "ProjectMember", "conditions": { "projectId": "${projectId}", "roleId": { "in": ["<member-role-id>", "<viewer-role-id>"] } } },
+  { "action": "update", "subject": "ProjectMember", "conditions": { "projectId": "${projectId}", "role": { "is": { "key": { "not": "admin" } } } } },
+  { "action": "delete", "subject": "ProjectMember", "conditions": { "projectId": "${projectId}", "role": { "is": { "key": { "not": "admin" } } } } }
+]
+```
+
+The restriction is opt-in: a role without such conditions manages every member of its project. The update condition judges the target's current role.
 
 **Last-admin protection.** Removing, demoting, or leaving as the only project `admin` throws `ProjectMemberLastAdminException` (`51707`). `assertNotLastAdmin` counts the remaining admins first.
 
@@ -227,7 +239,7 @@ Deleting the **workspace** soft-deletes its still-active projects in the same tr
 |---|---|---|---|
 | `notFound` | `51700` | 404 | Unknown, soft-deleted, or out-of-workspace project |
 | `memberForbidden` | `51701` | 403 | Caller holds no `ProjectMember` row on a strict route |
-| `memberPeerForbidden` | `51702` | 403 | Operation involves an `admin` and the actor's ability lacks `projectMember:[update]`, or self-removal |
+| `memberPeerForbidden` | `51702` | 403 | Self-removal; `leave` is the route for removing oneself |
 | `memberNotFound` | `51703` | 404 | Target member row does not exist in this project |
 | `memberAlreadyAssigned` | `51704` | 400 | User already belongs to the project |
 | `slugAlreadyExists` | `51705` | 400 | Slug already taken in this workspace |

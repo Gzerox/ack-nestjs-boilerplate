@@ -421,6 +421,42 @@ describe('UserDomain', () => {
         );
     });
 
+    describe('getOne', () => {
+        const additionalWhere = { id: 'user-1' };
+
+        it('forwards additionalWhere to the profile read', async () => {
+            const profile = mock<IUserProfile>();
+            userRepository.findOneProfileById.mockResolvedValue(profile);
+
+            await expect(
+                service.getOne('user-1', additionalWhere)
+            ).resolves.toBe(profile);
+            expect(userRepository.findOneProfileById).toHaveBeenCalledWith(
+                'user-1',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere reads by id only', async () => {
+            const profile = mock<IUserProfile>();
+            userRepository.findOneProfileById.mockResolvedValue(profile);
+
+            await expect(service.getOne('user-1')).resolves.toBe(profile);
+            expect(userRepository.findOneProfileById).toHaveBeenCalledWith(
+                'user-1',
+                undefined
+            );
+        });
+
+        it('throws UserNotFoundException when the read returns null with additionalWhere', async () => {
+            userRepository.findOneProfileById.mockResolvedValue(null);
+
+            await expect(
+                service.getOne('user-1', additionalWhere)
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+        });
+    });
+
     describe('prepareCreateByAdmin', () => {
         const input = {
             username: 'new-user',

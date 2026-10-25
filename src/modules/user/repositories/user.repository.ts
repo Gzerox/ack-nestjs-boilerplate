@@ -161,9 +161,13 @@ export class UserRepository implements IUserRepository {
         });
     }
 
-    async findOneProfileById(id: string): Promise<IUserProfile | null> {
-        return this.databaseService.client.user.findUnique({
-            where: { id, deletedAt: null },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findOneProfileById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUserProfile | null> {
+        return this.databaseService.client.user.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
             include: {
                 ...UserWithRoleInclude,
                 country: true,

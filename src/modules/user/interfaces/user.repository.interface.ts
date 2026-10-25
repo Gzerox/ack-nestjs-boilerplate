@@ -44,7 +44,10 @@ export interface IUserRepository {
     findOneActiveByEmail(email: string): Promise<User | null>;
     findNameById(userId: string): Promise<IWorkspaceInviteInviter | null>;
     findOneWithRoleByEmail(email: string): Promise<IUser | null>;
-    findOneProfileById(id: string): Promise<IUserProfile | null>;
+    findOneProfileById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUserProfile | null>;
     findOneActiveProfileById(id: string): Promise<IUserProfile | null>;
     findOneWithRoleById(id: string): Promise<IUser | null>;
     findByEmails(emails: string[]): Promise<IUser[]>;

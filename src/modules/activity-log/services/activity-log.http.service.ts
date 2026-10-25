@@ -16,12 +16,16 @@ import type {
     IActivityLogScope,
 } from '@modules/activity-log/interfaces/activity-log.interface';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
+import { UserDomain } from '@modules/user/domains/user.domain';
+import { WorkspaceDomain } from '@modules/workspace/domains/workspace.domain';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class ActivityLogHttpService {
     constructor(
         private readonly activityLogDomain: ActivityLogDomain,
+        private readonly userDomain: UserDomain,
+        private readonly workspaceDomain: WorkspaceDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
         private readonly requestStoreService: RequestStoreService
@@ -31,6 +35,24 @@ export class ActivityLogHttpService {
         scope: IActivityLogScope,
         query: ActivityLogAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
+        const { workspaceId, userId } = scope;
+        if (workspaceId) {
+            const workspaceWhere = this.policyAbilityDomain.accessibleWhere(
+                EnumPolicyAction.read,
+                EnumPolicySubject.Workspace
+            );
+            await this.workspaceDomain.getByIdForAdmin(
+                workspaceId,
+                workspaceWhere
+            );
+        } else if (userId) {
+            const userWhere = this.policyAbilityDomain.accessibleWhere(
+                EnumPolicyAction.read,
+                EnumPolicySubject.User
+            );
+            await this.userDomain.getOne(userId, userWhere);
+        }
+
         const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
             EnumPolicyAction.read,
             EnumPolicySubject.ActivityLog

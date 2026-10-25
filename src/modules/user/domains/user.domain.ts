@@ -260,8 +260,15 @@ export class UserDomain {
         return this.userRepository.findActive();
     }
 
-    async getOne(id: string): Promise<IUserProfile> {
-        const user = await this.userRepository.findOneProfileById(id);
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async getOne(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUserProfile> {
+        const user = await this.userRepository.findOneProfileById(
+            id,
+            additionalWhere
+        );
         if (!user) {
             throw new UserNotFoundException();
         }

@@ -44,7 +44,11 @@ export interface ITermPolicyRepository {
             ...others
         }: IPaginationQueryCursorParams<Prisma.TermPolicyUserAcceptanceWhereInput>
     ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>>;
-    findOneById(termPolicyId: string): Promise<ITermPolicy | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneById(
+        termPolicyId: string,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<ITermPolicy | null>;
     findLatestPublishedByType(type: EnumTermPolicyType): Promise<{
         id: string;
         type: EnumTermPolicyType;
@@ -78,22 +82,34 @@ export interface ITermPolicyRepository {
         { type, version }: TermPolicyCreateRequestDto,
         contents: ITermPolicyContentCreate[]
     ): Promise<TermPolicy>;
-    delete(termPolicyId: string): Promise<TermPolicy>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    delete(
+        termPolicyId: string,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     updateContent(
         termPolicyId: string,
-        content: ITermPolicyContentCreate
-    ): Promise<TermPolicy>;
+        content: ITermPolicyContentCreate,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     addContent(
         termPolicyId: string,
-        newContent: ITermPolicyContentCreate
-    ): Promise<TermPolicy>;
+        newContent: ITermPolicyContentCreate,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     removeContent(
         termPolicyId: string,
-        { language }: TermPolicyRemoveContentRequestDto
-    ): Promise<TermPolicy>;
+        { language }: TermPolicyRemoveContentRequestDto,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     publishInTx(
         tx: IDatabaseTransactionClient,
         termPolicyId: string,
-        contents: ITermPolicyContentCreate[]
-    ): Promise<TermPolicy>;
+        contents: ITermPolicyContentCreate[],
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy | null>;
 }

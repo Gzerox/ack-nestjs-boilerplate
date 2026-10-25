@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -12,12 +11,10 @@ import { RequestStoreService } from '@common/request/services/request.store.serv
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumTermPolicyStatus,
     EnumTermPolicyType,
     Prisma,
 } from '@generated/prisma-client/client';
 import type { TermPolicy } from '@generated/prisma-client/client';
-import type { ITermPolicy } from '@modules/term-policy/interfaces/term-policy.interface';
 import {
     TermPolicyDefaultAvailableOrderBy,
     TermPolicyDefaultStatus,
@@ -41,18 +38,6 @@ describe('TermPolicyHttpService', () => {
         mock<RequestStoreService>();
     const scopeWhere = { deletedAt: null };
     const termPolicy = mock<TermPolicy>();
-    const stored = {
-        id: 'term-policy-id',
-        type: EnumTermPolicyType.privacy,
-        version: 1,
-        status: EnumTermPolicyStatus.draft,
-        publishedAt: null,
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-        createdBy: null,
-        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-        updatedBy: null,
-        contents: [],
-    } satisfies ITermPolicy;
     const offsetParams = {
         where: undefined,
         limit: 20,
@@ -287,28 +272,24 @@ describe('TermPolicyHttpService', () => {
     });
 
     describe('deleteByAdmin', () => {
-        it('checks delete on the loaded policy, delegates to the domain and wraps the deleted policy', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(delete, TermPolicy) as additionalWhere, delegates to the domain and wraps the deleted policy', async () => {
             termPolicyDomain.deleteByAdmin.mockResolvedValue(termPolicy);
 
             await expect(
                 service.deleteByAdmin('term-policy-id')
             ).resolves.toEqual({ data: termPolicy });
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(termPolicyDomain.deleteByAdmin).toHaveBeenCalledWith(
-                'term-policy-id'
+                'term-policy-id',
+                scopeWhere
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no delete rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -319,7 +300,7 @@ describe('TermPolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -331,29 +312,25 @@ describe('TermPolicyHttpService', () => {
     });
 
     describe('publishByAdmin', () => {
-        it('checks update on the loaded policy, delegates to the domain and answers an empty envelope', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, TermPolicy) as additionalWhere, delegates to the domain and answers an empty envelope', async () => {
             termPolicyDomain.publishByAdmin.mockResolvedValue(undefined);
 
             await expect(
                 service.publishByAdmin('term-policy-id', 'admin-id')
             ).resolves.toEqual({});
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(termPolicyDomain.publishByAdmin).toHaveBeenCalledWith(
                 'term-policy-id',
-                'admin-id'
+                'admin-id',
+                scopeWhere
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -364,7 +341,7 @@ describe('TermPolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

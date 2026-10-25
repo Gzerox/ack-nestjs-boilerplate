@@ -176,10 +176,18 @@ export class TermPolicyDomain {
         }
     }
 
-    /** Returns the stored policy with its contents; callers judge it, this method does not. */
-    async getOne(termPolicyId: string): Promise<ITermPolicy> {
-        const termPolicy =
-            await this.termPolicyRepository.findOneById(termPolicyId);
+    /**
+     * Returns the stored policy with its contents; callers judge it, this method does not.
+     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
+     */
+    async getOne(
+        termPolicyId: string,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<ITermPolicy> {
+        const termPolicy = await this.termPolicyRepository.findOneById(
+            termPolicyId,
+            additionalWhere
+        );
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         }
@@ -187,9 +195,15 @@ export class TermPolicyDomain {
         return termPolicy;
     }
 
-    async deleteByAdmin(termPolicyId: string): Promise<TermPolicy> {
-        const termPolicy =
-            await this.termPolicyRepository.findOneById(termPolicyId);
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async deleteByAdmin(
+        termPolicyId: string,
+        additionalWhere?: Prisma.TermPolicyWhereInput
+    ): Promise<TermPolicy> {
+        const termPolicy = await this.termPolicyRepository.findOneById(
+            termPolicyId,
+            additionalWhere
+        );
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status !== EnumTermPolicyStatus.draft) {
@@ -206,12 +220,17 @@ export class TermPolicyDomain {
                     timestamp
                 ),
             ];
-            const [deleted] = await Promise.all([
-                this.termPolicyRepository.delete(termPolicyId),
-                this.awsS3Service.deleteDir(contentPath, {
-                    access: EnumAwsS3Accessibility.private,
-                }),
-            ]);
+            const deleted = await this.termPolicyRepository.delete(
+                termPolicyId,
+                additionalWhere
+            );
+            if (!deleted) {
+                throw new TermPolicyNotFoundException();
+            }
+
+            await this.awsS3Service.deleteDir(contentPath, {
+                access: EnumAwsS3Accessibility.private,
+            });
 
             this.activityLogDomain.stagePrepared(events);
 
@@ -225,12 +244,16 @@ export class TermPolicyDomain {
         }
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async publishByAdmin(
         termPolicyId: string,
-        updatedBy: string
+        updatedBy: string,
+        additionalWhere?: Prisma.TermPolicyWhereInput
     ): Promise<void> {
-        const termPolicy =
-            await this.termPolicyRepository.findOneById(termPolicyId);
+        const termPolicy = await this.termPolicyRepository.findOneById(
+            termPolicyId,
+            additionalWhere
+        );
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status === EnumTermPolicyStatus.published) {
@@ -262,8 +285,13 @@ export class TermPolicyDomain {
                     const row = await this.termPolicyRepository.publishInTx(
                         tx,
                         termPolicyId,
-                        newContents
+                        newContents,
+                        additionalWhere
                     );
+                    if (!row) {
+                        throw new TermPolicyNotFoundException();
+                    }
+
                     await this.userDomain.resetTermPolicyForActiveUsersInTx(
                         tx,
                         termPolicy.type

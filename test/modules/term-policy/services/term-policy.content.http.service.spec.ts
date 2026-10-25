@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 
 import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
@@ -10,39 +9,22 @@ import { RequestContextMissingException } from '@common/request/exceptions/reque
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumTermPolicyStatus,
     EnumTermPolicyType,
 } from '@generated/prisma-client/client';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
-import { TermPolicyDomain } from '@modules/term-policy/domains/term-policy.domain';
 import type { TermPolicyContentPresignRequestDto } from '@modules/term-policy/dtos/request/term-policy.content-presign.request.dto';
 import type { TermPolicyContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.content.request.dto';
-import type { ITermPolicy } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyContentHttpService } from '@modules/term-policy/services/term-policy.content.http.service';
 
 describe('TermPolicyContentHttpService', () => {
     const termPolicyContentDomain: MockProxy<TermPolicyContentDomain> =
         mock<TermPolicyContentDomain>();
-    const termPolicyDomain: MockProxy<TermPolicyDomain> =
-        mock<TermPolicyDomain>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
-    const now = new Date('2026-01-01T00:00:00.000Z');
-    const stored = {
-        id: 'term-policy-id',
-        type: EnumTermPolicyType.privacy,
-        version: 1,
-        status: EnumTermPolicyStatus.draft,
-        publishedAt: null,
-        createdAt: now,
-        createdBy: null,
-        updatedAt: now,
-        updatedBy: null,
-        contents: [],
-    } satisfies ITermPolicy;
+    const scopeWhere = { type: EnumTermPolicyType.privacy };
     const body = {
         key: 'term-policies/privacy/v1/en.hbs',
         size: 100,
@@ -53,6 +35,7 @@ describe('TermPolicyContentHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -61,7 +44,6 @@ describe('TermPolicyContentHttpService', () => {
                     provide: TermPolicyContentDomain,
                     useValue: termPolicyContentDomain,
                 },
-                { provide: TermPolicyDomain, useValue: termPolicyDomain },
                 { provide: PolicyAbilityDomain, useValue: policyAbilityDomain },
             ],
         }).compile();
@@ -92,27 +74,25 @@ describe('TermPolicyContentHttpService', () => {
     });
 
     describe('updateContentByAdmin', () => {
-        it('checks update on the loaded policy, delegates to the content domain and answers an empty envelope', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, TermPolicy) as additionalWhere and delegates to the content domain', async () => {
+            termPolicyContentDomain.updateContentByAdmin.mockResolvedValue(
+                undefined
+            );
 
             await expect(
                 service.updateContentByAdmin('term-policy-id', body)
             ).resolves.toEqual({});
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(
                 termPolicyContentDomain.updateContentByAdmin
-            ).toHaveBeenCalledWith('term-policy-id', body);
+            ).toHaveBeenCalledWith('term-policy-id', body, scopeWhere);
         });
 
-        it('throws PolicyForbiddenException and never calls the content mutation when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the content domain when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -124,8 +104,8 @@ describe('TermPolicyContentHttpService', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws RequestContextMissingException and touches nothing when no ability is stored', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -139,27 +119,25 @@ describe('TermPolicyContentHttpService', () => {
     });
 
     describe('addContentByAdmin', () => {
-        it('checks update on the loaded policy, delegates to the content domain and answers an empty envelope', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, TermPolicy) as additionalWhere and delegates to the content domain', async () => {
+            termPolicyContentDomain.addContentByAdmin.mockResolvedValue(
+                undefined
+            );
 
             await expect(
                 service.addContentByAdmin('term-policy-id', body)
             ).resolves.toEqual({});
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(
                 termPolicyContentDomain.addContentByAdmin
-            ).toHaveBeenCalledWith('term-policy-id', body);
+            ).toHaveBeenCalledWith('term-policy-id', body, scopeWhere);
         });
 
-        it('throws PolicyForbiddenException and never calls the content mutation when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the content domain when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -171,8 +149,8 @@ describe('TermPolicyContentHttpService', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws RequestContextMissingException and touches nothing when no ability is stored', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -186,47 +164,53 @@ describe('TermPolicyContentHttpService', () => {
     });
 
     describe('removeContentByAdmin', () => {
-        const removeBody = { language: EnumMessageLanguage.en };
-
-        it('checks update on the loaded policy, delegates the language to the content domain and answers an empty envelope', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, TermPolicy) as additionalWhere and delegates to the content domain', async () => {
+            termPolicyContentDomain.removeContentByAdmin.mockResolvedValue(
+                undefined
+            );
 
             await expect(
-                service.removeContentByAdmin('term-policy-id', removeBody)
+                service.removeContentByAdmin('term-policy-id', {
+                    language: EnumMessageLanguage.en,
+                })
             ).resolves.toEqual({});
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(
                 termPolicyContentDomain.removeContentByAdmin
-            ).toHaveBeenCalledWith('term-policy-id', EnumMessageLanguage.en);
+            ).toHaveBeenCalledWith(
+                'term-policy-id',
+                EnumMessageLanguage.en,
+                scopeWhere
+            );
         });
 
-        it('throws PolicyForbiddenException and never calls the content mutation when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the content domain when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(
-                service.removeContentByAdmin('term-policy-id', removeBody)
+                service.removeContentByAdmin('term-policy-id', {
+                    language: EnumMessageLanguage.en,
+                })
             ).rejects.toThrow(PolicyForbiddenException);
             expect(
                 termPolicyContentDomain.removeContentByAdmin
             ).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws RequestContextMissingException and touches nothing when no ability is stored', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(
-                service.removeContentByAdmin('term-policy-id', removeBody)
+                service.removeContentByAdmin('term-policy-id', {
+                    language: EnumMessageLanguage.en,
+                })
             ).rejects.toThrow(RequestContextMissingException);
             expect(
                 termPolicyContentDomain.removeContentByAdmin
@@ -235,9 +219,8 @@ describe('TermPolicyContentHttpService', () => {
     });
 
     describe('getContentByAdmin', () => {
-        it('checks read on the loaded policy, delegates to the content domain and wraps the presign', async () => {
+        it('passes scope(read, TermPolicy) as additionalWhere and delegates to the content domain', async () => {
             const presign = mock<IAwsS3Presign>();
-            termPolicyDomain.getOne.mockResolvedValue(stored);
             termPolicyContentDomain.getContentByAdmin.mockResolvedValue(
                 presign
             );
@@ -248,21 +231,21 @@ describe('TermPolicyContentHttpService', () => {
                     EnumMessageLanguage.en
                 )
             ).resolves.toEqual({ data: presign });
-            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
-                'term-policy-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.TermPolicy, stored)
+                EnumPolicySubject.TermPolicy
             );
             expect(
                 termPolicyContentDomain.getContentByAdmin
-            ).toHaveBeenCalledWith('term-policy-id', EnumMessageLanguage.en);
+            ).toHaveBeenCalledWith(
+                'term-policy-id',
+                EnumMessageLanguage.en,
+                scopeWhere
+            );
         });
 
-        it('throws PolicyForbiddenException and never reads the content when the record is denied', async () => {
-            termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the content domain when the ability has no read rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -277,8 +260,8 @@ describe('TermPolicyContentHttpService', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws RequestContextMissingException and touches nothing when no ability is stored', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

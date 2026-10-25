@@ -30,6 +30,7 @@ import type { ProjectAdminListRequestDto } from '@modules/project/dtos/request/p
 import type { ProjectUpdateSlugRequestDto } from '@modules/project/dtos/request/project.update-slug.request.dto';
 import type { ProjectUpdateRequestDto } from '@modules/project/dtos/request/project.update.request.dto';
 import type { ProjectUserListRequestDto } from '@modules/project/dtos/request/project.user-list.request.dto';
+import { ProjectNotFoundException } from '@modules/project/exceptions/project.not-found.exception';
 import { ProjectHttpService } from '@modules/project/services/project.http.service';
 
 describe('ProjectHttpService', () => {
@@ -169,84 +170,123 @@ describe('ProjectHttpService', () => {
     });
 
     describe('getProject', () => {
-        it('authorizes and wraps the guarded project', () => {
-            expect(service.getProject(project)).toEqual({ data: project });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+        it('re-reads with getCurrentProject(project.id, project.workspaceId, scope(read, Project))', async () => {
+            const fresh = mock<Project>({ id: 'project-id' });
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+            projectDomain.getCurrentProject.mockResolvedValue(fresh);
+
+            await expect(service.getProject(project)).resolves.toEqual({
+                data: fresh,
+            });
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.Project, project)
+                EnumPolicySubject.Project
+            );
+            expect(projectDomain.getCurrentProject).toHaveBeenCalledWith(
+                'project-id',
+                'workspace-id',
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
+
+        it('propagates ProjectNotFoundException when the scoped re-read finds nothing', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+            projectDomain.getCurrentProject.mockRejectedValue(
+                new ProjectNotFoundException()
+            );
+
+            await expect(service.getProject(project)).rejects.toBeInstanceOf(
+                ProjectNotFoundException
             );
         });
     });
 
     describe('getForAdmin', () => {
-        it('authorizes and wraps the project loaded for administration', async () => {
+        it('passes scope(read, Project) as additionalWhere', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             projectDomain.getByIdForAdmin.mockResolvedValue(project);
 
             await expect(service.getForAdmin('project-id')).resolves.toEqual({
                 data: project,
             });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.Project, project)
+                EnumPolicySubject.Project
             );
+            expect(projectDomain.getByIdForAdmin).toHaveBeenCalledWith(
+                'project-id',
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('updateProject', () => {
-        it('delegates the update and wraps the result', async () => {
+        it('passes scope(update, Project) as additionalWhere', async () => {
             const dto: ProjectUpdateRequestDto = {
                 name: 'Renamed',
                 description: 'New',
             };
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             projectDomain.updateProject.mockResolvedValue(project);
 
             await expect(
                 service.updateProject(project, 'actor-id', dto)
             ).resolves.toEqual({ data: project });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.Project, project)
+                EnumPolicySubject.Project
             );
             expect(projectDomain.updateProject).toHaveBeenCalledWith(
                 project,
                 'actor-id',
-                { name: 'Renamed', description: 'New' }
+                { name: 'Renamed', description: 'New' },
+                scopeWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('updateProjectSlug', () => {
-        it('delegates the slug and wraps the result', async () => {
+        it('passes scope(update, Project) as additionalWhere', async () => {
             const dto: ProjectUpdateSlugRequestDto = { slug: 'new-slug' };
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             projectDomain.updateProjectSlug.mockResolvedValue(project);
 
             await expect(
                 service.updateProjectSlug(project, 'actor-id', dto)
             ).resolves.toEqual({ data: project });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.Project, project)
+                EnumPolicySubject.Project
             );
             expect(projectDomain.updateProjectSlug).toHaveBeenCalledWith(
                 project,
                 'actor-id',
-                'new-slug'
+                'new-slug',
+                scopeWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('softDeleteProject', () => {
-        it('delegates the delete', async () => {
+        it('passes scope(delete, Project) as additionalWhere', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+
             await service.softDeleteProject(project, 'actor-id');
 
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                subject(EnumPolicySubject.Project, project)
+                EnumPolicySubject.Project
             );
             expect(projectDomain.softDeleteProject).toHaveBeenCalledWith(
                 project,
-                'actor-id'
+                'actor-id',
+                scopeWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 

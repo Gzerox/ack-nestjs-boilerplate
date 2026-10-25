@@ -285,6 +285,331 @@ describe('ProjectDomain', () => {
         });
     });
 
+    describe('getActiveByIdAndWorkspace', () => {
+        const where: Prisma.ProjectWhereInput = { id: 'project-id' };
+
+        it('forwards additionalWhere to findActiveByIdAndWorkspace and returns the nullable row', async () => {
+            projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                domain.getActiveByIdAndWorkspace(
+                    'project-id',
+                    'workspace-id',
+                    where
+                )
+            ).resolves.toBeNull();
+            expect(
+                projectRepository.findActiveByIdAndWorkspace
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', where);
+        });
+
+        it('without additionalWhere calls findActiveByIdAndWorkspace with undefined and returns the same result', async () => {
+            projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
+                project
+            );
+
+            await expect(
+                domain.getActiveByIdAndWorkspace('project-id', 'workspace-id')
+            ).resolves.toBe(project);
+            expect(
+                projectRepository.findActiveByIdAndWorkspace
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', undefined);
+        });
+    });
+
+    describe('getCurrentProject', () => {
+        const where: Prisma.ProjectWhereInput = { id: 'project-id' };
+
+        it('forwards additionalWhere to findActiveByIdAndWorkspace', async () => {
+            projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
+                project
+            );
+
+            await expect(
+                domain.getCurrentProject('project-id', 'workspace-id', where)
+            ).resolves.toBe(project);
+            expect(
+                projectRepository.findActiveByIdAndWorkspace
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', where);
+        });
+
+        it('without additionalWhere calls findActiveByIdAndWorkspace with undefined and returns the same result', async () => {
+            projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
+                project
+            );
+
+            await expect(
+                domain.getCurrentProject('project-id', 'workspace-id')
+            ).resolves.toBe(project);
+            expect(
+                projectRepository.findActiveByIdAndWorkspace
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', undefined);
+        });
+
+        it.each([[where], [undefined]])(
+            'throws ProjectNotFoundException when findActiveByIdAndWorkspace returns null (additionalWhere %j)',
+            async additionalWhere => {
+                projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
+                    null
+                );
+
+                await expect(
+                    domain.getCurrentProject(
+                        'project-id',
+                        'workspace-id',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(ProjectNotFoundException);
+            }
+        );
+    });
+
+    describe('getByIdForAdmin', () => {
+        const where: Prisma.ProjectWhereInput = { workspaceId: 'workspace-id' };
+
+        it('forwards additionalWhere to findByIdForAdmin', async () => {
+            projectRepository.findByIdForAdmin.mockResolvedValue(project);
+
+            await expect(
+                domain.getByIdForAdmin('project-id', where)
+            ).resolves.toBe(project);
+            expect(projectRepository.findByIdForAdmin).toHaveBeenCalledWith(
+                'project-id',
+                where
+            );
+        });
+
+        it('without additionalWhere calls findByIdForAdmin with undefined and returns the same result', async () => {
+            projectRepository.findByIdForAdmin.mockResolvedValue(project);
+
+            await expect(domain.getByIdForAdmin('project-id')).resolves.toBe(
+                project
+            );
+            expect(projectRepository.findByIdForAdmin).toHaveBeenCalledWith(
+                'project-id',
+                undefined
+            );
+        });
+
+        it.each([[where], [undefined]])(
+            'throws ProjectNotFoundException when findByIdForAdmin returns null (additionalWhere %j)',
+            async additionalWhere => {
+                projectRepository.findByIdForAdmin.mockResolvedValue(null);
+
+                await expect(
+                    domain.getByIdForAdmin('project-id', additionalWhere)
+                ).rejects.toBeInstanceOf(ProjectNotFoundException);
+            }
+        );
+    });
+
+    describe('updateProject', () => {
+        const where: Prisma.ProjectWhereInput = { workspaceId: 'workspace-id' };
+        const update = { name: 'Renamed' };
+
+        it('forwards additionalWhere to updateDetails', async () => {
+            projectRepository.updateDetails.mockResolvedValue(project);
+
+            await expect(
+                domain.updateProject(project, 'actor-id', update, where)
+            ).resolves.toBe(project);
+            expect(projectRepository.updateDetails).toHaveBeenCalledWith(
+                'project-id',
+                update,
+                where
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it('without additionalWhere calls updateDetails with undefined and returns the same result', async () => {
+            projectRepository.updateDetails.mockResolvedValue(project);
+
+            await expect(
+                domain.updateProject(project, 'actor-id', update)
+            ).resolves.toBe(project);
+            expect(projectRepository.updateDetails).toHaveBeenCalledWith(
+                'project-id',
+                update,
+                undefined
+            );
+        });
+
+        it.each([[where], [undefined]])(
+            'throws ProjectNotFoundException when updateDetails returns null and stages no activity (additionalWhere %j)',
+            async additionalWhere => {
+                projectRepository.updateDetails.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateProject(
+                        project,
+                        'actor-id',
+                        update,
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(ProjectNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+    });
+
+    describe('updateProjectSlug write', () => {
+        const where: Prisma.ProjectWhereInput = { workspaceId: 'workspace-id' };
+
+        beforeEach(() => {
+            projectRepository.existsBySlugInWorkspace.mockResolvedValue(false);
+        });
+
+        it('forwards additionalWhere to updateSlug', async () => {
+            projectRepository.updateSlug.mockResolvedValue(project);
+
+            await expect(
+                domain.updateProjectSlug(
+                    project,
+                    'actor-id',
+                    'valid-slug',
+                    where
+                )
+            ).resolves.toBe(project);
+            expect(projectRepository.updateSlug).toHaveBeenCalledWith(
+                'project-id',
+                'valid-slug',
+                where
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it('without additionalWhere calls updateSlug with undefined and returns the same result', async () => {
+            projectRepository.updateSlug.mockResolvedValue(project);
+
+            await expect(
+                domain.updateProjectSlug(project, 'actor-id', 'valid-slug')
+            ).resolves.toBe(project);
+            expect(projectRepository.updateSlug).toHaveBeenCalledWith(
+                'project-id',
+                'valid-slug',
+                undefined
+            );
+        });
+
+        it.each([[where], [undefined]])(
+            'throws ProjectNotFoundException when updateSlug returns null and stages no activity (additionalWhere %j)',
+            async additionalWhere => {
+                projectRepository.updateSlug.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateProjectSlug(
+                        project,
+                        'actor-id',
+                        'valid-slug',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(ProjectNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+
+        it('maps a slug P2002 from the scoped write to ProjectSlugAlreadyExistsException', async () => {
+            projectRepository.updateSlug.mockRejectedValue(new Error('unique'));
+            databaseUtil.isUniqueCollision.mockReturnValue(true);
+
+            await expect(
+                domain.updateProjectSlug(
+                    project,
+                    'actor-id',
+                    'valid-slug',
+                    where
+                )
+            ).rejects.toBeInstanceOf(ProjectSlugAlreadyExistsException);
+            expect(databaseUtil.isUniqueCollision).toHaveBeenCalledWith(
+                expect.any(Error),
+                'slug'
+            );
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('rethrows a non-slug failure from the scoped write', async () => {
+            const failure = new Error('boom');
+            projectRepository.updateSlug.mockRejectedValue(failure);
+
+            await expect(
+                domain.updateProjectSlug(project, 'actor-id', 'valid-slug')
+            ).rejects.toBe(failure);
+        });
+    });
+
+    describe('softDeleteProject', () => {
+        const where: Prisma.ProjectWhereInput = { workspaceId: 'workspace-id' };
+        const deletedAt = new Date('2026-01-01T00:00:00.000Z');
+
+        beforeEach(() => {
+            helperDateService.create.mockReturnValue(deletedAt);
+        });
+
+        it('forwards actor and additionalWhere to softDelete', async () => {
+            projectRepository.softDelete.mockResolvedValue(project);
+
+            await domain.softDeleteProject(project, 'actor-id', where);
+
+            expect(projectRepository.softDelete).toHaveBeenCalledWith(
+                'project-id',
+                deletedAt,
+                'actor-id',
+                where
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it('without additionalWhere calls softDelete with undefined and stages activity', async () => {
+            projectRepository.softDelete.mockResolvedValue(project);
+
+            await domain.softDeleteProject(project, 'actor-id');
+
+            expect(projectRepository.softDelete).toHaveBeenCalledWith(
+                'project-id',
+                deletedAt,
+                'actor-id',
+                undefined
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it.each([[where], [undefined]])(
+            'throws ProjectNotFoundException when softDelete returns null and stages no activity (additionalWhere %j)',
+            async additionalWhere => {
+                projectRepository.softDelete.mockResolvedValue(null);
+
+                await expect(
+                    domain.softDeleteProject(
+                        project,
+                        'actor-id',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(ProjectNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+    });
+
+    describe('softDeleteByWorkspaceInTx', () => {
+        it('is the trusted path: takes no additionalWhere and forwards exactly four arguments', async () => {
+            const deletedAt = new Date('2026-01-01T00:00:00.000Z');
+
+            await domain.softDeleteByWorkspaceInTx(
+                tx,
+                'workspace-id',
+                deletedAt,
+                'actor-id'
+            );
+
+            expect(domain.softDeleteByWorkspaceInTx).toHaveLength(4);
+            expect(
+                projectRepository.softDeleteByWorkspaceInTx
+            ).toHaveBeenCalledWith(tx, 'workspace-id', deletedAt, 'actor-id');
+        });
+    });
+
     it.each(['INVALID!', 'this-slug-is-far-too-long'])(
         'rejects invalid project slug %s',
         async slug => {

@@ -10,11 +10,17 @@ import type { ProjectCreateRequestDto } from '@modules/project/dtos/request/proj
 import type { ProjectUpdateRequestDto } from '@modules/project/dtos/request/project.update.request.dto';
 
 export interface IProjectRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findActiveByIdAndWorkspace(
         projectId: string,
-        workspaceId: string
+        workspaceId: string,
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
-    findByIdForAdmin(projectId: string): Promise<Project | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findByIdForAdmin(
+        projectId: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null>;
     existsBySlugInWorkspace(
         workspaceId: string,
         slug: string,
@@ -38,12 +44,25 @@ export interface IProjectRepository {
         { name, description }: ProjectCreateRequestDto,
         slug: string
     ): Promise<Project>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     updateDetails(
         projectId: string,
-        { name, description }: ProjectUpdateRequestDto
-    ): Promise<Project>;
-    updateSlug(projectId: string, slug: string): Promise<Project>;
-    softDelete(projectId: string, deletedAt: Date): Promise<void>;
+        { name, description }: ProjectUpdateRequestDto,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    updateSlug(
+        projectId: string,
+        slug: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    softDelete(
+        projectId: string,
+        deletedAt: Date,
+        deletedBy: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null>;
     softDeleteByWorkspaceInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,

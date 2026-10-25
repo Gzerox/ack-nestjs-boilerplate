@@ -21,22 +21,31 @@ export class ProjectRepository implements IProjectRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findActiveByIdAndWorkspace(
         projectId: string,
-        workspaceId: string
+        workspaceId: string,
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.client.project.findFirst({
             where: {
-                id: projectId,
-                workspaceId,
-                ...ProjectActiveFilter,
+                AND: [
+                    additionalWhere ?? {},
+                    { id: projectId },
+                    { workspaceId },
+                    ProjectActiveFilter,
+                ],
             },
         });
     }
 
-    async findByIdForAdmin(projectId: string): Promise<Project | null> {
-        return this.databaseService.client.project.findUnique({
-            where: { id: projectId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findByIdForAdmin(
+        projectId: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null> {
+        return this.databaseService.client.project.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
         });
     }
 
@@ -123,34 +132,75 @@ export class ProjectRepository implements IProjectRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateDetails(
         projectId: string,
-        { name, description }: ProjectUpdateRequestDto
-    ): Promise<Project> {
-        return this.databaseService.client.project.update({
-            where: { id: projectId },
+        { name, description }: ProjectUpdateRequestDto,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null> {
+        const { count } = await this.databaseService.client.project.updateMany({
+            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
             data: {
                 name,
                 description,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.project.findUnique({
+            where: { id: projectId },
+        });
     }
 
-    async updateSlug(projectId: string, slug: string): Promise<Project> {
-        return this.databaseService.client.project.update({
-            where: { id: projectId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async updateSlug(
+        projectId: string,
+        slug: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null> {
+        const { count } = await this.databaseService.client.project.updateMany({
+            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
             data: {
                 slug,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.project.findUnique({
+            where: { id: projectId },
+        });
     }
 
-    async softDelete(projectId: string, deletedAt: Date): Promise<void> {
-        await this.databaseService.client.project.softDelete({
-            where: { id: projectId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async softDelete(
+        projectId: string,
+        deletedAt: Date,
+        deletedBy: string,
+        additionalWhere?: Prisma.ProjectWhereInput
+    ): Promise<Project | null> {
+        const { count } = await this.databaseService.client.project.updateMany({
+            where: {
+                AND: [
+                    additionalWhere ?? {},
+                    { id: projectId },
+                    ProjectActiveFilter,
+                ],
+            },
             data: {
                 deletedAt,
+                deletedBy,
             },
+        });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.project.findUnique({
+            where: { id: projectId },
         });
     }
 

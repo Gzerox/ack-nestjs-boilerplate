@@ -20,6 +20,7 @@ import {
 import type { TermPolicy } from '@generated/prisma-client/client';
 
 export interface ITermPolicyRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     find(
         {
             where,

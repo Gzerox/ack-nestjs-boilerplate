@@ -31,6 +31,7 @@ export class SessionRepository implements ISessionRepository {
         private readonly databaseUtil: DatabaseUtil
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         userId: string,
         {
@@ -47,12 +48,12 @@ export class SessionRepository implements ISessionRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...isRevoked,
                         userId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             select: SessionListSelect,

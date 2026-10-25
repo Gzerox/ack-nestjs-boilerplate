@@ -87,17 +87,18 @@ export class ApiKeyDomain {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.ApiKeyWhereInput>,
         isActive?: Record<string, IPaginationEqual>,
         type?: Record<string, IPaginationIn>,
-        where?: Prisma.ApiKeyWhereInput
+        additionalWhere?: Prisma.ApiKeyWhereInput
     ): Promise<IResponsePaginationReturn<IApiKeyList>> {
         return this.apiKeyRepository.findWithPagination(
             pagination,
             isActive,
             type,
-            where
+            additionalWhere
         );
     }
 

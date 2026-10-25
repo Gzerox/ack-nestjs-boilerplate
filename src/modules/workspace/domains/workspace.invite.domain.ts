@@ -297,11 +297,12 @@ export class WorkspaceInviteDomain {
         return this.workspaceInviteRepository.expireStalePending();
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getInvitesList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceInviteWhereInput>,
         status?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceInviteList>> {
         await this.assertInvitationAllowed();
 
@@ -309,7 +310,7 @@ export class WorkspaceInviteDomain {
             workspaceId,
             pagination,
             status,
-            where
+            additionalWhere
         );
     }
 

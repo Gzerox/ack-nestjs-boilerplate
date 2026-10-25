@@ -57,13 +57,14 @@ export class ProjectRepository implements IProjectRepository {
         return count > 0;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursorForWorkspace(
         workspaceId: string,
         {
             where: filters,
             ...others
         }: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>,
-        where?: Prisma.ProjectWhereInput
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.paginationService.cursor<Project, Prisma.ProjectWhereInput>(
             this.databaseService.client.project,
@@ -71,23 +72,24 @@ export class ProjectRepository implements IProjectRepository {
                 ...others,
                 where: {
                     AND: [
+                        additionalWhere ?? {},
                         filters ?? {},
                         { workspaceId },
                         ProjectActiveFilter,
-                        where ?? {},
                     ],
                 },
             }
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetForAdmin(
         {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.ProjectWhereInput>,
         workspaceId?: string,
-        where?: Prisma.ProjectWhereInput
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.paginationService.offset<Project, Prisma.ProjectWhereInput>(
             this.databaseService.client.project,
@@ -95,9 +97,9 @@ export class ProjectRepository implements IProjectRepository {
                 ...others,
                 where: {
                     AND: [
+                        additionalWhere ?? {},
                         filters ?? {},
                         ...(workspaceId ? [{ workspaceId }] : []),
-                        where ?? {},
                     ],
                 },
             }

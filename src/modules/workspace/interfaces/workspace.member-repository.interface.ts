@@ -21,27 +21,29 @@ export interface IWorkspaceMemberRepository {
         workspaceId: string,
         userId: string
     ): Promise<WorkspaceMember | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndWorkspace(
         workspaceMemberId: string,
         workspaceId: string,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole | null>;
     countOwnedActiveByUser(userId: string): Promise<number>;
     countOwners(workspaceId: string): Promise<number>;
     findReviewersByWorkspace(
         workspaceId: string
     ): Promise<{ userId: string }[]>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffset(
         workspaceId: string,
         params: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         workspaceId: string,
         params: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
         role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceMember>>;
     createOwnerInTx(
         tx: IDatabaseTransactionClient,

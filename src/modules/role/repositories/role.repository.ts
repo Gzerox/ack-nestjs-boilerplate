@@ -35,6 +35,7 @@ export class RoleRepository implements IRoleRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         {
             where,
@@ -50,11 +51,11 @@ export class RoleRepository implements IRoleRepository {
             ...params,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...scope,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             include: { _count: { select: { policies: true } } },

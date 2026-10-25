@@ -17,12 +17,14 @@ export interface IProjectMemberRepository {
         projectId: string,
         userId: string
     ): Promise<IProjectMemberWithRole | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndProject(
         projectMemberId: string,
         projectId: string,
-        where?: Prisma.ProjectMemberWhereInput
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole | null>;
     countAdmins(projectId: string): Promise<number>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         projectId: string,
         {

@@ -12,6 +12,7 @@ import type { ApiKey } from '@generated/prisma-client/client';
 import type { IApiKeyList } from '@modules/api-key/interfaces/api-key.interface';
 
 export interface IApiKeyRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPagination(
         {
             where,

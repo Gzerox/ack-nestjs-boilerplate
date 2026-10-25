@@ -113,6 +113,7 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         return count > 0;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         workspaceId: string,
         {
@@ -129,12 +130,12 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...(status ?? {}),
                         workspaceId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             select: WorkspaceInviteUserListSelect,

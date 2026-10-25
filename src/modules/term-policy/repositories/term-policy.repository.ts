@@ -33,6 +33,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         private readonly helperDateService: HelperDateService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async find(
         {
             where,
@@ -49,12 +50,12 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...type,
                         ...status,
                     },
-                    additionalWhere ?? {},
                 ],
             },
         });

@@ -90,17 +90,20 @@ export class WorkspaceMemberDomain {
         return member;
     }
 
-    /** Loads the member the route addresses within the workspace, AND-composed with the optional where, so a record the where excludes reads as not found. */
+    /**
+     * Loads the member the route addresses within the workspace, AND-composed with the optional additionalWhere, so a record it excludes reads as not found.
+     * Extra caller-supplied constraint, AND-composed first.
+     */
     async getOneByIdAndWorkspace(
         workspaceId: string,
         workspaceMemberId: string,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole> {
         const target =
             await this.workspaceMemberRepository.findByIdAndWorkspace(
                 workspaceMemberId,
                 workspaceId,
-                where
+                additionalWhere
             );
         if (!target) {
             throw new WorkspaceMemberNotFoundException();
@@ -219,17 +222,18 @@ export class WorkspaceMemberDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getMembersList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
         role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         return this.workspaceMemberRepository.findWithPaginationCursor(
             workspaceId,
             pagination,
             role,
-            where
+            additionalWhere
         );
     }
 
@@ -315,17 +319,19 @@ export class WorkspaceMemberDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
-    /** Pages the members of a workspace the admin policy guard already resolved, soft-deleted included, so it reads no workspace row itself. */
+    /**
+     * Pages the members of a workspace the admin policy guard already resolved, soft-deleted included, so it reads no workspace row itself.
+     * Extra caller-supplied constraint, AND-composed first.
+     */
     async getMembersListForAdmin(
         workspaceId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         return this.workspaceMemberRepository.findWithPaginationOffset(
             workspaceId,
             pagination,
-            undefined,
-            where
+            additionalWhere
         );
     }
 }

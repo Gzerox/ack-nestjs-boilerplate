@@ -48,14 +48,19 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndProject(
         projectMemberId: string,
         projectId: string,
-        where?: Prisma.ProjectMemberWhereInput
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole | null> {
         return this.databaseService.client.projectMember.findFirst({
             where: {
-                AND: [{ id: projectMemberId }, { projectId }, where ?? {}],
+                AND: [
+                    additionalWhere ?? {},
+                    { id: projectMemberId },
+                    { projectId },
+                ],
             },
             include: ProjectMemberRoleInclude,
         });
@@ -73,6 +78,7 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         projectId: string,
         {
@@ -88,11 +94,11 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         projectId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             include: {

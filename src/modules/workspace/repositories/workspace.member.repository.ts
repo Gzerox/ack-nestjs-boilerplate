@@ -31,11 +31,12 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     private buildWorkspaceScopedWhere(
         workspaceId: string,
         filters?: Prisma.WorkspaceMemberWhereInput,
         role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Prisma.WorkspaceMemberWhereInput {
         const roleKeys = role?.role?.in;
         const roleFilter: Prisma.WorkspaceMemberWhereInput = roleKeys
@@ -48,7 +49,12 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
             : {};
 
         return {
-            AND: [filters ?? {}, where ?? {}, roleFilter, { workspaceId }],
+            AND: [
+                additionalWhere ?? {},
+                filters ?? {},
+                roleFilter,
+                { workspaceId },
+            ],
         };
     }
 
@@ -77,14 +83,19 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndWorkspace(
         workspaceMemberId: string,
         workspaceId: string,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole | null> {
         return this.databaseService.client.workspaceMember.findFirst({
             where: {
-                AND: [{ id: workspaceMemberId }, { workspaceId }, where ?? {}],
+                AND: [
+                    additionalWhere ?? {},
+                    { id: workspaceMemberId },
+                    { workspaceId },
+                ],
             },
             include: WorkspaceMemberRoleInclude,
         });
@@ -135,20 +146,20 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffset(
         workspaceId: string,
         {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         const scopedWhere = this.buildWorkspaceScopedWhere(
             workspaceId,
             filters,
-            role,
-            where
+            undefined,
+            additionalWhere
         );
 
         return this.paginationService.offset<
@@ -168,6 +179,7 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         workspaceId: string,
         {
@@ -175,13 +187,13 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
             ...others
         }: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
         role?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceMember>> {
         const scopedWhere = this.buildWorkspaceScopedWhere(
             workspaceId,
             filters,
             role,
-            where
+            additionalWhere
         );
 
         return this.paginationService.cursor<

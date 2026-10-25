@@ -23,6 +23,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPagination(
         {
             where,
@@ -39,12 +40,12 @@ export class ApiKeyRepository implements IApiKeyRepository {
             ...params,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...isActive,
                         ...type,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             select: ApiKeyAdminListSelect,

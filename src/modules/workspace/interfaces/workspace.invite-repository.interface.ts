@@ -29,6 +29,7 @@ export interface IWorkspaceInviteRepository {
         workspaceId: string,
         email: string
     ): Promise<boolean>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         workspaceId: string,
         {

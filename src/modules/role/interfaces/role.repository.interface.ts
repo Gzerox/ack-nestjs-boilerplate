@@ -20,6 +20,7 @@ import type {
 } from '@generated/prisma-client/client';
 
 export interface IRoleRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetByAdmin(
         {
             where,

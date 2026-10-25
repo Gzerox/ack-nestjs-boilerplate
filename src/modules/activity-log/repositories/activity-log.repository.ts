@@ -25,6 +25,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         private readonly databaseUtil: DatabaseUtil
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffset(
         scope: IActivityLogScope,
         {
@@ -39,7 +40,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         >(this.databaseService.client.activityLog, {
             ...params,
             where: {
-                AND: [where ?? {}, scope, additionalWhere ?? {}],
+                AND: [additionalWhere ?? {}, where ?? {}, scope],
             },
             include: {
                 user: {
@@ -49,6 +50,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         scope: IActivityLogScope,
         {
@@ -63,7 +65,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         >(this.databaseService.client.activityLog, {
             ...params,
             where: {
-                AND: [where ?? {}, scope, additionalWhere ?? {}],
+                AND: [additionalWhere ?? {}, where ?? {}, scope],
             },
             include: {
                 user: {

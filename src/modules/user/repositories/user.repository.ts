@@ -82,6 +82,7 @@ export class UserRepository implements IUserRepository {
         };
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffset(
         {
             where,
@@ -98,6 +99,7 @@ export class UserRepository implements IUserRepository {
                 ...params,
                 where: {
                     AND: [
+                        additionalWhere ?? {},
                         {
                             ...where,
                             ...status,
@@ -105,7 +107,6 @@ export class UserRepository implements IUserRepository {
                             ...roleId,
                             deletedAt: null,
                         },
-                        additionalWhere ?? {},
                     ],
                 },
                 select: UserAdminListSelect,
@@ -222,23 +223,24 @@ export class UserRepository implements IUserRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findExport(
         status: Record<string, IPaginationIn> | null,
         roleId: Record<string, IPaginationEqual> | null,
         countryId: Record<string, IPaginationEqual> | null,
         take: number,
-        where?: Prisma.UserWhereInput
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<IUserExport[]> {
         return this.databaseService.client.user.findMany({
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...status,
                         ...countryId,
                         ...roleId,
                         deletedAt: null,
                     },
-                    where ?? {},
                 ],
             },
             include: {

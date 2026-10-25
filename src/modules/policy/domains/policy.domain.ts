@@ -35,11 +35,12 @@ export class PolicyDomain {
         }
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findManyByRole(
         roleId: string,
-        where?: Prisma.RoleWhereInput
+        additionalWhere?: Prisma.RoleWhereInput
     ): Promise<Policy[]> {
-        return this.policyRepository.findManyByRoleId(roleId, where);
+        return this.policyRepository.findManyByRoleId(roleId, additionalWhere);
     }
 
     /** Returns the policy rows of every role, read through the policy cache. */

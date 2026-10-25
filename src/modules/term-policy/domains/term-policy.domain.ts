@@ -92,13 +92,19 @@ export class TermPolicyDomain {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.TermPolicyWhereInput>,
         type?: Record<string, IPaginationIn>,
         status?: Record<string, IPaginationIn>,
-        where?: Prisma.TermPolicyWhereInput
+        additionalWhere?: Prisma.TermPolicyWhereInput
     ): Promise<IResponsePaginationReturn<TermPolicy>> {
-        return this.termPolicyRepository.find(pagination, type, status, where);
+        return this.termPolicyRepository.find(
+            pagination,
+            type,
+            status,
+            additionalWhere
+        );
     }
 
     async getListPublished(

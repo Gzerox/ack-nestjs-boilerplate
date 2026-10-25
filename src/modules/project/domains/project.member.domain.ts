@@ -70,16 +70,19 @@ export class ProjectMemberDomain {
         return member;
     }
 
-    /** Loads the member the route addresses within the project, AND-composed with the optional where, so a record the where excludes reads as not found. */
+    /**
+     * Loads the member the route addresses within the project, AND-composed with the optional additionalWhere, so a record it excludes reads as not found.
+     * Extra caller-supplied constraint, AND-composed first.
+     */
     async getOneByIdAndProject(
         projectId: string,
         projectMemberId: string,
-        where?: Prisma.ProjectMemberWhereInput
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole> {
         const target = await this.projectMemberRepository.findByIdAndProject(
             projectMemberId,
             projectId,
-            where
+            additionalWhere
         );
         if (!target) {
             throw new ProjectMemberNotFoundException();
@@ -88,15 +91,16 @@ export class ProjectMemberDomain {
         return target;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getMembersList(
         project: Project,
         pagination: IPaginationQueryCursorParams<Prisma.ProjectMemberWhereInput>,
-        where?: Prisma.ProjectMemberWhereInput
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<IResponsePaginationReturn<IProjectMember>> {
         return this.projectMemberRepository.findWithPaginationCursor(
             project.id,
             pagination,
-            where
+            additionalWhere
         );
     }
 

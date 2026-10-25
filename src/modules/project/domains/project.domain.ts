@@ -140,16 +140,19 @@ export class ProjectDomain {
         );
     }
 
-    /** Lists projects in the workspace narrowed by the policy predicate from the HTTP layer; which projects a member sees is the policy's call. */
+    /**
+     * Lists projects in the workspace narrowed by the policy predicate from the HTTP layer; which projects a member sees is the policy's call.
+     * Extra caller-supplied constraint, AND-composed first.
+     */
     async getListForMember(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>,
-        where?: Prisma.ProjectWhereInput
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.projectRepository.findWithPaginationCursorForWorkspace(
             workspaceId,
             pagination,
-            where
+            additionalWhere
         );
     }
 
@@ -294,15 +297,16 @@ export class ProjectDomain {
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListForAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.ProjectWhereInput>,
         workspaceId?: string,
-        where?: Prisma.ProjectWhereInput
+        additionalWhere?: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.projectRepository.findWithPaginationOffsetForAdmin(
             pagination,
             workspaceId,
-            where
+            additionalWhere
         );
     }
 

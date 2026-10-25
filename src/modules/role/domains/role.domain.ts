@@ -53,15 +53,16 @@ export class RoleDomain {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListOffsetByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.RoleWhereInput>,
         scope?: Record<string, IPaginationIn>,
-        where?: Prisma.RoleWhereInput
+        additionalWhere?: Prisma.RoleWhereInput
     ): Promise<IResponsePaginationReturn<IRoleWithPolicyCount>> {
         return this.roleRepository.findWithPaginationOffsetByAdmin(
             pagination,
             scope,
-            where
+            additionalWhere
         );
     }
 

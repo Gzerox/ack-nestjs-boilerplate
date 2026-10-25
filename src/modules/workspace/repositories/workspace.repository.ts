@@ -91,13 +91,14 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetForAdmin(
         {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.WorkspaceWhereInput>,
         isPublic?: Record<string, IPaginationEqual>,
-        where?: Prisma.WorkspaceWhereInput
+        additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<IResponsePaginationReturn<Workspace>> {
         return this.paginationService.offset<
             Workspace,
@@ -105,7 +106,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         >(this.databaseService.client.workspace, {
             ...others,
             where: {
-                AND: [filters ?? {}, { ...isPublic }, where ?? {}],
+                AND: [additionalWhere ?? {}, filters ?? {}, { ...isPublic }],
             },
         });
     }

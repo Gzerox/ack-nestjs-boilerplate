@@ -183,6 +183,7 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         return ownerships.map(ownership => ownership.deviceId);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         userId: string,
         {
@@ -201,12 +202,12 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...isRevoked,
                         userId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             include: {

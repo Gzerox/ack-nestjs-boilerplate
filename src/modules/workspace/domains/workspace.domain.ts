@@ -631,15 +631,16 @@ export class WorkspaceDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListForAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.WorkspaceWhereInput>,
         isPublic?: Record<string, IPaginationEqual>,
-        where?: Prisma.WorkspaceWhereInput
+        additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<IResponsePaginationReturn<Workspace>> {
         return this.workspaceRepository.findWithPaginationOffsetForAdmin(
             pagination,
             isPublic,
-            where
+            additionalWhere
         );
     }
 

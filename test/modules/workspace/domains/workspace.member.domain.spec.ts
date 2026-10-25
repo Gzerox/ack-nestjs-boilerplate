@@ -734,12 +734,7 @@ describe('WorkspaceMemberDomain', () => {
             ).resolves.toBe(paginated);
             expect(
                 memberRepository.findWithPaginationOffset
-            ).toHaveBeenCalledWith(
-                'workspace-id',
-                pagination,
-                undefined,
-                undefined
-            );
+            ).toHaveBeenCalledWith('workspace-id', pagination, undefined);
         });
 
         it('forwards the accessible where as the trailing repository argument', async () => {
@@ -756,12 +751,7 @@ describe('WorkspaceMemberDomain', () => {
 
             expect(
                 memberRepository.findWithPaginationOffset
-            ).toHaveBeenCalledWith(
-                'workspace-id',
-                pagination,
-                undefined,
-                scopeWhere
-            );
+            ).toHaveBeenCalledWith('workspace-id', pagination, scopeWhere);
         });
     });
 });

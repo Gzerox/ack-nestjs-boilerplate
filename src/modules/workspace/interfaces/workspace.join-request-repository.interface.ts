@@ -20,6 +20,7 @@ export interface IWorkspaceJoinRequestRepository {
         workspaceJoinRequestId: string,
         workspaceId: string
     ): Promise<WorkspaceJoinRequest | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         workspaceId: string,
         {

@@ -12,6 +12,7 @@ import {
 import type { PasswordHistory } from '@generated/prisma-client/client';
 
 export interface IPasswordHistoryRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetByAdmin(
         userId: string,
         {

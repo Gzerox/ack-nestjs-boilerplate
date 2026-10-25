@@ -51,6 +51,7 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         workspaceId: string,
         {
@@ -67,12 +68,12 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         ...(status ?? {}),
                         workspaceId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
         });

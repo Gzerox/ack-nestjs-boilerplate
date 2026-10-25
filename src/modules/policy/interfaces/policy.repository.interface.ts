@@ -4,9 +4,10 @@ import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy
 import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
 
 export interface IPolicyRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findManyByRoleId(
         roleId: string,
-        where?: Prisma.RoleWhereInput
+        additionalWhere?: Prisma.RoleWhereInput
     ): Promise<Policy[]>;
     findManyByRoleIds(roleIds: string[]): Promise<IPolicyRuleWithRole[]>;
     findOneByRoleIdAndId(roleId: string, id: string): Promise<Policy | null>;

@@ -20,6 +20,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         {
             where,
@@ -33,7 +34,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         >(this.databaseService.client.featureFlag, {
             ...others,
             where: {
-                AND: [where ?? {}, additionalWhere ?? {}],
+                AND: [additionalWhere ?? {}, where ?? {}],
             },
         });
     }

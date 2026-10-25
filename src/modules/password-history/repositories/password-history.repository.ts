@@ -25,6 +25,7 @@ export class PasswordHistoryRepository implements IPasswordHistoryRepository {
         private readonly helperDateService: HelperDateService
     ) {}
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         userId: string,
         {
@@ -40,11 +41,11 @@ export class PasswordHistoryRepository implements IPasswordHistoryRepository {
             ...others,
             where: {
                 AND: [
+                    additionalWhere ?? {},
                     {
                         ...where,
                         userId,
                     },
-                    additionalWhere ?? {},
                 ],
             },
             select: PasswordHistoryListSelect,

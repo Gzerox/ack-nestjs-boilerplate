@@ -182,18 +182,19 @@ export class UserImportDomain {
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async exportByAdmin(
         status?: Record<string, IPaginationIn>,
         roleId?: Record<string, IPaginationEqual>,
         countryId?: Record<string, IPaginationEqual>,
-        where?: Prisma.UserWhereInput
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<IUserExport[]> {
         const users = await this.userRepository.findExport(
             status ?? null,
             roleId ?? null,
             countryId ?? null,
             this.maxDataExport + 1,
-            where
+            additionalWhere
         );
 
         if (users.length > this.maxDataExport) {

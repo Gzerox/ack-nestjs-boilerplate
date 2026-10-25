@@ -179,11 +179,12 @@ export class WorkspaceJoinRequestDomain {
         return joinRequest;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getJoinRequestsList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceJoinRequestWhereInput>,
         status?: Record<string, IPaginationIn>,
-        where?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<IResponsePaginationReturn<WorkspaceJoinRequest>> {
         await this.assertJoinRequestAllowed();
 
@@ -191,7 +192,7 @@ export class WorkspaceJoinRequestDomain {
             workspaceId,
             pagination,
             status,
-            where
+            additionalWhere
         );
     }
 

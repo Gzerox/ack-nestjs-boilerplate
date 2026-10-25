@@ -28,6 +28,7 @@ import type { IAuthPassword } from '@modules/auth/interfaces/auth.interface';
 import type { IWorkspaceInviteInviter } from '@modules/workspace/interfaces/workspace.interface';
 
 export interface IUserRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffset(
         {
             where,
@@ -44,6 +45,7 @@ export interface IUserRepository {
     findOneActiveByEmail(email: string): Promise<User | null>;
     findNameById(userId: string): Promise<IWorkspaceInviteInviter | null>;
     findOneWithRoleByEmail(email: string): Promise<IUser | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findOneProfileById(
         id: string,
         additionalWhere?: Prisma.UserWhereInput
@@ -52,12 +54,13 @@ export interface IUserRepository {
     findOneWithRoleById(id: string): Promise<IUser | null>;
     findByEmails(emails: string[]): Promise<IUser[]>;
     findByUsernames(usernames: string[]): Promise<IUser[]>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findExport(
         status: Record<string, IPaginationIn> | null,
         roleId: Record<string, IPaginationEqual> | null,
         countryId: Record<string, IPaginationEqual> | null,
         take: number,
-        where?: Prisma.UserWhereInput
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<IUserExport[]>;
     existsByEmail(email: string): Promise<boolean>;
     existsByUsername(username: string): Promise<boolean>;

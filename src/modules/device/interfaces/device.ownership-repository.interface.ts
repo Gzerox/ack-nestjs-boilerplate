@@ -38,6 +38,7 @@ export interface IDeviceOwnershipRepository {
         revokedBy: string,
         now: Date
     ): Promise<string[]>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetByAdmin(
         userId: string,
         {

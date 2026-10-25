@@ -12,6 +12,7 @@ import type {
 import { Prisma } from '@generated/prisma-client/client';
 
 export interface IActivityLogRepository {
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffset(
         scope: IActivityLogScope,
         {
@@ -20,6 +21,7 @@ export interface IActivityLogRepository {
         }: IPaginationQueryOffsetParams<Prisma.ActivityLogWhereInput>,
         additionalWhere?: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         scope: IActivityLogScope,
         {

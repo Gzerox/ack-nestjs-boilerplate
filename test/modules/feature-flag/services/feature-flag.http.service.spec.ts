@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -37,18 +36,6 @@ describe('FeatureFlagHttpService', () => {
         mock<RequestStoreService>();
     const scopeWhere = { isEnable: true };
     const flag = mock<FeatureFlag>();
-    const stored = {
-        id: 'flag-id',
-        key: 'new-home',
-        description: 'New home page',
-        isEnable: true,
-        rolloutPercent: 50,
-        metadata: { color: 'blue' },
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-        createdBy: null,
-        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-        updatedBy: null,
-    } satisfies FeatureFlag;
     const offsetParams = {
         where: undefined,
         limit: 20,
@@ -191,27 +178,25 @@ describe('FeatureFlagHttpService', () => {
             rolloutPercent: 50,
         } satisfies FeatureFlagUpdateStatusRequestDto;
 
-        it('checks update on the loaded flag, delegates to the domain and wraps the updated flag', async () => {
-            featureFlagDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, FeatureFlag) as additionalWhere and wraps the updated flag', async () => {
             featureFlagDomain.updateStatusByAdmin.mockResolvedValue(flag);
 
             await expect(
                 service.updateStatusByAdmin('flag-id', body)
             ).resolves.toEqual({ data: flag });
-            expect(featureFlagDomain.getOne).toHaveBeenCalledWith('flag-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.FeatureFlag, stored)
+                EnumPolicySubject.FeatureFlag
             );
             expect(featureFlagDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'flag-id',
-                body
+                body,
+                scopeWhere
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            featureFlagDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -224,7 +209,7 @@ describe('FeatureFlagHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -242,26 +227,23 @@ describe('FeatureFlagHttpService', () => {
             metadata: { newFeature: true },
         } satisfies FeatureFlagUpdateMetadataRequestDto;
 
-        it('checks update on the loaded flag, delegates to the domain and wraps the updated flag', async () => {
-            featureFlagDomain.getOne.mockResolvedValue(stored);
+        it('passes scope(update, FeatureFlag) as additionalWhere and wraps the updated flag', async () => {
             featureFlagDomain.updateMetadataByAdmin.mockResolvedValue(flag);
 
             await expect(
                 service.updateMetadataByAdmin('flag-id', body)
             ).resolves.toEqual({ data: flag });
-            expect(featureFlagDomain.getOne).toHaveBeenCalledWith('flag-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.FeatureFlag, stored)
+                EnumPolicySubject.FeatureFlag
             );
             expect(
                 featureFlagDomain.updateMetadataByAdmin
-            ).toHaveBeenCalledWith('flag-id', body);
+            ).toHaveBeenCalledWith('flag-id', body, scopeWhere);
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            featureFlagDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -274,7 +256,7 @@ describe('FeatureFlagHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

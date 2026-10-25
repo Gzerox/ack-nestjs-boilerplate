@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -87,14 +86,14 @@ export class FeatureFlagHttpService {
         id: string,
         body: FeatureFlagUpdateStatusRequestDto
     ): Promise<IResponseReturn<FeatureFlag>> {
-        const stored = await this.featureFlagDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.FeatureFlag, stored)
+            EnumPolicySubject.FeatureFlag
         );
         const updated = await this.featureFlagDomain.updateStatusByAdmin(
             id,
-            body
+            body,
+            scopeWhere
         );
 
         return {
@@ -106,14 +105,14 @@ export class FeatureFlagHttpService {
         id: string,
         body: FeatureFlagUpdateMetadataRequestDto
     ): Promise<IResponseReturn<FeatureFlag>> {
-        const stored = await this.featureFlagDomain.getOne(id);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.FeatureFlag, stored)
+            EnumPolicySubject.FeatureFlag
         );
         const updated = await this.featureFlagDomain.updateMetadataByAdmin(
             id,
-            body
+            body,
+            scopeWhere
         );
 
         return {

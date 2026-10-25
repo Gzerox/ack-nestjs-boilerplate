@@ -20,6 +20,27 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         private readonly paginationService: PaginationService
     ) {}
 
+    private async updateScoped(
+        id: string,
+        data: Prisma.FeatureFlagUpdateManyMutationInput,
+        additionalWhere?: Prisma.FeatureFlagWhereInput
+    ): Promise<FeatureFlag | null> {
+        const { count } =
+            await this.databaseService.client.featureFlag.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id }],
+                },
+                data,
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.featureFlag.findUnique({
+            where: { id },
+        });
+    }
+
     /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationOffsetByAdmin(
         {
@@ -61,40 +82,37 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         });
     }
 
-    async findOneById(id: string): Promise<FeatureFlag | null> {
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findOneById(
+        id: string,
+        additionalWhere?: Prisma.FeatureFlagWhereInput
+    ): Promise<FeatureFlag | null> {
         return this.databaseService.client.featureFlag.findFirst({
             where: {
-                id,
+                AND: [additionalWhere ?? {}, { id }],
             },
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatus(
         id: string,
-        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto
-    ): Promise<FeatureFlag> {
-        return this.databaseService.client.featureFlag.update({
-            where: {
-                id,
-            },
-            data: {
-                isEnable,
-                rolloutPercent,
-            },
-        });
+        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto,
+        additionalWhere?: Prisma.FeatureFlagWhereInput
+    ): Promise<FeatureFlag | null> {
+        return this.updateScoped(
+            id,
+            { isEnable, rolloutPercent },
+            additionalWhere
+        );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMetadata(
         id: string,
-        { metadata }: FeatureFlagUpdateMetadataRequestDto
-    ): Promise<FeatureFlag> {
-        return this.databaseService.client.featureFlag.update({
-            where: {
-                id,
-            },
-            data: {
-                metadata,
-            },
-        });
+        { metadata }: FeatureFlagUpdateMetadataRequestDto,
+        additionalWhere?: Prisma.FeatureFlagWhereInput
+    ): Promise<FeatureFlag | null> {
+        return this.updateScoped(id, { metadata }, additionalWhere);
     }
 }

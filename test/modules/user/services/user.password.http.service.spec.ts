@@ -139,7 +139,7 @@ describe('UserPasswordHttpService', () => {
             );
 
             expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.User, userProfile)
             );
@@ -151,7 +151,7 @@ describe('UserPasswordHttpService', () => {
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
             userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -164,7 +164,7 @@ describe('UserPasswordHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

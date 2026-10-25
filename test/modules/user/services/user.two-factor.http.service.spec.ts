@@ -335,7 +335,7 @@ describe('UserTwoFactorHttpService', () => {
             await service.resetTwoFactorByAdmin('user-id', 'admin-id');
 
             expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.User, userProfile)
             );
@@ -346,7 +346,7 @@ describe('UserTwoFactorHttpService', () => {
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
             userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -359,7 +359,7 @@ describe('UserTwoFactorHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

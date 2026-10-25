@@ -38,13 +38,13 @@ export class DeviceHttpService {
         userId: string,
         query: DeviceAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
-        const userWhere = this.policyAbilityDomain.accessibleWhere(
+        const userWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.User
         );
         await this.userDomain.getOne(userId, userWhere);
 
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.DeviceOwnership
         );
@@ -72,7 +72,7 @@ export class DeviceHttpService {
                 userId,
                 params,
                 isRevoked?.where,
-                accessibleWhere
+                scopeWhere
             );
         const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
             deviceOwnership => ({
@@ -146,7 +146,7 @@ export class DeviceHttpService {
             userId,
             deviceOwnershipId
         );
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
             subject(EnumPolicySubject.DeviceOwnership, stored)
         );

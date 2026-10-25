@@ -33,13 +33,13 @@ export class PasswordHistoryHttpService {
         userId: string,
         query: PasswordHistoryAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
-        const userWhere = this.policyAbilityDomain.accessibleWhere(
+        const userWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.User
         );
         await this.userDomain.getOne(userId, userWhere);
 
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.PasswordHistory
         );
@@ -56,7 +56,7 @@ export class PasswordHistoryHttpService {
             await this.passwordHistoryDomain.getListOffsetByAdmin(
                 userId,
                 params,
-                accessibleWhere
+                scopeWhere
             );
 
         return {

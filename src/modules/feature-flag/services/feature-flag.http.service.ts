@@ -36,7 +36,7 @@ export class FeatureFlagHttpService {
     async getListByAdmin(
         query: FeatureFlagAdminListRequestDto
     ): Promise<IResponsePaginationReturn<FeatureFlag>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.FeatureFlag
         );
@@ -52,7 +52,7 @@ export class FeatureFlagHttpService {
 
         const { data, ...others } = await this.featureFlagDomain.getListByAdmin(
             params,
-            accessibleWhere
+            scopeWhere
         );
 
         return {
@@ -88,7 +88,7 @@ export class FeatureFlagHttpService {
         body: FeatureFlagUpdateStatusRequestDto
     ): Promise<IResponseReturn<FeatureFlag>> {
         const stored = await this.featureFlagDomain.getOne(id);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.FeatureFlag, stored)
         );
@@ -107,7 +107,7 @@ export class FeatureFlagHttpService {
         body: FeatureFlagUpdateMetadataRequestDto
     ): Promise<IResponseReturn<FeatureFlag>> {
         const stored = await this.featureFlagDomain.getOne(id);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.FeatureFlag, stored)
         );

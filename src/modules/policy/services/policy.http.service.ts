@@ -24,13 +24,13 @@ export class PolicyHttpService {
     async listByAdmin(
         roleId: string
     ): Promise<IResponseReturn<PolicyListResponseDto>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.Role
         );
         const policies = await this.policyDomain.findManyByRole(
             roleId,
-            accessibleWhere
+            scopeWhere
         );
 
         return {
@@ -53,7 +53,7 @@ export class PolicyHttpService {
         body: PolicyCreateRequestDto
     ): Promise<IResponseReturn<PolicyDto>> {
         const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Role, role)
         );
@@ -68,7 +68,7 @@ export class PolicyHttpService {
         body: PolicyUpdateRequestDto
     ): Promise<IResponseReturn<PolicyDto>> {
         const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Role, role)
         );
@@ -82,7 +82,7 @@ export class PolicyHttpService {
         id: string
     ): Promise<IResponseReturn<void>> {
         const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Role, role)
         );

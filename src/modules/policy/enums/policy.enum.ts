@@ -3,7 +3,7 @@ import { EnumPolicySubject } from '@generated/prisma-client/client';
 type PolicySubjectSubset = { [K in EnumPolicySubject]?: K };
 
 /**
- * Subjects a `@PlatformPolicyProtected` route may require: a TS-only subset of the persisted
+ * Subjects a `@PolicyProtected` route may require: a TS-only subset of the persisted
  * Prisma `EnumPolicySubject`.
  * @public
  */
@@ -33,7 +33,7 @@ export type EnumPolicyPlatformSubject =
     (typeof EnumPolicyPlatformSubject)[keyof typeof EnumPolicyPlatformSubject];
 
 /**
- * Subjects a `@WorkspacePolicyProtected` route may require: a TS-only subset of the persisted
+ * Subjects a `@PolicyProtected` route may require: a TS-only subset of the persisted
  * Prisma `EnumPolicySubject`.
  * @public
  */
@@ -54,7 +54,7 @@ export type EnumPolicyWorkspaceSubject =
     (typeof EnumPolicyWorkspaceSubject)[keyof typeof EnumPolicyWorkspaceSubject];
 
 /**
- * Subjects a `@ProjectPolicyProtected` route may require: a TS-only subset of the persisted
+ * Subjects a `@PolicyProtected` route may require: a TS-only subset of the persisted
  * Prisma `EnumPolicySubject`.
  * @public
  */

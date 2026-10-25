@@ -39,7 +39,7 @@ describe('TermPolicyHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const accessibleWhere = { deletedAt: null };
+    const scopeWhere = { deletedAt: null };
     const termPolicy = mock<TermPolicy>();
     const stored = {
         id: 'term-policy-id',
@@ -105,7 +105,7 @@ describe('TermPolicyHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -142,7 +142,7 @@ describe('TermPolicyHttpService', () => {
 
             const result = await service.getListByAdmin(query);
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.TermPolicy
             );
@@ -172,7 +172,7 @@ describe('TermPolicyHttpService', () => {
                 offsetParams,
                 typeWhere,
                 statusWhere,
-                accessibleWhere
+                scopeWhere
             );
             expect(result).toEqual(offsetPage);
         });
@@ -195,12 +195,12 @@ describe('TermPolicyHttpService', () => {
                 offsetParams,
                 undefined,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -243,7 +243,7 @@ describe('TermPolicyHttpService', () => {
                 cursorParams,
                 typeWhere
             );
-            expect(policyAbilityDomain.accessibleWhere).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
             expect(result).toEqual(cursorPage);
         });
 
@@ -281,7 +281,7 @@ describe('TermPolicyHttpService', () => {
             await expect(service.createByAdmin(body)).resolves.toEqual({
                 data: termPolicy,
             });
-            expect(policyAbilityDomain.assertCan).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(termPolicyDomain.createByAdmin).toHaveBeenCalledWith(body);
         });
     });
@@ -297,7 +297,7 @@ describe('TermPolicyHttpService', () => {
             expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
                 'term-policy-id'
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 subject(EnumPolicySubject.TermPolicy, stored)
             );
@@ -308,7 +308,7 @@ describe('TermPolicyHttpService', () => {
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
             termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -319,7 +319,7 @@ describe('TermPolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -341,7 +341,7 @@ describe('TermPolicyHttpService', () => {
             expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
                 'term-policy-id'
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.TermPolicy, stored)
             );
@@ -353,7 +353,7 @@ describe('TermPolicyHttpService', () => {
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
             termPolicyDomain.getOne.mockResolvedValue(stored);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -364,7 +364,7 @@ describe('TermPolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

@@ -129,7 +129,7 @@ describe('SessionDomain', () => {
 
     it('forwards the accessible where as the trailing repository argument of the administrator offset list', async () => {
         const pagination = { limit: 20, page: 1, skip: 0 };
-        const accessibleWhere = { userId: 'user-id' };
+        const scopeWhere = { userId: 'user-id' };
         const page = {
             type: EnumPaginationType.offset,
             data: [session],
@@ -148,17 +148,12 @@ describe('SessionDomain', () => {
             'user-id',
             pagination,
             undefined,
-            accessibleWhere
+            scopeWhere
         );
 
         expect(
             sessionRepository.findWithPaginationOffsetByAdmin
-        ).toHaveBeenCalledWith(
-            'user-id',
-            pagination,
-            undefined,
-            accessibleWhere
-        );
+        ).toHaveBeenCalledWith('user-id', pagination, undefined, scopeWhere);
     });
 
     it('returns an active owned session', async () => {

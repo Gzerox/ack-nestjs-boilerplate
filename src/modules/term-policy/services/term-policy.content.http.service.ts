@@ -38,7 +38,7 @@ export class TermPolicyContentHttpService {
         body: TermPolicyContentRequestDto
     ): Promise<IResponseReturn<void>> {
         const stored = await this.termPolicyDomain.getOne(termPolicyId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.TermPolicy, stored)
         );
@@ -55,7 +55,7 @@ export class TermPolicyContentHttpService {
         body: TermPolicyContentRequestDto
     ): Promise<IResponseReturn<void>> {
         const stored = await this.termPolicyDomain.getOne(termPolicyId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.TermPolicy, stored)
         );
@@ -72,7 +72,7 @@ export class TermPolicyContentHttpService {
         { language }: TermPolicyRemoveContentRequestDto
     ): Promise<IResponseReturn<void>> {
         const stored = await this.termPolicyDomain.getOne(termPolicyId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.TermPolicy, stored)
         );
@@ -89,7 +89,7 @@ export class TermPolicyContentHttpService {
         language: EnumMessageLanguage
     ): Promise<IResponseReturn<IAwsS3Presign>> {
         const stored = await this.termPolicyDomain.getOne(termPolicyId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
             subject(EnumPolicySubject.TermPolicy, stored)
         );

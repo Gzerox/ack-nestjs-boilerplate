@@ -44,7 +44,7 @@ describe('WorkspaceInviteHttpService', () => {
         mock<RequestStoreService>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
-    const accessibleWhere = { workspaceId: 'workspace-id' };
+    const scopeWhere = { workspaceId: 'workspace-id' };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const expiredAt = new Date('2026-02-01T00:00:00.000Z');
     const workspace = {
@@ -156,7 +156,7 @@ describe('WorkspaceInviteHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -209,9 +209,9 @@ describe('WorkspaceInviteHttpService', () => {
                 'workspace-id',
                 cursorParams,
                 { status: { in: ['pending'] } },
-                accessibleWhere
+                scopeWhere
             );
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.WorkspaceInvite
             );
@@ -240,12 +240,12 @@ describe('WorkspaceInviteHttpService', () => {
                 'workspace-id',
                 cursorParams,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -275,7 +275,7 @@ describe('WorkspaceInviteHttpService', () => {
             );
 
             expect(result).toEqual({ data: inviteResponse });
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.create,
                 subject(EnumPolicySubject.WorkspaceInvite, {
                     workspaceId: workspace.id,
@@ -298,7 +298,7 @@ describe('WorkspaceInviteHttpService', () => {
 
     describe('createInvite policy denial', () => {
         it('does not call the domain when the policy denies the invite', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -333,7 +333,7 @@ describe('WorkspaceInviteHttpService', () => {
                 'workspace-id',
                 'invite-id'
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.WorkspaceInvite, invite)
             );
@@ -350,7 +350,7 @@ describe('WorkspaceInviteHttpService', () => {
     describe('resendInvite policy denial', () => {
         it('does not call the domain when the policy denies the invite', async () => {
             workspaceInviteDomain.getInvite.mockResolvedValue(invite);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -364,7 +364,7 @@ describe('WorkspaceInviteHttpService', () => {
     describe('revokeInvite policy denial', () => {
         it('does not call the domain when the policy denies the invite', async () => {
             workspaceInviteDomain.getInvite.mockResolvedValue(invite);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -384,7 +384,7 @@ describe('WorkspaceInviteHttpService', () => {
                 'workspace-id',
                 'invite-id'
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 subject(EnumPolicySubject.WorkspaceInvite, invite)
             );

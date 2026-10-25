@@ -76,15 +76,13 @@ describe('ProjectMemberHttpService', () => {
             availableOrderBy: ['createdAt'],
             filters: {},
         };
-        const accessibleWhere: Prisma.ProjectMemberWhereInput = {
+        const scopeWhere: Prisma.ProjectMemberWhereInput = {
             projectId: 'project-id',
         };
 
         it('passes the read predicate of ProjectMember to the domain list', async () => {
             const member = mock<IProjectMember>();
-            policyAbilityDomain.accessibleWhere.mockReturnValue(
-                accessibleWhere
-            );
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             paginationQueryUtil.cursor.mockReturnValue({
                 params,
                 storePatch,
@@ -100,7 +98,7 @@ describe('ProjectMemberHttpService', () => {
 
             const result = await service.getMembersList(project, query);
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.ProjectMember
             );
@@ -114,13 +112,13 @@ describe('ProjectMemberHttpService', () => {
             expect(projectMemberDomain.getMembersList).toHaveBeenCalledWith(
                 project,
                 params,
-                accessibleWhere
+                scopeWhere
             );
             expect(result.data).toEqual([member]);
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -154,7 +152,7 @@ describe('ProjectMemberHttpService', () => {
             expect.objectContaining({ userId: body.userId }),
             body.roleId
         );
-        expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+        expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
             EnumPolicyAction.create,
             expect.objectContaining({
                 __caslSubjectType__: EnumPolicySubject.ProjectMember,
@@ -178,7 +176,7 @@ describe('ProjectMemberHttpService', () => {
             'target-member-id',
             body
         );
-        expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+        expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.ProjectMember, targetMember)
         );
@@ -198,7 +196,7 @@ describe('ProjectMemberHttpService', () => {
         projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
             targetMember
         );
-        policyAbilityDomain.assertCan.mockImplementation(() => {
+        policyAbilityDomain.authorize.mockImplementation(() => {
             throw error;
         });
 
@@ -218,7 +216,7 @@ describe('ProjectMemberHttpService', () => {
             targetMember
         );
         await service.removeMember(project, 'actor-id', 'target-member-id');
-        expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+        expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
             EnumPolicyAction.delete,
             subject(EnumPolicySubject.ProjectMember, targetMember)
         );

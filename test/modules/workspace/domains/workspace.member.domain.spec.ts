@@ -743,7 +743,7 @@ describe('WorkspaceMemberDomain', () => {
         });
 
         it('forwards the accessible where as the trailing repository argument', async () => {
-            const accessibleWhere = { workspaceId: 'workspace-id' };
+            const scopeWhere = { workspaceId: 'workspace-id' };
             memberRepository.findWithPaginationOffset.mockResolvedValue(
                 paginated
             );
@@ -751,7 +751,7 @@ describe('WorkspaceMemberDomain', () => {
             await domain.getMembersListForAdmin(
                 'workspace-id',
                 pagination,
-                accessibleWhere
+                scopeWhere
             );
 
             expect(
@@ -760,7 +760,7 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 pagination,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
     });

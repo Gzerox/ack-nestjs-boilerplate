@@ -125,7 +125,7 @@ export class UserTwoFactorHttpService {
         updatedBy: string
     ): Promise<void> {
         const user = await this.userDomain.getOne(userId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.User, user)
         );

@@ -39,7 +39,7 @@ describe('DeviceHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const accessibleWhere = { userId: 'user-id' };
+    const scopeWhere = { userId: 'user-id' };
     const ownership = mock<IDeviceOwnership>({ _count: { sessions: 2 } });
     const ownershipWithSession = mock<IDeviceOwnershipWithSession>({
         _count: { sessions: 3 },
@@ -93,7 +93,7 @@ describe('DeviceHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -110,7 +110,7 @@ describe('DeviceHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
-        it('loads the parent user with accessibleWhere(read, User) before listing', async () => {
+        it('loads the parent user with scope(read, User) before listing', async () => {
             const callOrder: string[] = [];
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -127,13 +127,13 @@ describe('DeviceHttpService', () => {
 
             await service.getListOffsetByAdmin('user-id', {});
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.User
             );
             expect(userDomain.getOne).toHaveBeenCalledWith(
                 'user-id',
-                accessibleWhere
+                scopeWhere
             );
             expect(callOrder).toEqual(['parent', 'list']);
         });
@@ -162,7 +162,7 @@ describe('DeviceHttpService', () => {
 
             const result = await service.getListOffsetByAdmin('user-id', query);
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.DeviceOwnership
             );
@@ -181,7 +181,7 @@ describe('DeviceHttpService', () => {
                 'user-id',
                 offsetParams,
                 isRevokedWhere,
-                accessibleWhere
+                scopeWhere
             );
             expect(result.data).toEqual([
                 {
@@ -210,12 +210,12 @@ describe('DeviceHttpService', () => {
                 'user-id',
                 offsetParams,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -226,7 +226,7 @@ describe('DeviceHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -271,7 +271,7 @@ describe('DeviceHttpService', () => {
                 'session-id',
                 cursorParams
             );
-            expect(policyAbilityDomain.accessibleWhere).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
             expect(result.data).toEqual([
                 {
                     ...ownershipWithSession,
@@ -331,7 +331,7 @@ describe('DeviceHttpService', () => {
                 'user-id',
                 'ownership-id'
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 ownership
             );
@@ -344,7 +344,7 @@ describe('DeviceHttpService', () => {
 
         it('throws PolicyForbiddenException and never removes when the record is denied', async () => {
             deviceDomain.getOneActive.mockResolvedValue(ownership);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -356,7 +356,7 @@ describe('DeviceHttpService', () => {
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
             deviceDomain.getOneActive.mockResolvedValue(ownership);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

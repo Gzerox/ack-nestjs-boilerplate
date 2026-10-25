@@ -174,7 +174,7 @@ describe('WorkspaceHttpService', () => {
             const result = service.getCurrentWorkspace(workspace);
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -184,7 +184,7 @@ describe('WorkspaceHttpService', () => {
         });
 
         it('rethrows PolicyForbiddenException and skips the domain when read is denied', () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -210,7 +210,7 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -238,7 +238,7 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -262,7 +262,7 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -293,7 +293,7 @@ describe('WorkspaceHttpService', () => {
         it('delegates to the domain', async () => {
             await service.softDeleteWorkspace(workspace, 'actor-id');
 
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -318,9 +318,7 @@ describe('WorkspaceHttpService', () => {
                 storeFilter: { isPublic: true },
             } as never);
             workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
-            policyAbilityDomain.accessibleWhere.mockReturnValue(
-                accessibleWorkspaceWhere
-            );
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
 
             const result = await service.getListForAdmin(query);
 
@@ -347,9 +345,7 @@ describe('WorkspaceHttpService', () => {
             } as never);
             paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
             workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
-            policyAbilityDomain.accessibleWhere.mockReturnValue(
-                accessibleWorkspaceWhere
-            );
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
 
             await service.getListForAdmin(query);
 
@@ -374,20 +370,18 @@ describe('WorkspaceHttpService', () => {
             } as never);
             paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
             workspaceDomain.getListForAdmin.mockResolvedValue(offsetPage);
-            policyAbilityDomain.accessibleWhere.mockReturnValue(
-                accessibleWorkspaceWhere
-            );
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
 
             await service.getListForAdmin({});
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.Workspace
             );
         });
 
         it('throws RequestContextMissingException when no ability is stored and never lists', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -403,7 +397,7 @@ describe('WorkspaceHttpService', () => {
                 storePatch: offsetStorePatch,
             } as never);
             paginationQueryUtil.equalBoolean.mockReturnValue(undefined);
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -423,7 +417,7 @@ describe('WorkspaceHttpService', () => {
             expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
                 workspace.id
             );
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -432,7 +426,7 @@ describe('WorkspaceHttpService', () => {
 
         it('throws PolicyForbiddenException when the record is denied', async () => {
             workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -442,7 +436,7 @@ describe('WorkspaceHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

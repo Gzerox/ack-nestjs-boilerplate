@@ -158,11 +158,10 @@ describe('WorkspaceMemberHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockImplementation(
-            (_action, subjectName) =>
-                subjectName === EnumPolicySubject.Workspace
-                    ? accessibleWorkspaceWhere
-                    : accessibleMemberWhere
+        policyAbilityDomain.scope.mockImplementation((_action, subjectName) =>
+            subjectName === EnumPolicySubject.Workspace
+                ? accessibleWorkspaceWhere
+                : accessibleMemberWhere
         );
 
         const module: TestingModule = await Test.createTestingModule({
@@ -197,7 +196,7 @@ describe('WorkspaceMemberHttpService', () => {
         it('checks Workspace update on the workspace record, then delegates to the domain', async () => {
             await service.transferOwnership(workspace, actorMember, dto);
 
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Workspace, workspace)
             );
@@ -211,7 +210,7 @@ describe('WorkspaceMemberHttpService', () => {
         });
 
         it('does not call the domain when the policy denies the workspace', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -316,14 +315,14 @@ describe('WorkspaceMemberHttpService', () => {
 
             await service.getMembersList('workspace-id', {});
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.WorkspaceMember
             );
         });
 
         it('throws RequestContextMissingException when no ability is stored and never lists', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -334,7 +333,7 @@ describe('WorkspaceMemberHttpService', () => {
         });
 
         it('propagates the policy rejection when the ability holds no read rule and never lists', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -361,7 +360,7 @@ describe('WorkspaceMemberHttpService', () => {
                 dto
             );
 
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.WorkspaceMember, targetMember)
             );
@@ -377,7 +376,7 @@ describe('WorkspaceMemberHttpService', () => {
             workspaceMemberDomain.getOneByIdAndWorkspace.mockResolvedValue(
                 targetMember
             );
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -406,7 +405,7 @@ describe('WorkspaceMemberHttpService', () => {
                 targetMember.id
             );
 
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 subject(EnumPolicySubject.WorkspaceMember, targetMember)
             );
@@ -421,7 +420,7 @@ describe('WorkspaceMemberHttpService', () => {
             workspaceMemberDomain.getOneByIdAndWorkspace.mockResolvedValue(
                 targetMember
             );
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -469,15 +468,15 @@ describe('WorkspaceMemberHttpService', () => {
                 offsetParams,
                 accessibleMemberWhere
             );
-            expect(policyAbilityDomain.assertCan).not.toHaveBeenCalled();
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.WorkspaceMember
             );
             expect(result).toEqual(offsetPage);
         });
 
-        it('loads the parent workspace with accessibleWhere(read, Workspace) before listing', async () => {
+        it('loads the parent workspace with scope(read, Workspace) before listing', async () => {
             const callOrder: string[] = [];
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -499,7 +498,7 @@ describe('WorkspaceMemberHttpService', () => {
                 perPage: 20,
             });
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.Workspace
             );
@@ -527,7 +526,7 @@ describe('WorkspaceMemberHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -543,7 +542,7 @@ describe('WorkspaceMemberHttpService', () => {
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 

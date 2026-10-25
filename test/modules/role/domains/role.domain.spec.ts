@@ -118,22 +118,18 @@ describe('RoleDomain', () => {
 
         it('forwards the accessible where as the trailing repository argument of the admin offset list', async () => {
             const pagination = { limit: 20 } as never;
-            const accessibleWhere = { scope: EnumRoleScope.workspace };
+            const scopeWhere = { scope: EnumRoleScope.workspace };
             const result = { data: [], pagination: {} } as never;
             roleRepository.findWithPaginationOffsetByAdmin.mockResolvedValue(
                 result
             );
 
             await expect(
-                service.getListOffsetByAdmin(
-                    pagination,
-                    undefined,
-                    accessibleWhere
-                )
+                service.getListOffsetByAdmin(pagination, undefined, scopeWhere)
             ).resolves.toBe(result);
             expect(
                 roleRepository.findWithPaginationOffsetByAdmin
-            ).toHaveBeenCalledWith(pagination, undefined, accessibleWhere);
+            ).toHaveBeenCalledWith(pagination, undefined, scopeWhere);
         });
     });
 

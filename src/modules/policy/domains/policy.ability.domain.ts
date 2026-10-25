@@ -11,7 +11,6 @@ import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import type {
     IEffectivePermission,
-    IPolicyRequired,
     PolicyAbility,
     PolicyAbilitySubject,
     PolicyModelSubject,
@@ -47,7 +46,7 @@ export class PolicyAbilityDomain {
     }
 
     /** Returns the Prisma where clause the stored ability grants for a model subject, and throws `PolicyForbiddenException` when the ability holds no rule for it, so a caller never queries without the predicate. */
-    accessibleWhere<TSubject extends PolicyModelSubject>(
+    scope<TSubject extends PolicyModelSubject>(
         action: EnumPolicyAction,
         subjectName: TSubject
     ): PolicyWhereInput<TSubject> {
@@ -66,7 +65,7 @@ export class PolicyAbilityDomain {
      * subject, carrying the matched rule's `reason` when one is present and the missing
      * permission.
      */
-    assertCan(action: EnumPolicyAction, target: PolicyAbilitySubject): void {
+    authorize(action: EnumPolicyAction, target: PolicyAbilitySubject): void {
         const ability = this.getAbility();
         try {
             ForbiddenError.from(ability).throwUnlessCan(action, target);
@@ -87,45 +86,6 @@ export class PolicyAbilityDomain {
                         actions: [action],
                     },
                 ],
-            });
-        }
-    }
-
-    /**
-     * Throws one `PolicyForbiddenException` listing every required action the stored ability
-     * denies, grouped by subject, carrying the `reason` of the first denying inverted rule.
-     */
-    assertCanEvery(required: IPolicyRequired[]): void {
-        const ability = this.getAbility();
-        const missing = new Map<EnumPolicySubject, EnumPolicyAction[]>();
-        let reason: string | undefined;
-
-        for (const { subject: subjectName, action } of required) {
-            for (const one of action) {
-                if (ability.can(one, subjectName)) {
-                    continue;
-                }
-
-                const actions = missing.get(subjectName) ?? [];
-                if (!actions.includes(one)) {
-                    actions.push(one);
-                }
-                missing.set(subjectName, actions);
-
-                const matchedRule = ability.relevantRuleFor(one, subjectName);
-                if (reason === undefined && matchedRule?.inverted) {
-                    reason = matchedRule.reason;
-                }
-            }
-        }
-
-        if (missing.size > 0) {
-            throw new PolicyForbiddenException({
-                reason,
-                missing: [...missing].map(([subject, actions]) => ({
-                    subject,
-                    actions,
-                })),
             });
         }
     }

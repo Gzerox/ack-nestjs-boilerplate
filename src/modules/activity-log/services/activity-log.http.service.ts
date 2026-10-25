@@ -37,7 +37,7 @@ export class ActivityLogHttpService {
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         const { workspaceId, userId } = scope;
         if (workspaceId) {
-            const workspaceWhere = this.policyAbilityDomain.accessibleWhere(
+            const workspaceWhere = this.policyAbilityDomain.scope(
                 EnumPolicyAction.read,
                 EnumPolicySubject.Workspace
             );
@@ -46,14 +46,14 @@ export class ActivityLogHttpService {
                 workspaceWhere
             );
         } else if (userId) {
-            const userWhere = this.policyAbilityDomain.accessibleWhere(
+            const userWhere = this.policyAbilityDomain.scope(
                 EnumPolicyAction.read,
                 EnumPolicySubject.User
             );
             await this.userDomain.getOne(userId, userWhere);
         }
 
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.ActivityLog
         );
@@ -69,7 +69,7 @@ export class ActivityLogHttpService {
         const { data, ...others } = await this.activityLogDomain.getListOffset(
             scope,
             params,
-            accessibleWhere
+            scopeWhere
         );
 
         return {

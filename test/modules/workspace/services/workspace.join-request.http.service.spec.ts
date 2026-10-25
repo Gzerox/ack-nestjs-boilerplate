@@ -35,7 +35,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
         mock<RequestStoreService>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
-    const accessibleWhere = { workspaceId: 'workspace-id' };
+    const scopeWhere = { workspaceId: 'workspace-id' };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const workspace = {
         id: 'workspace-id',
@@ -91,7 +91,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
         workspaceJoinRequestDomain.getJoinRequest.mockResolvedValue(
             joinRequest
         );
@@ -175,9 +175,9 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 'workspace-id',
                 cursorParams,
                 { status: { in: ['pending'] } },
-                accessibleWhere
+                scopeWhere
             );
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.WorkspaceJoinRequest
             );
@@ -210,12 +210,12 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 'workspace-id',
                 cursorParams,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -230,7 +230,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
 
     describe('acceptJoinRequest', () => {
         it('does not call the domain when the policy denies the join request', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -256,7 +256,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
             expect(
                 workspaceJoinRequestDomain.getJoinRequest
             ).toHaveBeenCalledWith('workspace-id', 'join-request-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
             );
@@ -269,7 +269,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
 
     describe('rejectJoinRequest', () => {
         it('does not call the domain when the policy denies the join request', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -298,7 +298,7 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 dto
             );
 
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
             );

@@ -52,7 +52,7 @@ export class WorkspaceJoinRequestHttpService {
         workspaceId: string,
         query: WorkspaceJoinRequestListRequestDto
     ): Promise<IResponsePaginationReturn<WorkspaceJoinRequest>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.WorkspaceJoinRequest
         );
@@ -82,7 +82,7 @@ export class WorkspaceJoinRequestHttpService {
                 workspaceId,
                 params,
                 status?.where,
-                accessibleWhere
+                scopeWhere
             );
 
         return {
@@ -100,7 +100,7 @@ export class WorkspaceJoinRequestHttpService {
                 workspaceId,
                 workspaceJoinRequestId
             );
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
         );

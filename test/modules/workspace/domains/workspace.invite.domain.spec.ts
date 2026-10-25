@@ -305,23 +305,18 @@ describe('WorkspaceInviteDomain', () => {
         const status = {
             status: { in: [EnumWorkspaceInviteStatus.pending] },
         } as never;
-        const accessibleWhere = { workspaceId: workspace.id };
+        const scopeWhere = { workspaceId: workspace.id };
         const result = { data: [], pagination: {} } as never;
         inviteRepository.findWithPaginationCursor.mockResolvedValue(result);
 
         await expect(
-            domain.getInvitesList(
-                workspace.id,
-                pagination,
-                status,
-                accessibleWhere
-            )
+            domain.getInvitesList(workspace.id, pagination, status, scopeWhere)
         ).resolves.toBe(result);
         expect(inviteRepository.findWithPaginationCursor).toHaveBeenCalledWith(
             workspace.id,
             pagination,
             status,
-            accessibleWhere
+            scopeWhere
         );
 
         await domain.getInvitesList(workspace.id, pagination);

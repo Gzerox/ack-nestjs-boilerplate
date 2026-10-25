@@ -36,7 +36,7 @@ describe('PasswordHistoryHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const accessibleWhere = { userId: 'user-id' };
+    const scopeWhere = { userId: 'user-id' };
     const item = mock<IPasswordHistoryList>();
     const offsetParams = {
         where: undefined,
@@ -90,7 +90,7 @@ describe('PasswordHistoryHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -110,7 +110,7 @@ describe('PasswordHistoryHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
-        it('loads the parent user with accessibleWhere(read, User) before listing', async () => {
+        it('loads the parent user with scope(read, User) before listing', async () => {
             const callOrder: string[] = [];
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -129,13 +129,13 @@ describe('PasswordHistoryHttpService', () => {
 
             await service.getListOffsetByAdmin('user-id', {});
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.User
             );
             expect(userDomain.getOne).toHaveBeenCalledWith(
                 'user-id',
-                accessibleWhere
+                scopeWhere
             );
             expect(callOrder).toEqual(['parent', 'list']);
         });
@@ -163,7 +163,7 @@ describe('PasswordHistoryHttpService', () => {
 
             const result = await service.getListOffsetByAdmin('user-id', query);
 
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.PasswordHistory
             );
@@ -176,12 +176,12 @@ describe('PasswordHistoryHttpService', () => {
             );
             expect(
                 passwordHistoryDomain.getListOffsetByAdmin
-            ).toHaveBeenCalledWith('user-id', offsetParams, accessibleWhere);
+            ).toHaveBeenCalledWith('user-id', offsetParams, scopeWhere);
             expect(result).toEqual(offsetPage);
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -194,7 +194,7 @@ describe('PasswordHistoryHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -229,7 +229,7 @@ describe('PasswordHistoryHttpService', () => {
                 'user-id',
                 cursorParams
             );
-            expect(policyAbilityDomain.accessibleWhere).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
             expect(result).toEqual(cursorPage);
         });
     });

@@ -41,7 +41,7 @@ export class WorkspaceMemberHttpService {
         actorMember: IWorkspaceMemberWithRole,
         { targetUserId }: WorkspaceTransferOwnershipRequestDto
     ): Promise<void> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Workspace, workspace)
         );
@@ -63,7 +63,7 @@ export class WorkspaceMemberHttpService {
         workspaceId: string,
         query: WorkspaceMemberListRequestDto
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.WorkspaceMember
         );
@@ -93,7 +93,7 @@ export class WorkspaceMemberHttpService {
                 workspaceId,
                 params,
                 role?.where,
-                accessibleWhere
+                scopeWhere
             );
 
         return {
@@ -113,7 +113,7 @@ export class WorkspaceMemberHttpService {
                 workspaceId,
                 targetMemberId
             );
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.WorkspaceMember, targetMember)
         );
@@ -135,7 +135,7 @@ export class WorkspaceMemberHttpService {
                 workspaceId,
                 targetMemberId
             );
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
             subject(EnumPolicySubject.WorkspaceMember, targetMember)
         );
@@ -150,13 +150,13 @@ export class WorkspaceMemberHttpService {
         workspaceId: string,
         query: WorkspaceAdminMemberListRequestDto
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
-        const workspaceWhere = this.policyAbilityDomain.accessibleWhere(
+        const workspaceWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.Workspace
         );
         await this.workspaceDomain.getByIdForAdmin(workspaceId, workspaceWhere);
 
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.WorkspaceMember
         );
@@ -174,7 +174,7 @@ export class WorkspaceMemberHttpService {
             await this.workspaceMemberDomain.getMembersListForAdmin(
                 workspaceId,
                 params,
-                accessibleWhere
+                scopeWhere
             );
 
         return {

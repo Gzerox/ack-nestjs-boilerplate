@@ -42,7 +42,7 @@ export const DocProjectErrorResponses = {
 } as const;
 
 /**
- * Project member guard error kits for strict `@ProjectMemberProtected()` and `@ProjectPolicyProtected`.
+ * Project member guard error kits for strict `@ProjectMemberProtected()` and `@PolicyProtected`.
  * @public
  */
 export const DocProjectMemberErrorResponses = {

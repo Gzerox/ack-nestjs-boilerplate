@@ -1,7 +1,4 @@
 import type { Workspace } from '@generated/prisma-client/client';
-import { EnumPolicyWorkspaceSubject } from '@modules/policy/enums/policy.enum';
-import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import type { IPolicyRequired } from '@modules/policy/interfaces/policy.interface';
 import {
     DocWorkspaceErrorResponses,
     WorkspaceMemberStoreKey,
@@ -117,14 +114,3 @@ export const WorkspaceMemberCurrent = createParamDecorator<
         return value;
     }
 );
-
-/**
- * Requires the caller to hold the given workspace policy subject/action pairs.
- * Sits above `@WorkspaceMemberProtected()`.
- * @public
- */
-export function WorkspacePolicyProtected(
-    ...requiredPolicies: IPolicyRequired<EnumPolicyWorkspaceSubject>[]
-): MethodDecorator {
-    return PolicyProtected(...requiredPolicies);
-}

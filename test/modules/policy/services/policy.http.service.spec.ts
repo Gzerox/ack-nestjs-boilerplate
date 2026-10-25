@@ -80,27 +80,25 @@ describe('PolicyHttpService', () => {
 
     describe('listByAdmin', () => {
         it('requests the Role read where and forwards it to the domain', async () => {
-            const accessibleWhere = { scope: EnumRoleScope.platform };
-            policyAbilityDomain.accessibleWhere.mockReturnValue(
-                accessibleWhere
-            );
+            const scopeWhere = { scope: EnumRoleScope.platform };
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             policyDomain.findManyByRole.mockResolvedValue([policy]);
 
             await expect(service.listByAdmin('role-id')).resolves.toEqual({
                 data: { policies: [policy] },
             });
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.Role
             );
             expect(policyDomain.findManyByRole).toHaveBeenCalledWith(
                 'role-id',
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('throws PolicyForbiddenException and never lists when the ability has no Role read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -119,7 +117,7 @@ describe('PolicyHttpService', () => {
                 data: { policies: [policy] },
             });
             expect(policyDomain.findManyByRole).toHaveBeenCalledWith('role-id');
-            expect(policyAbilityDomain.accessibleWhere).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
         });
     });
 
@@ -131,7 +129,7 @@ describe('PolicyHttpService', () => {
                 service.createByAdmin('role-id', createBody)
             ).resolves.toEqual({ data: policy });
             expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Role, role)
             );
@@ -142,7 +140,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never creates when the role record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -153,7 +151,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -173,7 +171,7 @@ describe('PolicyHttpService', () => {
             ).resolves.toEqual({ data: policy });
 
             expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Role, role)
             );
@@ -185,7 +183,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never updates when the role record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -196,7 +194,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -216,7 +214,7 @@ describe('PolicyHttpService', () => {
             ).resolves.toEqual({});
 
             expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Role, role)
             );
@@ -227,7 +225,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never deletes when the role record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -238,7 +236,7 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

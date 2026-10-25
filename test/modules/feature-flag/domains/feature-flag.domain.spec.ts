@@ -253,17 +253,17 @@ describe('FeatureFlagDomain', () => {
         };
 
         it('forwards the accessible where as the trailing repository argument', async () => {
-            const accessibleWhere = { isEnable: true };
+            const scopeWhere = { isEnable: true };
             featureFlagRepository.findWithPaginationOffsetByAdmin.mockResolvedValue(
                 page
             );
 
             await expect(
-                service.getListByAdmin(pagination, accessibleWhere)
+                service.getListByAdmin(pagination, scopeWhere)
             ).resolves.toBe(page);
             expect(
                 featureFlagRepository.findWithPaginationOffsetByAdmin
-            ).toHaveBeenCalledWith(pagination, accessibleWhere);
+            ).toHaveBeenCalledWith(pagination, scopeWhere);
         });
 
         it('passes undefined to the repository when no where is given', async () => {

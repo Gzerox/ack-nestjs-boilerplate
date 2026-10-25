@@ -119,7 +119,7 @@ describe('DeviceDomain', () => {
     it('forwards the revoke filter and the accessible where of the administrator offset list', async () => {
         const pagination = { limit: 20, page: 1, skip: 0 };
         const isRevoked = { isRevoked: { equals: true } };
-        const accessibleWhere = { userId: 'user-id' };
+        const scopeWhere = { userId: 'user-id' };
         const page = {
             type: EnumPaginationType.offset,
             data: [],
@@ -139,17 +139,12 @@ describe('DeviceDomain', () => {
                 'user-id',
                 pagination,
                 isRevoked,
-                accessibleWhere
+                scopeWhere
             )
         ).resolves.toBe(page);
         expect(
             deviceOwnershipRepository.findWithPaginationOffsetByAdmin
-        ).toHaveBeenCalledWith(
-            'user-id',
-            pagination,
-            isRevoked,
-            accessibleWhere
-        );
+        ).toHaveBeenCalledWith('user-id', pagination, isRevoked, scopeWhere);
 
         await service.getListOffsetByAdmin('user-id', pagination);
         expect(

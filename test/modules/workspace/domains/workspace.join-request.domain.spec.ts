@@ -510,7 +510,7 @@ describe('WorkspaceJoinRequestDomain', () => {
             orderBy: [],
         };
         const status = { status: { in: ['pending'] } };
-        const accessibleWhere = { workspaceId: 'workspace-id' };
+        const scopeWhere = { workspaceId: 'workspace-id' };
         const page = {
             type: EnumPaginationType.cursor as const,
             count: 0,
@@ -528,7 +528,7 @@ describe('WorkspaceJoinRequestDomain', () => {
                     'workspace-id',
                     pagination,
                     status as never,
-                    accessibleWhere
+                    scopeWhere
                 )
             ).resolves.toBe(page);
             expect(
@@ -537,7 +537,7 @@ describe('WorkspaceJoinRequestDomain', () => {
                 'workspace-id',
                 pagination,
                 status,
-                accessibleWhere
+                scopeWhere
             );
         });
 

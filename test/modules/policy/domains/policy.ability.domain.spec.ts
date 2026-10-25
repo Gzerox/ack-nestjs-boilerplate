@@ -37,6 +37,12 @@ describe('PolicyAbilityDomain', () => {
         domain = moduleRef.get(PolicyAbilityDomain);
     });
 
+    describe('shape', () => {
+        it('does not expose assertCanEvery', () => {
+            expect('assertCanEvery' in domain).toBe(false);
+        });
+    });
+
     describe('requireStored', () => {
         it('returns the value stored under the key', () => {
             requestStoreService.get.mockReturnValue(ability);
@@ -63,7 +69,7 @@ describe('PolicyAbilityDomain', () => {
         });
     });
 
-    describe('accessibleWhere', () => {
+    describe('scope', () => {
         const useAbility = (stored: PolicyAbility): void => {
             requestStoreService.get.mockReturnValue(stored);
         };
@@ -79,10 +85,7 @@ describe('PolicyAbilityDomain', () => {
                 ])
             );
 
-            domain.accessibleWhere(
-                EnumPolicyAction.read,
-                EnumPolicySubject.Project
-            );
+            domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project);
 
             expect(requestStoreService.get).toHaveBeenCalledWith(
                 PolicyAbilityStoreKey
@@ -93,10 +96,7 @@ describe('PolicyAbilityDomain', () => {
             requestStoreService.get.mockReturnValue(null);
 
             expect(() =>
-                domain.accessibleWhere(
-                    EnumPolicyAction.read,
-                    EnumPolicySubject.Project
-                )
+                domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project)
             ).toThrow(RequestContextMissingException);
         });
 
@@ -112,10 +112,7 @@ describe('PolicyAbilityDomain', () => {
             );
 
             expect(
-                domain.accessibleWhere(
-                    EnumPolicyAction.read,
-                    EnumPolicySubject.Project
-                )
+                domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project)
             ).toEqual({ OR: [{ workspaceId: 'workspace-1' }] });
         });
 
@@ -136,10 +133,7 @@ describe('PolicyAbilityDomain', () => {
             );
 
             expect(
-                domain.accessibleWhere(
-                    EnumPolicyAction.read,
-                    EnumPolicySubject.Project
-                )
+                domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project)
             ).toEqual({
                 OR: [
                     { workspaceId: 'workspace-2' },
@@ -166,10 +160,7 @@ describe('PolicyAbilityDomain', () => {
             );
 
             expect(
-                domain.accessibleWhere(
-                    EnumPolicyAction.read,
-                    EnumPolicySubject.Project
-                )
+                domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project)
             ).toEqual({
                 OR: [{ AND: [{}, { NOT: { name: 'Locked' } }] }],
             });
@@ -179,10 +170,7 @@ describe('PolicyAbilityDomain', () => {
             useAbility(buildRealAbility([]));
 
             try {
-                domain.accessibleWhere(
-                    EnumPolicyAction.read,
-                    EnumPolicySubject.Project
-                );
+                domain.scope(EnumPolicyAction.read, EnumPolicySubject.Project);
                 throw new Error('expected throw');
             } catch (error) {
                 expect(error).toBeInstanceOf(PolicyForbiddenException);
@@ -203,7 +191,7 @@ describe('PolicyAbilityDomain', () => {
         });
     });
 
-    describe('assertCan', () => {
+    describe('authorize', () => {
         beforeEach(() => {
             requestStoreService.get.mockReturnValue(ability);
             ability.detectSubjectType.mockReturnValue(
@@ -218,7 +206,7 @@ describe('PolicyAbilityDomain', () => {
             } as ReturnType<PolicyAbility['relevantRuleFor']>);
 
             expect(() =>
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.read,
                     EnumPolicySubject.Project
                 )
@@ -229,7 +217,7 @@ describe('PolicyAbilityDomain', () => {
             ability.relevantRuleFor.mockReturnValue(null);
 
             try {
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.delete,
                     EnumPolicySubject.Project
                 );
@@ -259,7 +247,7 @@ describe('PolicyAbilityDomain', () => {
             } as ReturnType<PolicyAbility['relevantRuleFor']>);
 
             try {
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.delete,
                     EnumPolicySubject.Project
                 );
@@ -284,7 +272,7 @@ describe('PolicyAbilityDomain', () => {
             ability.relevantRuleFor.mockReturnValue(null);
 
             try {
-                domain.assertCan(EnumPolicyAction.update, target);
+                domain.authorize(EnumPolicyAction.update, target);
                 throw new Error('expected throw');
             } catch (error) {
                 expect(ability.relevantRuleFor).toHaveBeenCalledWith(
@@ -310,7 +298,7 @@ describe('PolicyAbilityDomain', () => {
             });
 
             expect(() =>
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.read,
                     EnumPolicySubject.Project
                 )
@@ -330,166 +318,17 @@ describe('PolicyAbilityDomain', () => {
             requestStoreService.get.mockReturnValue(realAbility);
 
             expect(() =>
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.update,
                     subject(EnumPolicySubject.Workspace, { id: 'workspace-1' })
                 )
             ).not.toThrow();
             expect(() =>
-                domain.assertCan(
+                domain.authorize(
                     EnumPolicyAction.update,
                     subject(EnumPolicySubject.Workspace, { id: 'workspace-2' })
                 )
             ).toThrow(PolicyForbiddenException);
-        });
-    });
-
-    describe('assertCanEvery', () => {
-        const useAbility = (stored: PolicyAbility): void => {
-            requestStoreService.get.mockReturnValue(stored);
-        };
-        const catchForbidden = (run: () => void): PolicyForbiddenException => {
-            try {
-                run();
-            } catch (error) {
-                return error as PolicyForbiddenException;
-            }
-            throw new Error('expected throw');
-        };
-
-        it('passes when every required action is granted', () => {
-            useAbility(
-                buildRealAbility([
-                    {
-                        action: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.update,
-                        ],
-                        subject: 'Project',
-                    },
-                ])
-            );
-
-            expect(() =>
-                domain.assertCanEvery([
-                    {
-                        subject: EnumPolicySubject.Project,
-                        action: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.update,
-                        ],
-                    },
-                ])
-            ).not.toThrow();
-        });
-
-        it('reports every missing action of a subject in one exception', () => {
-            useAbility(buildRealAbility([]));
-
-            const error = catchForbidden(() =>
-                domain.assertCanEvery([
-                    {
-                        subject: EnumPolicySubject.Project,
-                        action: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.update,
-                        ],
-                    },
-                ])
-            );
-
-            expect(error).toBeInstanceOf(PolicyForbiddenException);
-            expect(error.metadata).toEqual({
-                missing: [
-                    {
-                        subject: EnumPolicySubject.Project,
-                        actions: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.update,
-                        ],
-                    },
-                ],
-            });
-        });
-
-        it('lists only the denied actions, merges and dedupes repeated subjects', () => {
-            useAbility(
-                buildRealAbility([
-                    { action: EnumPolicyAction.read, subject: 'Project' },
-                ])
-            );
-
-            const error = catchForbidden(() =>
-                domain.assertCanEvery([
-                    {
-                        subject: EnumPolicySubject.Project,
-                        action: [
-                            EnumPolicyAction.read,
-                            EnumPolicyAction.update,
-                        ],
-                    },
-                    {
-                        subject: EnumPolicySubject.User,
-                        action: [EnumPolicyAction.read],
-                    },
-                    {
-                        subject: EnumPolicySubject.Project,
-                        action: [
-                            EnumPolicyAction.update,
-                            EnumPolicyAction.delete,
-                        ],
-                    },
-                ])
-            );
-
-            expect(error.metadata).toEqual({
-                missing: [
-                    {
-                        subject: EnumPolicySubject.Project,
-                        actions: [
-                            EnumPolicyAction.update,
-                            EnumPolicyAction.delete,
-                        ],
-                    },
-                    {
-                        subject: EnumPolicySubject.User,
-                        actions: [EnumPolicyAction.read],
-                    },
-                ],
-            });
-        });
-
-        it('carries the reason of the first denying inverted rule', () => {
-            useAbility(
-                buildRealAbility([
-                    { action: EnumPolicyAction.read, subject: 'Project' },
-                    {
-                        action: EnumPolicyAction.read,
-                        subject: 'Project',
-                        inverted: true,
-                        reason: 'blocked by rule',
-                    },
-                ])
-            );
-
-            const error = catchForbidden(() =>
-                domain.assertCanEvery([
-                    {
-                        subject: EnumPolicySubject.Project,
-                        action: [EnumPolicyAction.read],
-                    },
-                ])
-            );
-
-            expect(error.metadata).toEqual({
-                reason: 'blocked by rule',
-                missing: [
-                    {
-                        subject: EnumPolicySubject.Project,
-                        actions: [EnumPolicyAction.read],
-                    },
-                ],
-            });
         });
     });
 

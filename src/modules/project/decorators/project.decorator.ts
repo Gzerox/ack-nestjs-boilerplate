@@ -1,7 +1,4 @@
 import type { Project } from '@generated/prisma-client/client';
-import { EnumPolicyProjectSubject } from '@modules/policy/enums/policy.enum';
-import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import type { IPolicyRequired } from '@modules/policy/interfaces/policy.interface';
 import {
     DocProjectErrorResponses,
     DocProjectMemberErrorResponses,
@@ -142,14 +139,3 @@ export const ProjectMemberCurrent = createParamDecorator<
         return value;
     }
 );
-
-/**
- * Requires the caller to hold the given project policy subject/action pairs.
- * Sits above `@ProjectMemberProtected(...)` and `@ProjectProtected()`.
- * @public
- */
-export function ProjectPolicyProtected(
-    ...requiredPolicies: IPolicyRequired<EnumPolicyProjectSubject>[]
-): MethodDecorator {
-    return PolicyProtected(...requiredPolicies);
-}

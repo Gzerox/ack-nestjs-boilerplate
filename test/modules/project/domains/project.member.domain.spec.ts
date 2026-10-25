@@ -164,16 +164,16 @@ describe('ProjectMemberDomain', () => {
         };
 
         it('forwards the accessible where to the repository', async () => {
-            const accessibleWhere = { projectId: 'project-id' };
+            const scopeWhere = { projectId: 'project-id' };
             repository.findWithPaginationCursor.mockResolvedValue(page);
 
             await expect(
-                domain.getMembersList(project, pagination, accessibleWhere)
+                domain.getMembersList(project, pagination, scopeWhere)
             ).resolves.toBe(page);
             expect(repository.findWithPaginationCursor).toHaveBeenCalledWith(
                 'project-id',
                 pagination,
-                accessibleWhere
+                scopeWhere
             );
         });
 

@@ -21,7 +21,7 @@ import {
 
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
-import { PlatformPolicyProtected } from '@modules/policy/decorators/policy.decorator';
+import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { EnumPolicyPlatformSubject } from '@modules/policy/enums/policy.enum';
 import { RoleHttpService } from '@modules/role/services/role.http.service';
 import type {
@@ -57,7 +57,7 @@ export class RoleAdminController {
     @Doc({ summary: 'get list of roles' })
     @ResponsePagination('role.list', { schema: RoleListResponseSchema })
     @TermPolicyAcceptanceProtected()
-    @PlatformPolicyProtected({
+    @PolicyProtected({
         subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read],
     })
@@ -76,7 +76,7 @@ export class RoleAdminController {
     @Doc({ summary: 'get detail a role' })
     @Response('role.get', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
-    @PlatformPolicyProtected({
+    @PolicyProtected({
         subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read],
     })
@@ -95,7 +95,7 @@ export class RoleAdminController {
     @Doc({ summary: 'update data a role' })
     @Response('role.update', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
-    @PlatformPolicyProtected({
+    @PolicyProtected({
         subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
@@ -116,7 +116,7 @@ export class RoleAdminController {
     @Doc({ summary: 'create a role' })
     @Response('role.create', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
-    @PlatformPolicyProtected({
+    @PolicyProtected({
         subject: EnumPolicyPlatformSubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
@@ -135,7 +135,7 @@ export class RoleAdminController {
     @Doc({ summary: 'delete a role' })
     @Response('role.delete')
     @TermPolicyAcceptanceProtected()
-    @PlatformPolicyProtected({
+    @PolicyProtected({
         subject: EnumPolicyPlatformSubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.delete],
     })

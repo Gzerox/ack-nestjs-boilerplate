@@ -48,7 +48,7 @@ export class WorkspaceInviteHttpService {
             workspaceId,
             workspaceInviteId
         );
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             action,
             subject(EnumPolicySubject.WorkspaceInvite, invite)
         );
@@ -58,7 +58,7 @@ export class WorkspaceInviteHttpService {
         workspaceId: string,
         query: WorkspaceInviteListRequestDto
     ): Promise<IResponsePaginationReturn<IWorkspaceInviteList>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.WorkspaceInvite
         );
@@ -88,7 +88,7 @@ export class WorkspaceInviteHttpService {
                 workspaceId,
                 params,
                 status?.where,
-                accessibleWhere
+                scopeWhere
             );
 
         return {
@@ -108,7 +108,7 @@ export class WorkspaceInviteHttpService {
             expiryDuration,
         }: WorkspaceInviteCreateRequestDto
     ): Promise<IResponseReturn<WorkspaceInviteResponseDto>> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.create,
             subject(EnumPolicySubject.WorkspaceInvite, {
                 workspaceId: workspace.id,

@@ -74,7 +74,7 @@ export class WorkspaceHttpService {
     }
 
     getCurrentWorkspace(workspace: Workspace): IResponseReturn<Workspace> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
             subject(EnumPolicySubject.Workspace, workspace)
         );
@@ -88,7 +88,7 @@ export class WorkspaceHttpService {
         actorId: string,
         { name, description }: WorkspaceUpdateRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
@@ -106,7 +106,7 @@ export class WorkspaceHttpService {
         actorId: string,
         { isPublic }: WorkspaceUpdateIsPublicRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
@@ -124,7 +124,7 @@ export class WorkspaceHttpService {
         actorId: string,
         { slug }: WorkspaceUpdateSlugRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
@@ -148,7 +148,7 @@ export class WorkspaceHttpService {
         workspaceTarget: Workspace,
         actorId: string
     ): Promise<void> {
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
             subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
@@ -161,7 +161,7 @@ export class WorkspaceHttpService {
     async getListForAdmin(
         query: WorkspaceAdminListRequestDto
     ): Promise<IResponsePaginationReturn<Workspace>> {
-        const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
             EnumPolicySubject.Workspace
         );
@@ -186,7 +186,7 @@ export class WorkspaceHttpService {
         const { data, ...others } = await this.workspaceDomain.getListForAdmin(
             params,
             isPublic?.where,
-            accessibleWhere
+            scopeWhere
         );
 
         return {
@@ -200,7 +200,7 @@ export class WorkspaceHttpService {
     ): Promise<IResponseReturn<Workspace>> {
         const workspace =
             await this.workspaceDomain.getByIdForAdmin(workspaceId);
-        this.policyAbilityDomain.assertCan(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
             subject(EnumPolicySubject.Workspace, workspace)
         );

@@ -40,7 +40,7 @@ describe('ApiKeyHttpService', () => {
         mock<RequestStoreService>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
-    const accessibleWhere = { isActive: true };
+    const scopeWhere = { isActive: true };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const apiKey = {
         id: 'api-key-id',
@@ -101,7 +101,7 @@ describe('ApiKeyHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(accessibleWhere);
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
         apiKeyDomain.getOne.mockResolvedValue(apiKey);
 
         const module: TestingModule = await Test.createTestingModule({
@@ -162,9 +162,9 @@ describe('ApiKeyHttpService', () => {
                 offsetParams,
                 isActiveWhere,
                 typeWhere,
-                accessibleWhere
+                scopeWhere
             );
-            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
                 EnumPolicySubject.ApiKey
             );
@@ -194,12 +194,12 @@ describe('ApiKeyHttpService', () => {
                 offsetParams,
                 undefined,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.accessibleWhere.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -225,7 +225,7 @@ describe('ApiKeyHttpService', () => {
 
             const result = await service.createByAdmin(request);
 
-            expect(policyAbilityDomain.assertCan).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(apiKeyDomain.createByAdmin).toHaveBeenCalledWith(request);
             expect(apiKeyUtil.mapCreate).toHaveBeenCalledWith(
                 apiKey,
@@ -250,7 +250,7 @@ describe('ApiKeyHttpService', () => {
             );
 
             expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.ApiKey, apiKey)
             );
@@ -262,7 +262,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -273,7 +273,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -298,7 +298,7 @@ describe('ApiKeyHttpService', () => {
             const result = await service.updateByAdmin('api-key-id', request);
 
             expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.ApiKey, apiKey)
             );
@@ -310,7 +310,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -321,7 +321,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -350,7 +350,7 @@ describe('ApiKeyHttpService', () => {
             );
 
             expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.ApiKey, apiKey)
             );
@@ -363,7 +363,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -374,7 +374,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -400,7 +400,7 @@ describe('ApiKeyHttpService', () => {
             const result = await service.resetByAdmin('api-key-id');
 
             expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.ApiKey, apiKey)
             );
@@ -416,7 +416,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -427,7 +427,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -445,7 +445,7 @@ describe('ApiKeyHttpService', () => {
             const result = await service.deleteByAdmin('api-key-id');
 
             expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
-            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
                 subject(EnumPolicySubject.ApiKey, apiKey)
             );
@@ -456,7 +456,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -467,7 +467,7 @@ describe('ApiKeyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.assertCan.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

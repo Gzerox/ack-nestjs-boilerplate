@@ -191,22 +191,17 @@ describe('UserImportDomain', () => {
 
     it('passes the accessible where to the repository export when provided', async () => {
         userRepository.findExport.mockResolvedValue([]);
-        const accessibleWhere = { roleId: 'role-id' };
+        const scopeWhere = { roleId: 'role-id' };
 
         await expect(
-            domain.exportByAdmin(
-                undefined,
-                undefined,
-                undefined,
-                accessibleWhere
-            )
+            domain.exportByAdmin(undefined, undefined, undefined, scopeWhere)
         ).resolves.toEqual([]);
         expect(userRepository.findExport).toHaveBeenCalledWith(
             null,
             null,
             null,
             101,
-            accessibleWhere
+            scopeWhere
         );
     });
 });

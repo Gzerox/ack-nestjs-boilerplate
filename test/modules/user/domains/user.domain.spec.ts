@@ -307,7 +307,7 @@ describe('UserDomain', () => {
     it('forwards the accessible where as the trailing repository argument of the administrator list', async () => {
         const page = mock<IResponsePaginationReturn<never>>();
         const pagination = { limit: 20, page: 1, skip: 0 };
-        const accessibleWhere = { id: userRow.id };
+        const scopeWhere = { id: userRow.id };
         userRepository.findWithPaginationOffset.mockResolvedValue(page);
 
         await expect(
@@ -316,7 +316,7 @@ describe('UserDomain', () => {
                 undefined,
                 undefined,
                 undefined,
-                accessibleWhere
+                scopeWhere
             )
         ).resolves.toBe(page);
         expect(userRepository.findWithPaginationOffset).toHaveBeenCalledWith(
@@ -324,7 +324,7 @@ describe('UserDomain', () => {
             undefined,
             undefined,
             undefined,
-            accessibleWhere
+            scopeWhere
         );
 
         await service.getListOffsetByAdmin(pagination);

@@ -241,23 +241,18 @@ describe('TermPolicyDomain', () => {
 
     it('forwards the accessible where as the trailing repository argument of the admin list', async () => {
         const pagination = { page: 1, perPage: 10 } as never;
-        const accessibleWhere = { type: EnumTermPolicyType.privacy };
+        const scopeWhere = { type: EnumTermPolicyType.privacy };
         const result = { data: [], pagination: {} } as never;
         termPolicyRepository.find.mockResolvedValue(result);
 
         await expect(
-            service.getListByAdmin(
-                pagination,
-                undefined,
-                undefined,
-                accessibleWhere
-            )
+            service.getListByAdmin(pagination, undefined, undefined, scopeWhere)
         ).resolves.toBe(result);
         expect(termPolicyRepository.find).toHaveBeenCalledWith(
             pagination,
             undefined,
             undefined,
-            accessibleWhere
+            scopeWhere
         );
     });
 

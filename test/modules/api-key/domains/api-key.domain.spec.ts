@@ -219,7 +219,7 @@ describe('ApiKeyDomain', () => {
 
         it('forwards the accessible where as the trailing repository argument of the administrator list', async () => {
             const pagination = { limit: 20, page: 1, skip: 0 };
-            const accessibleWhere = { isActive: true };
+            const scopeWhere = { isActive: true };
             const page = mock<IResponsePaginationReturn<never>>();
             apiKeyRepository.findWithPagination.mockResolvedValue(page);
 
@@ -228,14 +228,14 @@ describe('ApiKeyDomain', () => {
                     pagination,
                     undefined,
                     undefined,
-                    accessibleWhere
+                    scopeWhere
                 )
             ).resolves.toBe(page);
             expect(apiKeyRepository.findWithPagination).toHaveBeenCalledWith(
                 pagination,
                 undefined,
                 undefined,
-                accessibleWhere
+                scopeWhere
             );
         });
 

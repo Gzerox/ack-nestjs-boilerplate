@@ -1,3 +1,4 @@
+import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import { DatabaseService } from '@common/database/services/database.service';
 import { Prisma } from '@generated/prisma-client/client';
 import type { Policy } from '@generated/prisma-client/client';
@@ -54,7 +55,8 @@ export class PolicyRepository implements IPolicyRepository {
         return count > 0;
     }
 
-    async create(
+    async createInTx(
+        tx: IDatabaseTransactionClient,
         roleId: string,
         {
             subject,
@@ -64,7 +66,7 @@ export class PolicyRepository implements IPolicyRepository {
             reason,
         }: PolicyCreateRequestDto
     ): Promise<Policy> {
-        return this.databaseService.client.policy.create({
+        return tx.policy.create({
             data: {
                 roleId,
                 subject,
@@ -76,11 +78,12 @@ export class PolicyRepository implements IPolicyRepository {
         });
     }
 
-    async update(
+    async updateInTx(
+        tx: IDatabaseTransactionClient,
         id: string,
         { action, conditions, inverted, reason }: PolicyUpdateRequestDto
     ): Promise<Policy> {
-        return this.databaseService.client.policy.update({
+        return tx.policy.update({
             where: { id },
             data: {
                 action,
@@ -91,7 +94,10 @@ export class PolicyRepository implements IPolicyRepository {
         });
     }
 
-    async delete(id: string): Promise<Policy> {
-        return this.databaseService.client.policy.delete({ where: { id } });
+    async deleteInTx(
+        tx: IDatabaseTransactionClient,
+        id: string
+    ): Promise<Policy> {
+        return tx.policy.delete({ where: { id } });
     }
 }

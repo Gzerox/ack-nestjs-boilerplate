@@ -72,5 +72,11 @@ export type IPolicyRule = Pick<
     'subject' | 'action' | 'conditions' | 'inverted' | 'reason'
 >;
 
+/** A role at the policy revision a request read: the pair that keys the policy cache. */
+export interface IPolicyRoleReference {
+    roleId: string;
+    policyRevision: number;
+}
+
 /** A policy rule tagged with the role that owns it, as the cache loads it. */
 export type IPolicyRuleWithRole = IPolicyRule & Pick<Policy, 'roleId'>;

@@ -1,3 +1,5 @@
+import { DatabaseService } from '@common/database/services/database.service';
+import { RoleDomain } from '@modules/role/domains/role.domain';
 import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
 import { PolicyRoleScopeSubjectContract } from '@modules/policy/contracts/policy.role-scope-subject.contract';
 import { PolicyNonModelSubjects } from '@modules/policy/constants/policy.constant';
@@ -7,7 +9,10 @@ import { PolicyNotFoundException } from '@modules/policy/exceptions/policy.not-f
 import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy.create.request.dto';
 import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
 import { PolicyCache } from '@modules/policy/caches/policy.cache';
-import type { IPolicyRule } from '@modules/policy/interfaces/policy.interface';
+import type {
+    IPolicyRoleReference,
+    IPolicyRule,
+} from '@modules/policy/interfaces/policy.interface';
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
 import type { IRole } from '@modules/role/interfaces/role.interface';
 import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
@@ -25,6 +30,8 @@ export class PolicyDomain {
     constructor(
         private readonly policyRepository: PolicyRepository,
         private readonly policyCache: PolicyCache,
+        private readonly roleDomain: RoleDomain,
+        private readonly databaseService: DatabaseService,
         private readonly activityLogDomain: ActivityLogDomain
     ) {}
 
@@ -88,9 +95,11 @@ export class PolicyDomain {
         return this.policyRepository.findManyByRoleId(roleId, additionalWhere);
     }
 
-    /** Returns the policy rows of every role, read through the policy cache. */
-    async findManyByRoleIds(...roleIds: string[]): Promise<IPolicyRule[]> {
-        return this.policyCache.getByRoleIdsAndCache(roleIds);
+    /** Returns the raw policy rows of every referenced role revision, read through the policy cache. Takes no ability. */
+    async findManyByRoleReferences(
+        references: IPolicyRoleReference[]
+    ): Promise<IPolicyRule[]> {
+        return this.policyCache.getByRoleReferences(references);
     }
 
     async createByAdmin(
@@ -110,8 +119,16 @@ export class PolicyDomain {
             }),
         ];
 
-        const created = await this.policyRepository.create(role.id, dto);
-        await this.policyCache.deleteCacheByRoleId(role.id);
+        const created = await this.databaseService.withTransaction(async tx => {
+            const policy = await this.policyRepository.createInTx(
+                tx,
+                role.id,
+                dto
+            );
+            await this.roleDomain.incrementPolicyRevisionInTx(tx, role.id);
+
+            return policy;
+        });
 
         this.activityLogDomain.stagePrepared(events);
 
@@ -145,8 +162,12 @@ export class PolicyDomain {
             }),
         ];
 
-        const updated = await this.policyRepository.update(id, dto);
-        await this.policyCache.deleteCacheByRoleId(role.id);
+        const updated = await this.databaseService.withTransaction(async tx => {
+            const policy = await this.policyRepository.updateInTx(tx, id, dto);
+            await this.roleDomain.incrementPolicyRevisionInTx(tx, role.id);
+
+            return policy;
+        });
 
         this.activityLogDomain.stagePrepared(events);
 
@@ -169,8 +190,12 @@ export class PolicyDomain {
                 action: EnumActivityLogAction.adminPolicyDelete,
             }),
         ];
-        const deleted = await this.policyRepository.delete(id);
-        await this.policyCache.deleteCacheByRoleId(role.id);
+        const deleted = await this.databaseService.withTransaction(async tx => {
+            const policy = await this.policyRepository.deleteInTx(tx, id);
+            await this.roleDomain.incrementPolicyRevisionInTx(tx, role.id);
+
+            return policy;
+        });
 
         this.activityLogDomain.stagePrepared(events);
 

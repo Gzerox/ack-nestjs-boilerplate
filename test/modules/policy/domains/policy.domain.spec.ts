@@ -10,6 +10,8 @@ import {
     type Policy,
     type Prisma,
 } from '@generated/prisma-client';
+import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
+import { DatabaseService } from '@common/database/services/database.service';
 import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
@@ -66,11 +68,17 @@ describe('PolicyDomain', () => {
     const roleDomain: MockProxy<RoleDomain> = mock<RoleDomain>();
     const activityLogDomain: MockProxy<ActivityLogDomain> =
         mock<ActivityLogDomain>();
+    const databaseService: MockProxy<DatabaseService> = mock<DatabaseService>();
+    const tx: MockProxy<IDatabaseTransactionClient> =
+        mock<IDatabaseTransactionClient>();
 
     let service: PolicyDomain;
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        databaseService.withTransaction.mockImplementation(async callback =>
+            callback(tx)
+        );
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 PolicyDomain,
@@ -78,6 +86,7 @@ describe('PolicyDomain', () => {
                 { provide: PolicyCache, useValue: policyCache },
                 { provide: RoleDomain, useValue: roleDomain },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
+                { provide: DatabaseService, useValue: databaseService },
             ],
         }).compile();
 
@@ -113,17 +122,20 @@ describe('PolicyDomain', () => {
         });
     });
 
-    describe('findManyByRoleIds', () => {
-        it('reads the rules of every role through the policy cache', async () => {
-            policyCache.getByRoleIdsAndCache.mockResolvedValue([policy]);
+    describe('findManyByRoleReferences', () => {
+        it('delegates to policyCache.getByRoleReferences', async () => {
+            const references = [
+                { roleId: 'a', policyRevision: 1 },
+                { roleId: 'b', policyRevision: 2 },
+            ];
+            policyCache.getByRoleReferences.mockResolvedValue([policy]);
 
-            await expect(service.findManyByRoleIds('a', 'b')).resolves.toEqual([
-                policy,
-            ]);
-            expect(policyCache.getByRoleIdsAndCache).toHaveBeenCalledWith([
-                'a',
-                'b',
-            ]);
+            await expect(
+                service.findManyByRoleReferences(references)
+            ).resolves.toEqual([policy]);
+            expect(policyCache.getByRoleReferences).toHaveBeenCalledWith(
+                references
+            );
             expect(policyRepository.findManyByRoleIds).not.toHaveBeenCalled();
         });
     });
@@ -273,9 +285,11 @@ describe('PolicyDomain', () => {
                     ruleRequest
                 )
             ).rejects.toBeInstanceOf(PolicyInvalidRuleException);
-            expect(policyRepository.create).not.toHaveBeenCalled();
+            expect(policyRepository.createInTx).not.toHaveBeenCalled();
             expect(activityLogDomain.prepare).not.toHaveBeenCalled();
-            expect(policyCache.deleteCacheByRoleId).not.toHaveBeenCalled();
+            expect(
+                roleDomain.incrementPolicyRevisionInTx
+            ).not.toHaveBeenCalled();
         });
 
         it('update validates conditions against the stored subject (Analytic stored + conditions → conditionsNotAllowed)', async () => {
@@ -292,13 +306,13 @@ describe('PolicyDomain', () => {
             ).rejects.toMatchObject({
                 messagePath: 'policy.error.invalidRule.conditionsNotAllowed',
             });
-            expect(policyRepository.update).not.toHaveBeenCalled();
+            expect(policyRepository.updateInTx).not.toHaveBeenCalled();
             expect(activityLogDomain.prepare).not.toHaveBeenCalled();
         });
 
         it('update accepts conditions on a stored model subject', async () => {
             policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
-            policyRepository.update.mockResolvedValue(policy);
+            policyRepository.updateInTx.mockResolvedValue(policy);
 
             await expect(
                 service.updateByAdmin(role, policy.id, {
@@ -312,13 +326,14 @@ describe('PolicyDomain', () => {
     describe('createByAdmin', () => {
         it('creates a policy on the given role and stages its activity', async () => {
             const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
-            policyRepository.create.mockResolvedValue(policy);
+            policyRepository.createInTx.mockResolvedValue(policy);
             activityLogDomain.prepare.mockReturnValue(event);
 
             await expect(
                 service.createByAdmin(role, ruleRequest)
             ).resolves.toBe(policy);
-            expect(policyRepository.create).toHaveBeenCalledWith(
+            expect(policyRepository.createInTx).toHaveBeenCalledWith(
+                tx,
                 'role-id',
                 ruleRequest
             );
@@ -328,14 +343,15 @@ describe('PolicyDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 event,
             ]);
-            expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith(
+            expect(roleDomain.incrementPolicyRevisionInTx).toHaveBeenCalledWith(
+                tx,
                 'role-id'
             );
         });
 
         it('rethrows any other write error and stages nothing', async () => {
             const error = new Error('boom');
-            policyRepository.create.mockRejectedValue(error);
+            policyRepository.createInTx.mockRejectedValue(error);
 
             await expect(service.createByAdmin(role, ruleRequest)).rejects.toBe(
                 error
@@ -343,15 +359,55 @@ describe('PolicyDomain', () => {
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it('rejects the write when the cache invalidation fails', async () => {
-            const error = new Error('redis down');
-            policyRepository.create.mockResolvedValue(policy);
-            policyCache.deleteCacheByRoleId.mockRejectedValue(error);
+        it('when the increment throws, the error propagates and no activity is staged', async () => {
+            const error = new Error('increment failed');
+            policyRepository.createInTx.mockResolvedValue(policy);
+            roleDomain.incrementPolicyRevisionInTx.mockRejectedValue(error);
 
             await expect(service.createByAdmin(role, ruleRequest)).rejects.toBe(
                 error
             );
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('prepares the activity before the transaction and stages it after', async () => {
+            const callOrder: string[] = [];
+            const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
+            activityLogDomain.prepare.mockImplementation(() => {
+                callOrder.push('prepare');
+                return event;
+            });
+            databaseService.withTransaction.mockImplementation(
+                async callback => {
+                    callOrder.push('begin');
+                    const result = await callback(tx);
+                    callOrder.push('commit');
+                    return result;
+                }
+            );
+            policyRepository.createInTx.mockImplementation(async () => {
+                callOrder.push('write');
+                return policy;
+            });
+            roleDomain.incrementPolicyRevisionInTx.mockImplementation(
+                async () => {
+                    callOrder.push('increment');
+                }
+            );
+            activityLogDomain.stagePrepared.mockImplementation(() => {
+                callOrder.push('stage');
+            });
+
+            await service.createByAdmin(role, ruleRequest);
+
+            expect(callOrder).toEqual([
+                'prepare',
+                'begin',
+                'write',
+                'increment',
+                'commit',
+                'stage',
+            ]);
         });
     });
 
@@ -366,19 +422,20 @@ describe('PolicyDomain', () => {
                 'role-id',
                 'other-role-policy'
             );
-            expect(policyRepository.update).not.toHaveBeenCalled();
+            expect(policyRepository.updateInTx).not.toHaveBeenCalled();
         });
 
         it('updates a policy and stages its activity', async () => {
             const event = mock<ReturnType<ActivityLogDomain['prepare']>>();
             policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
-            policyRepository.update.mockResolvedValue(policy);
+            policyRepository.updateInTx.mockResolvedValue(policy);
             activityLogDomain.prepare.mockReturnValue(event);
 
             await expect(
                 service.updateByAdmin(role, policy.id, ruleUpdate)
             ).resolves.toBe(policy);
-            expect(policyRepository.update).toHaveBeenCalledWith(
+            expect(policyRepository.updateInTx).toHaveBeenCalledWith(
+                tx,
                 policy.id,
                 ruleUpdate
             );
@@ -388,7 +445,8 @@ describe('PolicyDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 event,
             ]);
-            expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith(
+            expect(roleDomain.incrementPolicyRevisionInTx).toHaveBeenCalledWith(
+                tx,
                 'role-id'
             );
         });
@@ -396,7 +454,19 @@ describe('PolicyDomain', () => {
         it('rethrows any other write error and stages nothing', async () => {
             const error = new Error('boom');
             policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
-            policyRepository.update.mockRejectedValue(error);
+            policyRepository.updateInTx.mockRejectedValue(error);
+
+            await expect(
+                service.updateByAdmin(role, policy.id, ruleUpdate)
+            ).rejects.toBe(error);
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('when the increment throws, the error propagates and no activity is staged', async () => {
+            const error = new Error('increment failed');
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
+            policyRepository.updateInTx.mockResolvedValue(policy);
+            roleDomain.incrementPolicyRevisionInTx.mockRejectedValue(error);
 
             await expect(
                 service.updateByAdmin(role, policy.id, ruleUpdate)
@@ -416,21 +486,53 @@ describe('PolicyDomain', () => {
                 'role-id',
                 'other-role-policy'
             );
-            expect(policyRepository.delete).not.toHaveBeenCalled();
+            expect(policyRepository.deleteInTx).not.toHaveBeenCalled();
         });
 
         it('deletes a policy and stages its activity', async () => {
             policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
-            policyRepository.delete.mockResolvedValue(policy);
+            policyRepository.deleteInTx.mockResolvedValue(policy);
 
             await expect(service.deleteByAdmin(role, policy.id)).resolves.toBe(
                 policy
             );
-            expect(policyRepository.delete).toHaveBeenCalledWith(policy.id);
+            expect(policyRepository.deleteInTx).toHaveBeenCalledWith(
+                tx,
+                policy.id
+            );
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
-            expect(policyCache.deleteCacheByRoleId).toHaveBeenCalledWith(
+            expect(roleDomain.incrementPolicyRevisionInTx).toHaveBeenCalledWith(
+                tx,
                 'role-id'
             );
+        });
+
+        it('when the increment throws, the error propagates and no activity is staged', async () => {
+            const error = new Error('increment failed');
+            policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
+            policyRepository.deleteInTx.mockResolvedValue(policy);
+            roleDomain.incrementPolicyRevisionInTx.mockRejectedValue(error);
+
+            await expect(service.deleteByAdmin(role, policy.id)).rejects.toBe(
+                error
+            );
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('policy cache', () => {
+        it('calls no PolicyCache method on create, update or delete', async () => {
+            policyRepository.createInTx.mockResolvedValue(policy);
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
+            policyRepository.updateInTx.mockResolvedValue(policy);
+            policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
+            policyRepository.deleteInTx.mockResolvedValue(policy);
+
+            await service.createByAdmin(role, ruleRequest);
+            await service.updateByAdmin(role, policy.id, ruleUpdate);
+            await service.deleteByAdmin(role, policy.id);
+
+            expect(policyCache.getByRoleReferences).not.toHaveBeenCalled();
         });
     });
 
@@ -462,12 +564,14 @@ describe('PolicyDomain', () => {
                 expect(
                     policyRepository.existsByRoleIdAndId
                 ).not.toHaveBeenCalled();
-                expect(policyRepository.create).not.toHaveBeenCalled();
-                expect(policyRepository.update).not.toHaveBeenCalled();
-                expect(policyRepository.delete).not.toHaveBeenCalled();
+                expect(policyRepository.createInTx).not.toHaveBeenCalled();
+                expect(policyRepository.updateInTx).not.toHaveBeenCalled();
+                expect(policyRepository.deleteInTx).not.toHaveBeenCalled();
                 expect(activityLogDomain.prepare).not.toHaveBeenCalled();
                 expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
-                expect(policyCache.deleteCacheByRoleId).not.toHaveBeenCalled();
+                expect(
+                    roleDomain.incrementPolicyRevisionInTx
+                ).not.toHaveBeenCalled();
             }
         );
 
@@ -475,7 +579,7 @@ describe('PolicyDomain', () => {
             ['a workspace role sharing the key', EnumRoleScope.workspace],
             ['a project role sharing the key', EnumRoleScope.project],
         ])('does not reject %s', async (_name, scope) => {
-            policyRepository.create.mockResolvedValue(policy);
+            policyRepository.createInTx.mockResolvedValue(policy);
 
             await expect(
                 service.createByAdmin(
@@ -490,7 +594,7 @@ describe('PolicyDomain', () => {
         });
 
         it('lets a non super administrator platform role through', async () => {
-            policyRepository.create.mockResolvedValue(policy);
+            policyRepository.createInTx.mockResolvedValue(policy);
 
             await expect(
                 service.createByAdmin(role, ruleRequest)
@@ -500,11 +604,11 @@ describe('PolicyDomain', () => {
 
     describe('role loading', () => {
         it('never calls roleDomain on create, update or delete', async () => {
-            policyRepository.create.mockResolvedValue(policy);
+            policyRepository.createInTx.mockResolvedValue(policy);
             policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
-            policyRepository.update.mockResolvedValue(policy);
+            policyRepository.updateInTx.mockResolvedValue(policy);
             policyRepository.existsByRoleIdAndId.mockResolvedValue(true);
-            policyRepository.delete.mockResolvedValue(policy);
+            policyRepository.deleteInTx.mockResolvedValue(policy);
 
             await service.createByAdmin(role, ruleRequest);
             await service.updateByAdmin(role, policy.id, ruleUpdate);

@@ -42,9 +42,13 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    async findByIdForAdmin(workspaceId: string): Promise<Workspace | null> {
-        return this.databaseService.client.workspace.findUnique({
-            where: { id: workspaceId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findByIdForAdmin(
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
+        return this.databaseService.client.workspace.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
         });
     }
 

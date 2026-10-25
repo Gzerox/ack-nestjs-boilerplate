@@ -14,7 +14,10 @@ import type { WorkspaceUpdateRequestDto } from '@modules/workspace/dtos/request/
 export interface IWorkspaceRepository {
     findActiveById(workspaceId: string): Promise<Workspace | null>;
     findActivePublicBySlug(slug: string): Promise<Workspace | null>;
-    findByIdForAdmin(workspaceId: string): Promise<Workspace | null>;
+    findByIdForAdmin(
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
     existsBySlug(slug: string, excludeWorkspaceId?: string): Promise<boolean>;
     findWithPaginationCursorByMember(
         userId: string,

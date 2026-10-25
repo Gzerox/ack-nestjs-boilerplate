@@ -643,9 +643,15 @@ export class WorkspaceDomain {
         );
     }
 
-    async getByIdForAdmin(workspaceId: string): Promise<Workspace> {
-        const workspace =
-            await this.workspaceRepository.findByIdForAdmin(workspaceId);
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async getByIdForAdmin(
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace> {
+        const workspace = await this.workspaceRepository.findByIdForAdmin(
+            workspaceId,
+            additionalWhere
+        );
         if (!workspace) {
             throw new WorkspaceNotFoundException();
         }

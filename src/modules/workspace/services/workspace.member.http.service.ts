@@ -22,6 +22,7 @@ import type {
     IWorkspaceMember,
     IWorkspaceMemberWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
+import { WorkspaceDomain } from '@modules/workspace/domains/workspace.domain';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -29,6 +30,7 @@ import { Injectable } from '@nestjs/common';
 export class WorkspaceMemberHttpService {
     constructor(
         private readonly workspaceMemberDomain: WorkspaceMemberDomain,
+        private readonly workspaceDomain: WorkspaceDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
         private readonly requestStoreService: RequestStoreService
@@ -148,6 +150,12 @@ export class WorkspaceMemberHttpService {
         workspaceId: string,
         query: WorkspaceAdminMemberListRequestDto
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+        const workspaceWhere = this.policyAbilityDomain.accessibleWhere(
+            EnumPolicyAction.read,
+            EnumPolicySubject.Workspace
+        );
+        await this.workspaceDomain.getByIdForAdmin(workspaceId, workspaceWhere);
+
         const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
             EnumPolicyAction.read,
             EnumPolicySubject.WorkspaceMember

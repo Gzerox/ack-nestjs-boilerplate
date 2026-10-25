@@ -610,6 +610,42 @@ describe('WorkspaceDomain', () => {
         );
     });
 
+    describe('getByIdForAdmin', () => {
+        const additionalWhere = { id: 'workspace-id' };
+
+        it('forwards additionalWhere to the repository read', async () => {
+            workspaceRepository.findByIdForAdmin.mockResolvedValue(workspace);
+
+            await expect(
+                domain.getByIdForAdmin(workspace.id, additionalWhere)
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.findByIdForAdmin).toHaveBeenCalledWith(
+                workspace.id,
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere reads by id only', async () => {
+            workspaceRepository.findByIdForAdmin.mockResolvedValue(workspace);
+
+            await expect(domain.getByIdForAdmin(workspace.id)).resolves.toBe(
+                workspace
+            );
+            expect(workspaceRepository.findByIdForAdmin).toHaveBeenCalledWith(
+                workspace.id,
+                undefined
+            );
+        });
+
+        it('throws WorkspaceNotFoundException when the read returns null with additionalWhere', async () => {
+            workspaceRepository.findByIdForAdmin.mockResolvedValue(null);
+
+            await expect(
+                domain.getByIdForAdmin('missing', additionalWhere)
+            ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+        });
+    });
+
     it('previews a public workspace after checking the feature flag', async () => {
         workspaceRepository.findActivePublicBySlug.mockResolvedValue(workspace);
         await expect(domain.previewWorkspace(workspace.slug)).resolves.toBe(

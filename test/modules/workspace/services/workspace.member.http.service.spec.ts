@@ -28,12 +28,15 @@ import type {
     IWorkspaceMember,
     IWorkspaceMemberWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
+import { WorkspaceDomain } from '@modules/workspace/domains/workspace.domain';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
+import { WorkspaceNotFoundException } from '@modules/workspace/exceptions/workspace.not-found.exception';
 import { WorkspaceMemberHttpService } from '@modules/workspace/services/workspace.member.http.service';
 
 describe('WorkspaceMemberHttpService', () => {
     const workspaceMemberDomain: MockProxy<WorkspaceMemberDomain> =
         mock<WorkspaceMemberDomain>();
+    const workspaceDomain: MockProxy<WorkspaceDomain> = mock<WorkspaceDomain>();
     const paginationQueryUtil: MockProxy<PaginationQueryUtil> =
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
@@ -42,6 +45,9 @@ describe('WorkspaceMemberHttpService', () => {
         mock<PolicyAbilityDomain>();
     const accessibleMemberWhere: Prisma.WorkspaceMemberWhereInput = {
         workspaceId: 'workspace-id',
+    };
+    const accessibleWorkspaceWhere: Prisma.WorkspaceWhereInput = {
+        id: 'workspace-id',
     };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const actorMember = {
@@ -152,8 +158,11 @@ describe('WorkspaceMemberHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        policyAbilityDomain.accessibleWhere.mockReturnValue(
-            accessibleMemberWhere
+        policyAbilityDomain.accessibleWhere.mockImplementation(
+            (_action, subjectName) =>
+                subjectName === EnumPolicySubject.Workspace
+                    ? accessibleWorkspaceWhere
+                    : accessibleMemberWhere
         );
 
         const module: TestingModule = await Test.createTestingModule({
@@ -164,6 +173,7 @@ describe('WorkspaceMemberHttpService', () => {
                     provide: WorkspaceMemberDomain,
                     useValue: workspaceMemberDomain,
                 },
+                { provide: WorkspaceDomain, useValue: workspaceDomain },
                 {
                     provide: PaginationQueryUtil,
                     useValue: paginationQueryUtil,
@@ -465,6 +475,55 @@ describe('WorkspaceMemberHttpService', () => {
                 EnumPolicySubject.WorkspaceMember
             );
             expect(result).toEqual(offsetPage);
+        });
+
+        it('loads the parent workspace with accessibleWhere(read, Workspace) before listing', async () => {
+            const callOrder: string[] = [];
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            workspaceDomain.getByIdForAdmin.mockImplementation(async () => {
+                callOrder.push('parent');
+                return { id: 'workspace-id' } as Workspace;
+            });
+            workspaceMemberDomain.getMembersListForAdmin.mockImplementation(
+                async () => {
+                    callOrder.push('list');
+                    return offsetPage;
+                }
+            );
+
+            await service.getMembersListForAdmin('workspace-id', {
+                page: 1,
+                perPage: 20,
+            });
+
+            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                EnumPolicySubject.Workspace
+            );
+            expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
+                'workspace-id',
+                accessibleWorkspaceWhere
+            );
+            expect(callOrder).toEqual(['parent', 'list']);
+        });
+
+        it('throws WorkspaceNotFoundException and never lists when the parent lookup misses', async () => {
+            workspaceDomain.getByIdForAdmin.mockRejectedValue(
+                new WorkspaceNotFoundException()
+            );
+
+            await expect(
+                service.getMembersListForAdmin('workspace-id', {
+                    page: 1,
+                    perPage: 20,
+                })
+            ).rejects.toThrow(WorkspaceNotFoundException);
+            expect(
+                workspaceMemberDomain.getMembersListForAdmin
+            ).not.toHaveBeenCalled();
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {

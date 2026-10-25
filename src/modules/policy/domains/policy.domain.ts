@@ -5,7 +5,7 @@ import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy
 import { PolicyCache } from '@modules/policy/caches/policy.cache';
 import type { IPolicyRule } from '@modules/policy/interfaces/policy.interface';
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
-import { RoleDomain } from '@modules/role/domains/role.domain';
+import type { IRole } from '@modules/role/interfaces/role.interface';
 import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { Injectable } from '@nestjs/common';
@@ -20,13 +20,10 @@ export class PolicyDomain {
     constructor(
         private readonly policyRepository: PolicyRepository,
         private readonly policyCache: PolicyCache,
-        private readonly roleDomain: RoleDomain,
         private readonly activityLogDomain: ActivityLogDomain
     ) {}
 
-    private async validateRoleWritable(roleId: string): Promise<void> {
-        const role = await this.roleDomain.getOne(roleId);
-
+    private validateRoleWritable(role: IRole): void {
         if (
             role.scope === EnumRoleScope.platform &&
             role.key === EnumRolePlatformKey.superAdmin
@@ -38,7 +35,7 @@ export class PolicyDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findManyByRole(
         roleId: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere?: Prisma.PolicyWhereInput
     ): Promise<Policy[]> {
         return this.policyRepository.findManyByRoleId(roleId, additionalWhere);
     }
@@ -49,10 +46,10 @@ export class PolicyDomain {
     }
 
     async createByAdmin(
-        roleId: string,
+        role: IRole,
         dto: PolicyCreateRequestDto
     ): Promise<Policy> {
-        await this.validateRoleWritable(roleId);
+        this.validateRoleWritable(role);
 
         const events = [
             this.activityLogDomain.prepare({
@@ -60,8 +57,8 @@ export class PolicyDomain {
             }),
         ];
 
-        const created = await this.policyRepository.create(roleId, dto);
-        await this.policyCache.deleteCacheByRoleId(roleId);
+        const created = await this.policyRepository.create(role.id, dto);
+        await this.policyCache.deleteCacheByRoleId(role.id);
 
         this.activityLogDomain.stagePrepared(events);
 
@@ -69,14 +66,14 @@ export class PolicyDomain {
     }
 
     async updateByAdmin(
-        roleId: string,
+        role: IRole,
         id: string,
         dto: PolicyUpdateRequestDto
     ): Promise<Policy> {
-        await this.validateRoleWritable(roleId);
+        this.validateRoleWritable(role);
 
         const stored = await this.policyRepository.findOneByRoleIdAndId(
-            roleId,
+            role.id,
             id
         );
         if (!stored) {
@@ -90,18 +87,18 @@ export class PolicyDomain {
         ];
 
         const updated = await this.policyRepository.update(id, dto);
-        await this.policyCache.deleteCacheByRoleId(roleId);
+        await this.policyCache.deleteCacheByRoleId(role.id);
 
         this.activityLogDomain.stagePrepared(events);
 
         return updated;
     }
 
-    async deleteByAdmin(roleId: string, id: string): Promise<Policy> {
-        await this.validateRoleWritable(roleId);
+    async deleteByAdmin(role: IRole, id: string): Promise<Policy> {
+        this.validateRoleWritable(role);
 
         const policyExists = await this.policyRepository.existsByRoleIdAndId(
-            roleId,
+            role.id,
             id
         );
         if (!policyExists) {
@@ -114,7 +111,7 @@ export class PolicyDomain {
             }),
         ];
         const deleted = await this.policyRepository.delete(id);
-        await this.policyCache.deleteCacheByRoleId(roleId);
+        await this.policyCache.deleteCacheByRoleId(role.id);
 
         this.activityLogDomain.stagePrepared(events);
 

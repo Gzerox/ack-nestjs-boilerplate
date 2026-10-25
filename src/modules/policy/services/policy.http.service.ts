@@ -11,6 +11,7 @@ import {
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyDomain } from '@modules/policy/domains/policy.domain';
 import { RoleDomain } from '@modules/role/domains/role.domain';
+import type { IRole } from '@modules/role/interfaces/role.interface';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -21,6 +22,20 @@ export class PolicyHttpService {
         private readonly policyAbilityDomain: PolicyAbilityDomain
     ) {}
 
+    private async loadWritableRole(roleId: string): Promise<IRole> {
+        const roleScope = this.policyAbilityDomain.scope(
+            EnumPolicyAction.read,
+            EnumPolicySubject.Role
+        );
+        const role = await this.roleDomain.getOne(roleId, roleScope);
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.update,
+            subject(EnumPolicySubject.Role, role)
+        );
+
+        return role;
+    }
+
     async listByAdmin(
         roleId: string
     ): Promise<IResponseReturn<PolicyListResponseDto>> {
@@ -28,10 +43,9 @@ export class PolicyHttpService {
             EnumPolicyAction.read,
             EnumPolicySubject.Role
         );
-        const policies = await this.policyDomain.findManyByRole(
-            roleId,
-            scopeWhere
-        );
+        const policies = await this.policyDomain.findManyByRole(roleId, {
+            role: scopeWhere,
+        });
 
         return {
             data: { policies },
@@ -52,12 +66,8 @@ export class PolicyHttpService {
         roleId: string,
         body: PolicyCreateRequestDto
     ): Promise<IResponseReturn<PolicyDto>> {
-        const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.Role, role)
-        );
-        const created = await this.policyDomain.createByAdmin(roleId, body);
+        const role = await this.loadWritableRole(roleId);
+        const created = await this.policyDomain.createByAdmin(role, body);
 
         return { data: created };
     }
@@ -67,12 +77,8 @@ export class PolicyHttpService {
         id: string,
         body: PolicyUpdateRequestDto
     ): Promise<IResponseReturn<PolicyDto>> {
-        const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.Role, role)
-        );
-        const updated = await this.policyDomain.updateByAdmin(roleId, id, body);
+        const role = await this.loadWritableRole(roleId);
+        const updated = await this.policyDomain.updateByAdmin(role, id, body);
 
         return { data: updated };
     }
@@ -81,12 +87,8 @@ export class PolicyHttpService {
         roleId: string,
         id: string
     ): Promise<IResponseReturn<void>> {
-        const role = await this.roleDomain.getOne(roleId);
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.Role, role)
-        );
-        await this.policyDomain.deleteByAdmin(roleId, id);
+        const role = await this.loadWritableRole(roleId);
+        await this.policyDomain.deleteByAdmin(role, id);
 
         return {};
     }

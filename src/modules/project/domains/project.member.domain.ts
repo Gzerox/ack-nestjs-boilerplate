@@ -175,11 +175,13 @@ export class ProjectMemberDomain {
         return member;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMemberRole(
         project: Project,
         actorId: string,
         targetMember: IProjectMemberWithRole,
-        roleId: string
+        roleId: string,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<void> {
         const role = await this.roleDomain.resolve(
             roleId,
@@ -212,15 +214,24 @@ export class ProjectMemberDomain {
             events.push(roleUpdatedByAdminEvent);
         }
 
-        await this.projectMemberRepository.updateRole(targetMember.id, role.id);
+        const updated = await this.projectMemberRepository.updateRole(
+            targetMember.id,
+            role.id,
+            additionalWhere
+        );
+        if (!updated) {
+            throw new ProjectMemberNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async removeMember(
         project: Project,
         actorId: string,
-        targetMember: IProjectMemberWithRole
+        targetMember: IProjectMemberWithRole,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
     ): Promise<void> {
         if (targetMember.userId === actorId) {
             throw new ProjectMemberPeerForbiddenException();
@@ -250,7 +261,13 @@ export class ProjectMemberDomain {
             events.push(removedByAdminEvent);
         }
 
-        await this.projectMemberRepository.removeMember(targetMember.id);
+        const removed = await this.projectMemberRepository.removeMember(
+            targetMember.id,
+            additionalWhere
+        );
+        if (!removed) {
+            throw new ProjectMemberNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }

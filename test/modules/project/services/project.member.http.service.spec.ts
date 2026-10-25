@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -25,6 +24,7 @@ import type {
     IProjectMember,
     IProjectMemberWithRole,
 } from '@modules/project/interfaces/project.interface';
+import { ProjectMemberNotFoundException } from '@modules/project/exceptions/project.member-not-found.exception';
 import { ProjectMemberHttpService } from '@modules/project/services/project.member.http.service';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 
@@ -163,68 +163,98 @@ describe('ProjectMemberHttpService', () => {
         );
     });
 
-    it('checks the target member before delegating a role update', async () => {
+    describe('updateMemberRole', () => {
         const body = mock<ProjectMemberUpdateRoleRequestDto>({
             roleId: 'role-id',
         });
-        projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
-            targetMember
-        );
-        await service.updateMemberRole(
-            project,
-            'actor-id',
-            'target-member-id',
-            body
-        );
-        expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.ProjectMember, targetMember)
-        );
-        expect(projectMemberDomain.updateMemberRole).toHaveBeenCalledWith(
-            project,
-            'actor-id',
-            targetMember,
-            body.roleId
-        );
-    });
+        const scopeWhere: Prisma.ProjectMemberWhereInput = {
+            projectId: 'project-id',
+        };
 
-    it('does not mutate when the target member fails the policy check', async () => {
-        const body = mock<ProjectMemberUpdateRoleRequestDto>({
-            roleId: 'role-id',
-        });
-        const error = new Error('forbidden');
-        projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
-            targetMember
-        );
-        policyAbilityDomain.authorize.mockImplementation(() => {
-            throw error;
-        });
+        it('passes scope(update, ProjectMember) as additionalWhere to the lookup and the write', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+            projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
+                targetMember
+            );
 
-        await expect(
-            service.updateMemberRole(
+            await service.updateMemberRole(
                 project,
                 'actor-id',
                 'target-member-id',
                 body
-            )
-        ).rejects.toThrow(error);
-        expect(projectMemberDomain.updateMemberRole).not.toHaveBeenCalled();
+            );
+
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                EnumPolicySubject.ProjectMember
+            );
+            expect(
+                projectMemberDomain.getOneByIdAndProject
+            ).toHaveBeenCalledWith(
+                'project-id',
+                'target-member-id',
+                scopeWhere
+            );
+            expect(projectMemberDomain.updateMemberRole).toHaveBeenCalledWith(
+                project,
+                'actor-id',
+                targetMember,
+                body.roleId,
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
+
+        it('does not mutate when the scoped lookup throws ProjectMemberNotFoundException', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+            projectMemberDomain.getOneByIdAndProject.mockRejectedValue(
+                new ProjectMemberNotFoundException()
+            );
+
+            await expect(
+                service.updateMemberRole(
+                    project,
+                    'actor-id',
+                    'target-member-id',
+                    body
+                )
+            ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
+            expect(projectMemberDomain.updateMemberRole).not.toHaveBeenCalled();
+        });
     });
 
-    it('checks the target member before delegating a removal', async () => {
-        projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
-            targetMember
-        );
-        await service.removeMember(project, 'actor-id', 'target-member-id');
-        expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
-            EnumPolicyAction.delete,
-            subject(EnumPolicySubject.ProjectMember, targetMember)
-        );
-        expect(projectMemberDomain.removeMember).toHaveBeenCalledWith(
-            project,
-            'actor-id',
-            targetMember
-        );
+    describe('removeMember', () => {
+        const scopeWhere: Prisma.ProjectMemberWhereInput = {
+            projectId: 'project-id',
+        };
+
+        it('passes scope(delete, ProjectMember) as additionalWhere to the lookup and the write', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+            projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
+                targetMember
+            );
+
+            await service.removeMember(project, 'actor-id', 'target-member-id');
+
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                EnumPolicySubject.ProjectMember
+            );
+            expect(
+                projectMemberDomain.getOneByIdAndProject
+            ).toHaveBeenCalledWith(
+                'project-id',
+                'target-member-id',
+                scopeWhere
+            );
+            expect(projectMemberDomain.removeMember).toHaveBeenCalledWith(
+                project,
+                'actor-id',
+                targetMember,
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
     });
 
     it('delegates leaving the project to the domain', async () => {

@@ -99,20 +99,22 @@ export class ProjectMemberHttpService {
         targetMemberId: string,
         { roleId }: ProjectMemberUpdateRoleRequestDto
     ): Promise<void> {
+        const scopeWhere = this.policyAbilityDomain.scope(
+            EnumPolicyAction.update,
+            EnumPolicySubject.ProjectMember
+        );
         const targetMember =
             await this.projectMemberDomain.getOneByIdAndProject(
                 project.id,
-                targetMemberId
+                targetMemberId,
+                scopeWhere
             );
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.update,
-            subject(EnumPolicySubject.ProjectMember, targetMember)
-        );
         await this.projectMemberDomain.updateMemberRole(
             project,
             actorId,
             targetMember,
-            roleId
+            roleId,
+            scopeWhere
         );
     }
 
@@ -121,19 +123,21 @@ export class ProjectMemberHttpService {
         actorId: string,
         targetMemberId: string
     ): Promise<void> {
+        const scopeWhere = this.policyAbilityDomain.scope(
+            EnumPolicyAction.delete,
+            EnumPolicySubject.ProjectMember
+        );
         const targetMember =
             await this.projectMemberDomain.getOneByIdAndProject(
                 project.id,
-                targetMemberId
+                targetMemberId,
+                scopeWhere
             );
-        this.policyAbilityDomain.authorize(
-            EnumPolicyAction.delete,
-            subject(EnumPolicySubject.ProjectMember, targetMember)
-        );
         await this.projectMemberDomain.removeMember(
             project,
             actorId,
-            targetMember
+            targetMember,
+            scopeWhere
         );
     }
 

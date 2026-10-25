@@ -46,6 +46,15 @@ export interface IProjectMemberRepository {
         roleId: string,
         createdBy: string
     ): Promise<IProjectMember>;
-    updateRole(targetMemberId: string, roleId: string): Promise<void>;
-    removeMember(targetMemberId: string): Promise<void>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    updateRole(
+        targetMemberId: string,
+        roleId: string,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
+    ): Promise<ProjectMember | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    removeMember(
+        targetMemberId: string,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
+    ): Promise<ProjectMember | null>;
 }

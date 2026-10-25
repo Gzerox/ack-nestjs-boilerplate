@@ -161,18 +161,47 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
-    async updateRole(targetMemberId: string, roleId: string): Promise<void> {
-        await this.databaseService.client.projectMember.update({
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async updateRole(
+        targetMemberId: string,
+        roleId: string,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
+    ): Promise<ProjectMember | null> {
+        const { count } =
+            await this.databaseService.client.projectMember.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                },
+                data: {
+                    roleId,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.projectMember.findUnique({
             where: { id: targetMemberId },
-            data: {
-                roleId,
-            },
         });
     }
 
-    async removeMember(targetMemberId: string): Promise<void> {
-        await this.databaseService.client.projectMember.delete({
-            where: { id: targetMemberId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async removeMember(
+        targetMemberId: string,
+        additionalWhere?: Prisma.ProjectMemberWhereInput
+    ): Promise<ProjectMember | null> {
+        return this.databaseService.withTransaction(async tx => {
+            const where: Prisma.ProjectMemberWhereInput = {
+                AND: [additionalWhere ?? {}, { id: targetMemberId }],
+            };
+            const existing = await tx.projectMember.findFirst({ where });
+            if (!existing) {
+                return null;
+            }
+
+            const { count } = await tx.projectMember.deleteMany({ where });
+
+            return count > 0 ? existing : null;
         });
     }
 }

@@ -259,6 +259,14 @@ describe('WorkspaceMemberDomain', () => {
     });
 
     describe('transferOwnership', () => {
+        const additionalWhere: Prisma.WorkspaceWhereInput = {
+            isPublic: true,
+        };
+
+        beforeEach(() => {
+            memberRepository.transferOwnership.mockResolvedValue(member);
+        });
+
         it('rejects a non-owner actor before any repository read', async () => {
             await expect(
                 domain.transferOwnership('workspace-id', admin, member.userId)
@@ -348,7 +356,8 @@ describe('WorkspaceMemberDomain', () => {
                 owner.id,
                 member.id,
                 ownerRole.id,
-                adminRole.id
+                adminRole.id,
+                undefined
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceOwnershipTransferred,
@@ -366,6 +375,83 @@ describe('WorkspaceMemberDomain', () => {
             });
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
+
+        it('forwards additionalWhere to the repository transfer', async () => {
+            memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(
+                member
+            );
+            roleDomain.getByScopeAndKey.mockImplementation(
+                async (_scope, key) =>
+                    key === EnumRoleWorkspaceKey.owner ? ownerRole : adminRole
+            );
+
+            await domain.transferOwnership(
+                'workspace-id',
+                owner,
+                member.userId,
+                additionalWhere
+            );
+
+            expect(memberRepository.transferOwnership).toHaveBeenCalledWith(
+                owner.id,
+                member.id,
+                ownerRole.id,
+                adminRole.id,
+                additionalWhere
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it.each([{ isPublic: true }, undefined])(
+            'throws WorkspaceNotFoundException and stages nothing when the repository transfer returns null (additionalWhere: %j)',
+            async scoped => {
+                memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(
+                    member
+                );
+                roleDomain.getByScopeAndKey.mockImplementation(
+                    async (_scope, key) =>
+                        key === EnumRoleWorkspaceKey.owner
+                            ? ownerRole
+                            : adminRole
+                );
+                memberRepository.transferOwnership.mockResolvedValue(null);
+
+                await expect(
+                    domain.transferOwnership(
+                        'workspace-id',
+                        owner,
+                        member.userId,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+
+        it.each([{ isPublic: true }, undefined])(
+            'still rejects a non-owner actor and a self-transfer before any write (additionalWhere: %j)',
+            async scoped => {
+                await expect(
+                    domain.transferOwnership(
+                        'workspace-id',
+                        admin,
+                        member.userId,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceMemberPeerForbiddenException);
+                await expect(
+                    domain.transferOwnership(
+                        'workspace-id',
+                        owner,
+                        owner.userId,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceSelfTransferException);
+                expect(
+                    memberRepository.transferOwnership
+                ).not.toHaveBeenCalled();
+            }
+        );
 
         it('stages only the actor event when the loaded target resolves to the actor', async () => {
             const actorEvent = { id: 'actor-event' } as never;
@@ -495,6 +581,14 @@ describe('WorkspaceMemberDomain', () => {
     });
 
     describe('updateMemberRole', () => {
+        const additionalWhere: Prisma.WorkspaceMemberWhereInput = {
+            role: { key: EnumRoleWorkspaceKey.member },
+        };
+
+        beforeEach(() => {
+            memberRepository.updateRole.mockResolvedValue(member);
+        });
+
         it('never re-reads the target the guard already authorized', async () => {
             roleDomain.resolve.mockResolvedValue(adminRole);
 
@@ -605,7 +699,8 @@ describe('WorkspaceMemberDomain', () => {
             );
             expect(memberRepository.updateRole).toHaveBeenCalledWith(
                 member.id,
-                adminRole.id
+                adminRole.id,
+                undefined
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceMemberRoleUpdated,
@@ -636,9 +731,53 @@ describe('WorkspaceMemberDomain', () => {
 
             expect(memberRepository.updateRole).toHaveBeenCalledWith(
                 otherAdmin.id,
-                memberRole.id
+                memberRole.id,
+                undefined
             );
         });
+
+        it('forwards additionalWhere to the repository role write', async () => {
+            roleDomain.resolve.mockResolvedValue(adminRole);
+
+            await domain.updateMemberRole(
+                'workspace-id',
+                owner,
+                member,
+                adminRole.id,
+                additionalWhere
+            );
+
+            expect(memberRepository.updateRole).toHaveBeenCalledWith(
+                member.id,
+                adminRole.id,
+                additionalWhere
+            );
+        });
+
+        it.each([
+            [
+                'a where',
+                { role: { key: EnumRoleWorkspaceKey.member } } as const,
+            ],
+            ['no where', undefined],
+        ])(
+            'throws WorkspaceMemberNotFoundException and stages nothing when the role write returns null with %s',
+            async (_name, scoped) => {
+                roleDomain.resolve.mockResolvedValue(adminRole);
+                memberRepository.updateRole.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateMemberRole(
+                        'workspace-id',
+                        owner,
+                        member,
+                        adminRole.id,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceMemberNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
 
         it('skips the paired activity row when the actor changes its own role', async () => {
             roleDomain.resolve.mockResolvedValue(memberRole);
@@ -655,6 +794,14 @@ describe('WorkspaceMemberDomain', () => {
     });
 
     describe('removeMember', () => {
+        const additionalWhere: Prisma.WorkspaceMemberWhereInput = {
+            role: { key: EnumRoleWorkspaceKey.member },
+        };
+
+        beforeEach(() => {
+            memberRepository.removeMember.mockResolvedValue(member);
+        });
+
         it('never re-reads the target the guard already authorized', async () => {
             await domain.removeMember('workspace-id', admin, member);
 
@@ -683,7 +830,8 @@ describe('WorkspaceMemberDomain', () => {
             await domain.removeMember('workspace-id', admin, member);
 
             expect(memberRepository.removeMember).toHaveBeenCalledWith(
-                member.id
+                member.id,
+                undefined
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceMemberRemoved,
@@ -706,9 +854,42 @@ describe('WorkspaceMemberDomain', () => {
             await domain.removeMember('workspace-id', owner, otherAdmin);
 
             expect(memberRepository.removeMember).toHaveBeenCalledWith(
-                otherAdmin.id
+                otherAdmin.id,
+                undefined
             );
         });
+
+        it('forwards additionalWhere to the repository delete', async () => {
+            await domain.removeMember(
+                'workspace-id',
+                admin,
+                member,
+                additionalWhere
+            );
+
+            expect(memberRepository.removeMember).toHaveBeenCalledWith(
+                member.id,
+                additionalWhere
+            );
+        });
+
+        it.each([
+            [
+                'a where',
+                { role: { key: EnumRoleWorkspaceKey.member } } as const,
+            ],
+            ['no where', undefined],
+        ])(
+            'throws WorkspaceMemberNotFoundException and stages nothing when the delete returns null with %s',
+            async (_name, scoped) => {
+                memberRepository.removeMember.mockResolvedValue(null);
+
+                await expect(
+                    domain.removeMember('workspace-id', admin, member, scoped)
+                ).rejects.toBeInstanceOf(WorkspaceMemberNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('getMembersListForAdmin', () => {

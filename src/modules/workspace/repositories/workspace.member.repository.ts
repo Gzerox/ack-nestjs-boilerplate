@@ -248,35 +248,78 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         });
     }
 
-    async updateRole(targetMemberId: string, roleId: string): Promise<void> {
-        await this.databaseService.client.workspaceMember.update({
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async updateRole(
+        targetMemberId: string,
+        roleId: string,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+    ): Promise<WorkspaceMember | null> {
+        const { count } =
+            await this.databaseService.client.workspaceMember.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                },
+                data: {
+                    roleId,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspaceMember.findUnique({
             where: { id: targetMemberId },
-            data: {
-                roleId,
-            },
         });
     }
 
-    async removeMember(targetMemberId: string): Promise<void> {
-        await this.databaseService.client.workspaceMember.delete({
-            where: { id: targetMemberId },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async removeMember(
+        targetMemberId: string,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+    ): Promise<WorkspaceMember | null> {
+        return this.databaseService.withTransaction(async tx => {
+            const where: Prisma.WorkspaceMemberWhereInput = {
+                AND: [additionalWhere ?? {}, { id: targetMemberId }],
+            };
+            const existing = await tx.workspaceMember.findFirst({ where });
+            if (!existing) {
+                return null;
+            }
+
+            const { count } = await tx.workspaceMember.deleteMany({ where });
+
+            return count > 0 ? existing : null;
         });
     }
 
+    /**
+     * Swaps the owner and admin roles in one transaction; the first write is the scoped gate.
+     * `additionalWhere` is an extra caller-supplied constraint on the workspace, AND-composed first.
+     */
     async transferOwnership(
         fromMemberId: string,
         toMemberId: string,
         ownerRoleId: string,
-        adminRoleId: string
-    ): Promise<void> {
-        await this.databaseService.withTransaction(async tx => {
-            await tx.workspaceMember.update({
-                where: { id: fromMemberId },
+        adminRoleId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<WorkspaceMember | null> {
+        return this.databaseService.withTransaction(async tx => {
+            const { count } = await tx.workspaceMember.updateMany({
+                where: {
+                    AND: [
+                        { workspace: additionalWhere ?? {} },
+                        { id: fromMemberId },
+                    ],
+                },
                 data: {
                     roleId: adminRoleId,
                 },
             });
-            await tx.workspaceMember.update({
+            if (count === 0) {
+                return null;
+            }
+
+            return tx.workspaceMember.update({
                 where: { id: toMemberId },
                 data: {
                     roleId: ownerRoleId,

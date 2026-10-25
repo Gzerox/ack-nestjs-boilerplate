@@ -58,12 +58,23 @@ export interface IWorkspaceMemberRepository {
         roleId: string,
         actorId: string
     ): Promise<WorkspaceMember>;
-    updateRole(targetMemberId: string, roleId: string): Promise<void>;
-    removeMember(targetMemberId: string): Promise<void>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    updateRole(
+        targetMemberId: string,
+        roleId: string,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+    ): Promise<WorkspaceMember | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    removeMember(
+        targetMemberId: string,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+    ): Promise<WorkspaceMember | null>;
+    /** Extra caller-supplied constraint on the workspace, AND-composed first. */
     transferOwnership(
         fromMemberId: string,
         toMemberId: string,
         ownerRoleId: string,
-        adminRoleId: string
-    ): Promise<void>;
+        adminRoleId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<WorkspaceMember | null>;
 }

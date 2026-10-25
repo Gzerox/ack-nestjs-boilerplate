@@ -138,10 +138,12 @@ export class WorkspaceMemberDomain {
         );
     }
 
+    /** `additionalWhere` is an extra caller-supplied constraint on the workspace, AND-composed first. */
     async transferOwnership(
         workspaceId: string,
         actorMember: IWorkspaceMemberWithRole,
-        targetUserId: string
+        targetUserId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
     ): Promise<void> {
         if (actorMember.role.key !== EnumRoleWorkspaceKey.owner) {
             throw new WorkspaceMemberPeerForbiddenException();
@@ -186,12 +188,17 @@ export class WorkspaceMemberDomain {
             events.push(workspaceOwnershipTransferredByOwnerEvent);
         }
 
-        await this.workspaceMemberRepository.transferOwnership(
-            actorMember.id,
-            targetMember.id,
-            ownerRoleId,
-            adminRoleId
-        );
+        const transferred =
+            await this.workspaceMemberRepository.transferOwnership(
+                actorMember.id,
+                targetMember.id,
+                ownerRoleId,
+                adminRoleId,
+                additionalWhere
+            );
+        if (!transferred) {
+            throw new WorkspaceNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }
@@ -237,11 +244,13 @@ export class WorkspaceMemberDomain {
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMemberRole(
         workspaceId: string,
         actorMember: IWorkspaceMemberWithRole,
         targetMember: IWorkspaceMemberWithRole,
-        roleId: string
+        roleId: string,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<void> {
         this.assertPeerActionAllowed(actorMember, targetMember);
 
@@ -274,18 +283,24 @@ export class WorkspaceMemberDomain {
             events.push(workspaceMemberRoleUpdatedByAdminEvent);
         }
 
-        await this.workspaceMemberRepository.updateRole(
+        const updated = await this.workspaceMemberRepository.updateRole(
             targetMember.id,
-            role.id
+            role.id,
+            additionalWhere
         );
+        if (!updated) {
+            throw new WorkspaceMemberNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async removeMember(
         workspaceId: string,
         actorMember: IWorkspaceMemberWithRole,
-        targetMember: IWorkspaceMemberWithRole
+        targetMember: IWorkspaceMemberWithRole,
+        additionalWhere?: Prisma.WorkspaceMemberWhereInput
     ): Promise<void> {
         if (targetMember.userId === actorMember.userId) {
             throw new WorkspaceMemberPeerForbiddenException();
@@ -314,7 +329,13 @@ export class WorkspaceMemberDomain {
             events.push(workspaceMemberRemovedByAdminEvent);
         }
 
-        await this.workspaceMemberRepository.removeMember(targetMember.id);
+        const removed = await this.workspaceMemberRepository.removeMember(
+            targetMember.id,
+            additionalWhere
+        );
+        if (!removed) {
+            throw new WorkspaceMemberNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }

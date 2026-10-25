@@ -147,8 +147,15 @@ export class RoleDomain {
         return role;
     }
 
-    async getOne(id: string): Promise<IRoleWithPolicies> {
-        const role = await this.roleRepository.findOneWithPoliciesById(id);
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async getOne(
+        id: string,
+        additionalWhere?: Prisma.RoleWhereInput
+    ): Promise<IRoleWithPolicies> {
+        const role = await this.roleRepository.findOneWithPoliciesById(
+            id,
+            additionalWhere
+        );
         if (!role) {
             throw new RoleNotFoundException();
         }
@@ -156,11 +163,13 @@ export class RoleDomain {
         return role;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateByAdmin(
         id: string,
-        { name, description }: IRoleUpdate
+        { name, description }: IRoleUpdate,
+        additionalWhere?: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies> {
-        const role = await this.roleRepository.findOneById(id);
+        const role = await this.roleRepository.findOneById(id, additionalWhere);
         if (!role) {
             throw new RoleNotFoundException();
         }
@@ -174,10 +183,17 @@ export class RoleDomain {
             ),
         ];
         // TODO: validate role conditions (policy rules / scope constraints) before persisting
-        const updated = await this.roleRepository.update(id, {
-            name,
-            description,
-        });
+        const updated = await this.roleRepository.update(
+            id,
+            {
+                name,
+                description,
+            },
+            additionalWhere
+        );
+        if (!updated) {
+            throw new RoleNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
 
@@ -223,9 +239,13 @@ export class RoleDomain {
         return created;
     }
 
-    async deleteByAdmin(id: string): Promise<void> {
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async deleteByAdmin(
+        id: string,
+        additionalWhere?: Prisma.RoleWhereInput
+    ): Promise<void> {
         const [role, isUsed] = await Promise.all([
-            this.roleRepository.findOneById(id),
+            this.roleRepository.findOneById(id, additionalWhere),
             this.roleRepository.isUsedById(id),
         ]);
         if (!role) {
@@ -250,7 +270,10 @@ export class RoleDomain {
             ),
         ];
 
-        await this.roleRepository.delete(id);
+        const deleted = await this.roleRepository.delete(id, additionalWhere);
+        if (!deleted) {
+            throw new RoleNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }

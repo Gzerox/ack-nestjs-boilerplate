@@ -102,18 +102,24 @@ export class RoleRepository implements IRoleRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findOneWithPoliciesById(
-        id: string
+        id: string,
+        additionalWhere?: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null> {
-        return this.databaseService.client.role.findUnique({
-            where: { id },
+        return this.databaseService.client.role.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id }] },
             include: RolePoliciesInclude,
         });
     }
 
-    async findOneById(id: string): Promise<IRole | null> {
-        return this.databaseService.client.role.findUnique({
-            where: { id },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findOneById(
+        id: string,
+        additionalWhere?: Prisma.RoleWhereInput
+    ): Promise<IRole | null> {
+        return this.databaseService.client.role.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id }] },
             select: RoleSelect,
         });
     }
@@ -175,10 +181,22 @@ export class RoleRepository implements IRoleRepository {
         });
     }
 
-    async update(id: string, data: IRoleUpdate): Promise<IRoleWithPolicies> {
-        return this.databaseService.client.role.update({
-            where: { id },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async update(
+        id: string,
+        data: IRoleUpdate,
+        additionalWhere?: Prisma.RoleWhereInput
+    ): Promise<IRoleWithPolicies | null> {
+        const { count } = await this.databaseService.client.role.updateMany({
+            where: { AND: [additionalWhere ?? {}, { id }] },
             data,
+        });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.role.findUnique({
+            where: { id },
             include: RolePoliciesInclude,
         });
     }
@@ -195,9 +213,23 @@ export class RoleRepository implements IRoleRepository {
         return Object.values(role._count).some(count => count > 0);
     }
 
-    async delete(id: string): Promise<Role> {
-        return this.databaseService.client.role.delete({
-            where: { id },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async delete(
+        id: string,
+        additionalWhere?: Prisma.RoleWhereInput
+    ): Promise<Role | null> {
+        return this.databaseService.withTransaction(async tx => {
+            const where: Prisma.RoleWhereInput = {
+                AND: [additionalWhere ?? {}, { id }],
+            };
+            const existing = await tx.role.findFirst({ where });
+            if (!existing) {
+                return null;
+            }
+
+            const { count } = await tx.role.deleteMany({ where });
+
+            return count > 0 ? existing : null;
         });
     }
 }

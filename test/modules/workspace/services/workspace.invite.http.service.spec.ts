@@ -313,11 +313,11 @@ describe('WorkspaceInviteHttpService', () => {
     });
 
     describe('resendInvite', () => {
-        it('delegates to the domain and returns the invite the util maps', async () => {
+        it('passes scope(update, WorkspaceInvite) as additionalWhere and returns the invite the util maps', async () => {
             const dto = {
                 expiryDuration: EnumWorkspaceInviteExpiry.sevenDays,
             } satisfies WorkspaceInviteResendRequestDto;
-            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
             workspaceInviteDomain.resendInvite.mockResolvedValue(invite);
             workspaceUtil.mapInvite.mockReturnValue(inviteResponse);
 
@@ -329,28 +329,23 @@ describe('WorkspaceInviteHttpService', () => {
             );
 
             expect(result).toEqual({ data: inviteResponse });
-            expect(workspaceInviteDomain.getInvite).toHaveBeenCalledWith(
-                'workspace-id',
-                'invite-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.WorkspaceInvite, invite)
+                EnumPolicySubject.WorkspaceInvite
             );
-            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(invite);
             expect(workspaceInviteDomain.resendInvite).toHaveBeenCalledWith(
                 workspace,
                 'actor-id',
                 'invite-id',
-                dto.expiryDuration
+                dto.expiryDuration,
+                scopeWhere
             );
+            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(invite);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
-    });
 
-    describe('resendInvite policy denial', () => {
-        it('does not call the domain when the policy denies the invite', async () => {
-            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('does not call the domain when the ability holds no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -361,10 +356,27 @@ describe('WorkspaceInviteHttpService', () => {
         });
     });
 
-    describe('revokeInvite policy denial', () => {
-        it('does not call the domain when the policy denies the invite', async () => {
-            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+    describe('revokeInvite', () => {
+        it('passes scope(delete, WorkspaceInvite) as additionalWhere', async () => {
+            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+
+            await service.revokeInvite('workspace-id', 'actor-id', 'invite-id');
+
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                EnumPolicySubject.WorkspaceInvite
+            );
+            expect(workspaceInviteDomain.revokeInvite).toHaveBeenCalledWith(
+                'workspace-id',
+                'actor-id',
+                'invite-id',
+                scopeWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
+
+        it('does not call the domain when the ability holds no delete rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -372,28 +384,6 @@ describe('WorkspaceInviteHttpService', () => {
                 service.revokeInvite('workspace-id', 'actor-id', 'invite-id')
             ).rejects.toThrow(PolicyForbiddenException);
             expect(workspaceInviteDomain.revokeInvite).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('revokeInvite', () => {
-        it('checks WorkspaceInvite delete on the loaded invite, then delegates to the domain', async () => {
-            workspaceInviteDomain.getInvite.mockResolvedValue(invite);
-            await service.revokeInvite('workspace-id', 'actor-id', 'invite-id');
-
-            expect(workspaceInviteDomain.getInvite).toHaveBeenCalledWith(
-                'workspace-id',
-                'invite-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
-                EnumPolicyAction.delete,
-                subject(EnumPolicySubject.WorkspaceInvite, invite)
-            );
-
-            expect(workspaceInviteDomain.revokeInvite).toHaveBeenCalledWith(
-                'workspace-id',
-                'actor-id',
-                'invite-id'
-            );
         });
     });
 

@@ -12,6 +12,7 @@ import { HelperStringService } from '@common/helper/services/helper.string.servi
 import {
     EnumRoleScope,
     EnumWorkspaceInviteStatus,
+    type Prisma,
     type Project,
     type User,
     type Workspace,
@@ -330,6 +331,13 @@ describe('WorkspaceInviteDomain', () => {
         );
     });
 
+    it('expires stale invitations through the repository with no additionalWhere', async () => {
+        inviteRepository.expireStalePending.mockResolvedValue(3);
+
+        await expect(domain.expireStalePending()).resolves.toBe(3);
+        expect(inviteRepository.expireStalePending).toHaveBeenCalledWith();
+    });
+
     it('expires stale invitations and lists invitations', async () => {
         const pagination = { cursor: null, perPage: 10 } as never;
         const result = { data: [], pagination: {} } as never;
@@ -497,24 +505,47 @@ describe('WorkspaceInviteDomain', () => {
         expect(payload).not.toHaveProperty('workspaceMemberRole');
     });
 
-    it('loads the invite the route addresses within the workspace', async () => {
-        inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+    describe('getInvite', () => {
+        const additionalWhere: Prisma.WorkspaceInviteWhereInput = {
+            status: EnumWorkspaceInviteStatus.pending,
+        };
 
-        await expect(domain.getInvite('workspace-id', invite.id)).resolves.toBe(
-            invite
+        it('forwards additionalWhere to findByIdAndWorkspace', async () => {
+            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+
+            await expect(
+                domain.getInvite('workspace-id', invite.id, additionalWhere)
+            ).resolves.toBe(invite);
+            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                invite.id,
+                'workspace-id',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls findByIdAndWorkspace with undefined and returns the same result', async () => {
+            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+
+            await expect(
+                domain.getInvite('workspace-id', invite.id)
+            ).resolves.toBe(invite);
+            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                invite.id,
+                'workspace-id',
+                undefined
+            );
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceInviteNotFoundException when findByIdAndWorkspace returns null (additionalWhere: %j)',
+            async scoped => {
+                inviteRepository.findByIdAndWorkspace.mockResolvedValue(null);
+
+                await expect(
+                    domain.getInvite('workspace-id', invite.id, scoped)
+                ).rejects.toBeInstanceOf(WorkspaceInviteNotFoundException);
+            }
         );
-        expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-            invite.id,
-            'workspace-id'
-        );
-    });
-
-    it('reports an invite outside the workspace as not found', async () => {
-        inviteRepository.findByIdAndWorkspace.mockResolvedValue(null);
-
-        await expect(
-            domain.getInvite('workspace-id', invite.id)
-        ).rejects.toBeInstanceOf(WorkspaceInviteNotFoundException);
     });
 
     it.each([
@@ -556,6 +587,85 @@ describe('WorkspaceInviteDomain', () => {
         );
     });
 
+    describe('resendInvite additionalWhere', () => {
+        const additionalWhere: Prisma.WorkspaceInviteWhereInput = {
+            status: EnumWorkspaceInviteStatus.pending,
+        };
+
+        it('forwards additionalWhere to the pre-read and to rotateForResend', async () => {
+            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+            userDomain.getOneActiveByEmail.mockResolvedValue(null);
+
+            await expect(
+                domain.resendInvite(
+                    workspace,
+                    'actor-id',
+                    invite.id,
+                    undefined,
+                    additionalWhere
+                )
+            ).resolves.toBe(invite);
+            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                invite.id,
+                workspace.id,
+                additionalWhere
+            );
+            expect(inviteRepository.rotateForResend).toHaveBeenCalledWith(
+                invite.id,
+                'hashed-token',
+                'INV-REF',
+                expiredAt,
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls the repository with undefined and returns the same result', async () => {
+            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+            userDomain.getOneActiveByEmail.mockResolvedValue(null);
+
+            await expect(
+                domain.resendInvite(workspace, 'actor-id', invite.id)
+            ).resolves.toBe(invite);
+            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                invite.id,
+                workspace.id,
+                undefined
+            );
+            expect(inviteRepository.rotateForResend).toHaveBeenCalledWith(
+                invite.id,
+                'hashed-token',
+                'INV-REF',
+                expiredAt,
+                undefined
+            );
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceInviteNotFoundException and sends nothing when rotateForResend returns null (additionalWhere: %j)',
+            async scoped => {
+                inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+                userDomain.getOneActiveByEmail.mockResolvedValue(null);
+                inviteRepository.rotateForResend.mockResolvedValue(null);
+
+                await expect(
+                    domain.resendInvite(
+                        workspace,
+                        'actor-id',
+                        invite.id,
+                        undefined,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceInviteNotFoundException);
+                expect(
+                    notificationQueue.sendWorkspaceInvite
+                ).not.toHaveBeenCalled();
+                expect(
+                    notificationEmailQueue.sendWorkspaceInviteUnregistered
+                ).not.toHaveBeenCalled();
+            }
+        );
+    });
+
     it.each([
         [null, WorkspaceInviteNotFoundException],
         [
@@ -577,12 +687,65 @@ describe('WorkspaceInviteDomain', () => {
         'revokes a pending invite and stages its audience activities',
         async (user, actorId, count) => {
             inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+            inviteRepository.revoke.mockResolvedValue(invite);
             userDomain.getOneActiveByEmail.mockResolvedValue(user);
             await domain.revokeInvite(workspace.id, actorId, invite.id);
             expect(activityLogDomain.prepare).toHaveBeenCalledTimes(count);
-            expect(inviteRepository.revoke).toHaveBeenCalledWith(invite.id);
+            expect(inviteRepository.revoke).toHaveBeenCalledWith(
+                invite.id,
+                undefined
+            );
         }
     );
+
+    describe('revokeInvite additionalWhere', () => {
+        const additionalWhere: Prisma.WorkspaceInviteWhereInput = {
+            status: EnumWorkspaceInviteStatus.pending,
+        };
+
+        it('forwards additionalWhere to the pre-read and to revoke', async () => {
+            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+            inviteRepository.revoke.mockResolvedValue(invite);
+            userDomain.getOneActiveByEmail.mockResolvedValue(null);
+
+            await domain.revokeInvite(
+                workspace.id,
+                'actor-id',
+                invite.id,
+                additionalWhere
+            );
+
+            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
+                invite.id,
+                workspace.id,
+                additionalWhere
+            );
+            expect(inviteRepository.revoke).toHaveBeenCalledWith(
+                invite.id,
+                additionalWhere
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+        });
+
+        it.each([additionalWhere, undefined])(
+            'throws WorkspaceInviteNotFoundException and stages nothing when revoke returns null (additionalWhere: %j)',
+            async scoped => {
+                inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
+                inviteRepository.revoke.mockResolvedValue(null);
+                userDomain.getOneActiveByEmail.mockResolvedValue(null);
+
+                await expect(
+                    domain.revokeInvite(
+                        workspace.id,
+                        'actor-id',
+                        invite.id,
+                        scoped
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceInviteNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+    });
 
     const signUpContext = {
         type: EnumUserSignUpWorkspaceContextType.invite as const,

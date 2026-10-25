@@ -86,14 +86,18 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndWorkspace(
         workspaceInviteId: string,
-        workspaceId: string
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite | null> {
         return this.databaseService.client.workspaceInvite.findFirst({
             where: {
-                id: workspaceInviteId,
-                workspaceId,
+                AND: [
+                    additionalWhere ?? {},
+                    { id: workspaceInviteId, workspaceId },
+                ],
             },
         });
     }
@@ -171,29 +175,55 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async rotateForResend(
         workspaceInviteId: string,
         hashedToken: string,
         reference: string,
-        expiredAt: Date
-    ): Promise<IWorkspaceInviteWithRole> {
-        return this.databaseService.client.workspaceInvite.update({
+        expiredAt: Date,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+    ): Promise<IWorkspaceInviteWithRole | null> {
+        const { count } =
+            await this.databaseService.client.workspaceInvite.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id: workspaceInviteId }],
+                },
+                data: {
+                    token: hashedToken,
+                    reference,
+                    expiredAt,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspaceInvite.findUnique({
             where: { id: workspaceInviteId },
-            data: {
-                token: hashedToken,
-                reference,
-                expiredAt,
-            },
             include: WorkspaceInviteRoleInclude,
         });
     }
 
-    async revoke(workspaceInviteId: string): Promise<void> {
-        await this.databaseService.client.workspaceInvite.update({
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async revoke(
+        workspaceInviteId: string,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+    ): Promise<WorkspaceInvite | null> {
+        const { count } =
+            await this.databaseService.client.workspaceInvite.updateMany({
+                where: {
+                    AND: [additionalWhere ?? {}, { id: workspaceInviteId }],
+                },
+                data: {
+                    status: EnumWorkspaceInviteStatus.revoked,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspaceInvite.findUnique({
             where: { id: workspaceInviteId },
-            data: {
-                status: EnumWorkspaceInviteStatus.revoked,
-            },
         });
     }
 

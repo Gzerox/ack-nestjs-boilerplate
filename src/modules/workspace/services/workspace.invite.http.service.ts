@@ -39,21 +39,6 @@ export class WorkspaceInviteHttpService {
         private readonly requestStoreService: RequestStoreService
     ) {}
 
-    private async assertInviteCan(
-        action: EnumPolicyAction,
-        workspaceId: string,
-        workspaceInviteId: string
-    ): Promise<void> {
-        const invite = await this.workspaceInviteDomain.getInvite(
-            workspaceId,
-            workspaceInviteId
-        );
-        this.policyAbilityDomain.authorize(
-            action,
-            subject(EnumPolicySubject.WorkspaceInvite, invite)
-        );
-    }
-
     async getInvitesList(
         workspaceId: string,
         query: WorkspaceInviteListRequestDto
@@ -129,16 +114,16 @@ export class WorkspaceInviteHttpService {
         workspaceInviteId: string,
         { expiryDuration }: WorkspaceInviteResendRequestDto
     ): Promise<IResponseReturn<WorkspaceInviteResponseDto>> {
-        await this.assertInviteCan(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            workspace.id,
-            workspaceInviteId
+            EnumPolicySubject.WorkspaceInvite
         );
         const invite = await this.workspaceInviteDomain.resendInvite(
             workspace,
             actorId,
             workspaceInviteId,
-            expiryDuration
+            expiryDuration,
+            scopeWhere
         );
 
         return { data: this.workspaceUtil.mapInvite(invite) };
@@ -149,15 +134,15 @@ export class WorkspaceInviteHttpService {
         actorId: string,
         workspaceInviteId: string
     ): Promise<void> {
-        await this.assertInviteCan(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.delete,
-            workspaceId,
-            workspaceInviteId
+            EnumPolicySubject.WorkspaceInvite
         );
         await this.workspaceInviteDomain.revokeInvite(
             workspaceId,
             actorId,
-            workspaceInviteId
+            workspaceInviteId,
+            scopeWhere
         );
     }
 

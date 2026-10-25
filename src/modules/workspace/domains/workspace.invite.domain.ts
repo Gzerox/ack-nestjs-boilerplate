@@ -418,15 +418,20 @@ export class WorkspaceInviteDomain {
         return invite;
     }
 
-    /** Loads the invite the route addresses within the workspace, so a record outside it reads as not found. */
+    /**
+     * Loads the invite the route addresses within the workspace, so a record outside it reads as not found.
+     * Extra caller-supplied constraint, AND-composed first.
+     */
     async getInvite(
         workspaceId: string,
-        workspaceInviteId: string
+        workspaceInviteId: string,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite> {
         const invite =
             await this.workspaceInviteRepository.findByIdAndWorkspace(
                 workspaceInviteId,
-                workspaceId
+                workspaceId,
+                additionalWhere
             );
         if (!invite) {
             throw new WorkspaceInviteNotFoundException();
@@ -435,18 +440,21 @@ export class WorkspaceInviteDomain {
         return invite;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async resendInvite(
         workspace: Workspace,
         actorId: string,
         workspaceInviteId: string,
-        expiryDuration?: EnumWorkspaceInviteExpiry
+        expiryDuration?: EnumWorkspaceInviteExpiry,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
     ): Promise<IWorkspaceInviteWithRole> {
         await this.assertInvitationAllowed();
 
         const existing =
             await this.workspaceInviteRepository.findByIdAndWorkspace(
                 workspaceInviteId,
-                workspace.id
+                workspace.id,
+                additionalWhere
             );
         if (!existing) {
             throw new WorkspaceInviteNotFoundException();
@@ -461,10 +469,14 @@ export class WorkspaceInviteDomain {
                 workspaceInviteId,
                 tokenData.hashedToken,
                 tokenData.reference,
-                tokenData.expiredAt
+                tokenData.expiredAt,
+                additionalWhere
             ),
             this.userDomain.getOneActiveByEmail(existing.email),
         ]);
+        if (!invite) {
+            throw new WorkspaceInviteNotFoundException();
+        }
 
         await this.sendInviteNotification(
             workspace,
@@ -477,17 +489,20 @@ export class WorkspaceInviteDomain {
         return invite;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async revokeInvite(
         workspaceId: string,
         actorId: string,
-        workspaceInviteId: string
+        workspaceInviteId: string,
+        additionalWhere?: Prisma.WorkspaceInviteWhereInput
     ): Promise<void> {
         await this.assertInvitationAllowed();
 
         const existing =
             await this.workspaceInviteRepository.findByIdAndWorkspace(
                 workspaceInviteId,
-                workspaceId
+                workspaceId,
+                additionalWhere
             );
         if (!existing) {
             throw new WorkspaceInviteNotFoundException();
@@ -525,7 +540,13 @@ export class WorkspaceInviteDomain {
             events.push(workspaceInviteRevokedByAdminEvent);
         }
 
-        await this.workspaceInviteRepository.revoke(workspaceInviteId);
+        const revoked = await this.workspaceInviteRepository.revoke(
+            workspaceInviteId,
+            additionalWhere
+        );
+        if (!revoked) {
+            throw new WorkspaceInviteNotFoundException();
+        }
 
         this.activityLogDomain.stagePrepared(events);
     }

@@ -45,8 +45,7 @@ const rule = (
 /**
  * Builds a workspace-scoped rule. The condition is judged against the real
  * record, so the key must exist on the subject's model: `Workspace` is the
- * workspace itself (`id`); every other subject carries `workspaceId`
- * (`WorkspaceAnalytic` has no model and is a subject-type check only).
+ * workspace itself (`id`); every other subject carries `workspaceId`.
  */
 const workspaceRule = (
     subject: EnumPolicySubject,
@@ -139,9 +138,7 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
             ]),
-            workspaceRule(EnumPolicySubject.WorkspaceAnalytic, [
-                EnumPolicyAction.read,
-            ]),
+            rule(EnumPolicySubject.WorkspaceAnalytic, [EnumPolicyAction.read]),
         ],
     },
     {
@@ -176,9 +173,7 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
             ]),
-            workspaceRule(EnumPolicySubject.WorkspaceAnalytic, [
-                EnumPolicyAction.read,
-            ]),
+            rule(EnumPolicySubject.WorkspaceAnalytic, [EnumPolicyAction.read]),
         ],
     },
     {

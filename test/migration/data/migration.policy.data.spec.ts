@@ -81,6 +81,26 @@ describe('MigrationPolicyData seed invariants', () => {
         }
     );
 
+    it.each([EnumRoleWorkspaceKey.owner, EnumRoleWorkspaceKey.admin])(
+        'seeds WorkspaceAnalytic read with null conditions for workspace %s',
+        key => {
+            const data = seeded.find(
+                row => row.scope === EnumRoleScope.workspace && row.key === key
+            );
+            const analyticRules = (data?.policies ?? []).filter(
+                policy => policy.subject === EnumPolicySubject.WorkspaceAnalytic
+            );
+
+            expect(analyticRules).toEqual([
+                expect.objectContaining({
+                    action: [EnumPolicyAction.read],
+                    conditions: null,
+                    inverted: false,
+                }),
+            ]);
+        }
+    );
+
     it('keeps workspace member away from ProjectMember', () => {
         const ability = abilityFor(
             EnumRoleScope.workspace,

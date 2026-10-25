@@ -166,6 +166,29 @@ describe('PolicyAbilityDomain', () => {
             });
         });
 
+        it.each([EnumPolicyAction.update, EnumPolicyAction.delete])(
+            'excludes admin-role members from the %s ProjectMember where through a role.key condition',
+            action => {
+                const condition = {
+                    projectId: 'project-1',
+                    role: { is: { key: { not: 'admin' } } },
+                };
+                useAbility(
+                    buildRealAbility([
+                        {
+                            action,
+                            subject: 'ProjectMember',
+                            conditions: condition,
+                        },
+                    ])
+                );
+
+                expect(
+                    domain.scope(action, EnumPolicySubject.ProjectMember)
+                ).toEqual({ OR: [condition] });
+            }
+        );
+
         it('throws PolicyForbiddenException when the ability has no rules for the subject', () => {
             useAbility(buildRealAbility([]));
 
@@ -329,6 +352,61 @@ describe('PolicyAbilityDomain', () => {
                     subject(EnumPolicySubject.Workspace, { id: 'workspace-2' })
                 )
             ).toThrow(PolicyForbiddenException);
+        });
+    });
+
+    describe('authorize ProjectMember create restricted by requested roleId', () => {
+        const memberRoleId = 'role-member';
+        const adminRoleId = 'role-admin';
+        const prospective = (roleId: string) =>
+            subject(EnumPolicySubject.ProjectMember, {
+                projectId: 'project-1',
+                userId: 'user-1',
+                roleId,
+            });
+
+        beforeEach(() => {
+            requestStoreService.get.mockReturnValue(
+                buildRealAbility([
+                    {
+                        action: EnumPolicyAction.create,
+                        subject: 'ProjectMember',
+                        conditions: {
+                            projectId: 'project-1',
+                            roleId: { in: [memberRoleId] },
+                        },
+                    },
+                ])
+            );
+        });
+
+        it('passes for an allowed roleId', () => {
+            expect(() =>
+                domain.authorize(
+                    EnumPolicyAction.create,
+                    prospective(memberRoleId)
+                )
+            ).not.toThrow();
+        });
+
+        it('throws PolicyForbiddenException for a restricted roleId', () => {
+            try {
+                domain.authorize(
+                    EnumPolicyAction.create,
+                    prospective(adminRoleId)
+                );
+                throw new Error('expected throw');
+            } catch (error) {
+                expect(error).toBeInstanceOf(PolicyForbiddenException);
+                expect((error as PolicyForbiddenException).metadata).toEqual({
+                    missing: [
+                        {
+                            subject: EnumPolicySubject.ProjectMember,
+                            actions: [EnumPolicyAction.create],
+                        },
+                    ],
+                });
+            }
         });
     });
 

@@ -198,28 +198,6 @@ export class WorkspaceJoinRequestDomain {
         );
     }
 
-    /**
-     * Loads the join request the route addresses within the workspace, so a record outside it reads as not found.
-     * Extra caller-supplied constraint, AND-composed first.
-     */
-    async getJoinRequest(
-        workspaceId: string,
-        workspaceJoinRequestId: string,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
-    ): Promise<WorkspaceJoinRequest> {
-        const joinRequest =
-            await this.workspaceJoinRequestRepository.findByIdAndWorkspace(
-                workspaceJoinRequestId,
-                workspaceId,
-                additionalWhere
-            );
-        if (!joinRequest) {
-            throw new WorkspaceJoinRequestNotFoundException();
-        }
-
-        return joinRequest;
-    }
-
     /** Extra caller-supplied constraint, AND-composed first. */
     async acceptJoinRequest(
         workspace: Workspace,

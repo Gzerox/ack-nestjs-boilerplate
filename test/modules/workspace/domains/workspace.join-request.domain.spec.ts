@@ -305,53 +305,6 @@ describe('WorkspaceJoinRequestDomain', () => {
         }
     );
 
-    describe('getJoinRequest', () => {
-        const additionalWhere: Prisma.WorkspaceJoinRequestWhereInput = {
-            status: EnumWorkspaceJoinRequestStatus.pending,
-        };
-
-        it('forwards additionalWhere to findByIdAndWorkspace', async () => {
-            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
-
-            await expect(
-                domain.getJoinRequest(
-                    'workspace-id',
-                    'join-id',
-                    additionalWhere
-                )
-            ).resolves.toBe(joinRequest);
-            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-                'join-id',
-                'workspace-id',
-                additionalWhere
-            );
-        });
-
-        it('without additionalWhere calls findByIdAndWorkspace with undefined and returns the same result', async () => {
-            joinRepository.findByIdAndWorkspace.mockResolvedValue(joinRequest);
-
-            await expect(
-                domain.getJoinRequest('workspace-id', 'join-id')
-            ).resolves.toBe(joinRequest);
-            expect(joinRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-                'join-id',
-                'workspace-id',
-                undefined
-            );
-        });
-
-        it.each([additionalWhere, undefined])(
-            'throws WorkspaceJoinRequestNotFoundException when findByIdAndWorkspace returns null (additionalWhere: %j)',
-            async scoped => {
-                joinRepository.findByIdAndWorkspace.mockResolvedValue(null);
-
-                await expect(
-                    domain.getJoinRequest('workspace-id', 'join-id', scoped)
-                ).rejects.toBeInstanceOf(WorkspaceJoinRequestNotFoundException);
-            }
-        );
-    });
-
     it.each([
         [null, WorkspaceJoinRequestNotFoundException],
         [

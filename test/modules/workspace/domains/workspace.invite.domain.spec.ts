@@ -505,49 +505,6 @@ describe('WorkspaceInviteDomain', () => {
         expect(payload).not.toHaveProperty('workspaceMemberRole');
     });
 
-    describe('getInvite', () => {
-        const additionalWhere: Prisma.WorkspaceInviteWhereInput = {
-            status: EnumWorkspaceInviteStatus.pending,
-        };
-
-        it('forwards additionalWhere to findByIdAndWorkspace', async () => {
-            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
-
-            await expect(
-                domain.getInvite('workspace-id', invite.id, additionalWhere)
-            ).resolves.toBe(invite);
-            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-                invite.id,
-                'workspace-id',
-                additionalWhere
-            );
-        });
-
-        it('without additionalWhere calls findByIdAndWorkspace with undefined and returns the same result', async () => {
-            inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
-
-            await expect(
-                domain.getInvite('workspace-id', invite.id)
-            ).resolves.toBe(invite);
-            expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
-                invite.id,
-                'workspace-id',
-                undefined
-            );
-        });
-
-        it.each([additionalWhere, undefined])(
-            'throws WorkspaceInviteNotFoundException when findByIdAndWorkspace returns null (additionalWhere: %j)',
-            async scoped => {
-                inviteRepository.findByIdAndWorkspace.mockResolvedValue(null);
-
-                await expect(
-                    domain.getInvite('workspace-id', invite.id, scoped)
-                ).rejects.toBeInstanceOf(WorkspaceInviteNotFoundException);
-            }
-        );
-    });
-
     it.each([
         [null, WorkspaceInviteNotFoundException],
         [

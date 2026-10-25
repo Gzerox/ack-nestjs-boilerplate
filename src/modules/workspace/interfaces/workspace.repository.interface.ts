@@ -12,7 +12,11 @@ import type { WorkspaceCreateRequestDto } from '@modules/workspace/dtos/request/
 import type { WorkspaceUpdateRequestDto } from '@modules/workspace/dtos/request/workspace.update.request.dto';
 
 export interface IWorkspaceRepository {
-    findActiveById(workspaceId: string): Promise<Workspace | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findActiveById(
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
     findActivePublicBySlug(slug: string): Promise<Workspace | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findByIdForAdmin(
@@ -40,15 +44,30 @@ export interface IWorkspaceRepository {
         slug: string,
         workspaceId: string
     ): Promise<Workspace>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     updateDetails(
         workspaceId: string,
-        { name, description }: WorkspaceUpdateRequestDto
-    ): Promise<Workspace>;
-    updateIsPublic(workspaceId: string, isPublic: boolean): Promise<Workspace>;
-    updateSlug(workspaceId: string, slug: string): Promise<Workspace>;
+        { name, description }: WorkspaceUpdateRequestDto,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    updateIsPublic(
+        workspaceId: string,
+        isPublic: boolean,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    updateSlug(
+        workspaceId: string,
+        slug: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     softDeleteInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
-        deletedAt: Date
-    ): Promise<void>;
+        deletedAt: Date,
+        deletedBy: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null>;
 }

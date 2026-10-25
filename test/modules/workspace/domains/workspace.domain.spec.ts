@@ -495,17 +495,151 @@ describe('WorkspaceDomain', () => {
         ).rejects.toBeInstanceOf(DatabaseUniqueValueGenerationFailedException);
     });
 
-    it('returns and updates current workspace details and visibility', async () => {
-        workspaceRepository.updateDetails.mockResolvedValue(workspace);
-        workspaceRepository.updateIsPublic.mockResolvedValue(workspace);
-        expect(domain.getCurrentWorkspace(workspace)).toBe(workspace);
-        await expect(
-            domain.updateWorkspace(workspace.id, 'actor-id', { name: 'New' })
-        ).resolves.toBe(workspace);
-        await expect(
-            domain.updateWorkspaceIsPublic(workspace.id, 'actor-id', true)
-        ).resolves.toBe(workspace);
-        expect(activityLogDomain.stagePrepared).toHaveBeenCalledTimes(2);
+    describe('getCurrentWorkspace', () => {
+        const additionalWhere = { isPublic: true };
+
+        it('re-reads the active workspace by id with additionalWhere', async () => {
+            workspaceRepository.findActiveById.mockResolvedValue(workspace);
+
+            await expect(
+                domain.getCurrentWorkspace(workspace.id, additionalWhere)
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.findActiveById).toHaveBeenCalledWith(
+                workspace.id,
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere re-reads with undefined and returns the same result', async () => {
+            workspaceRepository.findActiveById.mockResolvedValue(workspace);
+
+            await expect(
+                domain.getCurrentWorkspace(workspace.id)
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.findActiveById).toHaveBeenCalledWith(
+                workspace.id,
+                undefined
+            );
+        });
+
+        it.each([{ isPublic: true }, undefined])(
+            'throws WorkspaceNotFoundException when the re-read returns null (additionalWhere: %j)',
+            async additionalWhere => {
+                workspaceRepository.findActiveById.mockResolvedValue(null);
+
+                await expect(
+                    domain.getCurrentWorkspace(workspace.id, additionalWhere)
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+            }
+        );
+    });
+
+    describe('updateWorkspace', () => {
+        const additionalWhere = { isPublic: true };
+
+        it('forwards additionalWhere to updateDetails and stages the activity', async () => {
+            workspaceRepository.updateDetails.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspace(
+                    workspace.id,
+                    'actor-id',
+                    { name: 'New' },
+                    additionalWhere
+                )
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateDetails).toHaveBeenCalledWith(
+                workspace.id,
+                { name: 'New' },
+                additionalWhere
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledTimes(1);
+        });
+
+        it('without additionalWhere calls updateDetails with undefined and returns the same result', async () => {
+            workspaceRepository.updateDetails.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspace(workspace.id, 'actor-id', {
+                    name: 'New',
+                })
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateDetails).toHaveBeenCalledWith(
+                workspace.id,
+                { name: 'New' },
+                undefined
+            );
+        });
+
+        it.each([{ isPublic: true }, undefined])(
+            'throws WorkspaceNotFoundException and stages nothing when updateDetails returns null (additionalWhere: %j)',
+            async additionalWhere => {
+                workspaceRepository.updateDetails.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateWorkspace(
+                        workspace.id,
+                        'actor-id',
+                        { name: 'New' },
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+    });
+
+    describe('updateWorkspaceIsPublic', () => {
+        const additionalWhere = { isPublic: false };
+
+        it('forwards additionalWhere to updateIsPublic and stages the activity', async () => {
+            workspaceRepository.updateIsPublic.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspaceIsPublic(
+                    workspace.id,
+                    'actor-id',
+                    true,
+                    additionalWhere
+                )
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateIsPublic).toHaveBeenCalledWith(
+                workspace.id,
+                true,
+                additionalWhere
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledTimes(1);
+        });
+
+        it('without additionalWhere calls updateIsPublic with undefined and returns the same result', async () => {
+            workspaceRepository.updateIsPublic.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspaceIsPublic(workspace.id, 'actor-id', true)
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateIsPublic).toHaveBeenCalledWith(
+                workspace.id,
+                true,
+                undefined
+            );
+        });
+
+        it.each([{ isPublic: false }, undefined])(
+            'throws WorkspaceNotFoundException and stages nothing when updateIsPublic returns null (additionalWhere: %j)',
+            async additionalWhere => {
+                workspaceRepository.updateIsPublic.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateWorkspaceIsPublic(
+                        workspace.id,
+                        'actor-id',
+                        true,
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
     });
 
     it.each(['INVALID!', 'this-slug-is-far-too-long'])(
@@ -524,12 +658,101 @@ describe('WorkspaceDomain', () => {
         ).rejects.toBeInstanceOf(WorkspaceSlugAlreadyExistsException);
     });
 
-    it('updates an available slug', async () => {
-        workspaceRepository.existsBySlug.mockResolvedValue(false);
-        workspaceRepository.updateSlug.mockResolvedValue(workspace);
-        await expect(
-            domain.updateWorkspaceSlug(workspace.id, 'actor-id', 'valid-slug')
-        ).resolves.toBe(workspace);
+    describe('updateWorkspaceSlug', () => {
+        const additionalWhere = { isPublic: true };
+
+        it('forwards additionalWhere to updateSlug and stages the activity', async () => {
+            workspaceRepository.existsBySlug.mockResolvedValue(false);
+            workspaceRepository.updateSlug.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspaceSlug(
+                    workspace.id,
+                    'actor-id',
+                    'valid-slug',
+                    additionalWhere
+                )
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateSlug).toHaveBeenCalledWith(
+                workspace.id,
+                'valid-slug',
+                additionalWhere
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledTimes(1);
+        });
+
+        it('without additionalWhere calls updateSlug with undefined and returns the same result', async () => {
+            workspaceRepository.existsBySlug.mockResolvedValue(false);
+            workspaceRepository.updateSlug.mockResolvedValue(workspace);
+
+            await expect(
+                domain.updateWorkspaceSlug(
+                    workspace.id,
+                    'actor-id',
+                    'valid-slug'
+                )
+            ).resolves.toBe(workspace);
+            expect(workspaceRepository.updateSlug).toHaveBeenCalledWith(
+                workspace.id,
+                'valid-slug',
+                undefined
+            );
+        });
+
+        it.each([{ isPublic: true }, undefined])(
+            'throws WorkspaceNotFoundException and stages nothing when updateSlug returns null (additionalWhere: %j)',
+            async additionalWhere => {
+                workspaceRepository.existsBySlug.mockResolvedValue(false);
+                workspaceRepository.updateSlug.mockResolvedValue(null);
+
+                await expect(
+                    domain.updateWorkspaceSlug(
+                        workspace.id,
+                        'actor-id',
+                        'valid-slug',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
+        );
+
+        it('maps a slug P2002 from the scoped write to WorkspaceSlugAlreadyExistsException', async () => {
+            const collision = new Error('unique');
+            workspaceRepository.existsBySlug.mockResolvedValue(false);
+            workspaceRepository.updateSlug.mockRejectedValue(collision);
+            databaseUtil.isUniqueCollision.mockReturnValue(true);
+
+            await expect(
+                domain.updateWorkspaceSlug(
+                    workspace.id,
+                    'actor-id',
+                    'valid-slug',
+                    additionalWhere
+                )
+            ).rejects.toBeInstanceOf(WorkspaceSlugAlreadyExistsException);
+            expect(databaseUtil.isUniqueCollision).toHaveBeenCalledWith(
+                collision,
+                'slug'
+            );
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('rethrows a scoped write failure that is not a slug collision', async () => {
+            const failure = new Error('connection lost');
+            workspaceRepository.existsBySlug.mockResolvedValue(false);
+            workspaceRepository.updateSlug.mockRejectedValue(failure);
+            databaseUtil.isUniqueCollision.mockReturnValue(false);
+
+            await expect(
+                domain.updateWorkspaceSlug(
+                    workspace.id,
+                    'actor-id',
+                    'valid-slug',
+                    additionalWhere
+                )
+            ).rejects.toBe(failure);
+        });
     });
 
     it('switches the current workspace after validating membership', async () => {
@@ -544,18 +767,83 @@ describe('WorkspaceDomain', () => {
         );
     });
 
-    it('soft-deletes a workspace and dependent rows in a transaction', async () => {
-        await domain.softDeleteWorkspace(workspace.id, 'actor-id');
-        expect(projectDomain.softDeleteByWorkspaceInTx).toHaveBeenCalledAfter(
-            workspaceRepository.softDeleteInTx
-        );
-        expect(
-            workspaceInviteRepository.expirePendingByWorkspaceInTx
-        ).toHaveBeenCalledAfter(projectDomain.softDeleteByWorkspaceInTx);
-        expect(
-            workspaceJoinRequestRepository.cancelPendingByWorkspaceInTx
-        ).toHaveBeenCalledAfter(
-            workspaceInviteRepository.expirePendingByWorkspaceInTx
+    describe('softDeleteWorkspace', () => {
+        const additionalWhere = { isPublic: true };
+
+        it('soft-deletes a workspace and dependent rows in a transaction', async () => {
+            workspaceRepository.softDeleteInTx.mockResolvedValue(workspace);
+
+            await domain.softDeleteWorkspace(workspace.id, 'actor-id');
+
+            expect(
+                projectDomain.softDeleteByWorkspaceInTx
+            ).toHaveBeenCalledAfter(workspaceRepository.softDeleteInTx);
+            expect(
+                workspaceInviteRepository.expirePendingByWorkspaceInTx
+            ).toHaveBeenCalledAfter(projectDomain.softDeleteByWorkspaceInTx);
+            expect(
+                workspaceJoinRequestRepository.cancelPendingByWorkspaceInTx
+            ).toHaveBeenCalledAfter(
+                workspaceInviteRepository.expirePendingByWorkspaceInTx
+            );
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledTimes(1);
+        });
+
+        it('forwards additionalWhere to softDeleteInTx as the first statement', async () => {
+            workspaceRepository.softDeleteInTx.mockResolvedValue(workspace);
+
+            await domain.softDeleteWorkspace(
+                workspace.id,
+                'actor-id',
+                additionalWhere
+            );
+
+            expect(workspaceRepository.softDeleteInTx).toHaveBeenCalledWith(
+                tx,
+                workspace.id,
+                now,
+                'actor-id',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls softDeleteInTx with undefined', async () => {
+            workspaceRepository.softDeleteInTx.mockResolvedValue(workspace);
+
+            await domain.softDeleteWorkspace(workspace.id, 'actor-id');
+
+            expect(workspaceRepository.softDeleteInTx).toHaveBeenCalledWith(
+                tx,
+                workspace.id,
+                now,
+                'actor-id',
+                undefined
+            );
+        });
+
+        it.each([{ isPublic: true }, undefined])(
+            'throws WorkspaceNotFoundException and writes nothing else when softDeleteInTx returns null (additionalWhere: %j)',
+            async additionalWhere => {
+                workspaceRepository.softDeleteInTx.mockResolvedValue(null);
+
+                await expect(
+                    domain.softDeleteWorkspace(
+                        workspace.id,
+                        'actor-id',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(WorkspaceNotFoundException);
+                expect(
+                    projectDomain.softDeleteByWorkspaceInTx
+                ).not.toHaveBeenCalled();
+                expect(
+                    workspaceInviteRepository.expirePendingByWorkspaceInTx
+                ).not.toHaveBeenCalled();
+                expect(
+                    workspaceJoinRequestRepository.cancelPendingByWorkspaceInTx
+                ).not.toHaveBeenCalled();
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            }
         );
     });
 

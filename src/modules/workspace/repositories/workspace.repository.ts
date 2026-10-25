@@ -23,11 +23,18 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    async findActiveById(workspaceId: string): Promise<Workspace | null> {
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findActiveById(
+        workspaceId: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
         return this.databaseService.client.workspace.findFirst({
             where: {
-                id: workspaceId,
-                ...WorkspaceActiveFilter,
+                AND: [
+                    additionalWhere ?? {},
+                    { id: workspaceId },
+                    WorkspaceActiveFilter,
+                ],
             },
         });
     }
@@ -131,50 +138,98 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateDetails(
         workspaceId: string,
-        { name, description }: WorkspaceUpdateRequestDto
-    ): Promise<Workspace> {
-        return this.databaseService.client.workspace.update({
+        { name, description }: WorkspaceUpdateRequestDto,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
+        const { count } =
+            await this.databaseService.client.workspace.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                data: {
+                    name,
+                    description,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspace.findUnique({
             where: { id: workspaceId },
-            data: {
-                name,
-                description,
-            },
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateIsPublic(
         workspaceId: string,
-        isPublic: boolean
-    ): Promise<Workspace> {
-        return this.databaseService.client.workspace.update({
+        isPublic: boolean,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
+        const { count } =
+            await this.databaseService.client.workspace.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                data: {
+                    isPublic,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspace.findUnique({
             where: { id: workspaceId },
-            data: {
-                isPublic,
-            },
         });
     }
 
-    async updateSlug(workspaceId: string, slug: string): Promise<Workspace> {
-        return this.databaseService.client.workspace.update({
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async updateSlug(
+        workspaceId: string,
+        slug: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
+        const { count } =
+            await this.databaseService.client.workspace.updateMany({
+                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                data: {
+                    slug,
+                },
+            });
+        if (count === 0) {
+            return null;
+        }
+
+        return this.databaseService.client.workspace.findUnique({
             where: { id: workspaceId },
-            data: {
-                slug,
-            },
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async softDeleteInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
-        deletedAt: Date
-    ): Promise<void> {
-        await tx.workspace.softDelete({
-            where: { id: workspaceId },
+        deletedAt: Date,
+        deletedBy: string,
+        additionalWhere?: Prisma.WorkspaceWhereInput
+    ): Promise<Workspace | null> {
+        const { count } = await tx.workspace.updateMany({
+            where: {
+                AND: [
+                    additionalWhere ?? {},
+                    { id: workspaceId },
+                    WorkspaceActiveFilter,
+                ],
+            },
             data: {
                 deletedAt,
+                deletedBy,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return tx.workspace.findUnique({ where: { id: workspaceId } });
     }
 }

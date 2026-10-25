@@ -168,39 +168,43 @@ describe('WorkspaceHttpService', () => {
     });
 
     describe('getCurrentWorkspace', () => {
-        it('asserts read on the workspace record, then wraps the domain result', () => {
-            workspaceDomain.getCurrentWorkspace.mockReturnValue(workspace);
+        it('passes scope(read, Workspace) as additionalWhere and wraps the re-read workspace', async () => {
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
+            workspaceDomain.getCurrentWorkspace.mockResolvedValue(workspace);
 
-            const result = service.getCurrentWorkspace(workspace);
+            const result = await service.getCurrentWorkspace(workspace);
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
             expect(workspaceDomain.getCurrentWorkspace).toHaveBeenCalledWith(
-                workspace
+                'workspace-id',
+                accessibleWorkspaceWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
 
-        it('rethrows PolicyForbiddenException and skips the domain when read is denied', () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('rethrows PolicyForbiddenException and skips the domain when the ability holds no read rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
-            expect(() => service.getCurrentWorkspace(workspace)).toThrow(
-                PolicyForbiddenException
-            );
+            await expect(
+                service.getCurrentWorkspace(workspace)
+            ).rejects.toThrow(PolicyForbiddenException);
             expect(workspaceDomain.getCurrentWorkspace).not.toHaveBeenCalled();
         });
     });
 
     describe('updateWorkspace', () => {
-        it('delegates to the domain and wraps the updated workspace', async () => {
+        it('passes scope(update, Workspace) as additionalWhere and wraps the updated workspace', async () => {
             const dto = {
                 name: 'Acme Renamed',
                 description: 'Updated description',
             } satisfies WorkspaceUpdateRequestDto;
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
             workspaceDomain.updateWorkspace.mockResolvedValue(workspace);
 
             const result = await service.updateWorkspace(
@@ -210,23 +214,26 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
             expect(workspaceDomain.updateWorkspace).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id',
-                { name: dto.name, description: dto.description }
+                { name: dto.name, description: dto.description },
+                accessibleWorkspaceWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('updateWorkspaceIsPublic', () => {
-        it('delegates to the domain and wraps the updated workspace', async () => {
+        it('passes scope(update, Workspace) as additionalWhere and wraps the updated workspace', async () => {
             const dto = {
                 isPublic: true,
             } satisfies WorkspaceUpdateIsPublicRequestDto;
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
             workspaceDomain.updateWorkspaceIsPublic.mockResolvedValue(
                 workspace
             );
@@ -238,21 +245,28 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
             expect(
                 workspaceDomain.updateWorkspaceIsPublic
-            ).toHaveBeenCalledWith('workspace-id', 'actor-id', true);
+            ).toHaveBeenCalledWith(
+                'workspace-id',
+                'actor-id',
+                true,
+                accessibleWorkspaceWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
     describe('updateWorkspaceSlug', () => {
-        it('delegates to the domain and wraps the updated workspace', async () => {
+        it('passes scope(update, Workspace) as additionalWhere and wraps the updated workspace', async () => {
             const dto = {
                 slug: 'acme-team',
             } satisfies WorkspaceUpdateSlugRequestDto;
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
             workspaceDomain.updateWorkspaceSlug.mockResolvedValue(workspace);
 
             const result = await service.updateWorkspaceSlug(
@@ -262,15 +276,17 @@ describe('WorkspaceHttpService', () => {
             );
 
             expect(result).toEqual({ data: workspace });
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
             expect(workspaceDomain.updateWorkspaceSlug).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id',
-                'acme-team'
+                'acme-team',
+                accessibleWorkspaceWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
@@ -290,17 +306,21 @@ describe('WorkspaceHttpService', () => {
     });
 
     describe('softDeleteWorkspace', () => {
-        it('delegates to the domain', async () => {
+        it('passes scope(delete, Workspace) as additionalWhere', async () => {
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
+
             await service.softDeleteWorkspace(workspace, 'actor-id');
 
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
             expect(workspaceDomain.softDeleteWorkspace).toHaveBeenCalledWith(
                 'workspace-id',
-                'actor-id'
+                'actor-id',
+                accessibleWorkspaceWhere
             );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
     });
 
@@ -409,40 +429,44 @@ describe('WorkspaceHttpService', () => {
     });
 
     describe('getForAdmin', () => {
-        it('checks read on the loaded workspace and wraps it', async () => {
+        it('passes scope(read, Workspace) as additionalWhere and wraps the workspace', async () => {
+            policyAbilityDomain.scope.mockReturnValue(accessibleWorkspaceWhere);
             workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
 
             const result = await service.getForAdmin(workspace.id);
 
-            expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
-                workspace.id
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.Workspace, workspace)
+                EnumPolicySubject.Workspace
             );
+            expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
+                workspace.id,
+                accessibleWorkspaceWhere
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(result).toEqual({ data: workspace });
         });
 
-        it('throws PolicyForbiddenException when the record is denied', async () => {
-            workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never reads when the ability holds no read rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(service.getForAdmin(workspace.id)).rejects.toThrow(
                 PolicyForbiddenException
             );
+            expect(workspaceDomain.getByIdForAdmin).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws RequestContextMissingException and never reads when no ability is stored', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(service.getForAdmin(workspace.id)).rejects.toThrow(
                 RequestContextMissingException
             );
+            expect(workspaceDomain.getByIdForAdmin).not.toHaveBeenCalled();
         });
     });
 

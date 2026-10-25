@@ -73,12 +73,17 @@ export class WorkspaceHttpService {
         return { data: workspace };
     }
 
-    getCurrentWorkspace(workspace: Workspace): IResponseReturn<Workspace> {
-        this.policyAbilityDomain.authorize(
+    async getCurrentWorkspace(
+        workspace: Workspace
+    ): Promise<IResponseReturn<Workspace>> {
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
-            subject(EnumPolicySubject.Workspace, workspace)
+            EnumPolicySubject.Workspace
         );
-        const current = this.workspaceDomain.getCurrentWorkspace(workspace);
+        const current = await this.workspaceDomain.getCurrentWorkspace(
+            workspace.id,
+            scopeWhere
+        );
 
         return { data: current };
     }
@@ -88,14 +93,15 @@ export class WorkspaceHttpService {
         actorId: string,
         { name, description }: WorkspaceUpdateRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.Workspace, workspaceTarget)
+            EnumPolicySubject.Workspace
         );
         const workspace = await this.workspaceDomain.updateWorkspace(
             workspaceTarget.id,
             actorId,
-            { name, description }
+            { name, description },
+            scopeWhere
         );
 
         return { data: workspace };
@@ -106,14 +112,15 @@ export class WorkspaceHttpService {
         actorId: string,
         { isPublic }: WorkspaceUpdateIsPublicRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.Workspace, workspaceTarget)
+            EnumPolicySubject.Workspace
         );
         const workspace = await this.workspaceDomain.updateWorkspaceIsPublic(
             workspaceTarget.id,
             actorId,
-            isPublic
+            isPublic,
+            scopeWhere
         );
 
         return { data: workspace };
@@ -124,14 +131,15 @@ export class WorkspaceHttpService {
         actorId: string,
         { slug }: WorkspaceUpdateSlugRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.Workspace, workspaceTarget)
+            EnumPolicySubject.Workspace
         );
         const workspace = await this.workspaceDomain.updateWorkspaceSlug(
             workspaceTarget.id,
             actorId,
-            slug
+            slug,
+            scopeWhere
         );
 
         return { data: workspace };
@@ -148,13 +156,14 @@ export class WorkspaceHttpService {
         workspaceTarget: Workspace,
         actorId: string
     ): Promise<void> {
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.delete,
-            subject(EnumPolicySubject.Workspace, workspaceTarget)
+            EnumPolicySubject.Workspace
         );
         await this.workspaceDomain.softDeleteWorkspace(
             workspaceTarget.id,
-            actorId
+            actorId,
+            scopeWhere
         );
     }
 
@@ -198,11 +207,13 @@ export class WorkspaceHttpService {
     async getForAdmin(
         workspaceId: string
     ): Promise<IResponseReturn<Workspace>> {
-        const workspace =
-            await this.workspaceDomain.getByIdForAdmin(workspaceId);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
-            subject(EnumPolicySubject.Workspace, workspace)
+            EnumPolicySubject.Workspace
+        );
+        const workspace = await this.workspaceDomain.getByIdForAdmin(
+            workspaceId,
+            scopeWhere
         );
 
         return { data: workspace };

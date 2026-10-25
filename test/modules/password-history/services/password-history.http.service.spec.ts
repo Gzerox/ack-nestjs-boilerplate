@@ -21,11 +21,15 @@ import type { IPasswordHistoryList } from '@modules/password-history/interfaces/
 import { PasswordHistoryHttpService } from '@modules/password-history/services/password-history.http.service';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
+import type { IUserProfile } from '@modules/user/interfaces/user.interface';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 
 describe('PasswordHistoryHttpService', () => {
     const passwordHistoryDomain: MockProxy<PasswordHistoryDomain> =
         mock<PasswordHistoryDomain>();
+    const userDomain: MockProxy<UserDomain> = mock<UserDomain>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
     const paginationQueryUtil: MockProxy<PaginationQueryUtil> =
@@ -95,6 +99,7 @@ describe('PasswordHistoryHttpService', () => {
                     provide: PasswordHistoryDomain,
                     useValue: passwordHistoryDomain,
                 },
+                { provide: UserDomain, useValue: userDomain },
                 { provide: PolicyAbilityDomain, useValue: policyAbilityDomain },
                 { provide: PaginationQueryUtil, useValue: paginationQueryUtil },
                 { provide: RequestStoreService, useValue: requestStoreService },
@@ -105,6 +110,47 @@ describe('PasswordHistoryHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
+        it('loads the parent user with accessibleWhere(read, User) before listing', async () => {
+            const callOrder: string[] = [];
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            userDomain.getOne.mockImplementation(async () => {
+                callOrder.push('parent');
+                return mock<IUserProfile>();
+            });
+            passwordHistoryDomain.getListOffsetByAdmin.mockImplementation(
+                async () => {
+                    callOrder.push('list');
+                    return offsetPage;
+                }
+            );
+
+            await service.getListOffsetByAdmin('user-id', {});
+
+            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                EnumPolicySubject.User
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith(
+                'user-id',
+                accessibleWhere
+            );
+            expect(callOrder).toEqual(['parent', 'list']);
+        });
+
+        it('throws UserNotFoundException and never lists when the parent lookup misses', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(
+                service.getListOffsetByAdmin('user-id', {})
+            ).rejects.toThrow(UserNotFoundException);
+            expect(
+                passwordHistoryDomain.getListOffsetByAdmin
+            ).not.toHaveBeenCalled();
+        });
+
         it('passes the read predicate of PasswordHistory to the domain list and shapes the page', async () => {
             const query = {};
             paginationQueryUtil.offset.mockReturnValue({

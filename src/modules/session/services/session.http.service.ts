@@ -37,6 +37,12 @@ export class SessionHttpService {
         userId: string,
         query: SessionAdminListRequestDto
     ): Promise<IResponsePaginationReturn<ISessionList>> {
+        const userWhere = this.policyAbilityDomain.accessibleWhere(
+            EnumPolicyAction.read,
+            EnumPolicySubject.User
+        );
+        await this.userDomain.getOne(userId, userWhere);
+
         const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
             EnumPolicyAction.read,
             EnumPolicySubject.Session

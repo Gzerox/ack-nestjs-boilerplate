@@ -31,6 +31,7 @@ import type {
 } from '@modules/session/interfaces/session.interface';
 import { SessionHttpService } from '@modules/session/services/session.http.service';
 import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
 import type { IUserProfile } from '@modules/user/interfaces/user.interface';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
@@ -211,6 +212,43 @@ describe('SessionHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
+        it('loads the parent user with accessibleWhere(read, User) before listing', async () => {
+            const callOrder: string[] = [];
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            userDomain.getOne.mockImplementation(async () => {
+                callOrder.push('parent');
+                return mock<IUserProfile>();
+            });
+            sessionDomain.getListOffsetByAdmin.mockImplementation(async () => {
+                callOrder.push('list');
+                return offsetPage;
+            });
+
+            await service.getListOffsetByAdmin('user-id', {});
+
+            expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                EnumPolicySubject.User
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith(
+                'user-id',
+                accessibleWhere
+            );
+            expect(callOrder).toEqual(['parent', 'list']);
+        });
+
+        it('throws UserNotFoundException and never lists when the parent lookup misses', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(
+                service.getListOffsetByAdmin('user-id', {})
+            ).rejects.toThrow(UserNotFoundException);
+            expect(sessionDomain.getListOffsetByAdmin).not.toHaveBeenCalled();
+        });
+
         it('passes the revoke filter and the read predicate of Session to the domain list', async () => {
             const query = { isRevoked: true };
             const isRevokedWhere = { isRevoked: true };
@@ -226,7 +264,6 @@ describe('SessionHttpService', () => {
 
             const result = await service.getListOffsetByAdmin('user-id', query);
 
-            expect(userDomain.getOne).not.toHaveBeenCalled();
             expect(policyAbilityDomain.assertCan).not.toHaveBeenCalled();
             expect(policyAbilityDomain.accessibleWhere).toHaveBeenCalledWith(
                 EnumPolicyAction.read,

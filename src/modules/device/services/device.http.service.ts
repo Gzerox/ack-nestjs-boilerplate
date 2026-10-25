@@ -4,6 +4,7 @@ import {
     EnumPolicySubject,
     Prisma,
 } from '@generated/prisma-client/client';
+import { UserDomain } from '@modules/user/domains/user.domain';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
@@ -27,6 +28,7 @@ import { Injectable } from '@nestjs/common';
 export class DeviceHttpService {
     constructor(
         private readonly deviceDomain: DeviceDomain,
+        private readonly userDomain: UserDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
         private readonly requestStoreService: RequestStoreService
@@ -36,6 +38,12 @@ export class DeviceHttpService {
         userId: string,
         query: DeviceAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
+        const userWhere = this.policyAbilityDomain.accessibleWhere(
+            EnumPolicyAction.read,
+            EnumPolicySubject.User
+        );
+        await this.userDomain.getOne(userId, userWhere);
+
         const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
             EnumPolicyAction.read,
             EnumPolicySubject.DeviceOwnership

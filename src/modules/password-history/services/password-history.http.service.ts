@@ -3,6 +3,7 @@ import {
     EnumPolicySubject,
     Prisma,
 } from '@generated/prisma-client/client';
+import { UserDomain } from '@modules/user/domains/user.domain';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
@@ -22,6 +23,7 @@ import { Injectable } from '@nestjs/common';
 export class PasswordHistoryHttpService {
     constructor(
         private readonly passwordHistoryDomain: PasswordHistoryDomain,
+        private readonly userDomain: UserDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
         private readonly requestStoreService: RequestStoreService
@@ -31,6 +33,12 @@ export class PasswordHistoryHttpService {
         userId: string,
         query: PasswordHistoryAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+        const userWhere = this.policyAbilityDomain.accessibleWhere(
+            EnumPolicyAction.read,
+            EnumPolicySubject.User
+        );
+        await this.userDomain.getOne(userId, userWhere);
+
         const accessibleWhere = this.policyAbilityDomain.accessibleWhere(
             EnumPolicyAction.read,
             EnumPolicySubject.PasswordHistory

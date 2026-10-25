@@ -168,15 +168,30 @@ describe('WorkspaceHttpService', () => {
     });
 
     describe('getCurrentWorkspace', () => {
-        it('wraps the domain result synchronously', () => {
+        it('asserts read on the workspace record, then wraps the domain result', () => {
             workspaceDomain.getCurrentWorkspace.mockReturnValue(workspace);
 
             const result = service.getCurrentWorkspace(workspace);
 
             expect(result).toEqual({ data: workspace });
+            expect(policyAbilityDomain.assertCan).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(workspaceDomain.getCurrentWorkspace).toHaveBeenCalledWith(
                 workspace
             );
+        });
+
+        it('rethrows PolicyForbiddenException and skips the domain when read is denied', () => {
+            policyAbilityDomain.assertCan.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            expect(() => service.getCurrentWorkspace(workspace)).toThrow(
+                PolicyForbiddenException
+            );
+            expect(workspaceDomain.getCurrentWorkspace).not.toHaveBeenCalled();
         });
     });
 

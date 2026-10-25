@@ -74,6 +74,10 @@ export class WorkspaceHttpService {
     }
 
     getCurrentWorkspace(workspace: Workspace): IResponseReturn<Workspace> {
+        this.policyAbilityDomain.assertCan(
+            EnumPolicyAction.read,
+            subject(EnumPolicySubject.Workspace, workspace)
+        );
         const current = this.workspaceDomain.getCurrentWorkspace(workspace);
 
         return { data: current };

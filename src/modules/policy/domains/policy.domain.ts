@@ -1,4 +1,8 @@
 import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
+import { PolicyRoleScopeSubjectContract } from '@modules/policy/contracts/policy.role-scope-subject.contract';
+import { PolicyNonModelSubjects } from '@modules/policy/constants/policy.constant';
+import { EnumPolicyInvalidRuleReason } from '@modules/policy/enums/policy.invalid-rule-reason.enum';
+import { PolicyInvalidRuleException } from '@modules/policy/exceptions/policy.invalid-rule.exception';
 import { PolicyNotFoundException } from '@modules/policy/exceptions/policy.not-found.exception';
 import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy.create.request.dto';
 import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
@@ -11,6 +15,7 @@ import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.do
 import { Injectable } from '@nestjs/common';
 import {
     EnumActivityLogAction,
+    EnumPolicyAction,
     EnumRoleScope,
 } from '@generated/prisma-client/client';
 import type { Policy, Prisma } from '@generated/prisma-client/client';
@@ -32,6 +37,49 @@ export class PolicyDomain {
         }
     }
 
+    /**
+     * Structural check of one authored rule against the role scope. Reads only the scope and the
+     * rule fields, never an ability. Throws `PolicyInvalidRuleException` with the first failing reason.
+     */
+    validateRule(
+        scope: EnumRoleScope,
+        rule: Pick<IPolicyRule, 'subject' | 'action' | 'conditions'>
+    ): void {
+        if (rule.action.length === 0) {
+            throw new PolicyInvalidRuleException(
+                EnumPolicyInvalidRuleReason.actionEmpty
+            );
+        }
+
+        const actions = Object.values<string>(EnumPolicyAction);
+        if (rule.action.some(action => !actions.includes(action))) {
+            throw new PolicyInvalidRuleException(
+                EnumPolicyInvalidRuleReason.actionInvalid
+            );
+        }
+
+        if (new Set(rule.action).size !== rule.action.length) {
+            throw new PolicyInvalidRuleException(
+                EnumPolicyInvalidRuleReason.actionDuplicate
+            );
+        }
+
+        if (!PolicyRoleScopeSubjectContract[scope].includes(rule.subject)) {
+            throw new PolicyInvalidRuleException(
+                EnumPolicyInvalidRuleReason.roleScopeInvalid
+            );
+        }
+
+        if (
+            rule.conditions !== null &&
+            PolicyNonModelSubjects.includes(rule.subject)
+        ) {
+            throw new PolicyInvalidRuleException(
+                EnumPolicyInvalidRuleReason.conditionsNotAllowed
+            );
+        }
+    }
+
     /** Extra caller-supplied constraint, AND-composed first. */
     async findManyByRole(
         roleId: string,
@@ -50,6 +98,11 @@ export class PolicyDomain {
         dto: PolicyCreateRequestDto
     ): Promise<Policy> {
         this.validateRoleWritable(role);
+        this.validateRule(role.scope, {
+            subject: dto.subject,
+            action: dto.action,
+            conditions: dto.conditions ?? null,
+        });
 
         const events = [
             this.activityLogDomain.prepare({
@@ -79,6 +132,12 @@ export class PolicyDomain {
         if (!stored) {
             throw new PolicyNotFoundException();
         }
+
+        this.validateRule(role.scope, {
+            subject: stored.subject,
+            action: dto.action,
+            conditions: dto.conditions ?? null,
+        });
 
         const events = [
             this.activityLogDomain.prepare({

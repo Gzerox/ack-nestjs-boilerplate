@@ -22,7 +22,6 @@ import {
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { EnumPolicyPlatformSubject } from '@modules/policy/enums/policy.enum';
 import { RoleHttpService } from '@modules/role/services/role.http.service';
 import type {
     IResponsePaginationReturn,
@@ -117,7 +116,7 @@ export class RoleAdminController {
     @Response('role.create', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicyPlatformSubject.Role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.create],
     })
     @UserProtected()
@@ -136,7 +135,7 @@ export class RoleAdminController {
     @Response('role.delete')
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicyPlatformSubject.Role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.delete],
     })
     @UserProtected()

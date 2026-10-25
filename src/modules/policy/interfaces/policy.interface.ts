@@ -11,7 +11,6 @@ import type {
     Prisma,
 } from '@generated/prisma-client/client';
 import type { EnumPolicyConditionPlaceholder } from '@modules/policy/constants/policy.constant';
-export type { PolicySubject } from '@modules/policy/enums/policy.enum';
 
 export type IPolicyConditions = Prisma.JsonObject;
 

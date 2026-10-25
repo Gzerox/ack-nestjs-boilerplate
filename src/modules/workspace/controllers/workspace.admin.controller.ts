@@ -24,7 +24,6 @@ import type { Workspace } from '@generated/prisma-client/client';
 import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
-import { EnumPolicyPlatformSubject } from '@modules/policy/enums/policy.enum';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 
@@ -99,7 +98,7 @@ export class WorkspaceAdminController {
     })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicyPlatformSubject.WorkspaceMember,
+        subject: EnumPolicySubject.WorkspaceMember,
         action: [EnumPolicyAction.read],
     })
     @UserProtected()

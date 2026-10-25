@@ -14,6 +14,8 @@ import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum'
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { PolicyImmutableException } from '@modules/policy/exceptions/policy.immutable.exception';
 import { PolicyNotFoundException } from '@modules/policy/exceptions/policy.not-found.exception';
+import { PolicyInvalidRuleException } from '@modules/policy/exceptions/policy.invalid-rule.exception';
+import { EnumPolicyInvalidRuleReason } from '@modules/policy/enums/policy.invalid-rule-reason.enum';
 import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy.create.request.dto';
 import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
 import { PolicyCache } from '@modules/policy/caches/policy.cache';
@@ -123,6 +125,187 @@ describe('PolicyDomain', () => {
                 'b',
             ]);
             expect(policyRepository.findManyByRoleIds).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('validateRule', () => {
+        const rejectedWith = (
+            run: () => void,
+            reason: EnumPolicyInvalidRuleReason
+        ): void => {
+            let thrown: unknown;
+            try {
+                run();
+            } catch (error) {
+                thrown = error;
+            }
+
+            expect(thrown).toBeInstanceOf(PolicyInvalidRuleException);
+            expect((thrown as PolicyInvalidRuleException).messagePath).toBe(
+                `policy.error.invalidRule.${reason}`
+            );
+        };
+
+        it('rejects an empty action list with actionEmpty', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.platform, {
+                        subject: EnumPolicySubject.User,
+                        action: [],
+                        conditions: null,
+                    }),
+                EnumPolicyInvalidRuleReason.actionEmpty
+            );
+        });
+
+        it('rejects an action that is not an EnumPolicyAction member with actionInvalid', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.platform, {
+                        subject: EnumPolicySubject.User,
+                        action: ['bogus' as EnumPolicyAction],
+                        conditions: null,
+                    }),
+                EnumPolicyInvalidRuleReason.actionInvalid
+            );
+        });
+
+        it('rejects a duplicated action with actionDuplicate', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.platform, {
+                        subject: EnumPolicySubject.User,
+                        action: [EnumPolicyAction.read, EnumPolicyAction.read],
+                        conditions: null,
+                    }),
+                EnumPolicyInvalidRuleReason.actionDuplicate
+            );
+        });
+
+        it('rejects a subject the role scope may not grant with roleScopeInvalid', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.project, {
+                        subject: EnumPolicySubject.User,
+                        action: [EnumPolicyAction.read],
+                        conditions: null,
+                    }),
+                EnumPolicyInvalidRuleReason.roleScopeInvalid
+            );
+        });
+
+        it.each([
+            [EnumRoleScope.platform, EnumPolicySubject.all],
+            [EnumRoleScope.platform, EnumPolicySubject.Analytic],
+            [EnumRoleScope.workspace, EnumPolicySubject.WorkspaceAnalytic],
+        ])(
+            'rejects conditions on the %s non-model subject %s with conditionsNotAllowed',
+            (scope, subject) => {
+                rejectedWith(
+                    () =>
+                        service.validateRule(scope, {
+                            subject,
+                            action: [EnumPolicyAction.read],
+                            conditions: { workspaceId: '${workspaceId}' },
+                        }),
+                    EnumPolicyInvalidRuleReason.conditionsNotAllowed
+                );
+            }
+        );
+
+        it('reports actionEmpty before roleScopeInvalid', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.project, {
+                        subject: EnumPolicySubject.User,
+                        action: [],
+                        conditions: null,
+                    }),
+                EnumPolicyInvalidRuleReason.actionEmpty
+            );
+        });
+
+        it('reports roleScopeInvalid before conditionsNotAllowed', () => {
+            rejectedWith(
+                () =>
+                    service.validateRule(EnumRoleScope.workspace, {
+                        subject: EnumPolicySubject.Analytic,
+                        action: [EnumPolicyAction.read],
+                        conditions: { a: 1 },
+                    }),
+                EnumPolicyInvalidRuleReason.roleScopeInvalid
+            );
+        });
+
+        it('workspace scope accepts ProjectMember', () => {
+            expect(() =>
+                service.validateRule(EnumRoleScope.workspace, {
+                    subject: EnumPolicySubject.ProjectMember,
+                    action: [EnumPolicyAction.update],
+                    conditions: { projectId: '${projectId}' },
+                })
+            ).not.toThrow();
+        });
+
+        it('accepts a model subject with conditions and a non-model subject without', () => {
+            expect(() =>
+                service.validateRule(EnumRoleScope.platform, {
+                    subject: EnumPolicySubject.Analytic,
+                    action: [EnumPolicyAction.read],
+                    conditions: null,
+                })
+            ).not.toThrow();
+            expect(() =>
+                service.validateRule(EnumRoleScope.platform, {
+                    subject: EnumPolicySubject.User,
+                    action: [EnumPolicyAction.read],
+                    conditions: { id: 'x' },
+                })
+            ).not.toThrow();
+        });
+    });
+
+    describe('rule validation on admin writes', () => {
+        it('create throws before any repository write when the subject is not grantable to the role scope', async () => {
+            await expect(
+                service.createByAdmin(
+                    { ...role, scope: EnumRoleScope.project },
+                    ruleRequest
+                )
+            ).rejects.toBeInstanceOf(PolicyInvalidRuleException);
+            expect(policyRepository.create).not.toHaveBeenCalled();
+            expect(activityLogDomain.prepare).not.toHaveBeenCalled();
+            expect(policyCache.deleteCacheByRoleId).not.toHaveBeenCalled();
+        });
+
+        it('update validates conditions against the stored subject (Analytic stored + conditions → conditionsNotAllowed)', async () => {
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue({
+                ...policy,
+                subject: EnumPolicySubject.Analytic,
+            });
+
+            await expect(
+                service.updateByAdmin(role, policy.id, {
+                    action: [EnumPolicyAction.read],
+                    conditions: { userId: '${userId}' },
+                })
+            ).rejects.toMatchObject({
+                messagePath: 'policy.error.invalidRule.conditionsNotAllowed',
+            });
+            expect(policyRepository.update).not.toHaveBeenCalled();
+            expect(activityLogDomain.prepare).not.toHaveBeenCalled();
+        });
+
+        it('update accepts conditions on a stored model subject', async () => {
+            policyRepository.findOneByRoleIdAndId.mockResolvedValue(policy);
+            policyRepository.update.mockResolvedValue(policy);
+
+            await expect(
+                service.updateByAdmin(role, policy.id, {
+                    action: [EnumPolicyAction.read],
+                    conditions: { userId: '${userId}' },
+                })
+            ).resolves.toBe(policy);
         });
     });
 

@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -107,15 +106,16 @@ export class SessionHttpService {
         sessionId: string,
         revokedBy: string
     ): Promise<IResponseReturn<void>> {
-        const stored = await this.sessionDomain.validateActive(
-            userId,
-            sessionId
-        );
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.delete,
-            subject(EnumPolicySubject.Session, stored)
+            EnumPolicySubject.Session
         );
-        await this.sessionDomain.revokeByAdmin(userId, sessionId, revokedBy);
+        await this.sessionDomain.revokeByAdmin(
+            userId,
+            sessionId,
+            revokedBy,
+            scopeWhere
+        );
 
         return {};
     }
@@ -124,12 +124,16 @@ export class SessionHttpService {
         userId: string,
         revokedBy: string
     ): Promise<IResponseReturn<void>> {
-        const user = await this.userDomain.getOne(userId);
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.update,
-            subject(EnumPolicySubject.User, user)
+            EnumPolicySubject.User
         );
-        await this.sessionDomain.revokeAllByAdmin(userId, revokedBy);
+        await this.userDomain.getOne(userId, scopeWhere);
+        await this.sessionDomain.revokeAllByAdmin(
+            userId,
+            revokedBy,
+            scopeWhere
+        );
 
         return {};
     }

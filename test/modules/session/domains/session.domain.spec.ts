@@ -164,6 +164,44 @@ describe('SessionDomain', () => {
         ).resolves.toBe(session);
     });
 
+    it('forwards additionalWhere to findOneActive in validateActive', async () => {
+        const additionalWhere = { userId: 'user-id' };
+        sessionRepository.findOneActive.mockResolvedValue(session);
+
+        await expect(
+            service.validateActive('user-id', 'session-id', additionalWhere)
+        ).resolves.toBe(session);
+        expect(sessionRepository.findOneActive).toHaveBeenCalledWith(
+            'user-id',
+            'session-id',
+            additionalWhere
+        );
+    });
+
+    it('without additionalWhere validateActive calls findOneActive with undefined and returns the same session', async () => {
+        sessionRepository.findOneActive.mockResolvedValue(session);
+
+        await expect(
+            service.validateActive('user-id', 'session-id')
+        ).resolves.toBe(session);
+        expect(sessionRepository.findOneActive).toHaveBeenCalledWith(
+            'user-id',
+            'session-id',
+            undefined
+        );
+    });
+
+    it.each([{ userId: 'user-id' }, undefined])(
+        'validateActive throws SessionNotFoundException when findOneActive returns null (additionalWhere %j)',
+        async additionalWhere => {
+            sessionRepository.findOneActive.mockResolvedValue(null);
+
+            await expect(
+                service.validateActive('user-id', 'session-id', additionalWhere)
+            ).rejects.toBeInstanceOf(SessionNotFoundException);
+        }
+    );
+
     it('forwards transaction-owned session writes and revocations', async () => {
         const expiredAt = new Date('2026-02-01T00:00:00.000Z');
         const created = { ...session, user: undefined, revokedBy: undefined };
@@ -306,7 +344,8 @@ describe('SessionDomain', () => {
         expect(sessionRepository.revokeByAdmin).toHaveBeenCalledWith(
             'session-id',
             'admin-id',
-            expect.any(Date)
+            expect.any(Date),
+            undefined
         );
         expect(sessionCache.deleteLogins).toHaveBeenCalledWith('user-id', [
             { id: 'session-id' },
@@ -331,6 +370,48 @@ describe('SessionDomain', () => {
             },
         });
     });
+
+    it('forwards additionalWhere to the active-session read and the scoped admin revoke', async () => {
+        const additionalWhere = { userId: 'user-id' };
+        sessionRepository.findOneActive.mockResolvedValue(session);
+        sessionRepository.revokeByAdmin.mockResolvedValue(true);
+
+        await service.revokeByAdmin(
+            'user-id',
+            'session-id',
+            'admin-id',
+            additionalWhere
+        );
+
+        expect(sessionRepository.findOneActive).toHaveBeenCalledWith(
+            'user-id',
+            'session-id',
+            additionalWhere
+        );
+        expect(sessionRepository.revokeByAdmin).toHaveBeenCalledWith(
+            'session-id',
+            'admin-id',
+            expect.any(Date),
+            additionalWhere
+        );
+    });
+
+    it.each([{ userId: 'user-id' }, undefined])(
+        'revokeByAdmin throws SessionNotFoundException and revokes nothing when the session read returns null (additionalWhere %j)',
+        async additionalWhere => {
+            sessionRepository.findOneActive.mockResolvedValue(null);
+
+            await expect(
+                service.revokeByAdmin(
+                    'user-id',
+                    'session-id',
+                    'admin-id',
+                    additionalWhere
+                )
+            ).rejects.toBeInstanceOf(SessionNotFoundException);
+            expect(sessionRepository.revokeByAdmin).not.toHaveBeenCalled();
+        }
+    );
 
     it('omits the target audit event when an administrator revokes their own session', async () => {
         sessionRepository.findOneActive.mockResolvedValue(session);
@@ -451,6 +532,31 @@ describe('SessionDomain', () => {
         ).rejects.toBeInstanceOf(SessionNotFoundException);
     });
 
+    it('forwards additionalWhere to revokeActiveByUser', async () => {
+        const additionalWhere = { id: 'user-id' };
+        sessionRepository.revokeActiveByUser.mockResolvedValue([
+            { id: 'session-1' },
+        ]);
+
+        await service.revokeAllByAdmin('user-id', 'admin-id', additionalWhere);
+
+        expect(sessionRepository.revokeActiveByUser).toHaveBeenCalledWith(
+            'user-id',
+            'admin-id',
+            now,
+            additionalWhere
+        );
+    });
+
+    it('revoke-all with additionalWhere and zero revoked sessions throws SessionNotFoundException', async () => {
+        sessionRepository.revokeActiveByUser.mockResolvedValue([]);
+
+        await expect(
+            service.revokeAllByAdmin('user-id', 'admin-id', { id: 'user-id' })
+        ).rejects.toBeInstanceOf(SessionNotFoundException);
+        expect(sessionCache.deleteLoginsByUser).not.toHaveBeenCalled();
+    });
+
     it('revokes every active session and finalizes its audit events', async () => {
         const sessions = [{ id: 'session-1' }, { id: 'session-2' }];
         const event = mock<IActivityLogStagedEvent>();
@@ -462,7 +568,8 @@ describe('SessionDomain', () => {
         expect(sessionRepository.revokeActiveByUser).toHaveBeenCalledWith(
             'user-id',
             'admin-id',
-            now
+            now,
+            undefined
         );
         expect(sessionCache.deleteLoginsByUser).toHaveBeenCalledWith('user-id');
         expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([

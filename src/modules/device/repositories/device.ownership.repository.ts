@@ -120,29 +120,33 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         return ownership?.deviceId ?? null;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async removeOwnershipInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         deviceOwnershipId: string,
         removedBy: string,
-        now: Date
-    ): Promise<IDeviceOwnership> {
-        const ownershipInclude = this.ownershipInclude(now);
-
-        return tx.deviceOwnership.update({
+        now: Date,
+        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+    ): Promise<IDeviceOwnership | null> {
+        const { count } = await tx.deviceOwnership.updateMany({
             where: {
-                id: deviceOwnershipId,
-                userId,
+                AND: [additionalWhere ?? {}, { id: deviceOwnershipId, userId }],
             },
             data: {
                 isRevoked: true,
                 revokedAt: now,
-                revokedBy: {
-                    connect: {
-                        id: removedBy,
-                    },
-                },
+                revokedById: removedBy,
             },
+        });
+        if (count === 0) {
+            return null;
+        }
+
+        const ownershipInclude = this.ownershipInclude(now);
+
+        return tx.deviceOwnership.findUnique({
+            where: { id: deviceOwnershipId },
             include: ownershipInclude,
         });
     }
@@ -304,28 +308,42 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async findOneActive(
         userId: string,
-        deviceOwnershipId: string
+        deviceOwnershipId: string,
+        additionalWhere?: Prisma.DeviceOwnershipWhereInput
     ): Promise<DeviceOwnership | null> {
         return this.databaseService.client.deviceOwnership.findFirst({
             where: {
-                id: deviceOwnershipId,
-                userId,
-                isRevoked: false,
+                AND: [
+                    additionalWhere ?? {},
+                    {
+                        id: deviceOwnershipId,
+                        userId,
+                        isRevoked: false,
+                    },
+                ],
             },
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async existsActive(
         userId: string,
-        deviceOwnershipId: string
+        deviceOwnershipId: string,
+        additionalWhere?: Prisma.DeviceOwnershipWhereInput
     ): Promise<boolean> {
         const count = await this.databaseService.client.deviceOwnership.count({
             where: {
-                id: deviceOwnershipId,
-                userId,
-                isRevoked: false,
+                AND: [
+                    additionalWhere ?? {},
+                    {
+                        id: deviceOwnershipId,
+                        userId,
+                        isRevoked: false,
+                    },
+                ],
             },
         });
 

@@ -320,31 +320,26 @@ describe('DeviceHttpService', () => {
     });
 
     describe('removeByAdmin', () => {
-        it('checks delete on the active ownership of the route user, delegates to the domain and answers an empty envelope', async () => {
-            deviceDomain.getOneActive.mockResolvedValue(ownership);
+        it('passes scope(delete, DeviceOwnership) as additionalWhere, delegates to the domain and answers an empty envelope', async () => {
             deviceDomain.removeByAdmin.mockResolvedValue(undefined);
 
             await expect(
                 service.removeByAdmin('user-id', 'ownership-id', 'admin-id')
             ).resolves.toEqual({});
-            expect(deviceDomain.getOneActive).toHaveBeenCalledWith(
-                'user-id',
-                'ownership-id'
-            );
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                ownership
+                EnumPolicySubject.DeviceOwnership
             );
             expect(deviceDomain.removeByAdmin).toHaveBeenCalledWith(
                 'user-id',
                 'ownership-id',
-                'admin-id'
+                'admin-id',
+                scopeWhere
             );
         });
 
-        it('throws PolicyForbiddenException and never removes when the record is denied', async () => {
-            deviceDomain.getOneActive.mockResolvedValue(ownership);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never removes when the ability has no delete rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -355,8 +350,7 @@ describe('DeviceHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            deviceDomain.getOneActive.mockResolvedValue(ownership);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

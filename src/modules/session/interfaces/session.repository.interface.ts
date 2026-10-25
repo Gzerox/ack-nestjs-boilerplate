@@ -32,7 +32,12 @@ export interface ISessionRepository {
             ...others
         }: IPaginationQueryCursorParams<Prisma.SessionWhereInput>
     ): Promise<IResponsePaginationReturn<ISessionList>>;
-    findOneActive(userId: string, sessionId: string): Promise<ISession | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneActive(
+        userId: string,
+        sessionId: string,
+        additionalWhere?: Prisma.SessionWhereInput
+    ): Promise<ISession | null>;
     createInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
@@ -60,21 +65,27 @@ export interface ISessionRepository {
         revokedBy: string,
         revokedAt: Date
     ): Promise<boolean>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     revokeByAdmin(
         sessionId: string,
         revokedBy: string,
-        revokedAt: Date
+        revokedAt: Date,
+        additionalWhere?: Prisma.SessionWhereInput
     ): Promise<boolean>;
+    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
     revokeActiveByUser(
         userId: string,
         revokedBy: string,
-        revokedAt: Date
+        revokedAt: Date,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<ISessionRef[]>;
+    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
     revokeActiveByUserInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         revokedBy: string,
-        revokedAt: Date
+        revokedAt: Date,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<ISessionRef[]>;
     revokeByDeviceOwnershipInTx(
         tx: IDatabaseTransactionClient,

@@ -1,4 +1,3 @@
-import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -142,18 +141,15 @@ export class DeviceHttpService {
         deviceOwnershipId: string,
         removedBy: string
     ): Promise<IResponseReturn<void>> {
-        const stored = await this.deviceDomain.getOneActive(
-            userId,
-            deviceOwnershipId
-        );
-        this.policyAbilityDomain.authorize(
+        const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.delete,
-            subject(EnumPolicySubject.DeviceOwnership, stored)
+            EnumPolicySubject.DeviceOwnership
         );
         await this.deviceDomain.removeByAdmin(
             userId,
             deviceOwnershipId,
-            removedBy
+            removedBy,
+            scopeWhere
         );
 
         return {};

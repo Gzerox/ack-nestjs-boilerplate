@@ -61,10 +61,16 @@ export class SessionDomain {
         );
     }
 
-    async validateActive(userId: string, sessionId: string): Promise<ISession> {
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async validateActive(
+        userId: string,
+        sessionId: string,
+        additionalWhere?: Prisma.SessionWhereInput
+    ): Promise<ISession> {
         const session = await this.sessionRepository.findOneActive(
             userId,
-            sessionId
+            sessionId,
+            additionalWhere
         );
         if (!session) {
             throw new SessionNotFoundException();
@@ -181,12 +187,18 @@ export class SessionDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async revokeByAdmin(
         userId: string,
         sessionId: string,
-        revokedBy: string
+        revokedBy: string,
+        additionalWhere?: Prisma.SessionWhereInput
     ): Promise<void> {
-        const session = await this.validateActive(userId, sessionId);
+        const session = await this.validateActive(
+            userId,
+            sessionId,
+            additionalWhere
+        );
 
         const revokedAt = this.helperDateService.create();
         const actorMetadata = this.sessionUtil.mapActivityLogActorMetadata(
@@ -218,7 +230,8 @@ export class SessionDomain {
         const isRevoked = await this.sessionRepository.revokeByAdmin(
             sessionId,
             revokedBy,
-            revokedAt
+            revokedAt,
+            additionalWhere
         );
         if (!isRevoked) {
             throw new SessionNotFoundException();
@@ -316,7 +329,12 @@ export class SessionDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
-    async revokeAllByAdmin(userId: string, revokedBy: string): Promise<void> {
+    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
+    async revokeAllByAdmin(
+        userId: string,
+        revokedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<void> {
         if (userId === revokedBy) {
             throw new UserNotSelfException();
         }
@@ -325,7 +343,8 @@ export class SessionDomain {
         const sessions = await this.sessionRepository.revokeActiveByUser(
             userId,
             revokedBy,
-            revokedAt
+            revokedAt,
+            additionalWhere
         );
         if (sessions.length === 0) {
             throw new SessionNotFoundException();

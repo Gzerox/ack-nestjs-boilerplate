@@ -283,7 +283,8 @@ describe('DeviceDomain', () => {
             'user-id',
             ownership.id,
             'admin-id',
-            expect.any(Date)
+            expect.any(Date),
+            undefined
         );
         expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(1, {
             action: EnumActivityLogAction.adminDeviceRemove,
@@ -491,6 +492,21 @@ describe('DeviceDomain', () => {
         });
     });
 
+    describe('remove', () => {
+        it('throws DeviceNotFoundException when the ownership removal returns null', async () => {
+            deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+            sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue([]);
+            deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                service.remove('user-id', ownership.id)
+            ).rejects.toBeInstanceOf(DeviceNotFoundException);
+            expect(sessionDomain.purgeRevokedLogins).not.toHaveBeenCalled();
+        });
+    });
+
     describe('remove failure mapping', () => {
         it('throws DeviceNotFoundException when the ownership is not active', async () => {
             deviceOwnershipRepository.existsActive.mockResolvedValue(false);
@@ -539,16 +555,40 @@ describe('DeviceDomain', () => {
             ).resolves.toEqual(ownership);
             expect(
                 deviceOwnershipRepository.findOneActive
-            ).toHaveBeenCalledWith('user-id', ownership.id);
+            ).toHaveBeenCalledWith('user-id', ownership.id, undefined);
         });
 
-        it('throws DeviceNotFoundException when the ownership is not active for the user', async () => {
-            deviceOwnershipRepository.findOneActive.mockResolvedValue(null);
+        it('forwards additionalWhere to findOneActive', async () => {
+            const additionalWhere = { userId: 'user-id' };
+            deviceOwnershipRepository.findOneActive.mockResolvedValue(
+                ownership
+            );
 
-            await expect(
-                service.getOneActive('user-id', 'foreign-ownership')
-            ).rejects.toBeInstanceOf(DeviceNotFoundException);
+            await service.getOneActive(
+                'user-id',
+                ownership.id,
+                additionalWhere
+            );
+
+            expect(
+                deviceOwnershipRepository.findOneActive
+            ).toHaveBeenCalledWith('user-id', ownership.id, additionalWhere);
         });
+
+        it.each([{ userId: 'user-id' }, undefined])(
+            'throws DeviceNotFoundException when the ownership is not active for the user (additionalWhere %j)',
+            async additionalWhere => {
+                deviceOwnershipRepository.findOneActive.mockResolvedValue(null);
+
+                await expect(
+                    service.getOneActive(
+                        'user-id',
+                        'foreign-ownership',
+                        additionalWhere
+                    )
+                ).rejects.toBeInstanceOf(DeviceNotFoundException);
+            }
+        );
     });
 
     describe('removeByAdmin failure mapping and self removal', () => {
@@ -585,6 +625,105 @@ describe('DeviceDomain', () => {
                 service.removeByAdmin('user-id', ownership.id, 'admin-id')
             ).rejects.toBeInstanceOf(AppUnknownException);
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('forwards additionalWhere to the active read and the scoped ownership removal', async () => {
+            const additionalWhere = { userId: 'user-id' };
+            deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+            sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue([]);
+            deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
+                ownership
+            );
+
+            await service.removeByAdmin(
+                'user-id',
+                ownership.id,
+                'admin-id',
+                additionalWhere
+            );
+
+            expect(deviceOwnershipRepository.existsActive).toHaveBeenCalledWith(
+                'user-id',
+                ownership.id,
+                additionalWhere
+            );
+            expect(
+                deviceOwnershipRepository.removeOwnershipInTx
+            ).toHaveBeenCalledWith(
+                expect.any(Object),
+                'user-id',
+                ownership.id,
+                'admin-id',
+                expect.any(Date),
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere reads the active ownership with undefined', async () => {
+            deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+            sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue([]);
+            deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
+                ownership
+            );
+
+            await service.removeByAdmin('user-id', ownership.id, 'admin-id');
+
+            expect(deviceOwnershipRepository.existsActive).toHaveBeenCalledWith(
+                'user-id',
+                ownership.id,
+                undefined
+            );
+        });
+
+        it('throws DeviceNotFoundException when additionalWhere excludes the ownership', async () => {
+            deviceOwnershipRepository.existsActive.mockResolvedValue(false);
+
+            await expect(
+                service.removeByAdmin('user-id', ownership.id, 'admin-id', {
+                    userId: 'user-id',
+                })
+            ).rejects.toBeInstanceOf(DeviceNotFoundException);
+            expect(
+                deviceOwnershipRepository.removeOwnershipInTx
+            ).not.toHaveBeenCalled();
+        });
+
+        it('scoped removal returning null throws DeviceNotFoundException and purges no session cache', async () => {
+            deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+            sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue([
+                { id: 'session-1' },
+            ]);
+            deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                service.removeByAdmin('user-id', ownership.id, 'admin-id', {
+                    userId: 'user-id',
+                })
+            ).rejects.toBeInstanceOf(DeviceNotFoundException);
+            expect(sessionDomain.purgeRevokedLogins).not.toHaveBeenCalled();
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('session invalidation still runs after a successful scoped remove', async () => {
+            const sessions = [{ id: 'session-1' }];
+            deviceOwnershipRepository.existsActive.mockResolvedValue(true);
+            sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue(
+                sessions
+            );
+            deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
+                ownership
+            );
+
+            await service.removeByAdmin('user-id', ownership.id, 'admin-id', {
+                userId: 'user-id',
+            });
+
+            expect(sessionDomain.purgeRevokedLogins).toHaveBeenCalledWith(
+                'user-id',
+                sessions
+            );
         });
 
         it('prepares only the actor event when the admin removes their own device', async () => {

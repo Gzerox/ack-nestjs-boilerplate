@@ -262,6 +262,10 @@ export class DeviceDomain {
                             userId,
                             now
                         );
+                    if (!row) {
+                        throw new DeviceNotFoundException();
+                    }
+
                     await this.deviceRepository.clearNotificationByIdsInTx(
                         tx,
                         [row.deviceId],
@@ -300,15 +304,20 @@ export class DeviceDomain {
         }
     }
 
-    /** Returns the active ownership of the user; callers judge it, this method does not. */
+    /**
+     * Returns the active ownership of the user; callers judge it, this method does not.
+     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
+     */
     async getOneActive(
         userId: string,
-        deviceOwnershipId: string
+        deviceOwnershipId: string,
+        additionalWhere?: Prisma.DeviceOwnershipWhereInput
     ): Promise<DeviceOwnership> {
         const deviceOwnership =
             await this.deviceOwnershipRepository.findOneActive(
                 userId,
-                deviceOwnershipId
+                deviceOwnershipId,
+                additionalWhere
             );
         if (!deviceOwnership) {
             throw new DeviceNotFoundException();
@@ -317,15 +326,18 @@ export class DeviceDomain {
         return deviceOwnership;
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async removeByAdmin(
         userId: string,
         deviceOwnershipId: string,
-        removedBy: string
+        removedBy: string,
+        additionalWhere?: Prisma.DeviceOwnershipWhereInput
     ): Promise<void> {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId
+                deviceOwnershipId,
+                additionalWhere
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -349,8 +361,13 @@ export class DeviceDomain {
                             userId,
                             deviceOwnershipId,
                             removedBy,
-                            now
+                            now,
+                            additionalWhere
                         );
+                    if (!row) {
+                        throw new DeviceNotFoundException();
+                    }
+
                     await this.deviceRepository.clearNotificationByIdsInTx(
                         tx,
                         [row.deviceId],

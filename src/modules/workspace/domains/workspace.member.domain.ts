@@ -25,6 +25,7 @@ import { WorkspaceOwnerRoleNotAssignableException } from '@modules/workspace/exc
 import { WorkspaceSelfTransferException } from '@modules/workspace/exceptions/workspace.self-transfer.exception';
 import type {
     IWorkspaceMember,
+    IWorkspaceMemberWithGuardRole,
     IWorkspaceMemberWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberRepository } from '@modules/workspace/repositories/workspace.member.repository';
@@ -69,7 +70,7 @@ export class WorkspaceMemberDomain {
     async validateWorkspaceMemberGuard(
         workspaceId: string | null,
         userId: string | null
-    ): Promise<IWorkspaceMemberWithRole> {
+    ): Promise<IWorkspaceMemberWithGuardRole> {
         if (!userId) {
             throw new AuthJwtAccessTokenInvalidException();
         } else if (!workspaceId) {

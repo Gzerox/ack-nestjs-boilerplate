@@ -4,7 +4,7 @@ import {
     WorkspaceMemberStoreKey,
     WorkspaceStoreKey,
 } from '@modules/workspace/constants/workspace.constant';
-import type { IWorkspaceMemberWithRole } from '@modules/workspace/interfaces/workspace.interface';
+import type { IWorkspaceMemberWithGuardRole } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceGuard } from '@modules/workspace/guards/workspace.guard';
 import { WorkspaceMemberGuard } from '@modules/workspace/guards/workspace.member.guard';
 import {
@@ -74,27 +74,27 @@ export function WorkspaceMemberProtected(): MethodDecorator {
  * @public
  */
 export const WorkspaceMemberCurrent = createParamDecorator<
-    Extract<keyof IWorkspaceMemberWithRole, string> | undefined,
-    | IWorkspaceMemberWithRole
+    Extract<keyof IWorkspaceMemberWithGuardRole, string> | undefined,
+    | IWorkspaceMemberWithGuardRole
     | NonNullable<
-          IWorkspaceMemberWithRole[Extract<
-              keyof IWorkspaceMemberWithRole,
+          IWorkspaceMemberWithGuardRole[Extract<
+              keyof IWorkspaceMemberWithGuardRole,
               string
           >]
       >
 >(
     (
-        field: Extract<keyof IWorkspaceMemberWithRole, string> | undefined
+        field: Extract<keyof IWorkspaceMemberWithGuardRole, string> | undefined
     ):
-        | IWorkspaceMemberWithRole
+        | IWorkspaceMemberWithGuardRole
         | NonNullable<
-              IWorkspaceMemberWithRole[Extract<
-                  keyof IWorkspaceMemberWithRole,
+              IWorkspaceMemberWithGuardRole[Extract<
+                  keyof IWorkspaceMemberWithGuardRole,
                   string
               >]
           > => {
         const workspaceMember = ClsServiceManager.getClsService().get<
-            IWorkspaceMemberWithRole | undefined
+            IWorkspaceMemberWithGuardRole | undefined
         >(WorkspaceMemberStoreKey);
         if (workspaceMember === undefined || workspaceMember === null) {
             throw new RequestContextMissingException(WorkspaceMemberStoreKey);

@@ -5,9 +5,13 @@ import { PaginationService } from '@common/pagination/services/pagination.servic
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { EnumRoleScope, Prisma } from '@generated/prisma-client/client';
 import type { ProjectMember } from '@generated/prisma-client/client';
-import { ProjectMemberRoleInclude } from '@modules/project/constants/project.constant';
+import {
+    ProjectMemberGuardRoleInclude,
+    ProjectMemberRoleInclude,
+} from '@modules/project/constants/project.constant';
 import type {
     IProjectMember,
+    IProjectMemberWithGuardRole,
     IProjectMemberWithRole,
 } from '@modules/project/interfaces/project.interface';
 import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
@@ -38,13 +42,13 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
     async findOneWithRoleByProjectAndUser(
         projectId: string,
         userId: string
-    ): Promise<IProjectMemberWithRole | null> {
+    ): Promise<IProjectMemberWithGuardRole | null> {
         return this.databaseService.client.projectMember.findFirst({
             where: {
                 projectId,
                 userId,
             },
-            include: ProjectMemberRoleInclude,
+            include: ProjectMemberGuardRoleInclude,
         });
     }
 

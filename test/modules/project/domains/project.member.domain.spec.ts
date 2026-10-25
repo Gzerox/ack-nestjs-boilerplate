@@ -24,6 +24,7 @@ import { ProjectMemberPeerForbiddenException } from '@modules/project/exceptions
 import { ProjectMemberRepository } from '@modules/project/repositories/project.member.repository';
 import type {
     IProjectMember,
+    IProjectMemberWithGuardRole,
     IProjectMemberWithRole,
 } from '@modules/project/interfaces/project.interface';
 import { ProjectMemberDomain } from '@modules/project/domains/project.member.domain';
@@ -301,6 +302,18 @@ describe('ProjectMemberDomain', () => {
     });
 
     describe('validateProjectMemberGuard', () => {
+        const guardMember: IProjectMemberWithGuardRole = {
+            ...mock<IProjectMemberWithRole>(),
+            id: 'member-id',
+            role: {
+                id: 'role-id',
+                scope: EnumRoleScope.project,
+                key: 'admin',
+                name: 'Admin',
+                policyRevision: 4,
+            },
+        };
+
         it('rejects a request without a user as an invalid access token', async () => {
             await expect(
                 domain.validateProjectMemberGuard('project-id', null, true)
@@ -342,19 +355,33 @@ describe('ProjectMemberDomain', () => {
 
         it('asserts the project scope of the member role and returns the member', async () => {
             repository.findOneWithRoleByProjectAndUser.mockResolvedValue(
-                member
+                guardMember
             );
 
             await expect(
                 domain.validateProjectMemberGuard('project-id', 'user-id', true)
-            ).resolves.toBe(member);
+            ).resolves.toBe(guardMember);
             expect(
                 repository.findOneWithRoleByProjectAndUser
             ).toHaveBeenCalledWith('project-id', 'user-id');
             expect(roleDomain.assertScope).toHaveBeenCalledWith(
-                member.role,
+                guardMember.role,
                 EnumRoleScope.project
             );
+        });
+
+        it('returns the member with role.policyRevision', async () => {
+            repository.findOneWithRoleByProjectAndUser.mockResolvedValue(
+                guardMember
+            );
+
+            const result = await domain.validateProjectMemberGuard(
+                'project-id',
+                'user-id',
+                true
+            );
+
+            expect(result?.role.policyRevision).toBe(4);
         });
     });
 

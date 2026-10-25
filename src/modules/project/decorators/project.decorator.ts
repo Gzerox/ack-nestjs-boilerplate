@@ -8,7 +8,7 @@ import {
 } from '@modules/project/constants/project.constant';
 import { ProjectGuard } from '@modules/project/guards/project.guard';
 import { ProjectMemberGuard } from '@modules/project/guards/project.member.guard';
-import type { IProjectMemberWithRole } from '@modules/project/interfaces/project.interface';
+import type { IProjectMemberWithGuardRole } from '@modules/project/interfaces/project.interface';
 import {
     SetMetadata,
     UseGuards,
@@ -102,24 +102,27 @@ export function ProjectMemberProtected(options?: {
  * @public
  */
 export const ProjectMemberCurrent = createParamDecorator<
-    Extract<keyof IProjectMemberWithRole, string> | undefined,
-    | IProjectMemberWithRole
+    Extract<keyof IProjectMemberWithGuardRole, string> | undefined,
+    | IProjectMemberWithGuardRole
     | NonNullable<
-          IProjectMemberWithRole[Extract<keyof IProjectMemberWithRole, string>]
+          IProjectMemberWithGuardRole[Extract<
+              keyof IProjectMemberWithGuardRole,
+              string
+          >]
       >
 >(
     (
-        field: Extract<keyof IProjectMemberWithRole, string> | undefined
+        field: Extract<keyof IProjectMemberWithGuardRole, string> | undefined
     ):
-        | IProjectMemberWithRole
+        | IProjectMemberWithGuardRole
         | NonNullable<
-              IProjectMemberWithRole[Extract<
-                  keyof IProjectMemberWithRole,
+              IProjectMemberWithGuardRole[Extract<
+                  keyof IProjectMemberWithGuardRole,
                   string
               >]
           > => {
         const projectMember = ClsServiceManager.getClsService().get<
-            IProjectMemberWithRole | undefined
+            IProjectMemberWithGuardRole | undefined
         >(ProjectMemberStoreKey);
         if (projectMember === undefined || projectMember === null) {
             throw new RequestContextMissingException(ProjectMemberStoreKey);

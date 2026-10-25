@@ -17,6 +17,7 @@ import { ProjectMemberPeerForbiddenException } from '@modules/project/exceptions
 import { ProjectNotFoundException } from '@modules/project/exceptions/project.not-found.exception';
 import type {
     IProjectMember,
+    IProjectMemberWithGuardRole,
     IProjectMemberWithRole,
 } from '@modules/project/interfaces/project.interface';
 import { ProjectMemberRepository } from '@modules/project/repositories/project.member.repository';
@@ -45,7 +46,7 @@ export class ProjectMemberDomain {
         projectId: string | null,
         userId: string | null,
         required: boolean
-    ): Promise<IProjectMemberWithRole | null> {
+    ): Promise<IProjectMemberWithGuardRole | null> {
         if (!userId) {
             throw new AuthJwtAccessTokenInvalidException();
         } else if (!projectId) {

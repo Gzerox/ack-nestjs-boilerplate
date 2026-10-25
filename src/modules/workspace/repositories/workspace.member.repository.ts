@@ -15,10 +15,12 @@ import { EnumRoleWorkspaceKey } from '@modules/role/enums/role.workspace-key.enu
 import { UserRefSelect } from '@modules/user/constants/user.constant';
 import {
     WorkspaceActiveFilter,
+    WorkspaceMemberGuardRoleInclude,
     WorkspaceMemberRoleInclude,
 } from '@modules/workspace/constants/workspace.constant';
 import type {
     IWorkspaceMember,
+    IWorkspaceMemberWithGuardRole,
     IWorkspaceMemberWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
 import type { IWorkspaceMemberRepository } from '@modules/workspace/interfaces/workspace.member-repository.interface';
@@ -61,13 +63,13 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
     async findOneWithRoleByWorkspaceAndUser(
         workspaceId: string,
         userId: string
-    ): Promise<IWorkspaceMemberWithRole | null> {
+    ): Promise<IWorkspaceMemberWithGuardRole | null> {
         return this.databaseService.client.workspaceMember.findFirst({
             where: {
                 workspaceId,
                 userId,
             },
-            include: WorkspaceMemberRoleInclude,
+            include: WorkspaceMemberGuardRoleInclude,
         });
     }
 

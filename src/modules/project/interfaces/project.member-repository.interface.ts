@@ -5,6 +5,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import type { ProjectMember } from '@generated/prisma-client/client';
 import type {
     IProjectMember,
+    IProjectMemberWithGuardRole,
     IProjectMemberWithRole,
 } from '@modules/project/interfaces/project.interface';
 
@@ -16,7 +17,7 @@ export interface IProjectMemberRepository {
     findOneWithRoleByProjectAndUser(
         projectId: string,
         userId: string
-    ): Promise<IProjectMemberWithRole | null>;
+    ): Promise<IProjectMemberWithGuardRole | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndProject(
         projectMemberId: string,

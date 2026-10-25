@@ -218,18 +218,26 @@ export class UserDomain {
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updatePasswordInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         password: IAuthPassword,
-        updatedBy: string
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<User> {
-        return this.userRepository.updatePasswordInTx(
+        const user = await this.userRepository.updatePasswordInTx(
             tx,
             userId,
             password,
-            updatedBy
+            updatedBy,
+            additionalWhere
         );
+        if (!user) {
+            throw new UserNotFoundException();
+        }
+
+        return user;
     }
 
     async updateLoginInTx(
@@ -376,16 +384,21 @@ export class UserDomain {
         );
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatusByAdmin(
         userId: string,
         status: EnumUserStatus,
-        updatedBy: string
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneById(userId);
+        const user = await this.userRepository.findOneById(
+            userId,
+            additionalWhere
+        );
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -406,8 +419,13 @@ export class UserDomain {
                         await this.userRepository.updateStatusByAdminInTx(
                             tx,
                             userId,
-                            { status }
+                            { status },
+                            additionalWhere
                         );
+                    if (!row) {
+                        throw new UserNotFoundException();
+                    }
+
                     const actorMetadata =
                         this.userUtil.mapActivityLogActorMetadata(row);
                     const targetMetadata =

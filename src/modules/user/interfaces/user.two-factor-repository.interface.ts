@@ -1,4 +1,5 @@
 import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
+import type { Prisma } from '@generated/prisma-client/client';
 import type { IUserTwoFactor } from '@modules/user/interfaces/user.interface';
 import type { IAuthTwoFactorVerifyResult } from '@modules/auth/interfaces/auth.interface';
 
@@ -39,10 +40,12 @@ export interface IUserTwoFactorRepository {
         userId: string,
         backupCodesHashed: string[]
     ): Promise<IUserTwoFactor>;
+    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
     resetTwoFactorByAdminInTx(
         tx: IDatabaseTransactionClient,
-        userId: string
-    ): Promise<IUserTwoFactor>;
+        userId: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUserTwoFactor | null>;
     increaseTwoFactorAttempt(userId: string): Promise<IUserTwoFactor>;
     resetTwoFactorAttempt(userId: string): Promise<IUserTwoFactor>;
 }

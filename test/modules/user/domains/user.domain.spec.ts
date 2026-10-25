@@ -40,6 +40,7 @@ import { UserNotFoundForbiddenException } from '@modules/user/exceptions/user.no
 import { UserPasswordExpiredException } from '@modules/user/exceptions/user.password-expired.exception';
 import { UserBlockedInvalidException } from '@modules/user/exceptions/user.blocked-invalid.exception';
 import { UserEmailExistException } from '@modules/user/exceptions/user.email-exist.exception';
+import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
 import { UserNotSelfException } from '@modules/user/exceptions/user.not-self.exception';
 import { UserUsernameContainBadWordException } from '@modules/user/exceptions/user.username-contain-bad-word.exception';
@@ -634,6 +635,81 @@ describe('UserDomain', () => {
             }
         );
 
+        it('forwards additionalWhere to the preliminary read and the scoped status write', async () => {
+            const additionalWhere = { id: userRow.id };
+
+            await service.updateStatusByAdmin(
+                userRow.id,
+                EnumUserStatus.active,
+                'admin-id',
+                additionalWhere
+            );
+
+            expect(userRepository.findOneById).toHaveBeenCalledWith(
+                userRow.id,
+                additionalWhere
+            );
+            expect(userRepository.updateStatusByAdminInTx).toHaveBeenCalledWith(
+                expect.any(Object),
+                userRow.id,
+                { status: EnumUserStatus.active },
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls the read and the write with undefined', async () => {
+            await service.updateStatusByAdmin(
+                userRow.id,
+                EnumUserStatus.active,
+                'admin-id'
+            );
+
+            expect(userRepository.findOneById).toHaveBeenCalledWith(
+                userRow.id,
+                undefined
+            );
+            expect(userRepository.updateStatusByAdminInTx).toHaveBeenCalledWith(
+                expect.any(Object),
+                userRow.id,
+                { status: EnumUserStatus.active },
+                undefined
+            );
+        });
+
+        it('throws UserNotFoundException when the preliminary read is excluded by additionalWhere', async () => {
+            userRepository.findOneById.mockResolvedValue(null);
+
+            await expect(
+                service.updateStatusByAdmin(
+                    userRow.id,
+                    EnumUserStatus.inactive,
+                    'admin-id',
+                    { id: userRow.id }
+                )
+            ).rejects.toMatchObject({
+                statusCode: EnumUserStatusCodeError.notFound,
+            });
+            expect(
+                userRepository.updateStatusByAdminInTx
+            ).not.toHaveBeenCalled();
+        });
+
+        it('scoped status write returning null throws UserNotFoundException inside the transaction and no session revoke runs', async () => {
+            userRepository.updateStatusByAdminInTx.mockResolvedValue(null);
+
+            await expect(
+                service.updateStatusByAdmin(
+                    userRow.id,
+                    EnumUserStatus.blocked,
+                    'admin-id',
+                    { id: userRow.id }
+                )
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
+            expect(sessionDomain.finalizeRevokeAll).not.toHaveBeenCalled();
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
         it('rejects an administrator updating their own status', async () => {
             await expect(
                 service.updateStatusByAdmin(
@@ -698,6 +774,66 @@ describe('UserDomain', () => {
                 )
             ).rejects.toBeInstanceOf(AppUnknownException);
         });
+    });
+
+    describe('updatePasswordInTx', () => {
+        it('forwards additionalWhere to the password write', async () => {
+            const additionalWhere = { id: userRow.id };
+
+            await expect(
+                service.updatePasswordInTx(
+                    transactionClient,
+                    userRow.id,
+                    password,
+                    'admin-id',
+                    additionalWhere
+                )
+            ).resolves.toBe(userRow);
+            expect(userRepository.updatePasswordInTx).toHaveBeenCalledWith(
+                transactionClient,
+                userRow.id,
+                password,
+                'admin-id',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere calls the write with undefined and returns the same row', async () => {
+            await expect(
+                service.updatePasswordInTx(
+                    transactionClient,
+                    userRow.id,
+                    password,
+                    'admin-id'
+                )
+            ).resolves.toBe(userRow);
+            expect(userRepository.updatePasswordInTx).toHaveBeenCalledWith(
+                transactionClient,
+                userRow.id,
+                password,
+                'admin-id',
+                undefined
+            );
+        });
+
+        it.each([{ id: userRow.id }, undefined])(
+            'throws UserNotFoundException when the write returns null (additionalWhere %j)',
+            async additionalWhere => {
+                userRepository.updatePasswordInTx.mockResolvedValue(null);
+
+                await expect(
+                    service.updatePasswordInTx(
+                        transactionClient,
+                        userRow.id,
+                        password,
+                        'admin-id',
+                        additionalWhere
+                    )
+                ).rejects.toMatchObject({
+                    statusCode: EnumUserStatusCodeError.notFound,
+                });
+            }
+        );
     });
 
     it('returns username and email availability checks', async () => {

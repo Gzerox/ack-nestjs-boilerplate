@@ -40,7 +40,11 @@ export interface IUserRepository {
         additionalWhere?: Prisma.UserWhereInput
     ): Promise<IResponsePaginationReturn<IUserList>>;
     findActive(): Promise<IUserContact[]>;
-    findOneById(id: string): Promise<User | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null>;
     findOneActiveById(id: string): Promise<User | null>;
     findOneActiveByEmail(email: string): Promise<User | null>;
     findNameById(userId: string): Promise<IWorkspaceInviteInviter | null>;
@@ -51,7 +55,11 @@ export interface IUserRepository {
         additionalWhere?: Prisma.UserWhereInput
     ): Promise<IUserProfile | null>;
     findOneActiveProfileById(id: string): Promise<IUserProfile | null>;
-    findOneWithRoleById(id: string): Promise<IUser | null>;
+    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneWithRoleById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUser | null>;
     findByEmails(emails: string[]): Promise<IUser[]>;
     findByUsernames(usernames: string[]): Promise<IUser[]>;
     /** Extra caller-supplied constraint, AND-composed first. */
@@ -72,11 +80,13 @@ export interface IUserRepository {
         tx: IDatabaseTransactionClient,
         inputs: IUserCreateWithWorkspaceInput[]
     ): Promise<IUser[]>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     updateStatusByAdminInTx(
         tx: IDatabaseTransactionClient,
         id: string,
-        { status }: UserUpdateStatusRequestDto
-    ): Promise<User>;
+        { status }: UserUpdateStatusRequestDto,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null>;
     updateProfile(
         userId: string,
         { countryId, ...data }: UserUpdateProfileRequestDto
@@ -97,12 +107,14 @@ export interface IUserRepository {
         userId: string,
         workspaceId: string
     ): Promise<void>;
+    /** Extra caller-supplied constraint, AND-composed first. */
     updatePasswordInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         { passwordCreated, passwordExpired, passwordHash }: IAuthPassword,
-        updatedBy: string
-    ): Promise<User>;
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null>;
     increasePasswordAttempt(userId: string): Promise<User>;
     resetPasswordAttempt(userId: string): Promise<User>;
     deactivateForMaxPasswordAttemptInTx(

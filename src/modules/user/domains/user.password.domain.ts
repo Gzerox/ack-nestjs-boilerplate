@@ -8,7 +8,7 @@ import {
     EnumPasswordHistoryType,
     EnumUserStatus,
 } from '@generated/prisma-client/client';
-import type { User } from '@generated/prisma-client/client';
+import type { Prisma, User } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import type { IAuthTwoFactorVerifyResult } from '@modules/auth/interfaces/auth.interface';
 import { AuthPasswordUtil } from '@modules/auth/utils/auth.password.util';
@@ -196,15 +196,20 @@ export class UserPasswordDomain {
         }
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updatePasswordByAdmin(
         userId: string,
-        updatedBy: string
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneById(userId);
+        const user = await this.userRepository.findOneById(
+            userId,
+            additionalWhere
+        );
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -226,7 +231,8 @@ export class UserPasswordDomain {
                         tx,
                         userId,
                         password,
-                        updatedBy
+                        updatedBy,
+                        additionalWhere
                     );
                     await this.passwordHistoryDomain.createInTx(
                         tx,

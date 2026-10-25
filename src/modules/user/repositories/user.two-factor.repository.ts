@@ -6,6 +6,7 @@ import type { IUserTwoFactor } from '@modules/user/interfaces/user.interface';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
 import type { IAuthTwoFactorVerifyResult } from '@modules/auth/interfaces/auth.interface';
 import type { IUserTwoFactorRepository } from '@modules/user/interfaces/user.two-factor-repository.interface';
+import type { Prisma } from '@generated/prisma-client/client';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -203,22 +204,39 @@ export class UserTwoFactorRepository implements IUserTwoFactorRepository {
         });
     }
 
+    /**
+     * Extra caller-supplied constraint on the owning user, AND-composed first.
+     * `updateMany` takes no nested write, so the backup codes are cleared by a
+     * second statement in the same transaction.
+     */
     async resetTwoFactorByAdminInTx(
         tx: IDatabaseTransactionClient,
-        userId: string
-    ): Promise<IUserTwoFactor> {
+        userId: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUserTwoFactor | null> {
         const now = this.helperDateService.create();
-
-        return tx.twoFactor.update({
-            where: { userId },
+        const { count } = await tx.twoFactor.updateMany({
+            where: {
+                AND: [{ user: additionalWhere ?? {} }, { userId }],
+            },
             data: {
                 requiredSetup: true,
                 attempt: 0,
-                backupCodes: { deleteMany: {} },
                 secret: null,
                 pendingSecret: null,
                 updatedAt: now,
             },
+        });
+        if (count === 0) {
+            return null;
+        }
+
+        await tx.twoFactorBackupCode.deleteMany({
+            where: { twoFactor: { userId } },
+        });
+
+        return tx.twoFactor.findUnique({
+            where: { userId },
             include: TwoFactorWithBackupCodesInclude,
         });
     }

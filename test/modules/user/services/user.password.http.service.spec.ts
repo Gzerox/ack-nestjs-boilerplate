@@ -3,7 +3,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 
 import {
@@ -19,23 +18,19 @@ import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
 import type { UserChangePasswordRequestDto } from '@modules/user/dtos/request/user.change-password.request.dto';
 import type { UserForgotPasswordResetRequestDto } from '@modules/user/dtos/request/user.forgot-password-reset.request.dto';
 import type { UserForgotPasswordRequestDto } from '@modules/user/dtos/request/user.forgot-password.request.dto';
-import type {
-    IUser,
-    IUserProfile,
-} from '@modules/user/interfaces/user.interface';
+import type { IUser } from '@modules/user/interfaces/user.interface';
 import { UserPasswordDomain } from '@modules/user/domains/user.password.domain';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
-import { UserDomain } from '@modules/user/domains/user.domain';
 import { UserPasswordHttpService } from '@modules/user/services/user.password.http.service';
 
 describe('UserPasswordHttpService', () => {
     const userPasswordDomain: MockProxy<UserPasswordDomain> =
         mock<UserPasswordDomain>();
-    const userDomain: MockProxy<UserDomain> = mock<UserDomain>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
+    const scopeWhere = { deletedAt: null };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const user = {
         id: 'user-id',
@@ -85,33 +80,15 @@ describe('UserPasswordHttpService', () => {
         twoFactor: null,
     } satisfies IUser;
 
-    const userProfile = {
-        ...user,
-        mobileNumbers: [],
-        country: {
-            id: 'country-id',
-            name: 'Country',
-            alpha2Code: 'CC',
-            alpha3Code: 'CCC',
-            continent: 'Continent',
-            timezone: 'UTC',
-            phoneCodes: ['+1'],
-            createdAt: now,
-            createdBy: null,
-            updatedAt: now,
-            updatedBy: null,
-        },
-        photo: null,
-    } satisfies IUserProfile;
     let service: UserPasswordHttpService;
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 UserPasswordHttpService,
-                { provide: UserDomain, useValue: userDomain },
                 {
                     provide: PolicyAbilityDomain,
                     useValue: policyAbilityDomain,
@@ -127,8 +104,7 @@ describe('UserPasswordHttpService', () => {
     });
 
     describe('updatePasswordByAdmin', () => {
-        it('checks update on the loaded user and delegates to the domain', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
+        it('passes scope(update, User) as additionalWhere and delegates to the domain', async () => {
             userPasswordDomain.updatePasswordByAdmin.mockResolvedValue(
                 undefined
             );
@@ -138,20 +114,18 @@ describe('UserPasswordHttpService', () => {
                 'admin-id'
             );
 
-            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.User, userProfile)
+                EnumPolicySubject.User
             );
             expect(
                 userPasswordDomain.updatePasswordByAdmin
-            ).toHaveBeenCalledWith('user-id', 'admin-id');
+            ).toHaveBeenCalledWith('user-id', 'admin-id', scopeWhere);
             expect(result).toEqual({});
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -164,7 +138,7 @@ describe('UserPasswordHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

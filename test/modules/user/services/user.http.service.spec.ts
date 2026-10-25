@@ -3,7 +3,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -350,32 +349,35 @@ describe('UserHttpService', () => {
     });
 
     describe('getOne', () => {
-        it('checks read on the loaded user and wraps the profile', async () => {
+        it('passes scope(read, User) as additionalWhere and wraps the profile', async () => {
             userDomain.getOne.mockResolvedValue(userProfile);
 
             const result = await service.getOne('user-id');
 
-            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                subject(EnumPolicySubject.User, userProfile)
+                EnumPolicySubject.User
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith(
+                'user-id',
+                scopeWhere
             );
             expect(result).toEqual({ data: userProfile });
         });
 
-        it('throws PolicyForbiddenException when the user record is denied', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(service.getOne('user-id')).rejects.toThrow(
                 PolicyForbiddenException
             );
+            expect(userDomain.getOne).not.toHaveBeenCalled();
         });
 
         it('throws RequestContextMissingException when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -460,11 +462,10 @@ describe('UserHttpService', () => {
     });
 
     describe('updateStatusByAdmin', () => {
-        it('checks update on the loaded user, delegates to the domain and returns an empty response', async () => {
+        it('passes scope(update, User) as additionalWhere, delegates to the domain and returns an empty response', async () => {
             const request = {
                 status: EnumUserStatus.inactive,
             } satisfies UserUpdateStatusRequestDto;
-            userDomain.getOne.mockResolvedValue(userProfile);
             userDomain.updateStatusByAdmin.mockResolvedValue(undefined);
 
             const result = await service.updateStatusByAdmin(
@@ -473,22 +474,21 @@ describe('UserHttpService', () => {
                 'admin-id'
             );
 
-            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.User, userProfile)
+                EnumPolicySubject.User
             );
             expect(userDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'user-id',
                 EnumUserStatus.inactive,
-                'admin-id'
+                'admin-id',
+                scopeWhere
             );
             expect(result).toEqual({});
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -503,7 +503,7 @@ describe('UserHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

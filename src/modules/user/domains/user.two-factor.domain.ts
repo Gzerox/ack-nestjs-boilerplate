@@ -6,6 +6,7 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
     EnumActivityLogAction,
     EnumUserStatus,
+    type Prisma,
 } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
@@ -377,15 +378,20 @@ export class UserTwoFactorDomain {
         }
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async resetTwoFactorByAdmin(
         userId: string,
-        updatedBy: string
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneWithRoleById(userId);
+        const user = await this.userRepository.findOneWithRoleById(
+            userId,
+            additionalWhere
+        );
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -416,10 +422,16 @@ export class UserTwoFactorDomain {
             const now = this.helperDateService.create();
             await Promise.all([
                 this.databaseService.withTransaction(async tx => {
-                    await this.userTwoFactorRepository.resetTwoFactorByAdminInTx(
-                        tx,
-                        userId
-                    );
+                    const reset =
+                        await this.userTwoFactorRepository.resetTwoFactorByAdminInTx(
+                            tx,
+                            userId,
+                            additionalWhere
+                        );
+                    if (!reset) {
+                        throw new UserNotFoundException();
+                    }
+
                     await this.sessionDomain.revokeActiveByUserInTx(
                         tx,
                         userId,

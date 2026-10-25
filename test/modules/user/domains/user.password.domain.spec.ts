@@ -382,7 +382,8 @@ describe('UserPasswordDomain', () => {
                 expect.any(Object),
                 user.id,
                 password,
-                'admin-id'
+                'admin-id',
+                undefined
             );
             expect(
                 notificationQueue.sendTemporaryPasswordByAdmin
@@ -405,6 +406,52 @@ describe('UserPasswordDomain', () => {
                 createdBy: 'admin-id',
                 metadata: { actorUserId: 'admin-id' },
             });
+        });
+
+        it('forwards additionalWhere to the preliminary read and the scoped password write', async () => {
+            const additionalWhere = { id: user.id };
+
+            await service.updatePasswordByAdmin(
+                user.id,
+                'admin-id',
+                additionalWhere
+            );
+
+            expect(userRepository.findOneById).toHaveBeenCalledWith(
+                user.id,
+                additionalWhere
+            );
+            expect(userDomain.updatePasswordInTx).toHaveBeenCalledWith(
+                expect.any(Object),
+                user.id,
+                password,
+                'admin-id',
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere reads with undefined and returns the same result', async () => {
+            await expect(
+                service.updatePasswordByAdmin(user.id, 'admin-id')
+            ).resolves.toBeUndefined();
+            expect(userRepository.findOneById).toHaveBeenCalledWith(
+                user.id,
+                undefined
+            );
+        });
+
+        it('throws UserNotFoundException when the read is excluded by additionalWhere', async () => {
+            userRepository.findOneById.mockResolvedValue(null);
+
+            await expect(
+                service.updatePasswordByAdmin(user.id, 'admin-id', {
+                    id: user.id,
+                })
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(userDomain.updatePasswordInTx).not.toHaveBeenCalled();
+            expect(
+                notificationQueue.sendTemporaryPasswordByAdmin
+            ).not.toHaveBeenCalled();
         });
 
         it('throws UserNotSelfException when an admin updates their own password', async () => {

@@ -187,6 +187,9 @@ describe('UserTwoFactorDomain', () => {
         helperDateService.create.mockReturnValue(now);
         authCache.getChallenge.mockResolvedValue(challenge);
         userRepository.findOneWithRoleById.mockResolvedValue(user);
+        userTwoFactorRepository.resetTwoFactorByAdminInTx.mockResolvedValue(
+            user.twoFactor
+        );
         userLoginDomain.handleTwoFactorValidation.mockResolvedValue(
             twoFactorVerified
         );
@@ -792,13 +795,73 @@ describe('UserTwoFactorDomain', () => {
             expect(sessionDomain.revokeActiveByUserInTx).toHaveBeenCalled();
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
-            ).toHaveBeenCalledWith(expect.any(Object), user.id);
+            ).toHaveBeenCalledWith(expect.any(Object), user.id, undefined);
             expect(authCache.clearLockTwoFactorAttempt).toHaveBeenCalledWith(
                 user
             );
             expect(
                 notificationQueue.sendResetTwoFactorByAdmin
             ).toHaveBeenCalledWith(user.id, 'admin-id');
+        });
+
+        it('forwards additionalWhere to the preliminary read and the scoped reset', async () => {
+            const additionalWhere = { id: user.id };
+
+            await service.resetTwoFactorByAdmin(
+                user.id,
+                'admin-id',
+                additionalWhere
+            );
+
+            expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
+                user.id,
+                additionalWhere
+            );
+            expect(
+                userTwoFactorRepository.resetTwoFactorByAdminInTx
+            ).toHaveBeenCalledWith(
+                expect.any(Object),
+                user.id,
+                additionalWhere
+            );
+        });
+
+        it('without additionalWhere reads with undefined', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
+
+            expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
+                user.id,
+                undefined
+            );
+        });
+
+        it('throws UserNotFoundException when the read is excluded by additionalWhere', async () => {
+            userRepository.findOneWithRoleById.mockResolvedValue(null);
+
+            await expect(
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {
+                    id: user.id,
+                })
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(
+                userTwoFactorRepository.resetTwoFactorByAdminInTx
+            ).not.toHaveBeenCalled();
+        });
+
+        it('scoped reset returning null throws UserNotFoundException', async () => {
+            userTwoFactorRepository.resetTwoFactorByAdminInTx.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {
+                    id: user.id,
+                })
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
+            expect(
+                notificationQueue.sendResetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
         });
 
         it('throws UserNotSelfException when an admin resets their own 2FA', async () => {

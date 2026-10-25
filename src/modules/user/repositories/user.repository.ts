@@ -128,9 +128,13 @@ export class UserRepository implements IUserRepository {
         });
     }
 
-    async findOneById(id: string): Promise<User | null> {
-        return this.databaseService.client.user.findUnique({
-            where: { id, deletedAt: null },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findOneById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null> {
+        return this.databaseService.client.user.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
         });
     }
 
@@ -198,9 +202,13 @@ export class UserRepository implements IUserRepository {
         });
     }
 
-    async findOneWithRoleById(id: string): Promise<IUser | null> {
-        return this.databaseService.client.user.findUnique({
-            where: { id, deletedAt: null },
+    /** Extra caller-supplied constraint, AND-composed first. */
+    async findOneWithRoleById(
+        id: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<IUser | null> {
+        return this.databaseService.client.user.findFirst({
+            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
             include: UserWithRoleInclude,
         });
     }
@@ -289,17 +297,24 @@ export class UserRepository implements IUserRepository {
         return Promise.all(inputs.map(input => this.createInTx(tx, input)));
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatusByAdminInTx(
         tx: IDatabaseTransactionClient,
         id: string,
-        { status }: UserUpdateStatusRequestDto
-    ): Promise<User> {
-        return tx.user.update({
-            where: { id, deletedAt: null },
+        { status }: UserUpdateStatusRequestDto,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null> {
+        const { count } = await tx.user.updateMany({
+            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
             data: {
                 status,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return tx.user.findUnique({ where: { id } });
     }
 
     async updateProfile(
@@ -390,14 +405,18 @@ export class UserRepository implements IUserRepository {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async updatePasswordInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         { passwordCreated, passwordExpired, passwordHash }: IAuthPassword,
-        updatedBy: string
-    ): Promise<User> {
-        return tx.user.update({
-            where: { id: userId, deletedAt: null },
+        updatedBy: string,
+        additionalWhere?: Prisma.UserWhereInput
+    ): Promise<User | null> {
+        const { count } = await tx.user.updateMany({
+            where: {
+                AND: [additionalWhere ?? {}, { id: userId, deletedAt: null }],
+            },
             data: {
                 password: passwordHash,
                 passwordCreated,
@@ -406,6 +425,11 @@ export class UserRepository implements IUserRepository {
                 updatedBy,
             },
         });
+        if (count === 0) {
+            return null;
+        }
+
+        return tx.user.findUnique({ where: { id: userId } });
     }
 
     async increasePasswordAttempt(userId: string): Promise<User> {

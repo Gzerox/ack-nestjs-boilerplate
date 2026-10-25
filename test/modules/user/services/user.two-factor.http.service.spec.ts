@@ -3,7 +3,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-import { subject } from '@casl/ability';
 import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 
 import {
@@ -25,7 +24,6 @@ import type { UserTwoFactorRegenerateBackupCodeRequestDto } from '@modules/user/
 import type { UserTwoFactorSetupRequestDto } from '@modules/user/dtos/request/user.two-factor-setup.request.dto';
 import type {
     IUser,
-    IUserProfile,
     IUserTwoFactor,
     IUserTwoFactorSetup,
     IUserTwoFactorStatus,
@@ -34,14 +32,12 @@ import { UserTwoFactorDomain } from '@modules/user/domains/user.two-factor.domai
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
-import { UserDomain } from '@modules/user/domains/user.domain';
 import { UserTwoFactorHttpService } from '@modules/user/services/user.two-factor.http.service';
 import { UserUtil } from '@modules/user/utils/user.util';
 
 describe('UserTwoFactorHttpService', () => {
     const userTwoFactorDomain: MockProxy<UserTwoFactorDomain> =
         mock<UserTwoFactorDomain>();
-    const userDomain: MockProxy<UserDomain> = mock<UserDomain>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
     const userUtil: MockProxy<UserUtil> = mock<UserUtil>();
@@ -129,33 +125,17 @@ describe('UserTwoFactorHttpService', () => {
         otpauthUrl: 'otpauth://totp/example',
     } satisfies IUserTwoFactorSetup;
 
-    const userProfile = {
-        ...user,
-        mobileNumbers: [],
-        country: {
-            id: 'country-id',
-            name: 'Country',
-            alpha2Code: 'CC',
-            alpha3Code: 'CCC',
-            continent: 'Continent',
-            timezone: 'UTC',
-            phoneCodes: ['+1'],
-            createdAt: now,
-            createdBy: null,
-            updatedAt: now,
-            updatedBy: null,
-        },
-        photo: null,
-    } satisfies IUserProfile;
+    const scopeWhere = { deletedAt: null };
+
     let service: UserTwoFactorHttpService;
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 UserTwoFactorHttpService,
-                { provide: UserDomain, useValue: userDomain },
                 {
                     provide: PolicyAbilityDomain,
                     useValue: policyAbilityDomain,
@@ -326,27 +306,24 @@ describe('UserTwoFactorHttpService', () => {
     });
 
     describe('resetTwoFactorByAdmin', () => {
-        it('checks update on the loaded user and delegates to the domain', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
+        it('passes scope(update, User) as additionalWhere and delegates to the domain', async () => {
             userTwoFactorDomain.resetTwoFactorByAdmin.mockResolvedValue(
                 undefined
             );
 
             await service.resetTwoFactorByAdmin('user-id', 'admin-id');
 
-            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
-            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                subject(EnumPolicySubject.User, userProfile)
+                EnumPolicySubject.User
             );
             expect(
                 userTwoFactorDomain.resetTwoFactorByAdmin
-            ).toHaveBeenCalledWith('user-id', 'admin-id');
+            ).toHaveBeenCalledWith('user-id', 'admin-id', scopeWhere);
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the record is denied', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-            policyAbilityDomain.authorize.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -359,7 +336,7 @@ describe('UserTwoFactorHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.authorize.mockImplementation(() => {
+            policyAbilityDomain.scope.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

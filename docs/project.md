@@ -89,11 +89,11 @@ Mounted under `/user`. **Every route below requires the `x-workspace-id` header*
 
 | Method | Path | Gate |
 |---|---|---|
-| `GET` | `/user/project/list` | Any workspace member whose ability holds `project:[read]` (the route builds the workspace ability and enforces no policy decorator). The policy predicate alone decides the result: the `owner` and `admin` see every project in the workspace, a `member` sees only the projects they are assigned to, and a caller with no `project:[read]` rule receives `403` |
+| `GET` | `/user/project/list` | Any workspace member whose ability holds `project:[read]` (`@PolicyAbility()` builds the ability and the HTTP service derives the predicate with `scope`). The policy predicate alone decides the result: the `owner` and `admin` see every project in the workspace, a `member` sees only the projects they are assigned to, and a caller with no `project:[read]` rule receives `403` |
 | `GET` | `/user/project/:projectId/permissions` | Any workspace member. A project membership is optional: the route reads the combined ability and enforces no policy. Returns the caller's effective actions on `project` and `projectMember`, evaluated against the loaded project, and an empty list when nothing is granted |
-| `POST` | `/user/project/create` | `project:[create]`, a subject-type check (workspace `admin` and `owner`) |
+| `POST` | `/user/project/create` | `project:[create]` by subject type, then an `authorize` of the prospective project carrying the workspace id (workspace `admin` and `owner`) |
 | `GET` | `/user/project/get/:projectId` | `project:[read]` from the project role or the workspace role |
-| `PUT` | `/user/project/update/:projectId` | `project:[update]` from the project role (`admin`) or the workspace role (`owner`) |
+| `PUT` | `/user/project/update/:projectId` | `project:[update]` from the project role (`admin`) or the workspace role (`owner`, `admin`) |
 | `PATCH` | `/user/project/update/:projectId/slug` | `project:[update]`, as above |
 | `DELETE` | `/user/project/delete/:projectId` | `project:[delete]` (workspace `admin` and `owner`). The route carries no project member guard, so project membership is not consulted |
 | `GET` | `/user/project/member/:projectId/list` | `project:[read]`, as for `get` |
@@ -106,7 +106,7 @@ Note the path shape on the member routes: `:projectId` leads the target segment,
 
 ### Admin Scope
 
-Mounted under `/admin`. Gated by `@PlatformPolicyProtected({ subject: Project, action: [read] })` against the caller's platform role. These routes are **not** feature-flagged, do not read `x-workspace-id`, and are read-only.
+Mounted under `/admin`. Gated by `@PolicyProtected({ subject: Project, action: [read] })` against the caller's platform role. These routes are **not** feature-flagged, do not read `x-workspace-id`, and are read-only.
 
 | Method | Path | Description |
 |---|---|---|
@@ -115,14 +115,14 @@ Mounted under `/admin`. Gated by `@PlatformPolicyProtected({ subject: Project, a
 
 ## Access Control
 
-The guards run in this order, first to last: `ApiKeyXApiKeyGuard` → JWT → `FeatureFlagGuard` → `UserGuard` → `WorkspaceGuard` → `WorkspaceMemberGuard` → `ProjectGuard` → `ProjectMemberGuard` → the policy ability guard → the policy enforcement guard → `TermPolicyGuard`. Each guard reads what the previous one stored and never re-fetches.
+The guards run in this order, first to last: `ApiKeyXApiKeyGuard` → JWT → `FeatureFlagGuard` → `UserGuard` → `WorkspaceGuard` → `WorkspaceMemberGuard` → `ProjectGuard` → `ProjectMemberGuard` → `PolicyAbilityGuard` → `PolicyGuard` → `TermPolicyGuard`. Each guard reads what the previous one stored and never re-fetches.
 
 - **`ProjectGuard`** reads the `projectId` route param and the workspace `WorkspaceGuard` resolved, then loads the project **constrained to that workspace and to non-deleted rows**. A missing param, a soft-deleted project, and a project belonging to a different workspace all collapse into the same `ProjectNotFoundException` (404, `51700`). Cross-workspace probing therefore cannot distinguish "not yours" from "does not exist".
 - **`WorkspaceMemberGuard`** and **`ProjectMemberGuard`** are membership-only. They store the member rows and load no policies. With `{ required: false }` a caller with no `ProjectMember` row passes and no member is stored.
-- **`ProjectPolicyAbilityGuard`** builds the ability from the platform role, the workspace role of the acting member, and the project role of the acting project member when one exists, in that order, and stores it under `PolicyAbilityStoreKey`. An ability already stored is reused and never overwritten.
-- **`ProjectPolicyGuard`** and **`ProjectMemberPolicyGuard`** decide against that ability (see [Project policy decorators](#project-policy-decorators)).
+- **`PolicyAbilityGuard`** builds one ability from the platform role, the workspace role of the acting member, and the project role of the acting project member when one exists, in that order, and stores it under `PolicyAbilityStoreKey`. An ability already stored is reused and never overwritten.
+- **`PolicyGuard`** checks the required `(subject, action)` pairs against that ability by subject type (see [Project policy decorators](#project-policy-decorators)).
 
-A workspace `admin` does not inherit project read or update: its workspace role grants only project `create` and `delete`. The `owner` role grants `create`, `read`, `update`, and `delete` on `project` and `create`, `update`, and `delete` on `projectMember`, which is what lets it act on every project without a membership row.
+The workspace `owner` and `admin` roles grant `create`, `read`, `update`, and `delete` on `Project` and on `ProjectMember`, which is what lets either act on every project without a membership row.
 
 ### Guards and Decorators
 
@@ -145,18 +145,15 @@ In both modes the guard stores a row it finds and loads no policies.
 
 #### Project policy decorators
 
-Each composes `ProjectPolicyAbilityGuard` with one enforcement guard and sits above `@ProjectMemberProtected(...)`.
+Project routes use the shared `@PolicyProtected({ subject, action })` decorator from `src/modules/policy/decorators` with the subjects `Project` and `ProjectMember`. It sits above `@ProjectMemberProtected(...)`, applies `PolicyAbilityGuard` then `PolicyGuard`, and decides by subject type.
 
-| Decorator | Enforcement guard | Judges |
-|---|---|---|
-| `@ProjectPolicyProtected(...actions)` | `ProjectPolicyGuard` | The project record `ProjectGuard` stored, tagged as `Project` |
-| `@ProjectMemberPolicyProtected(...actions)` | `ProjectMemberPolicyGuard` | The member `:projectMemberId` addresses. The target loads through the policy predicate (a record the ability does not reach answers `ProjectMemberNotFoundException`), is judged as a tagged record, and is stored for `@ProjectMemberTargetCurrent()`. A route with no `:projectMemberId` (assign) takes the subject-type check only |
+Record-level enforcement happens in the HTTP services. `PolicyAbilityDomain.scope(action, Project)` and `scope(action, ProjectMember)` return the where-input the ability grants, passed to the domain as `additionalWhere` and AND-composed by the repository. A project or member the ability does not reach answers `ProjectNotFoundException` or `ProjectMemberNotFoundException`. Member assign evaluates a prospective `ProjectMember` carrying the project id through `authorize`.
 
-Both take actions only, so the subject is fixed. `@PolicyAbilityProtected(project)` builds the same ability and enforces nothing; the permissions route uses it.
+`@PolicyAbility()` builds the same ability and enforces nothing; the permissions route and the member project list use it.
 
 #### `ProjectCurrent()` / `ProjectMemberCurrent()`
 
-**Parameter decorators** that read back the `Project` and the `ProjectMember` with its role (`IProjectMemberWithRole`) the guards stored. `@ProjectMemberTargetCurrent()` reads the target member `ProjectMemberPolicyGuard` authorized, which is the addressed member. Each takes an optional field name typed against its model and returns the whole row without one. Both return a non-null value.
+**Parameter decorators** that read back the `Project` and the `ProjectMember` with its role (`IProjectMemberWithRole`) the guards stored. Each takes an optional field name typed against its model and returns the whole row without one. Both return a non-null value.
 
 - `ProjectCurrent()` on a route without `@ProjectProtected()` answers `RequestContextMissingException` (500, `50304`).
 - `ProjectMemberCurrent()` is valid only on a route carrying the strict `@ProjectMemberProtected()`. A `{ required: false }` route can hold no member row, so the read answers `RequestContextMissingException` (500, `50304`) there. `ProjectMemberDomain.leaveProject` receives the row itself; the caller's missing membership is already refused by the guard with `ProjectMemberForbiddenException` (403, `51701`).
@@ -165,7 +162,7 @@ The store readers: [Security and Middleware][ref-doc-security-and-middleware].
 
 ### The `/admin` scope takes none of this
 
-Admin routes carry no project or workspace guard. They take the project id from the path and are gated by `@PlatformPolicyProtected()` instead.
+Admin routes carry no project or workspace guard. They take the project id from the path and are gated by `@PolicyProtected(...)` instead.
 
 ## Slug
 

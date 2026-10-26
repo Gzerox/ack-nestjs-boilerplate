@@ -138,7 +138,7 @@ Reads the `projectId` **route parameter** (there is no project header) and resol
 
 **Method decorator**. Stack it above `@ProjectProtected()`. It applies `ProjectMemberGuard` in one of two modes:
 
-- **Strict (the default, `@ProjectMemberProtected()`)** demands a real `ProjectMember` row and stores it with its minimal role (`id`, `scope`, `key`, `name`, no policies) under `ProjectMemberStoreKey`. No row throws `ProjectMemberForbiddenException` (403, `51701`). This is the form used by `member leave`, which has nothing to remove without a row.
+- **Strict (the default, `@ProjectMemberProtected()`)** demands a real `ProjectMember` row and stores it with its guard role (`id`, `scope`, `key`, `name`, `policyRevision`; no policy rows) under `ProjectMemberStoreKey`. No row throws `ProjectMemberForbiddenException` (403, `51701`). This is the form used by `member leave`, which has nothing to remove without a row.
 - **`{ required: false }`** lets a caller with no row through, so a workspace role that holds the capability (the `owner`) still passes the project policy decorator. Every policy-gated project route uses this form.
 
 In both modes the guard stores a row it finds and loads no policies.

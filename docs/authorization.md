@@ -60,6 +60,8 @@ NestJS applies each layer on the route handler. A role decides nothing by itself
   - [CASL Integration](#casl-integration)
   - [Current Boundaries](#current-boundaries)
   - [Important Notes](#important-notes-2)
+  - [Enforcement Matrix](#enforcement-matrix)
+  - [Extending a Policy](#extending-a-policy)
 - [Term Policy Acceptance Protected](#term-policy-acceptance-protected)
   - [Decorators](#decorators-3)
     - [TermPolicyAcceptanceProtected() Decorator](#termpolicyacceptanceprotected-decorator)
@@ -226,7 +228,7 @@ No decorator gates a route by role. The role reaches a route through the request
 | The workspace role of the acting workspace member | A workspace member is stored |
 | The project role of the acting project member | A project member is stored |
 
-The guard reads the stored user (required), the workspace and workspace member, and the project and project member, and turns each role into a `{ roleId, policyRevision }` reference. `PolicyDomain.findManyByRoleReferences` returns the policy rows of every reference. The rows come from `PolicyCache`, a read-through cache keyed `Policy:Role:{roleId}:Rev:{policyRevision}` with a five-minute TTL (see [Policy Cache](#policy-cache)). The guard builds one placeholder map from the same context (`${userId}` always, `${workspaceId}` and `${projectId}` when a workspace or project is stored) and passes the rows and the map to `PolicyAbilityFactory.build`. The factory adds every allowing rule before every inverted rule, so a matching inverted rule is authoritative whichever role holds it. An absent rule does not revoke a broader allow; a narrowing role uses an explicit inverted rule.
+The guard reads the stored user (required), the workspace and workspace member, and the project and project member, and turns each role into a `{ roleId, policyRevision }` reference, in that order: platform, workspace, project. `PolicyDomain.findManyByRoleRevisions` returns the policy rows of every reference. The rows come from `PolicyCache`, a read-through cache keyed `Policy:Role:{roleId}:Rev:{policyRevision}` with a five-minute TTL (see [Policy Cache](#policy-cache)). The guard builds one placeholder map from the same context (`${userId}` always, `${workspaceId}` and `${projectId}` when a workspace or project is stored) and passes the rows and the map to `PolicyAbilityFactory.build`. The factory keeps that order. CASL stops at the last matching rule, so a later allow overrides an earlier `cannot` and a later `cannot` overrides an earlier allow. An absent rule does not revoke a broader allow; a narrowing role uses an explicit inverted rule.
 
 The ability lives in the request-scoped store, so it never crosses requests. A guard that finds a stored ability returns without loading or overwriting anything, so stacked policy decorators share the first ability built for the request.
 
@@ -507,7 +509,7 @@ A policy write loads the target role through `scope(read, Role)`, then calls `au
 
 The project uses [CASL][casl] with `@casl/prisma`. The ability is a typed Prisma ability created by `createPrismaAbility`, so a stored condition is a Prisma where-input. `PolicyAbility` is typed with `PrismaQueryFactory<Prisma.TypeMap>`, which ties each model subject to its Prisma row type.
 
-**Subject types.** `PolicyModelSubject` is the members of `EnumPolicySubject` named after a Prisma model; the rest (`all`, `Analytic`, `WorkspaceAnalytic`) are the non-model subjects. A record passed to an ability check is `ForcedSubject<K> & Partial<model>` for a model subject `K`, so its fields are type-checked against the model row. A non-model subject is checked by name only.
+**Subject types.** `PolicyModelSubject` is the members of `EnumPolicySubject` named after a Prisma model; the rest (`all`, `Analytic`, `WorkspaceAnalytic`) are the non-model subjects. A record passed to an ability check is `ForcedSubject<K> & Partial<model>` for a model subject `K`, so its fields are type-checked against the model row. `all` and `Analytic` are checked by name. `WorkspaceAnalytic` is checked with `authorize` on a record that carries `workspaceId`.
 
 **Rule model.** A `Policy` row is one rule:
 
@@ -515,7 +517,7 @@ The project uses [CASL][casl] with `@casl/prisma`. The ability is a typed Prisma
 |---|---|
 | `subject` | A value of `EnumPolicySubject`. It maps onto the Prisma model of the same name; `all`, `Analytic`, and `WorkspaceAnalytic` have no model |
 | `action` | One or more of `manage`, `read`, `create`, `update`, `delete` |
-| `conditions` | A Prisma where-input as JSON, or `null` for the whole subject. A non-model subject (`all`, `Analytic`, `WorkspaceAnalytic`) takes `null` only |
+| `conditions` | A Prisma where-input as JSON, or `null` for the whole subject. `all` and `Analytic` take `null` only. `WorkspaceAnalytic` accepts a `workspaceId` condition |
 | `inverted` | `true` makes the rule a CASL `cannot` |
 | `reason` | Optional text (max 500) carried by an inverted rule |
 
@@ -523,7 +525,7 @@ A role holds any number of rules for one subject. A policy write validates the r
 
 **PolicyAbilityFactory:**
 
-- `build(policies, placeholders)`: Resolves the placeholders of each stored rule and creates the Prisma ability, allowing rules first and inverted rules after. An inverted rule becomes a `cannot` carrying its reason
+- `build(policies, placeholders)`: Resolves the placeholders of each stored rule and creates the Prisma ability in input order. CASL uses the last matching rule. An inverted rule becomes a `cannot` carrying its reason
 
 **PolicyAbilityDomain:**
 
@@ -535,7 +537,7 @@ A role holds any number of rules for one subject. A policy write validates the r
 **PolicyDomain:**
 
 - `findManyByRole(roleId)`: Lists the policy rows of one role
-- `findManyByRoleReferences(references)`: Returns the policy rows of every `{ roleId, policyRevision }` reference, read through `PolicyCache`
+- `findManyByRoleRevisions(references)`: Returns the policy rows of every `{ roleId, policyRevision }` reference, read through `PolicyCache`
 - `validateRule(scope, rule)`: Checks one authored rule against the role scope and throws `PolicyInvalidRuleException`
 - `createByAdmin`, `updateByAdmin`, and `deleteByAdmin`: Reject any write to the `superAdmin` role, validate the rule, and write the policy row together with the role's `policyRevision` increment in one transaction
 
@@ -551,8 +553,9 @@ A role holds any number of rules for one subject. A policy write validates the r
 | `WorkspaceMember`, `WorkspaceInvite`, `WorkspaceJoinRequest`, `Project` | workspace | `workspaceId` | `${workspaceId}` |
 | `Project` | project | `id` | `${projectId}` |
 | `ProjectMember` | workspace and project | `projectId` | `${projectId}` |
+| `WorkspaceAnalytic` | workspace | `workspaceId` | `${workspaceId}` |
 
-`WorkspaceAnalytic` is a non-model subject, so its seeded rule carries no conditions. A role meant to act on every project of its workspace keys its `Project` rule on `workspaceId`, not `projectId` or `id`.
+The seeded `WorkspaceAnalytic` `read` rule stores `{ workspaceId: ${workspaceId} }`. The workspace analytic HTTP service calls `authorize(read, subject(WorkspaceAnalytic, { workspaceId }))` for the active workspace. A role meant to act on every project of its workspace keys its `Project` rule on `workspaceId`, not `projectId` or `id`.
 
 ### Policy Cache
 
@@ -566,8 +569,7 @@ A role holds any number of rules for one subject. A policy write validates the r
 ### Current Boundaries
 
 - Platform, workspace, and project policies form one stored request ability built by one ability guard.
-- `PolicyGuard` performs type-level checks. HTTP services derive predicates with `scope` and judge prospective records with `authorize`.
-- A scoped statement carries its policy predicate, so no read-then-write gap separates the decision from the write.
+- `PolicyGuard` performs type-level checks. Lists pass `scope` as `additionalWhere`. A handler that already holds the row calls `authorize` on that row before the write. A create calls `authorize` on the prospective fields.
 - `${userId}`, `${workspaceId}`, and `${projectId}` are the complete placeholder catalog.
 - Domains accept an optional `additionalWhere` from HTTP callers, while processors and other internal callers omit it.
 
@@ -578,6 +580,127 @@ A role holds any number of rules for one subject. A policy write validates the r
 - `superAdmin` passes every `@PolicyProtected` route through its persisted `manage` on `all` policy. CASL treats `manage` as every action and `all` as every subject.
 - A type-level check asks by subject type, so a rule's `conditions` narrow the rows a query may reach and are not evaluated by it. An HTTP service that derives a predicate with `scope`, or passes a tagged record to `authorize`, gets the conditions applied.
 - Every action of a required policy has to be allowed by the ability. Requiring `[EnumPolicyAction.update, EnumPolicyAction.delete]` on the `EnumPolicySubject.User` subject grants access only when the ability allows both actions, not just one.
+
+### Enforcement Matrix
+
+Two service shapes cover the policy-gated routes. **scope** is `PolicyAbilityDomain.scope`. **authorize** is `PolicyAbilityDomain.authorize` on `subject(...)`. Every authenticated route also carries `ApiKeyProtected`, `AuthJwtAccessProtected`, `UserProtected`, and, unless stated, `TermPolicyAcceptanceProtected`.
+
+| Shape | Call | Denial |
+|---|---|---|
+| List | `scope(read, Subject)` as `additionalWhere` | 403 when the ability has no rule; otherwise the row is absent |
+| Loaded record | `authorize(action, subject(Subject, record))` after the load | The feature's 404 when the load misses; 403 when the loaded record is denied |
+| Prospective create | `authorize(create, subject(Subject, fields))` | 403 |
+| Parent, then children | `authorize` on the parent, then `scope` on the child subject | 403 on the parent; child rows filtered |
+
+#### Platform administration
+
+`/admin` routes use `@PolicyProtected`.
+
+| Surface | Route requirement | Shape |
+|---|---|---|
+| API key, role, user, feature-flag, term-policy, workspace, and project lists | `<Subject>: read` | List |
+| API key, role, and user get | `<Subject>: read` | Loaded record |
+| API key and role update / delete | `<Subject>: read` plus `update` or `delete` | Loaded record |
+| API key create | `ApiKey: read, create` | Guard. The create carries no condition fields |
+| User create / import | `User: read, create` | Guard. The create carries no condition fields |
+| Session list | `User: read` and `Session: read` | Parent `User`, then list `Session` |
+| Session revoke | `User: read` and `Session: read, delete` | Loaded `Session` with `delete` |
+| Session revoke-all | `User: read, update` and `Session: read, delete` | Loaded `User` with `update` |
+| Device list | `User: read` and `DeviceOwnership: read` | Parent `User`, then list `DeviceOwnership` |
+| Device remove | `User: read` and `DeviceOwnership: read, delete` | `DeviceOwnership` `delete` |
+| Password-history list | `User: read` and `PasswordHistory: read` | Parent `User`, then list `PasswordHistory` |
+| Activity log | `User` or `Workspace: read`, and `ActivityLog: read` | Parent, then list `ActivityLog` |
+| Workspace members | `WorkspaceMember: read` | Parent `Workspace`, then list `WorkspaceMember` |
+| Policy list / create / update / delete | See [Managing Roles and Policies](#managing-roles-and-policies) | |
+
+#### Workspace
+
+`/user/workspace`. `WorkspaceProtected` and `WorkspaceMemberProtected` run before the policy decorator.
+
+| Surface | Route requirement | Shape |
+|---|---|---|
+| Workspace get | `Workspace: read` | `authorize(read, workspace)` |
+| Workspace permissions | `@PolicyAbility()` | `getEffectivePermissions` |
+| Workspace update, visibility, slug, ownership transfer | `Workspace: update` | `authorize(update, workspace)` |
+| Workspace delete | `Workspace: delete` | `authorize(delete, workspace)` |
+| Leave | member guards only | — |
+| Member, invite, and join-request lists | the matching subject `read` | List |
+| Member role update / remove | `WorkspaceMember: update` / `delete` | Loaded record |
+| Invite create | `WorkspaceInvite: create` | Prospective `WorkspaceInvite` |
+| Invite resend / revoke, join-request accept / reject | `update` or `delete` on that subject | Loaded record |
+| Workspace list, create, switch, invite claim, join-request create | no policy | self-scoped |
+
+#### Project
+
+`/user/project`. Workspace guards run first. Policy-gated project routes use `@ProjectMemberProtected({ required: false })`. Leave uses the strict form.
+
+| Surface | Route requirement | Shape |
+|---|---|---|
+| Project list | `@PolicyAbility()` | `scope(read, Project)`. 403 when the ability has no `Project` `read` rule |
+| Project create | `Project: create` | Prospective `{ workspaceId }` |
+| Project get / update / slug / delete | `Project: read`, `update`, or `delete` | `authorize` on the loaded project. The project guard answers 404 when the id is missing |
+| Project permissions | `@PolicyAbility()` | `getEffectivePermissions` |
+| Member list | `ProjectMember: read` | List |
+| Member assign | `ProjectMember: create` | Prospective `{ projectId, userId, roleId }` |
+| Member role update / remove | `ProjectMember: update` / `delete` | Loaded record |
+| Leave | strict `@ProjectMemberProtected()` | 403 when the caller is not a member |
+
+#### Non-model subjects
+
+| Surface | Requirement | Check |
+|---|---|---|
+| `/admin/analytic/*` | `Analytic: read` | Type-level. The subject rejects conditions |
+| `/user/analytic/workspace/*` | `WorkspaceAnalytic: read`, plus the workspace guards | `authorize(read, subject(WorkspaceAnalytic, { workspaceId }))` for the active workspace. Seeded on workspace `owner` and `admin` |
+| `all` | `manage` on `all`, seeded on platform `superAdmin` | CASL treats `manage` as every action and `all` as every subject |
+
+#### Trusted and public flows
+
+| Flow | Authorization source |
+|---|---|
+| Login, token refresh, current-user bootstrap | Authentication protocol |
+| `WorkspaceGuard`, `ProjectGuard`, and the member guards | Request identity. They store the role and load no policies |
+| Policy cache load | `{ roleId, policyRevision }` from those roles |
+| Queue processors | The job the producer enqueued. The call omits `additionalWhere` |
+| Seeds | Owner-invoked migration |
+| `/system` routes | `@ApiKeySystemProtected()` |
+| `/public` and self-scoped `/shared` routes | The route's own filter: `userId`, a token, or no policy subject |
+
+### Extending a Policy
+
+#### Add a model subject
+
+1. Add the model name to `EnumPolicySubject` in `prisma/schema.prisma` and run `pnpm db:generate`. Applying the enum to PostgreSQL is the owner's `pnpm db:migrate`.
+2. Add the subject to each scope in `PolicyRoleScopeSubjectContract` (`src/modules/policy/contracts/policy.role-scope-subject.contract.ts`) that may grant it.
+3. Seed rules in `src/migration/data/migration.policy.data.ts`. `workspaceRule` and `projectRule` set the condition key that exists on the model (`id` for the resource itself, `workspaceId` or `projectId` otherwise).
+
+#### Protect a list route
+
+1. Decorate with `@PolicyProtected({ subject, action: [EnumPolicyAction.read] })`.
+2. In the HTTP service, call `scope(EnumPolicyAction.read, EnumPolicySubject.X)`.
+3. Pass that where-input through the domain as `additionalWhere`. The repository places it first in `AND`.
+
+#### Protect a single-record route
+
+1. Decorate with the action the route performs.
+2. Load the record through the domain.
+3. Call `authorize(action, subject(EnumPolicySubject.X, record))` before the write, or pass `scope(action, Subject)` into the lookup so a miss is the feature's 404.
+
+#### Protect a create
+
+Call `authorize(EnumPolicyAction.create, subject(EnumPolicySubject.X, { ...attributes }))` with every attribute the conditions read.
+
+#### Author a conditional policy
+
+- Use a field of the subject's model. Scalar fields match in both `authorize` and `scope`. A relation filter matches in `scope`.
+- Use a whole-value placeholder for request context: `${userId}`, `${workspaceId}`, `${projectId}`.
+- An inverted rule whose placeholder is missing denies the subject and its actions outright. Put that rule on a route where the placeholder is stored.
+- `all` and `Analytic` take `conditions: null`. `WorkspaceAnalytic` takes a `workspaceId` condition and is checked with `authorize` on `{ workspaceId }`.
+
+#### Add a placeholder
+
+1. Add the member to `EnumPolicyConditionPlaceholder`.
+2. Set it on the placeholder map in `PolicyAbilityGuard`.
+3. Add a spec under `test/modules/policy/` for a resolved value and for a missing one.
 
 ## Term Policy Acceptance Protected
 
@@ -695,7 +818,7 @@ For the guard bodies, the exceptions and status codes each one throws, the store
 
 ### Role Catalog
 
-The seeded catalog is fixed. Roles are neither created nor deleted through the API.
+The nine catalog keys are fixed. `POST /admin/role/create` adds a role, and `DELETE /admin/role/delete/:roleId` removes a non-catalog role that nothing references.
 
 | Scope | Keys |
 |---|---|
@@ -703,16 +826,16 @@ The seeded catalog is fixed. Roles are neither created nor deleted through the A
 | `workspace` | `owner`, `admin`, `member` |
 | `project` | `admin`, `member`, `viewer` |
 
-The keys live in `EnumRolePlatformKey`, `EnumRoleWorkspaceKey`, and `EnumRoleProjectKey`. Seeded rules per role, in the order listed. Workspace and project rules on a scoped subject carry the scope condition, except a lone `create` on `Project`:
+The keys live in `EnumRolePlatformKey`, `EnumRoleWorkspaceKey`, and `EnumRoleProjectKey`. Workspace and project rules on a model subject carry the scope condition. Owner and admin `Project` actions are one rule keyed on `workspaceId`.
 
 | Role | Policies |
 |---|---|
 | platform `superAdmin` | `manage` on `all` |
 | platform `admin` | every action on `ActivityLog`, `ApiKey`, `Device`, `DeviceOwnership`, `FeatureFlag`, `PasswordHistory`, `Role`, `Session`, `TermPolicy`, `User`; `read` on `Analytic`, `Workspace`, `WorkspaceMember`, and `Project` |
 | platform `user` | none |
-| workspace `owner` | `manage` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `read` and `update` on `WorkspaceJoinRequest`; `create`, then `read`, `update`, and `delete` on `Project`; `create`, `read`, `update`, and `delete` on `ProjectMember`; `read` on `WorkspaceAnalytic` |
-| workspace `admin` | `read` and `update` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `read` and `update` on `WorkspaceJoinRequest`; `create`, then `read`, `update`, and `delete` on `Project`; `create`, `read`, `update`, and `delete` on `ProjectMember`; `read` on `WorkspaceAnalytic` |
-| workspace `member` | `read` on `Workspace`; `read` on `WorkspaceMember` |
+| workspace `owner` | `manage` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `read` and `update` on `WorkspaceJoinRequest`; `create`, `read`, `update`, and `delete` on `Project`; `create`, `read`, `update`, and `delete` on `ProjectMember`; `read` on `WorkspaceAnalytic`, limited to the active workspace |
+| workspace `admin` | `read` and `update` on `Workspace`; `read`, `update`, and `delete` on `WorkspaceMember`; `manage` on `WorkspaceInvite`; `read` and `update` on `WorkspaceJoinRequest`; `create`, `read`, `update`, and `delete` on `Project`; `create`, `read`, `update`, and `delete` on `ProjectMember`; `read` on `WorkspaceAnalytic`, limited to the active workspace |
+| workspace `member` | `read` on `Workspace`; `read` on `WorkspaceMember`; `read` on `Project`, limited to the projects that member is assigned to |
 | project `admin` | `read`, `update`, and `delete` on `Project`; `create`, `read`, `update`, and `delete` on `ProjectMember` |
 | project `member` | `read` on `Project`; `read` on `ProjectMember` |
 | project `viewer` | `read` on `Project`; `read` on `ProjectMember` |

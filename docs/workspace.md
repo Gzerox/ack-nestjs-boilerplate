@@ -140,7 +140,7 @@ Requires `x-workspace-id` to resolve to an existing, non-deleted workspace, thro
 
 **Method decorator**. Takes no arguments. Stack it above `@WorkspaceProtected()`. It applies `WorkspaceMemberGuard`.
 
-- `WorkspaceMemberGuard` confirms the user loaded by `UserGuard` has a `WorkspaceMember` row in the resolved workspace, and stores it with its minimal role (`id`, `scope`, `key`, `name`, no policies) under `WorkspaceMemberStoreKey`. No membership throws `WorkspaceMemberForbiddenException` (403, `51601`).
+- `WorkspaceMemberGuard` confirms the user loaded by `UserGuard` has a `WorkspaceMember` row in the resolved workspace, and stores it with its guard role (`id`, `scope`, `key`, `name`, `policyRevision`; no policy rows) under `WorkspaceMemberStoreKey`. No membership throws `WorkspaceMemberForbiddenException` (403, `51601`).
 - The guard is membership-only: it loads no policies and builds no ability.
 - What a member may do is decided by a workspace policy decorator (below). A route with no policy decorator is open to every member.
 
@@ -262,7 +262,7 @@ Mounted under `/admin`. Gated by `@PolicyProtected({ subject: Workspace, action:
 
 | Role | Policies |
 |---|---|
-| `member` | `workspace:[read]`, `workspaceMember:[read]`. Lists members and leaves |
+| `member` | `workspace:[read]`, `workspaceMember:[read]`, and `project:[read]` limited to the projects that member is assigned to. Lists members and leaves |
 | `admin` | `workspace:[read, update]`, `workspaceMember:[read, update, delete]`, `workspaceInvite:[manage]`, `workspaceJoinRequest:[read, update]`, `project:[create, read, update, delete]`, `projectMember:[create, read, update, delete]`, `workspaceAnalytic:[read]` |
 | `owner` | `workspace:[manage]`, `workspaceMember:[read, update, delete]`, `workspaceInvite:[manage]`, `workspaceJoinRequest:[read, update]`, `project:[create, read, update, delete]`, `projectMember:[create, read, update, delete]`, `workspaceAnalytic:[read]` |
 

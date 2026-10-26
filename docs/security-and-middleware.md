@@ -62,7 +62,7 @@ consumer
 Guards and sessions are not middleware. See:
 
 - [Authentication][ref-doc-authentication] - JWT, OAuth, API keys, sessions, passwords
-- [Authorization][ref-doc-authorization] - RBAC, policies, user protection
+- [Authorization][ref-doc-authorization] - CASL request ability, policies, user protection
 
 ## Helmet
 
@@ -467,9 +467,9 @@ Feature modules own the rest of the keys, each declared in its own `constants/` 
 | `ApiKeyStoreKey` | `ApiKeyXApiKeyGuard` | the authenticated `ApiKey` |
 | `PolicyAbilityStoreKey` | `PolicyAbilityGuard` | the one CASL ability of the request, built from the platform, workspace-member, and project-member roles available in the request |
 | `WorkspaceStoreKey` | `WorkspaceGuard` | the resolved `Workspace` |
-| `WorkspaceMemberStoreKey` | `WorkspaceMemberGuard` | the caller's `WorkspaceMember` row with its minimal role (`id`, `scope`, `key`, `name`) |
+| `WorkspaceMemberStoreKey` | `WorkspaceMemberGuard` | the caller's `WorkspaceMember` row with its guard role (`id`, `scope`, `key`, `name`, `policyRevision`) |
 | `ProjectStoreKey` | `ProjectGuard` | the resolved `Project` |
-| `ProjectMemberStoreKey` | `ProjectMemberGuard` | the caller's `ProjectMember` row with its minimal role (`id`, `scope`, `key`, `name`) |
+| `ProjectMemberStoreKey` | `ProjectMemberGuard` | the caller's `ProjectMember` row with its guard role (`id`, `scope`, `key`, `name`, `policyRevision`) |
 | `ActivityLogStageStoreKey` | `ActivityLogDomain.stagePrepared` | the staged activity events of the request |
 | `PaginationStoreKey` | HTTP services via `PaginationQueryUtil` `storePatch` | the response-metadata block `ResponsePaginationInterceptor` emits |
 

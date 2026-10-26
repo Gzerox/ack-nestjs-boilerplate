@@ -27,10 +27,14 @@ import {
     WorkspaceMemberProtected,
     WorkspaceProtected,
 } from '@modules/workspace/decorators/workspace.decorator';
-import { PolicyAbility } from '@modules/policy/decorators/policy.decorator';
+import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Workspace } from '@generated/prisma-client/client';
+import {
+    EnumPolicyAction,
+    EnumPolicySubject,
+    type Workspace,
+} from '@generated/prisma-client/client';
 
 @ApiTags('modules.user.analytic')
 @Controller({
@@ -47,7 +51,10 @@ export class AnalyticUserController {
         schema: AnalyticWorkspaceSummaryResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.WorkspaceAnalytic,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()
@@ -73,7 +80,10 @@ export class AnalyticUserController {
         schema: AnalyticStatusCountResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.WorkspaceAnalytic,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()
@@ -101,7 +111,10 @@ export class AnalyticUserController {
         schema: AnalyticStatusCountResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.WorkspaceAnalytic,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()
@@ -127,7 +140,10 @@ export class AnalyticUserController {
         schema: AnalyticRoleCountResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.WorkspaceAnalytic,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()
@@ -147,7 +163,10 @@ export class AnalyticUserController {
         schema: AnalyticMetricCountResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.WorkspaceAnalytic,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()

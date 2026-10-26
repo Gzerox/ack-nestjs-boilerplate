@@ -1,8 +1,10 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
 } from '@generated/prisma-client/client';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { UserDomain } from '@modules/user/domains/user.domain';
 import type { IResponseReturn } from '@common/response/interfaces/response.interface';
 import type { UserChangePasswordRequestDto } from '@modules/user/dtos/request/user.change-password.request.dto';
 import type { UserForgotPasswordResetRequestDto } from '@modules/user/dtos/request/user.forgot-password-reset.request.dto';
@@ -15,6 +17,7 @@ import { Injectable } from '@nestjs/common';
 export class UserPasswordHttpService {
     constructor(
         private readonly userPasswordDomain: UserPasswordDomain,
+        private readonly userDomain: UserDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain
     ) {}
 
@@ -22,15 +25,12 @@ export class UserPasswordHttpService {
         userId: string,
         updatedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userPasswordDomain.updatePasswordByAdmin(
-            userId,
-            updatedBy,
-            scopeWhere
-        );
+        await this.userPasswordDomain.updatePasswordByAdmin(userId, updatedBy);
 
         return {};
     }

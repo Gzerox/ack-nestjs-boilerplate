@@ -52,15 +52,13 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndProject(
         projectMemberId: string,
-        projectId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        projectId: string
     ): Promise<IProjectMemberWithRole | null> {
         return this.databaseService.client.projectMember.findFirst({
             where: {
-                AND: [additionalWhere, { id: projectMemberId }, { projectId }],
+                AND: [{ id: projectMemberId }, { projectId }],
             },
             include: ProjectMemberRoleInclude,
         });
@@ -161,17 +159,13 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateRole(
         targetMemberId: string,
-        roleId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        roleId: string
     ): Promise<ProjectMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.projectMember.updateMany({
-                where: {
-                    AND: [additionalWhere, { id: targetMemberId }],
-                },
+                where: { id: targetMemberId },
                 data: {
                     roleId,
                 },
@@ -186,14 +180,10 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async removeMember(
-        targetMemberId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
-    ): Promise<ProjectMember | null> {
+    async removeMember(targetMemberId: string): Promise<ProjectMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.ProjectMemberWhereInput = {
-                AND: [additionalWhere, { id: targetMemberId }],
+                id: targetMemberId,
             };
             const existing = await tx.projectMember.findFirst({ where });
             if (!existing) {

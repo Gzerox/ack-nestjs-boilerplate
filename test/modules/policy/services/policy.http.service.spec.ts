@@ -26,7 +26,6 @@ describe('PolicyHttpService', () => {
     const roleDomain: MockProxy<RoleDomain> = mock<RoleDomain>();
     const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
         mock<PolicyAbilityDomain>();
-    const roleScopeWhere = { scope: EnumRoleScope.platform };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const role = {
         id: 'role-id',
@@ -149,27 +148,25 @@ describe('PolicyHttpService', () => {
         },
     ] as const)('$method', ({ call, domainMethod, domainArgs }) => {
         beforeEach(() => {
-            policyAbilityDomain.scope.mockReturnValue(roleScopeWhere);
             policyDomain[domainMethod].mockResolvedValue(policy);
         });
 
-        it('loads the role with scope(read, Role)', async () => {
+        it('loads the role by identity and authorizes update on that role', async () => {
             await call();
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
-                EnumPolicyAction.read,
-                EnumPolicySubject.Role
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.Role, role)
             );
-            expect(roleDomain.getOne).toHaveBeenCalledWith(
-                'role-id',
-                roleScopeWhere
-            );
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
         });
 
-        it('propagates RoleNotFoundException from the scoped load and does not call the domain', async () => {
+        it('propagates RoleNotFoundException from the identity load and does not call the domain', async () => {
             roleDomain.getOne.mockRejectedValue(new RoleNotFoundException());
 
             await expect(call()).rejects.toThrow(RoleNotFoundException);
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
             expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(policyDomain[domainMethod]).not.toHaveBeenCalled();
         });
@@ -180,6 +177,7 @@ describe('PolicyHttpService', () => {
             });
 
             await expect(call()).rejects.toThrow(PolicyForbiddenException);
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
             expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
                 subject(EnumPolicySubject.Role, role)
@@ -188,13 +186,14 @@ describe('PolicyHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(call()).rejects.toThrow(
                 RequestContextMissingException
             );
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
             expect(policyDomain[domainMethod]).not.toHaveBeenCalled();
         });
 

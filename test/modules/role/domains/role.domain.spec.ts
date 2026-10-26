@@ -12,7 +12,7 @@ import {
     EnumPolicySubject,
     EnumRoleScope,
 } from '@generated/prisma-client/client';
-import type { Policy, Prisma, Role } from '@generated/prisma-client/client';
+import type { Policy, Role } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import type {
     IActivityLogMetadata,
@@ -164,7 +164,7 @@ describe('RoleDomain', () => {
         it('throws RoleNotFoundException when the id is unknown', async () => {
             roleRepository.findOneWithPoliciesById.mockResolvedValue(null);
 
-            await expect(service.getOne('missing', {})).rejects.toThrow(
+            await expect(service.getOne('missing')).rejects.toThrow(
                 RoleNotFoundException
             );
         });
@@ -175,9 +175,7 @@ describe('RoleDomain', () => {
                 withPolicies
             );
 
-            await expect(service.getOne(role.id, {})).resolves.toBe(
-                withPolicies
-            );
+            await expect(service.getOne(role.id)).resolves.toBe(withPolicies);
         });
     });
 
@@ -347,7 +345,7 @@ describe('RoleDomain', () => {
             roleRepository.findOneById.mockResolvedValue(null);
 
             await expect(
-                service.updateByAdmin('missing', { name: 'Editor' }, {})
+                service.updateByAdmin('missing', { name: 'Editor' })
             ).rejects.toThrow(RoleNotFoundException);
             expect(roleRepository.update).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
@@ -363,17 +361,13 @@ describe('RoleDomain', () => {
             roleUtil.mapActivityLogMetadata.mockReturnValue(metadata);
             activityLogDomain.prepare.mockReturnValue(event as never);
 
-            await expect(
-                service.updateByAdmin(role.id, data, {})
-            ).resolves.toBe(updated);
-            expect(roleRepository.update).toHaveBeenCalledWith(
-                role.id,
-                {
-                    name: data.name,
-                    description: data.description,
-                },
-                {}
+            await expect(service.updateByAdmin(role.id, data)).resolves.toBe(
+                updated
             );
+            expect(roleRepository.update).toHaveBeenCalledWith(role.id, {
+                name: data.name,
+                description: data.description,
+            });
             expect(roleUtil.mapActivityLogMetadata).toHaveBeenCalledWith(
                 { ...roleShort, name: data.name },
                 now
@@ -514,12 +508,9 @@ describe('RoleDomain', () => {
             roleRepository.isUsedById.mockResolvedValue(false);
             roleRepository.delete.mockResolvedValue({ ...role, ...custom });
 
-            const call = service.deleteByAdmin(custom.id, {});
+            const call = service.deleteByAdmin(custom.id);
 
-            expect(roleRepository.findOneById).toHaveBeenCalledWith(
-                custom.id,
-                {}
-            );
+            expect(roleRepository.findOneById).toHaveBeenCalledWith(custom.id);
             expect(roleRepository.isUsedById).toHaveBeenCalledWith(custom.id);
 
             resolveRole(custom);
@@ -530,7 +521,7 @@ describe('RoleDomain', () => {
             roleRepository.findOneById.mockResolvedValue(null);
             roleRepository.isUsedById.mockResolvedValue(true);
 
-            const call = service.deleteByAdmin('missing', {});
+            const call = service.deleteByAdmin('missing');
 
             await expect(call).rejects.toThrow(RoleNotFoundException);
             await expect(call).rejects.toMatchObject({
@@ -558,7 +549,7 @@ describe('RoleDomain', () => {
                 });
                 roleRepository.isUsedById.mockResolvedValue(true);
 
-                const call = service.deleteByAdmin(custom.id, {});
+                const call = service.deleteByAdmin(custom.id);
 
                 await expect(call).rejects.toThrow(RolePredefinedException);
                 await expect(call).rejects.toMatchObject({
@@ -584,7 +575,7 @@ describe('RoleDomain', () => {
             roleRepository.delete.mockResolvedValue({ ...role, ...custom });
 
             await expect(
-                service.deleteByAdmin(custom.id, {})
+                service.deleteByAdmin(custom.id)
             ).resolves.toBeUndefined();
             expect(roleRepository.isUsedById).toHaveBeenCalledWith(custom.id);
         });
@@ -593,7 +584,7 @@ describe('RoleDomain', () => {
             roleRepository.findOneById.mockResolvedValue(custom);
             roleRepository.isUsedById.mockResolvedValue(true);
 
-            const call = service.deleteByAdmin(custom.id, {});
+            const call = service.deleteByAdmin(custom.id);
 
             await expect(call).rejects.toThrow(RoleUsedException);
             await expect(call).rejects.toMatchObject({
@@ -625,7 +616,7 @@ describe('RoleDomain', () => {
             });
 
             await expect(
-                service.deleteByAdmin(custom.id, {})
+                service.deleteByAdmin(custom.id)
             ).resolves.toBeUndefined();
             expect(roleUtil.mapActivityLogMetadata).toHaveBeenCalledWith(
                 custom,
@@ -635,7 +626,7 @@ describe('RoleDomain', () => {
                 action: EnumActivityLogAction.adminRoleDelete,
                 metadata,
             });
-            expect(roleRepository.delete).toHaveBeenCalledWith(custom.id, {});
+            expect(roleRepository.delete).toHaveBeenCalledWith(custom.id);
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 event,
             ]);
@@ -644,9 +635,6 @@ describe('RoleDomain', () => {
     });
 
     describe('scoped lookups and mutations', () => {
-        const additionalWhere = {
-            scope: EnumRoleScope.workspace,
-        } satisfies Prisma.RoleWhereInput;
         const custom = {
             id: 'custom-id',
             scope: EnumRoleScope.workspace,
@@ -669,143 +657,108 @@ describe('RoleDomain', () => {
         });
 
         describe('getOne', () => {
-            it('forwards additionalWhere to findOneWithPoliciesById', async () => {
-                await service.getOne(role.id, additionalWhere);
+            it('calls findOneWithPoliciesById', async () => {
+                await service.getOne(role.id);
 
                 expect(
                     roleRepository.findOneWithPoliciesById
-                ).toHaveBeenCalledWith(role.id, additionalWhere);
+                ).toHaveBeenCalledWith(role.id);
             });
 
-            it('calls findOneWithPoliciesById with an empty where and returns the same result', async () => {
-                await expect(service.getOne(role.id, {})).resolves.toBe(
-                    updated
+            it('calls findOneWithPoliciesById and returns the same result', async () => {
+                await expect(service.getOne(role.id)).resolves.toBe(updated);
+                expect(
+                    roleRepository.findOneWithPoliciesById
+                ).toHaveBeenCalledWith(role.id);
+            });
+
+            it('throws RoleNotFoundException when findOneWithPoliciesById returns null', async () => {
+                roleRepository.findOneWithPoliciesById.mockResolvedValue(null);
+
+                await expect(service.getOne(role.id)).rejects.toThrow(
+                    RoleNotFoundException
                 );
-                expect(
-                    roleRepository.findOneWithPoliciesById
-                ).toHaveBeenCalledWith(role.id, {});
             });
-
-            it.each([[{}], [additionalWhere]])(
-                'throws RoleNotFoundException when findOneWithPoliciesById returns null',
-                async where => {
-                    roleRepository.findOneWithPoliciesById.mockResolvedValue(
-                        null
-                    );
-
-                    await expect(
-                        service.getOne(role.id, where)
-                    ).rejects.toThrow(RoleNotFoundException);
-                }
-            );
         });
 
         describe('updateByAdmin', () => {
-            it('forwards additionalWhere to update', async () => {
-                await service.updateByAdmin(
-                    custom.id,
-                    { name: 'Editor' },
-                    additionalWhere
-                );
+            it('calls update', async () => {
+                await service.updateByAdmin(custom.id, { name: 'Editor' });
 
                 expect(roleRepository.findOneById).toHaveBeenCalledWith(
-                    custom.id,
-                    additionalWhere
+                    custom.id
                 );
-                expect(roleRepository.update).toHaveBeenCalledWith(
-                    custom.id,
-                    { name: 'Editor', description: undefined },
-                    additionalWhere
-                );
+                expect(roleRepository.update).toHaveBeenCalledWith(custom.id, {
+                    name: 'Editor',
+                    description: undefined,
+                });
             });
 
-            it('calls update with an empty where and returns the same result', async () => {
+            it('calls update and returns the same result', async () => {
                 await expect(
-                    service.updateByAdmin(custom.id, { name: 'Editor' }, {})
+                    service.updateByAdmin(custom.id, { name: 'Editor' })
                 ).resolves.toBe(updated);
-                expect(roleRepository.update).toHaveBeenCalledWith(
-                    custom.id,
-                    { name: 'Editor', description: undefined },
-                    {}
-                );
+                expect(roleRepository.update).toHaveBeenCalledWith(custom.id, {
+                    name: 'Editor',
+                    description: undefined,
+                });
             });
 
-            it.each([[{}], [additionalWhere]])(
-                'throws RoleNotFoundException and stages nothing when update returns null',
-                async where => {
-                    roleRepository.update.mockResolvedValue(null);
+            it('throws RoleNotFoundException and stages nothing when update returns null', async () => {
+                roleRepository.update.mockResolvedValue(null);
 
-                    await expect(
-                        service.updateByAdmin(
-                            custom.id,
-                            { name: 'Editor' },
-                            where
-                        )
-                    ).rejects.toThrow(RoleNotFoundException);
-                    expect(
-                        activityLogDomain.stagePrepared
-                    ).not.toHaveBeenCalled();
-                }
-            );
+                await expect(
+                    service.updateByAdmin(custom.id, { name: 'Editor' })
+                ).rejects.toThrow(RoleNotFoundException);
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            });
         });
 
         describe('deleteByAdmin', () => {
-            it('forwards additionalWhere to delete', async () => {
-                await service.deleteByAdmin(custom.id, additionalWhere);
+            it('calls delete', async () => {
+                await service.deleteByAdmin(custom.id);
 
                 expect(roleRepository.findOneById).toHaveBeenCalledWith(
-                    custom.id,
-                    additionalWhere
+                    custom.id
                 );
-                expect(roleRepository.delete).toHaveBeenCalledWith(
-                    custom.id,
-                    additionalWhere
-                );
+                expect(roleRepository.delete).toHaveBeenCalledWith(custom.id);
             });
 
-            it('calls delete with an empty where and resolves', async () => {
+            it('calls delete and resolves', async () => {
                 await expect(
-                    service.deleteByAdmin(custom.id, {})
+                    service.deleteByAdmin(custom.id)
                 ).resolves.toBeUndefined();
-                expect(roleRepository.delete).toHaveBeenCalledWith(
-                    custom.id,
-                    {}
-                );
+                expect(roleRepository.delete).toHaveBeenCalledWith(custom.id);
             });
 
-            it.each([[{}], [additionalWhere]])(
-                'throws RoleNotFoundException and stages nothing when delete returns null',
-                async where => {
-                    roleRepository.delete.mockResolvedValue(null);
+            it('throws RoleNotFoundException and stages nothing when delete returns null', async () => {
+                roleRepository.delete.mockResolvedValue(null);
 
-                    await expect(
-                        service.deleteByAdmin(custom.id, where)
-                    ).rejects.toThrow(RoleNotFoundException);
-                    expect(
-                        activityLogDomain.stagePrepared
-                    ).not.toHaveBeenCalled();
-                }
-            );
+                await expect(service.deleteByAdmin(custom.id)).rejects.toThrow(
+                    RoleNotFoundException
+                );
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            });
 
-            it('predefined role still throws RolePredefinedException with additionalWhere present', async () => {
+            it('predefined role still throws RolePredefinedException present', async () => {
                 roleRepository.findOneById.mockResolvedValue({
                     ...custom,
                     scope: EnumRoleScope.platform,
                     key: EnumRolePlatformKey.superAdmin,
                 });
 
-                await expect(
-                    service.deleteByAdmin(custom.id, additionalWhere)
-                ).rejects.toThrow(RolePredefinedException);
+                await expect(service.deleteByAdmin(custom.id)).rejects.toThrow(
+                    RolePredefinedException
+                );
                 expect(roleRepository.delete).not.toHaveBeenCalled();
             });
 
-            it('used role still throws RoleUsedException with additionalWhere present', async () => {
+            it('used role still throws RoleUsedException present', async () => {
                 roleRepository.isUsedById.mockResolvedValue(true);
 
-                await expect(
-                    service.deleteByAdmin(custom.id, additionalWhere)
-                ).rejects.toThrow(RoleUsedException);
+                await expect(service.deleteByAdmin(custom.id)).rejects.toThrow(
+                    RoleUsedException
+                );
                 expect(roleRepository.delete).not.toHaveBeenCalled();
             });
         });

@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import {
@@ -9,6 +10,7 @@ import type { TermPolicyContentPresignRequestDto } from '@modules/term-policy/dt
 import type { TermPolicyContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.content.request.dto';
 import type { TermPolicyRemoveContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
+import { TermPolicyDomain } from '@modules/term-policy/domains/term-policy.domain';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -16,6 +18,7 @@ import { Injectable } from '@nestjs/common';
 export class TermPolicyContentHttpService {
     constructor(
         private readonly termPolicyContentDomain: TermPolicyContentDomain,
+        private readonly termPolicyDomain: TermPolicyDomain,
         private readonly policyAbilityDomain: PolicyAbilityDomain
     ) {}
 
@@ -34,14 +37,14 @@ export class TermPolicyContentHttpService {
         termPolicyId: string,
         body: TermPolicyContentRequestDto
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
         await this.termPolicyContentDomain.updateContentByAdmin(
             termPolicyId,
-            body,
-            scopeWhere
+            body
         );
 
         return {};
@@ -51,14 +54,14 @@ export class TermPolicyContentHttpService {
         termPolicyId: string,
         body: TermPolicyContentRequestDto
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
         await this.termPolicyContentDomain.addContentByAdmin(
             termPolicyId,
-            body,
-            scopeWhere
+            body
         );
 
         return {};
@@ -68,14 +71,14 @@ export class TermPolicyContentHttpService {
         termPolicyId: string,
         { language }: TermPolicyRemoveContentRequestDto
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
         await this.termPolicyContentDomain.removeContentByAdmin(
             termPolicyId,
-            language,
-            scopeWhere
+            language
         );
 
         return {};
@@ -85,14 +88,14 @@ export class TermPolicyContentHttpService {
         termPolicyId: string,
         language: EnumMessageLanguage
     ): Promise<IResponseReturn<IAwsS3Presign>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
         const presign = await this.termPolicyContentDomain.getContentByAdmin(
             termPolicyId,
-            language,
-            scopeWhere
+            language
         );
 
         return { data: presign };

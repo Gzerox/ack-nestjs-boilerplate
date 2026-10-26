@@ -176,18 +176,10 @@ export class TermPolicyDomain {
         }
     }
 
-    /**
-     * Returns the stored policy with its contents; callers judge it, this method does not.
-     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
-     */
-    async getOne(
-        termPolicyId: string,
-        additionalWhere: Prisma.TermPolicyWhereInput
-    ): Promise<ITermPolicy> {
-        const termPolicy = await this.termPolicyRepository.findOneById(
-            termPolicyId,
-            additionalWhere
-        );
+    /** Returns the stored policy with its contents; callers judge it, this method does not. */
+    async getOne(termPolicyId: string): Promise<ITermPolicy> {
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         }
@@ -195,15 +187,9 @@ export class TermPolicyDomain {
         return termPolicy;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async deleteByAdmin(
-        termPolicyId: string,
-        additionalWhere: Prisma.TermPolicyWhereInput
-    ): Promise<TermPolicy> {
-        const termPolicy = await this.termPolicyRepository.findOneById(
-            termPolicyId,
-            additionalWhere
-        );
+    async deleteByAdmin(termPolicyId: string): Promise<TermPolicy> {
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status !== EnumTermPolicyStatus.draft) {
@@ -220,10 +206,8 @@ export class TermPolicyDomain {
                     timestamp
                 ),
             ];
-            const deleted = await this.termPolicyRepository.delete(
-                termPolicyId,
-                additionalWhere
-            );
+            const deleted =
+                await this.termPolicyRepository.delete(termPolicyId);
             if (!deleted) {
                 throw new TermPolicyNotFoundException();
             }
@@ -244,16 +228,12 @@ export class TermPolicyDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async publishByAdmin(
         termPolicyId: string,
-        updatedBy: string,
-        additionalWhere: Prisma.TermPolicyWhereInput
+        updatedBy: string
     ): Promise<void> {
-        const termPolicy = await this.termPolicyRepository.findOneById(
-            termPolicyId,
-            additionalWhere
-        );
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status === EnumTermPolicyStatus.published) {
@@ -285,8 +265,7 @@ export class TermPolicyDomain {
                     const row = await this.termPolicyRepository.publishInTx(
                         tx,
                         termPolicyId,
-                        newContents,
-                        additionalWhere
+                        newContents
                     );
                     if (!row) {
                         throw new TermPolicyNotFoundException();

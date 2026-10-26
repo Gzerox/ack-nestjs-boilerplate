@@ -189,8 +189,7 @@ export class DeviceDomain {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId,
-                {}
+                deviceOwnershipId
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -237,8 +236,7 @@ export class DeviceDomain {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId,
-                {}
+                deviceOwnershipId
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -262,8 +260,7 @@ export class DeviceDomain {
                             userId,
                             deviceOwnershipId,
                             userId,
-                            now,
-                            {}
+                            now
                         );
                     if (!row) {
                         throw new DeviceNotFoundException();
@@ -307,20 +304,15 @@ export class DeviceDomain {
         }
     }
 
-    /**
-     * Returns the active ownership of the user; callers judge it, this method does not.
-     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
-     */
+    /** Returns the active ownership of the user; callers judge it, this method does not. */
     async getOneActive(
         userId: string,
-        deviceOwnershipId: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        deviceOwnershipId: string
     ): Promise<DeviceOwnership> {
         const deviceOwnership =
             await this.deviceOwnershipRepository.findOneActive(
                 userId,
-                deviceOwnershipId,
-                additionalWhere
+                deviceOwnershipId
             );
         if (!deviceOwnership) {
             throw new DeviceNotFoundException();
@@ -329,18 +321,15 @@ export class DeviceDomain {
         return deviceOwnership;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async removeByAdmin(
         userId: string,
         deviceOwnershipId: string,
-        removedBy: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        removedBy: string
     ): Promise<void> {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId,
-                additionalWhere
+                deviceOwnershipId
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -364,8 +353,7 @@ export class DeviceDomain {
                             userId,
                             deviceOwnershipId,
                             removedBy,
-                            now,
-                            additionalWhere
+                            now
                         );
                     if (!row) {
                         throw new DeviceNotFoundException();

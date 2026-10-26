@@ -6,7 +6,6 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import {
     EnumActivityLogAction,
     EnumUserStatus,
-    type Prisma,
 } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { EnumAuthTwoFactorMethod } from '@modules/auth/enums/auth.enum';
@@ -69,8 +68,7 @@ export class UserTwoFactorDomain {
         }
 
         const user = await this.userRepository.findOneWithRoleById(
-            challenge.userId,
-            {}
+            challenge.userId
         );
         if (!user) {
             throw new UserNotFoundException();
@@ -138,8 +136,7 @@ export class UserTwoFactorDomain {
         }
 
         const user = await this.userRepository.findOneWithRoleById(
-            challenge.userId,
-            {}
+            challenge.userId
         );
         if (!user) {
             throw new UserNotFoundException();
@@ -380,20 +377,15 @@ export class UserTwoFactorDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async resetTwoFactorByAdmin(
         userId: string,
-        updatedBy: string,
-        additionalWhere: Prisma.UserWhereInput
+        updatedBy: string
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneWithRoleById(
-            userId,
-            additionalWhere
-        );
+        const user = await this.userRepository.findOneWithRoleById(userId);
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -427,8 +419,7 @@ export class UserTwoFactorDomain {
                     const reset =
                         await this.userTwoFactorRepository.resetTwoFactorByAdminInTx(
                             tx,
-                            userId,
-                            additionalWhere
+                            userId
                         );
                     if (!reset) {
                         throw new UserNotFoundException();

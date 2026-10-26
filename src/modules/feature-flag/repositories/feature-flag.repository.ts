@@ -22,14 +22,11 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
 
     private async updateScoped(
         id: string,
-        data: Prisma.FeatureFlagUpdateManyMutationInput,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        data: Prisma.FeatureFlagUpdateManyMutationInput
     ): Promise<FeatureFlag | null> {
         const { count } =
             await this.databaseService.client.featureFlag.updateMany({
-                where: {
-                    AND: [additionalWhere, { id }],
-                },
+                where: { id },
                 data,
             });
         if (count === 0) {
@@ -82,37 +79,23 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findOneById(
-        id: string,
-        additionalWhere: Prisma.FeatureFlagWhereInput
-    ): Promise<FeatureFlag | null> {
+    async findOneById(id: string): Promise<FeatureFlag | null> {
         return this.databaseService.client.featureFlag.findFirst({
-            where: {
-                AND: [additionalWhere, { id }],
-            },
+            where: { id },
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatus(
         id: string,
-        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto
     ): Promise<FeatureFlag | null> {
-        return this.updateScoped(
-            id,
-            { isEnable, rolloutPercent },
-            additionalWhere
-        );
+        return this.updateScoped(id, { isEnable, rolloutPercent });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMetadata(
         id: string,
-        { metadata }: FeatureFlagUpdateMetadataRequestDto,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        { metadata }: FeatureFlagUpdateMetadataRequestDto
     ): Promise<FeatureFlag | null> {
-        return this.updateScoped(id, { metadata }, additionalWhere);
+        return this.updateScoped(id, { metadata });
     }
 }

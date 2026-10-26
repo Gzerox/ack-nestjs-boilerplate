@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import type { DatabaseIdResponseDto } from '@common/database/dtos/response/database.id.response.dto';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
@@ -91,11 +92,11 @@ export class UserHttpService {
     }
 
     async getOne(userId: string): Promise<IResponseReturn<IUserProfile>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        const user = await this.userDomain.getOne(userId, scopeWhere);
 
         return { data: user };
     }
@@ -135,16 +136,12 @@ export class UserHttpService {
         { status }: UserUpdateStatusRequestDto,
         updatedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userDomain.updateStatusByAdmin(
-            userId,
-            status,
-            updatedBy,
-            scopeWhere
-        );
+        await this.userDomain.updateStatusByAdmin(userId, status, updatedBy);
 
         return {};
     }

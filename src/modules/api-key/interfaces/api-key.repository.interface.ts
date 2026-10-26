@@ -28,39 +28,17 @@ export interface IApiKeyRepository {
         key: string,
         hash: string
     ): Promise<ApiKey>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findOneById(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneById(id: string): Promise<ApiKey | null>;
     updateStatus(
         id: string,
-        { isActive }: ApiKeyUpdateStatusRequestDto,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        { isActive }: ApiKeyUpdateStatusRequestDto
     ): Promise<ApiKey | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    updateName(
-        id: string,
-        name: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
+    updateName(id: string, name: string): Promise<ApiKey | null>;
     updateDates(
         id: string,
-        { startAt, endAt }: ApiKeyUpdateDateRequestDto,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        { startAt, endAt }: ApiKeyUpdateDateRequestDto
     ): Promise<ApiKey | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    updateHash(
-        id: string,
-        hash: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    delete(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null>;
+    updateHash(id: string, hash: string): Promise<ApiKey | null>;
+    delete(id: string): Promise<ApiKey | null>;
     findOneByKey(key: string): Promise<ApiKey | null>;
 }

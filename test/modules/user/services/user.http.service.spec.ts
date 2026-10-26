@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -38,6 +39,7 @@ import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.doma
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { UserOnboardingDomain } from '@modules/user/domains/user.onboarding.domain';
 import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
 import { UserHttpService } from '@modules/user/services/user.http.service';
 import { WorkspaceDomain } from '@modules/workspace/domains/workspace.domain';
 
@@ -229,6 +231,7 @@ describe('UserHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        userDomain.getOne.mockResolvedValue(userProfile);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -351,40 +354,54 @@ describe('UserHttpService', () => {
     });
 
     describe('getOne', () => {
-        it('passes scope(read, User) as additionalWhere and wraps the profile', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-
+        it('loads the user by identity, authorizes read, and wraps the profile', async () => {
             const result = await service.getOne('user-id');
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                EnumPolicySubject.User
-            );
-            expect(userDomain.getOne).toHaveBeenCalledWith(
-                'user-id',
-                scopeWhere
+                subject(EnumPolicySubject.User, userProfile)
             );
             expect(result).toEqual({ data: userProfile });
         });
 
-        it('throws PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates UserNotFoundException from the identity load and does not authorize', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(service.getOne('user-id')).rejects.toThrow(
+                UserNotFoundException
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(service.getOne('user-id')).rejects.toThrow(
                 PolicyForbiddenException
             );
-            expect(userDomain.getOne).not.toHaveBeenCalled();
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, userProfile)
+            );
         });
 
-        it('throws RequestContextMissingException when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws RequestContextMissingException from authorize after the identity load', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(service.getOne('user-id')).rejects.toThrow(
                 RequestContextMissingException
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, userProfile)
             );
         });
     });
@@ -464,7 +481,7 @@ describe('UserHttpService', () => {
     });
 
     describe('updateStatusByAdmin', () => {
-        it('passes scope(update, User) as additionalWhere, delegates to the domain and returns an empty response', async () => {
+        it('loads the user by identity, authorizes update, and writes', async () => {
             const request = {
                 status: EnumUserStatus.inactive,
             } satisfies UserUpdateStatusRequestDto;
@@ -476,21 +493,36 @@ describe('UserHttpService', () => {
                 'admin-id'
             );
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.User
+                subject(EnumPolicySubject.User, userProfile)
             );
             expect(userDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'user-id',
                 EnumUserStatus.inactive,
-                'admin-id',
-                scopeWhere
+                'admin-id'
             );
             expect(result).toEqual({});
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates UserNotFoundException from the identity load and does not authorize or write', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(
+                service.updateStatusByAdmin(
+                    'user-id',
+                    { status: EnumUserStatus.inactive },
+                    'admin-id'
+                )
+            ).rejects.toThrow(UserNotFoundException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -501,11 +533,16 @@ describe('UserHttpService', () => {
                     'admin-id'
                 )
             ).rejects.toThrow(PolicyForbiddenException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.User, userProfile)
+            );
             expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws RequestContextMissingException from authorize after the identity load and writes nothing', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -516,6 +553,7 @@ describe('UserHttpService', () => {
                     'admin-id'
                 )
             ).rejects.toThrow(RequestContextMissingException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
             expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
         });
     });

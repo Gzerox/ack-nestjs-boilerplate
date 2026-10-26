@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
@@ -22,6 +23,7 @@ import {
 } from '@modules/role/constants/role.list.constant';
 import { RoleDomain } from '@modules/role/domains/role.domain';
 import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
+import { RoleNotFoundException } from '@modules/role/exceptions/role.not-found.exception';
 import { RoleHttpService } from '@modules/role/services/role.http.service';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
@@ -49,6 +51,10 @@ describe('RoleHttpService', () => {
         updatedAt: now,
         updatedBy: null,
         _count: { policies: 3 },
+    };
+    const roleWithPolicies = {
+        ...roleRow,
+        policies: [],
     };
     const listedRole = {
         id: 'role-id',
@@ -98,6 +104,7 @@ describe('RoleHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        roleDomain.getOne.mockResolvedValue(roleWithPolicies);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -396,22 +403,26 @@ describe('RoleHttpService', () => {
     });
 
     describe('getOne', () => {
-        const withPolicies = { ...roleRow, policies: [] };
-
-        it('passes scope(read, Role) as additionalWhere and wraps the role', async () => {
-            roleDomain.getOne.mockResolvedValue(withPolicies);
-
+        it('loads the role by identity, authorizes read, and wraps the role', async () => {
             await expect(service.getOne('role-id')).resolves.toEqual({
-                data: withPolicies,
+                data: roleWithPolicies,
             });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                EnumPolicySubject.Role
+                subject(EnumPolicySubject.Role, roleWithPolicies)
             );
-            expect(roleDomain.getOne).toHaveBeenCalledWith(
-                'role-id',
-                scopeWhere
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+        });
+
+        it('propagates RoleNotFoundException from the identity load and does not authorize', async () => {
+            roleDomain.getOne.mockRejectedValue(new RoleNotFoundException());
+
+            await expect(service.getOne('role-id')).rejects.toThrow(
+                RoleNotFoundException
             );
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
 
         it.each([
@@ -421,20 +432,24 @@ describe('RoleHttpService', () => {
                 new RequestContextMissingException(PolicyAbilityStoreKey),
             ],
         ])(
-            'propagates %s from scope and never calls the domain',
+            'propagates %s from authorize after the identity load',
             async (_name, error) => {
-                policyAbilityDomain.scope.mockImplementation(() => {
+                policyAbilityDomain.authorize.mockImplementation(() => {
                     throw error;
                 });
 
                 await expect(service.getOne('role-id')).rejects.toThrow(error);
-                expect(roleDomain.getOne).not.toHaveBeenCalled();
+                expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+                expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                    EnumPolicyAction.read,
+                    subject(EnumPolicySubject.Role, roleWithPolicies)
+                );
             }
         );
     });
 
     describe('updateByAdmin', () => {
-        it('passes scope(update, Role) as additionalWhere, forwards the body and wraps the result', async () => {
+        it('loads the role by identity, authorizes update, and writes', async () => {
             const body = { name: 'Editor', description: 'Edits' };
             const updated = { ...roleRow, ...body, policies: [] };
             roleDomain.updateByAdmin.mockResolvedValue(updated);
@@ -442,26 +457,41 @@ describe('RoleHttpService', () => {
             await expect(
                 service.updateByAdmin('role-id', body)
             ).resolves.toEqual({ data: updated });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.Role
+                subject(EnumPolicySubject.Role, roleWithPolicies)
             );
-            expect(roleDomain.getOne).not.toHaveBeenCalled();
             expect(roleDomain.updateByAdmin).toHaveBeenCalledWith(
                 'role-id',
-                body,
-                scopeWhere
+                body
             );
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates RoleNotFoundException from the identity load and does not authorize or write', async () => {
+            roleDomain.getOne.mockRejectedValue(new RoleNotFoundException());
+
+            await expect(
+                service.updateByAdmin('role-id', { name: 'Editor' })
+            ).rejects.toThrow(RoleNotFoundException);
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(roleDomain.updateByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('propagates PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(
                 service.updateByAdmin('role-id', { name: 'Editor' })
             ).rejects.toThrow(PolicyForbiddenException);
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.Role, roleWithPolicies)
+            );
             expect(roleDomain.updateByAdmin).not.toHaveBeenCalled();
         });
     });
@@ -499,19 +529,16 @@ describe('RoleHttpService', () => {
     });
 
     describe('deleteByAdmin', () => {
-        it('passes scope(delete, Role) as additionalWhere and answers an empty envelope', async () => {
+        it('loads the role by identity, authorizes delete, and writes', async () => {
             roleDomain.deleteByAdmin.mockResolvedValue(undefined);
 
             await expect(service.deleteByAdmin('role-id')).resolves.toEqual({});
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                EnumPolicySubject.Role
+                subject(EnumPolicySubject.Role, roleWithPolicies)
             );
-            expect(roleDomain.getOne).not.toHaveBeenCalled();
-            expect(roleDomain.deleteByAdmin).toHaveBeenCalledWith(
-                'role-id',
-                scopeWhere
-            );
+            expect(roleDomain.deleteByAdmin).toHaveBeenCalledWith('role-id');
         });
 
         it('propagates a domain rejection unchanged', async () => {
@@ -521,13 +548,29 @@ describe('RoleHttpService', () => {
             await expect(service.deleteByAdmin('role-id')).rejects.toBe(error);
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates RoleNotFoundException from the identity load and does not authorize or write', async () => {
+            roleDomain.getOne.mockRejectedValue(new RoleNotFoundException());
+
+            await expect(service.deleteByAdmin('role-id')).rejects.toThrow(
+                RoleNotFoundException
+            );
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(roleDomain.deleteByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('propagates PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(service.deleteByAdmin('role-id')).rejects.toThrow(
                 PolicyForbiddenException
+            );
+            expect(roleDomain.getOne).toHaveBeenCalledWith('role-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                subject(EnumPolicySubject.Role, roleWithPolicies)
             );
             expect(roleDomain.deleteByAdmin).not.toHaveBeenCalled();
         });

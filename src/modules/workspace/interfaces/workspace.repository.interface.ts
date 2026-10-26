@@ -12,17 +12,9 @@ import type { WorkspaceCreateRequestDto } from '@modules/workspace/dtos/request/
 import type { WorkspaceUpdateRequestDto } from '@modules/workspace/dtos/request/workspace.update.request.dto';
 
 export interface IWorkspaceRepository {
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findActiveById(
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
-    ): Promise<Workspace | null>;
+    findActiveById(workspaceId: string): Promise<Workspace | null>;
     findActivePublicBySlug(slug: string): Promise<Workspace | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findByIdForAdmin(
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
-    ): Promise<Workspace | null>;
+    findByIdForAdmin(workspaceId: string): Promise<Workspace | null>;
     existsBySlug(slug: string, excludeWorkspaceId?: string): Promise<boolean>;
     findWithPaginationCursorByMember(
         userId: string,
@@ -44,30 +36,19 @@ export interface IWorkspaceRepository {
         slug: string,
         workspaceId: string
     ): Promise<Workspace>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     updateDetails(
         workspaceId: string,
-        { name, description }: WorkspaceUpdateRequestDto,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        { name, description }: WorkspaceUpdateRequestDto
     ): Promise<Workspace | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     updateIsPublic(
         workspaceId: string,
-        isPublic: boolean,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        isPublic: boolean
     ): Promise<Workspace | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    updateSlug(
-        workspaceId: string,
-        slug: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
-    ): Promise<Workspace | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
+    updateSlug(workspaceId: string, slug: string): Promise<Workspace | null>;
     softDeleteInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
         deletedAt: Date,
-        deletedBy: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        deletedBy: string
     ): Promise<Workspace | null>;
 }

@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -36,11 +37,11 @@ export class SessionHttpService {
         userId: string,
         query: SessionAdminListRequestDto
     ): Promise<IResponsePaginationReturn<ISessionList>> {
-        const userWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userDomain.getOne(userId, userWhere);
 
         const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
@@ -106,16 +107,15 @@ export class SessionHttpService {
         sessionId: string,
         revokedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.delete,
-            EnumPolicySubject.Session
-        );
-        await this.sessionDomain.revokeByAdmin(
+        const session = await this.sessionDomain.validateActive(
             userId,
-            sessionId,
-            revokedBy,
-            scopeWhere
+            sessionId
         );
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.delete,
+            subject(EnumPolicySubject.Session, session)
+        );
+        await this.sessionDomain.revokeByAdmin(userId, sessionId, revokedBy);
 
         return {};
     }
@@ -124,16 +124,12 @@ export class SessionHttpService {
         userId: string,
         revokedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userDomain.getOne(userId, scopeWhere);
-        await this.sessionDomain.revokeAllByAdmin(
-            userId,
-            revokedBy,
-            scopeWhere
-        );
+        await this.sessionDomain.revokeAllByAdmin(userId, revokedBy);
 
         return {};
     }

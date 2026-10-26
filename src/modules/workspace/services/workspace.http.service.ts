@@ -76,13 +76,12 @@ export class WorkspaceHttpService {
     async getCurrentWorkspace(
         workspace: Workspace
     ): Promise<IResponseReturn<Workspace>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.read,
-            EnumPolicySubject.Workspace
-        );
         const current = await this.workspaceDomain.getCurrentWorkspace(
-            workspace.id,
-            scopeWhere
+            workspace.id
+        );
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.read,
+            subject(EnumPolicySubject.Workspace, current)
         );
 
         return { data: current };
@@ -93,15 +92,14 @@ export class WorkspaceHttpService {
         actorId: string,
         { name, description }: WorkspaceUpdateRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
         const workspace = await this.workspaceDomain.updateWorkspace(
             workspaceTarget.id,
             actorId,
-            { name, description },
-            scopeWhere
+            { name, description }
         );
 
         return { data: workspace };
@@ -112,15 +110,14 @@ export class WorkspaceHttpService {
         actorId: string,
         { isPublic }: WorkspaceUpdateIsPublicRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
         const workspace = await this.workspaceDomain.updateWorkspaceIsPublic(
             workspaceTarget.id,
             actorId,
-            isPublic,
-            scopeWhere
+            isPublic
         );
 
         return { data: workspace };
@@ -131,15 +128,14 @@ export class WorkspaceHttpService {
         actorId: string,
         { slug }: WorkspaceUpdateSlugRequestDto
     ): Promise<IResponseReturn<Workspace>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
         const workspace = await this.workspaceDomain.updateWorkspaceSlug(
             workspaceTarget.id,
             actorId,
-            slug,
-            scopeWhere
+            slug
         );
 
         return { data: workspace };
@@ -156,14 +152,13 @@ export class WorkspaceHttpService {
         workspaceTarget: Workspace,
         actorId: string
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspaceTarget)
         );
         await this.workspaceDomain.softDeleteWorkspace(
             workspaceTarget.id,
-            actorId,
-            scopeWhere
+            actorId
         );
     }
 
@@ -207,13 +202,11 @@ export class WorkspaceHttpService {
     async getForAdmin(
         workspaceId: string
     ): Promise<IResponseReturn<Workspace>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const workspace =
+            await this.workspaceDomain.getByIdForAdmin(workspaceId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.Workspace
-        );
-        const workspace = await this.workspaceDomain.getByIdForAdmin(
-            workspaceId,
-            scopeWhere
+            subject(EnumPolicySubject.Workspace, workspace)
         );
 
         return { data: workspace };

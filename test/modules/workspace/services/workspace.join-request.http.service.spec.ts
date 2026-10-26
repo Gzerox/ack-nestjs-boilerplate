@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
@@ -6,6 +7,7 @@ import type { MockProxy } from 'vitest-mock-extended';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
     EnumPolicyAction,
@@ -17,12 +19,14 @@ import type {
     Workspace,
     WorkspaceJoinRequest,
 } from '@generated/prisma-client/client';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import type { WorkspaceJoinRequestCreateRequestDto } from '@modules/workspace/dtos/request/workspace.join-request-create.request.dto';
 import type { WorkspaceJoinRequestListRequestDto } from '@modules/workspace/dtos/request/workspace.join-request-list.request.dto';
 import type { WorkspaceJoinRequestRejectRequestDto } from '@modules/workspace/dtos/request/workspace.join-request-reject.request.dto';
 import { WorkspaceJoinRequestDomain } from '@modules/workspace/domains/workspace.join-request.domain';
+import { WorkspaceJoinRequestNotFoundException } from '@modules/workspace/exceptions/workspace.join-request-not-found.exception';
 import { WorkspaceJoinRequestHttpService } from '@modules/workspace/services/workspace.join-request.http.service';
 
 describe('WorkspaceJoinRequestHttpService', () => {
@@ -225,10 +229,34 @@ describe('WorkspaceJoinRequestHttpService', () => {
     });
 
     describe('acceptJoinRequest', () => {
-        it('does not call the domain when the ability holds no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
-                throw new PolicyForbiddenException();
-            });
+        it('loads the request by identity, authorizes update, and accepts', async () => {
+            workspaceJoinRequestDomain.getByIdAndWorkspace.mockResolvedValue(
+                joinRequest
+            );
+
+            await service.acceptJoinRequest(
+                workspace,
+                'reviewer-id',
+                'join-request-id'
+            );
+
+            expect(
+                workspaceJoinRequestDomain.getByIdAndWorkspace
+            ).toHaveBeenCalledWith('join-request-id', workspace.id);
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
+            );
+            expect(
+                workspaceJoinRequestDomain.acceptJoinRequest
+            ).toHaveBeenCalledWith(workspace, 'reviewer-id', 'join-request-id');
+        });
+
+        it('does not authorize or accept when the lookup misses', async () => {
+            workspaceJoinRequestDomain.getByIdAndWorkspace.mockRejectedValue(
+                new WorkspaceJoinRequestNotFoundException()
+            );
 
             await expect(
                 service.acceptJoinRequest(
@@ -236,58 +264,52 @@ describe('WorkspaceJoinRequestHttpService', () => {
                     'reviewer-id',
                     'join-request-id'
                 )
-            ).rejects.toThrow(PolicyForbiddenException);
+            ).rejects.toThrow(WorkspaceJoinRequestNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(
                 workspaceJoinRequestDomain.acceptJoinRequest
             ).not.toHaveBeenCalled();
         });
 
-        it('passes scope(update, WorkspaceJoinRequest) as additionalWhere', async () => {
-            await service.acceptJoinRequest(
-                workspace,
-                'reviewer-id',
-                'join-request-id'
-            );
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not accept',
+            async (_name, error) => {
+                workspaceJoinRequestDomain.getByIdAndWorkspace.mockResolvedValue(
+                    joinRequest
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
-                EnumPolicyAction.update,
-                EnumPolicySubject.WorkspaceJoinRequest
-            );
-            expect(
-                workspaceJoinRequestDomain.acceptJoinRequest
-            ).toHaveBeenCalledWith(
-                workspace,
-                'reviewer-id',
-                'join-request-id',
-                scopeWhere
-            );
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
-        });
+                await expect(
+                    service.acceptJoinRequest(
+                        workspace,
+                        'reviewer-id',
+                        'join-request-id'
+                    )
+                ).rejects.toThrow(error);
+                expect(
+                    workspaceJoinRequestDomain.acceptJoinRequest
+                ).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('rejectJoinRequest', () => {
-        it('does not call the domain when the ability holds no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
-                throw new PolicyForbiddenException();
-            });
+        const dto = {
+            rejectReasonCode: EnumWorkspaceJoinRejectReason.other,
+        } satisfies WorkspaceJoinRequestRejectRequestDto;
 
-            await expect(
-                service.rejectJoinRequest(
-                    workspace,
-                    'reviewer-id',
-                    'join-request-id',
-                    { rejectReasonCode: EnumWorkspaceJoinRejectReason.other }
-                )
-            ).rejects.toThrow(PolicyForbiddenException);
-            expect(
-                workspaceJoinRequestDomain.rejectJoinRequest
-            ).not.toHaveBeenCalled();
-        });
-
-        it('passes scope(update, WorkspaceJoinRequest) as additionalWhere and the reject reason', async () => {
-            const dto = {
-                rejectReasonCode: EnumWorkspaceJoinRejectReason.other,
-            } satisfies WorkspaceJoinRequestRejectRequestDto;
+        it('loads the request by identity, authorizes update, and rejects', async () => {
+            workspaceJoinRequestDomain.getByIdAndWorkspace.mockResolvedValue(
+                joinRequest
+            );
 
             await service.rejectJoinRequest(
                 workspace,
@@ -296,9 +318,13 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 dto
             );
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(
+                workspaceJoinRequestDomain.getByIdAndWorkspace
+            ).toHaveBeenCalledWith('join-request-id', workspace.id);
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.WorkspaceJoinRequest
+                subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
             );
             expect(
                 workspaceJoinRequestDomain.rejectJoinRequest
@@ -306,10 +332,57 @@ describe('WorkspaceJoinRequestHttpService', () => {
                 workspace,
                 'reviewer-id',
                 'join-request-id',
-                EnumWorkspaceJoinRejectReason.other,
-                scopeWhere
+                EnumWorkspaceJoinRejectReason.other
             );
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
+
+        it('does not authorize or reject when the lookup misses', async () => {
+            workspaceJoinRequestDomain.getByIdAndWorkspace.mockRejectedValue(
+                new WorkspaceJoinRequestNotFoundException()
+            );
+
+            await expect(
+                service.rejectJoinRequest(
+                    workspace,
+                    'reviewer-id',
+                    'join-request-id',
+                    dto
+                )
+            ).rejects.toThrow(WorkspaceJoinRequestNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(
+                workspaceJoinRequestDomain.rejectJoinRequest
+            ).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not reject',
+            async (_name, error) => {
+                workspaceJoinRequestDomain.getByIdAndWorkspace.mockResolvedValue(
+                    joinRequest
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
+
+                await expect(
+                    service.rejectJoinRequest(
+                        workspace,
+                        'reviewer-id',
+                        'join-request-id',
+                        dto
+                    )
+                ).rejects.toThrow(error);
+                expect(
+                    workspaceJoinRequestDomain.rejectJoinRequest
+                ).not.toHaveBeenCalled();
+            }
+        );
     });
 });

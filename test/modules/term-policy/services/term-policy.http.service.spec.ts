@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -11,6 +12,7 @@ import { RequestStoreService } from '@common/request/services/request.store.serv
 import {
     EnumPolicyAction,
     EnumPolicySubject,
+    EnumTermPolicyStatus,
     EnumTermPolicyType,
     Prisma,
 } from '@generated/prisma-client/client';
@@ -22,6 +24,8 @@ import {
 } from '@modules/term-policy/constants/term-policy.list.constant';
 import { TermPolicyDomain } from '@modules/term-policy/domains/term-policy.domain';
 import type { TermPolicyCreateRequestDto } from '@modules/term-policy/dtos/request/term-policy.create.request.dto';
+import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
+import type { ITermPolicy } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyHttpService } from '@modules/term-policy/services/term-policy.http.service';
 import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
@@ -37,7 +41,20 @@ describe('TermPolicyHttpService', () => {
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
     const scopeWhere = { deletedAt: null };
+    const now = new Date('2026-01-01T00:00:00.000Z');
     const termPolicy = mock<TermPolicy>();
+    const loadedTermPolicy = {
+        id: 'term-policy-id',
+        type: EnumTermPolicyType.privacy,
+        version: 1,
+        status: EnumTermPolicyStatus.draft,
+        publishedAt: null,
+        createdAt: now,
+        createdBy: null,
+        updatedAt: now,
+        updatedBy: null,
+        contents: [],
+    } satisfies ITermPolicy;
     const offsetParams = {
         where: undefined,
         limit: 20,
@@ -91,6 +108,7 @@ describe('TermPolicyHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        termPolicyDomain.getOne.mockResolvedValue(loadedTermPolicy);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -272,82 +290,136 @@ describe('TermPolicyHttpService', () => {
     });
 
     describe('deleteByAdmin', () => {
-        it('passes scope(delete, TermPolicy) as additionalWhere, delegates to the domain and wraps the deleted policy', async () => {
+        it('loads the policy by identity, authorizes delete, and writes', async () => {
             termPolicyDomain.deleteByAdmin.mockResolvedValue(termPolicy);
 
             await expect(
                 service.deleteByAdmin('term-policy-id')
             ).resolves.toEqual({ data: termPolicy });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                EnumPolicySubject.TermPolicy
+                subject(EnumPolicySubject.TermPolicy, loadedTermPolicy)
             );
             expect(termPolicyDomain.deleteByAdmin).toHaveBeenCalledWith(
-                'term-policy-id',
-                scopeWhere
+                'term-policy-id'
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no delete rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates TermPolicyNotFoundException from the identity load and does not authorize or write', async () => {
+            termPolicyDomain.getOne.mockRejectedValue(
+                new TermPolicyNotFoundException()
+            );
+
+            await expect(
+                service.deleteByAdmin('term-policy-id')
+            ).rejects.toThrow(TermPolicyNotFoundException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(termPolicyDomain.deleteByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(
                 service.deleteByAdmin('term-policy-id')
             ).rejects.toThrow(PolicyForbiddenException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                subject(EnumPolicySubject.TermPolicy, loadedTermPolicy)
+            );
             expect(termPolicyDomain.deleteByAdmin).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws RequestContextMissingException from authorize after the identity load and writes nothing', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(
                 service.deleteByAdmin('term-policy-id')
             ).rejects.toThrow(RequestContextMissingException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
             expect(termPolicyDomain.deleteByAdmin).not.toHaveBeenCalled();
         });
     });
 
     describe('publishByAdmin', () => {
-        it('passes scope(update, TermPolicy) as additionalWhere, delegates to the domain and answers an empty envelope', async () => {
+        it('loads the policy by identity, authorizes update, and writes', async () => {
             termPolicyDomain.publishByAdmin.mockResolvedValue(undefined);
 
             await expect(
                 service.publishByAdmin('term-policy-id', 'admin-id')
             ).resolves.toEqual({});
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.TermPolicy
+                subject(EnumPolicySubject.TermPolicy, loadedTermPolicy)
             );
             expect(termPolicyDomain.publishByAdmin).toHaveBeenCalledWith(
                 'term-policy-id',
-                'admin-id',
-                scopeWhere
+                'admin-id'
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates TermPolicyNotFoundException from the identity load and does not authorize or write', async () => {
+            termPolicyDomain.getOne.mockRejectedValue(
+                new TermPolicyNotFoundException()
+            );
+
+            await expect(
+                service.publishByAdmin('term-policy-id', 'admin-id')
+            ).rejects.toThrow(TermPolicyNotFoundException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(termPolicyDomain.publishByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(
                 service.publishByAdmin('term-policy-id', 'admin-id')
             ).rejects.toThrow(PolicyForbiddenException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.TermPolicy, loadedTermPolicy)
+            );
             expect(termPolicyDomain.publishByAdmin).not.toHaveBeenCalled();
         });
 
-        it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws RequestContextMissingException from authorize after the identity load and writes nothing', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(
                 service.publishByAdmin('term-policy-id', 'admin-id')
             ).rejects.toThrow(RequestContextMissingException);
+            expect(termPolicyDomain.getOne).toHaveBeenCalledWith(
+                'term-policy-id'
+            );
             expect(termPolicyDomain.publishByAdmin).not.toHaveBeenCalled();
         });
     });

@@ -120,19 +120,15 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         return ownership?.deviceId ?? null;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async removeOwnershipInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         deviceOwnershipId: string,
         removedBy: string,
-        now: Date,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        now: Date
     ): Promise<IDeviceOwnership | null> {
         const { count } = await tx.deviceOwnership.updateMany({
-            where: {
-                AND: [additionalWhere, { id: deviceOwnershipId, userId }],
-            },
+            where: { id: deviceOwnershipId, userId },
             data: {
                 isRevoked: true,
                 revokedAt: now,
@@ -308,42 +304,28 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findOneActive(
         userId: string,
-        deviceOwnershipId: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        deviceOwnershipId: string
     ): Promise<DeviceOwnership | null> {
         return this.databaseService.client.deviceOwnership.findFirst({
             where: {
-                AND: [
-                    additionalWhere,
-                    {
-                        id: deviceOwnershipId,
-                        userId,
-                        isRevoked: false,
-                    },
-                ],
+                id: deviceOwnershipId,
+                userId,
+                isRevoked: false,
             },
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async existsActive(
         userId: string,
-        deviceOwnershipId: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        deviceOwnershipId: string
     ): Promise<boolean> {
         const count = await this.databaseService.client.deviceOwnership.count({
             where: {
-                AND: [
-                    additionalWhere,
-                    {
-                        id: deviceOwnershipId,
-                        userId,
-                        isRevoked: false,
-                    },
-                ],
+                id: deviceOwnershipId,
+                userId,
+                isRevoked: false,
             },
         });
 

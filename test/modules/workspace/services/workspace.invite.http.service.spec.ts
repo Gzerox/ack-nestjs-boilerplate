@@ -7,6 +7,7 @@ import type { MockProxy } from 'vitest-mock-extended';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
     EnumPolicyAction,
@@ -15,6 +16,7 @@ import {
     EnumWorkspaceInviteStatus,
 } from '@generated/prisma-client/client';
 import type { Workspace } from '@generated/prisma-client/client';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { EnumRoleProjectKey } from '@modules/role/enums/role.project-key.enum';
@@ -31,6 +33,7 @@ import type {
     IWorkspaceInviteWithRole,
 } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceInviteDomain } from '@modules/workspace/domains/workspace.invite.domain';
+import { WorkspaceInviteNotFoundException } from '@modules/workspace/exceptions/workspace.invite-not-found.exception';
 import { WorkspaceInviteHttpService } from '@modules/workspace/services/workspace.invite.http.service';
 import { WorkspaceUtil } from '@modules/workspace/utils/workspace.util';
 
@@ -313,12 +316,17 @@ describe('WorkspaceInviteHttpService', () => {
     });
 
     describe('resendInvite', () => {
-        it('passes scope(update, WorkspaceInvite) as additionalWhere and returns the invite the util maps', async () => {
-            const dto = {
-                expiryDuration: EnumWorkspaceInviteExpiry.sevenDays,
-            } satisfies WorkspaceInviteResendRequestDto;
-            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
-            workspaceInviteDomain.resendInvite.mockResolvedValue(invite);
+        const dto = {
+            expiryDuration: EnumWorkspaceInviteExpiry.sevenDays,
+        } satisfies WorkspaceInviteResendRequestDto;
+        const resent = {
+            ...invite,
+            reference: 'resent-reference',
+        } satisfies IWorkspaceInviteWithRole;
+
+        it('loads the invite by identity, authorizes update, and maps the resent result', async () => {
+            workspaceInviteDomain.getByIdAndWorkspace.mockResolvedValue(invite);
+            workspaceInviteDomain.resendInvite.mockResolvedValue(resent);
             workspaceUtil.mapInvite.mockReturnValue(inviteResponse);
 
             const result = await service.resendInvite(
@@ -329,62 +337,124 @@ describe('WorkspaceInviteHttpService', () => {
             );
 
             expect(result).toEqual({ data: inviteResponse });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(
+                workspaceInviteDomain.getByIdAndWorkspace
+            ).toHaveBeenCalledWith('invite-id', workspace.id);
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.WorkspaceInvite
+                subject(EnumPolicySubject.WorkspaceInvite, invite)
             );
             expect(workspaceInviteDomain.resendInvite).toHaveBeenCalledWith(
                 workspace,
                 'actor-id',
                 'invite-id',
-                dto.expiryDuration,
-                scopeWhere
+                dto.expiryDuration
             );
-            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(invite);
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(workspaceUtil.mapInvite).toHaveBeenCalledWith(resent);
         });
 
-        it('does not call the domain when the ability holds no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
-                throw new PolicyForbiddenException();
-            });
+        it('does not authorize or resend when the invite lookup misses', async () => {
+            workspaceInviteDomain.getByIdAndWorkspace.mockRejectedValue(
+                new WorkspaceInviteNotFoundException()
+            );
 
             await expect(
-                service.resendInvite(workspace, 'actor-id', 'invite-id', {})
-            ).rejects.toThrow(PolicyForbiddenException);
+                service.resendInvite(workspace, 'actor-id', 'invite-id', dto)
+            ).rejects.toThrow(WorkspaceInviteNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(workspaceInviteDomain.resendInvite).not.toHaveBeenCalled();
+            expect(workspaceUtil.mapInvite).not.toHaveBeenCalled();
         });
+
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not resend',
+            async (_name, error) => {
+                workspaceInviteDomain.getByIdAndWorkspace.mockResolvedValue(
+                    invite
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
+
+                await expect(
+                    service.resendInvite(workspace, 'actor-id', 'invite-id', {})
+                ).rejects.toThrow(error);
+                expect(
+                    workspaceInviteDomain.resendInvite
+                ).not.toHaveBeenCalled();
+                expect(workspaceUtil.mapInvite).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('revokeInvite', () => {
-        it('passes scope(delete, WorkspaceInvite) as additionalWhere', async () => {
-            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        it('loads the invite by identity, authorizes delete, and revokes', async () => {
+            workspaceInviteDomain.getByIdAndWorkspace.mockResolvedValue(invite);
 
             await service.revokeInvite('workspace-id', 'actor-id', 'invite-id');
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(
+                workspaceInviteDomain.getByIdAndWorkspace
+            ).toHaveBeenCalledWith('invite-id', 'workspace-id');
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                EnumPolicySubject.WorkspaceInvite
+                subject(EnumPolicySubject.WorkspaceInvite, invite)
             );
             expect(workspaceInviteDomain.revokeInvite).toHaveBeenCalledWith(
                 'workspace-id',
                 'actor-id',
-                'invite-id',
-                scopeWhere
+                'invite-id'
             );
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
 
-        it('does not call the domain when the ability holds no delete rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
-                throw new PolicyForbiddenException();
-            });
+        it('does not authorize or revoke when the invite lookup misses', async () => {
+            workspaceInviteDomain.getByIdAndWorkspace.mockRejectedValue(
+                new WorkspaceInviteNotFoundException()
+            );
 
             await expect(
                 service.revokeInvite('workspace-id', 'actor-id', 'invite-id')
-            ).rejects.toThrow(PolicyForbiddenException);
+            ).rejects.toThrow(WorkspaceInviteNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(workspaceInviteDomain.revokeInvite).not.toHaveBeenCalled();
         });
+
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not revoke',
+            async (_name, error) => {
+                workspaceInviteDomain.getByIdAndWorkspace.mockResolvedValue(
+                    invite
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
+
+                await expect(
+                    service.revokeInvite(
+                        'workspace-id',
+                        'actor-id',
+                        'invite-id'
+                    )
+                ).rejects.toThrow(error);
+                expect(
+                    workspaceInviteDomain.revokeInvite
+                ).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('claimInvite', () => {

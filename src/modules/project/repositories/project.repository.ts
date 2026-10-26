@@ -21,31 +21,20 @@ export class ProjectRepository implements IProjectRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findActiveByIdAndWorkspace(
         projectId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.ProjectWhereInput
+        workspaceId: string
     ): Promise<Project | null> {
         return this.databaseService.client.project.findFirst({
             where: {
-                AND: [
-                    additionalWhere,
-                    { id: projectId },
-                    { workspaceId },
-                    ProjectActiveFilter,
-                ],
+                AND: [{ id: projectId }, { workspaceId }, ProjectActiveFilter],
             },
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findByIdForAdmin(
-        projectId: string,
-        additionalWhere: Prisma.ProjectWhereInput
-    ): Promise<Project | null> {
+    async findByIdForAdmin(projectId: string): Promise<Project | null> {
         return this.databaseService.client.project.findFirst({
-            where: { AND: [additionalWhere, { id: projectId }] },
+            where: { id: projectId },
         });
     }
 
@@ -132,15 +121,13 @@ export class ProjectRepository implements IProjectRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateDetails(
         projectId: string,
-        { name, description }: ProjectUpdateRequestDto,
-        additionalWhere: Prisma.ProjectWhereInput
+        { name, description }: ProjectUpdateRequestDto
     ): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
-                where: { AND: [additionalWhere, { id: projectId }] },
+                where: { id: projectId },
                 data: {
                     name,
                     description,
@@ -156,15 +143,10 @@ export class ProjectRepository implements IProjectRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async updateSlug(
-        projectId: string,
-        slug: string,
-        additionalWhere: Prisma.ProjectWhereInput
-    ): Promise<Project | null> {
+    async updateSlug(projectId: string, slug: string): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
-                where: { AND: [additionalWhere, { id: projectId }] },
+                where: { id: projectId },
                 data: {
                     slug,
                 },
@@ -179,21 +161,15 @@ export class ProjectRepository implements IProjectRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async softDelete(
         projectId: string,
         deletedAt: Date,
-        deletedBy: string,
-        additionalWhere: Prisma.ProjectWhereInput
+        deletedBy: string
     ): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
                 where: {
-                    AND: [
-                        additionalWhere,
-                        { id: projectId },
-                        ProjectActiveFilter,
-                    ],
+                    AND: [{ id: projectId }, ProjectActiveFilter],
                 },
                 data: {
                     deletedAt,

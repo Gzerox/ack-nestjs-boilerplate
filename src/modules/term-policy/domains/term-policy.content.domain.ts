@@ -25,7 +25,6 @@ import { Injectable } from '@nestjs/common';
 import {
     EnumActivityLogAction,
     EnumTermPolicyStatus,
-    type Prisma,
 } from '@generated/prisma-client/client';
 import type { TermPolicy } from '@generated/prisma-client/client';
 
@@ -55,14 +54,9 @@ export class TermPolicyContentDomain {
         });
     }
 
-    private async findOneDraftById(
-        termPolicyId: string,
-        additionalWhere: Prisma.TermPolicyWhereInput
-    ): Promise<ITermPolicy> {
-        const termPolicy = await this.termPolicyRepository.findOneById(
-            termPolicyId,
-            additionalWhere
-        );
+    private async findOneDraftById(termPolicyId: string): Promise<ITermPolicy> {
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         } else if (termPolicy.status === EnumTermPolicyStatus.published) {
@@ -116,16 +110,11 @@ export class TermPolicyContentDomain {
         return aws;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateContentByAdmin(
         termPolicyId: string,
-        { key, size, language }: ITermPolicyContentUpload,
-        additionalWhere: Prisma.TermPolicyWhereInput
+        { key, size, language }: ITermPolicyContentUpload
     ): Promise<void> {
-        const termPolicy = await this.findOneDraftById(
-            termPolicyId,
-            additionalWhere
-        );
+        const termPolicy = await this.findOneDraftById(termPolicyId);
 
         try {
             const presign = this.awsS3Service.mapPresign(
@@ -146,8 +135,7 @@ export class TermPolicyContentDomain {
             ];
             const updated = await this.termPolicyRepository.updateContent(
                 termPolicyId,
-                mappedContent,
-                additionalWhere
+                mappedContent
             );
             if (!updated) {
                 throw new TermPolicyNotFoundException();
@@ -165,16 +153,11 @@ export class TermPolicyContentDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async addContentByAdmin(
         termPolicyId: string,
-        { key, size, language }: ITermPolicyContentUpload,
-        additionalWhere: Prisma.TermPolicyWhereInput
+        { key, size, language }: ITermPolicyContentUpload
     ): Promise<void> {
-        const termPolicy = await this.findOneDraftById(
-            termPolicyId,
-            additionalWhere
-        );
+        const termPolicy = await this.findOneDraftById(termPolicyId);
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
             termPolicy.contents,
@@ -203,8 +186,7 @@ export class TermPolicyContentDomain {
             ];
             const added = await this.termPolicyRepository.addContent(
                 termPolicyId,
-                mappedContent,
-                additionalWhere
+                mappedContent
             );
             if (!added) {
                 throw new TermPolicyNotFoundException();
@@ -222,16 +204,11 @@ export class TermPolicyContentDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async removeContentByAdmin(
         termPolicyId: string,
-        language: EnumMessageLanguage,
-        additionalWhere: Prisma.TermPolicyWhereInput
+        language: EnumMessageLanguage
     ): Promise<void> {
-        const termPolicy = await this.findOneDraftById(
-            termPolicyId,
-            additionalWhere
-        );
+        const termPolicy = await this.findOneDraftById(termPolicyId);
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
             termPolicy.contents,
@@ -252,8 +229,7 @@ export class TermPolicyContentDomain {
             ];
             const removed = await this.termPolicyRepository.removeContent(
                 termPolicyId,
-                { language },
-                additionalWhere
+                { language }
             );
             if (!removed) {
                 throw new TermPolicyNotFoundException();
@@ -271,16 +247,12 @@ export class TermPolicyContentDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async getContentByAdmin(
         termPolicyId: string,
-        language: EnumMessageLanguage,
-        additionalWhere: Prisma.TermPolicyWhereInput
+        language: EnumMessageLanguage
     ): Promise<IAwsS3Presign> {
-        const termPolicy = await this.termPolicyRepository.findOneById(
-            termPolicyId,
-            additionalWhere
-        );
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         }

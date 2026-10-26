@@ -86,16 +86,12 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndWorkspace(
         workspaceInviteId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        workspaceId: string
     ): Promise<WorkspaceInvite | null> {
         return this.databaseService.client.workspaceInvite.findFirst({
-            where: {
-                AND: [additionalWhere, { id: workspaceInviteId, workspaceId }],
-            },
+            where: { id: workspaceInviteId, workspaceId },
         });
     }
 
@@ -172,19 +168,15 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async rotateForResend(
         workspaceInviteId: string,
         hashedToken: string,
         reference: string,
-        expiredAt: Date,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        expiredAt: Date
     ): Promise<IWorkspaceInviteWithRole | null> {
         const { count } =
             await this.databaseService.client.workspaceInvite.updateMany({
-                where: {
-                    AND: [additionalWhere, { id: workspaceInviteId }],
-                },
+                where: { id: workspaceInviteId },
                 data: {
                     token: hashedToken,
                     reference,
@@ -201,16 +193,10 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async revoke(
-        workspaceInviteId: string,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
-    ): Promise<WorkspaceInvite | null> {
+    async revoke(workspaceInviteId: string): Promise<WorkspaceInvite | null> {
         const { count } =
             await this.databaseService.client.workspaceInvite.updateMany({
-                where: {
-                    AND: [additionalWhere, { id: workspaceInviteId }],
-                },
+                where: { id: workspaceInviteId },
                 data: {
                     status: EnumWorkspaceInviteStatus.revoked,
                 },

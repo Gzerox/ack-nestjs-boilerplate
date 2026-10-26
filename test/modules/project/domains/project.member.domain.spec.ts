@@ -2,7 +2,6 @@ import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import type {
-    Prisma,
     Project,
     ProjectMember,
     WorkspaceMember,
@@ -107,17 +106,10 @@ describe('ProjectMemberDomain', () => {
             id: 'role-id',
             key: EnumRoleProjectKey.viewer,
         } as never);
-        await domain.updateMemberRole(
-            project,
-            'actor-id',
-            member,
-            'role-id',
-            {}
-        );
+        await domain.updateMemberRole(project, 'actor-id', member, 'role-id');
         expect(repository.updateRole).toHaveBeenCalledWith(
             'member-id',
-            'role-id',
-            {}
+            'role-id'
         );
     });
 
@@ -135,29 +127,23 @@ describe('ProjectMemberDomain', () => {
                     ...member,
                     role: { key: EnumRoleProjectKey.admin },
                 } as IProjectMemberWithRole,
-                'role-id',
-                {}
+                'role-id'
             )
         ).rejects.toBeInstanceOf(ProjectMemberLastAdminException);
     });
 
     it('rejects removing oneself', async () => {
         await expect(
-            domain.removeMember(
-                project,
-                'actor-id',
-                {
-                    ...member,
-                    userId: 'actor-id',
-                },
-                {}
-            )
+            domain.removeMember(project, 'actor-id', {
+                ...member,
+                userId: 'actor-id',
+            })
         ).rejects.toBeInstanceOf(ProjectMemberPeerForbiddenException);
     });
 
     it('removes a member and records the activity', async () => {
-        await domain.removeMember(project, 'actor-id', member, {});
-        expect(repository.removeMember).toHaveBeenCalledWith('member-id', {});
+        await domain.removeMember(project, 'actor-id', member);
+        expect(repository.removeMember).toHaveBeenCalledWith('member-id');
         expect(activityLog.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.projectMemberRemoved,
             userId: 'actor-id',
@@ -168,9 +154,6 @@ describe('ProjectMemberDomain', () => {
     });
 
     describe('scoped member writes', () => {
-        const where: Prisma.ProjectMemberWhereInput = {
-            projectId: 'project-id',
-        };
         const viewerRole = {
             id: 'role-id',
             key: EnumRoleProjectKey.viewer,
@@ -180,69 +163,47 @@ describe('ProjectMemberDomain', () => {
             roleDomain.resolve.mockResolvedValue(viewerRole);
         });
 
-        it('updateMemberRole forwards additionalWhere to updateRole', async () => {
+        it('updateMemberRole calls updateRole', async () => {
             await domain.updateMemberRole(
                 project,
                 'actor-id',
                 member,
-                'role-id',
-                where
+                'role-id'
             );
 
             expect(repository.updateRole).toHaveBeenCalledWith(
                 'member-id',
-                'role-id',
-                where
+                'role-id'
             );
             expect(activityLog.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it.each([[where], [{}]])(
-            'updateMemberRole throws ProjectMemberNotFoundException when updateRole returns null and stages no activity (additionalWhere %j)',
-            async additionalWhere => {
-                repository.updateRole.mockResolvedValue(null);
+        it('updateMemberRole throws ProjectMemberNotFoundException when updateRole returns null and stages no activity', async () => {
+            repository.updateRole.mockResolvedValue(null);
 
-                await expect(
-                    domain.updateMemberRole(
-                        project,
-                        'actor-id',
-                        member,
-                        'role-id',
-                        additionalWhere
-                    )
-                ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
-                expect(activityLog.stagePrepared).not.toHaveBeenCalled();
-            }
-        );
+            await expect(
+                domain.updateMemberRole(project, 'actor-id', member, 'role-id')
+            ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
+            expect(activityLog.stagePrepared).not.toHaveBeenCalled();
+        });
 
-        it('removeMember forwards additionalWhere to removeMember', async () => {
-            await domain.removeMember(project, 'actor-id', member, where);
+        it('removeMember calls removeMember', async () => {
+            await domain.removeMember(project, 'actor-id', member);
 
-            expect(repository.removeMember).toHaveBeenCalledWith(
-                'member-id',
-                where
-            );
+            expect(repository.removeMember).toHaveBeenCalledWith('member-id');
             expect(activityLog.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it.each([[where], [{}]])(
-            'removeMember throws ProjectMemberNotFoundException when removeMember returns null and stages no activity (additionalWhere %j)',
-            async additionalWhere => {
-                repository.removeMember.mockResolvedValue(null);
+        it('removeMember throws ProjectMemberNotFoundException when removeMember returns null and stages no activity', async () => {
+            repository.removeMember.mockResolvedValue(null);
 
-                await expect(
-                    domain.removeMember(
-                        project,
-                        'actor-id',
-                        member,
-                        additionalWhere
-                    )
-                ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
-                expect(activityLog.stagePrepared).not.toHaveBeenCalled();
-            }
-        );
+            await expect(
+                domain.removeMember(project, 'actor-id', member)
+            ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
+            expect(activityLog.stagePrepared).not.toHaveBeenCalled();
+        });
 
-        it('last-admin invariant still throws before any write with additionalWhere present', async () => {
+        it('last-admin invariant still throws before any write present', async () => {
             const adminMember = {
                 ...member,
                 role: { key: EnumRoleProjectKey.admin },
@@ -254,12 +215,11 @@ describe('ProjectMemberDomain', () => {
                     project,
                     'actor-id',
                     adminMember,
-                    'role-id',
-                    where
+                    'role-id'
                 )
             ).rejects.toBeInstanceOf(ProjectMemberLastAdminException);
             await expect(
-                domain.removeMember(project, 'actor-id', adminMember, where)
+                domain.removeMember(project, 'actor-id', adminMember)
             ).rejects.toBeInstanceOf(ProjectMemberLastAdminException);
             expect(repository.updateRole).not.toHaveBeenCalled();
             expect(repository.removeMember).not.toHaveBeenCalled();
@@ -396,16 +356,14 @@ describe('ProjectMemberDomain', () => {
 
     describe('getOneByIdAndProject', () => {
         it('loads the member within the project and the optional where', async () => {
-            const where = { userId: 'target-id' };
             repository.findByIdAndProject.mockResolvedValue(member);
 
             await expect(
-                domain.getOneByIdAndProject('project-id', 'member-id', where)
+                domain.getOneByIdAndProject('project-id', 'member-id')
             ).resolves.toBe(member);
             expect(repository.findByIdAndProject).toHaveBeenCalledWith(
                 'member-id',
-                'project-id',
-                where
+                'project-id'
             );
         });
 
@@ -413,12 +371,11 @@ describe('ProjectMemberDomain', () => {
             repository.findByIdAndProject.mockResolvedValue(null);
 
             await expect(
-                domain.getOneByIdAndProject('project-id', 'member-id', {})
+                domain.getOneByIdAndProject('project-id', 'member-id')
             ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
             expect(repository.findByIdAndProject).toHaveBeenCalledWith(
                 'member-id',
-                'project-id',
-                {}
+                'project-id'
             );
         });
     });
@@ -540,8 +497,7 @@ describe('ProjectMemberDomain', () => {
                 project,
                 'actor-id',
                 member,
-                'role-id',
-                {}
+                'role-id'
             );
 
             expect(activityLog.prepare).toHaveBeenNthCalledWith(2, {
@@ -564,8 +520,7 @@ describe('ProjectMemberDomain', () => {
                 project,
                 'target-id',
                 member,
-                'role-id',
-                {}
+                'role-id'
             );
 
             expect(activityLog.prepare).toHaveBeenCalledOnce();
@@ -583,15 +538,13 @@ describe('ProjectMemberDomain', () => {
                 project,
                 'actor-id',
                 adminMember,
-                'role-id',
-                {}
+                'role-id'
             );
 
             expect(repository.countAdmins).toHaveBeenCalledWith('project-id');
             expect(repository.updateRole).toHaveBeenCalledWith(
                 'member-id',
-                'role-id',
-                {}
+                'role-id'
             );
         });
 
@@ -605,15 +558,13 @@ describe('ProjectMemberDomain', () => {
                 project,
                 'actor-id',
                 adminMember,
-                'role-id',
-                {}
+                'role-id'
             );
 
             expect(repository.countAdmins).not.toHaveBeenCalled();
             expect(repository.updateRole).toHaveBeenCalledWith(
                 'member-id',
-                'role-id',
-                {}
+                'role-id'
             );
         });
     });
@@ -628,7 +579,7 @@ describe('ProjectMemberDomain', () => {
             repository.countAdmins.mockResolvedValue(1);
 
             await expect(
-                domain.removeMember(project, 'actor-id', adminMember, {})
+                domain.removeMember(project, 'actor-id', adminMember)
             ).rejects.toBeInstanceOf(ProjectMemberLastAdminException);
             expect(repository.removeMember).not.toHaveBeenCalled();
         });
@@ -636,12 +587,9 @@ describe('ProjectMemberDomain', () => {
         it('removes an administrator when another administrator remains and stages both events', async () => {
             repository.countAdmins.mockResolvedValue(2);
 
-            await domain.removeMember(project, 'actor-id', adminMember, {});
+            await domain.removeMember(project, 'actor-id', adminMember);
 
-            expect(repository.removeMember).toHaveBeenCalledWith(
-                'member-id',
-                {}
-            );
+            expect(repository.removeMember).toHaveBeenCalledWith('member-id');
             expect(activityLog.prepare).toHaveBeenNthCalledWith(2, {
                 action: EnumActivityLogAction.projectMemberRemovedByAdmin,
                 userId: 'target-id',
@@ -669,10 +617,7 @@ describe('ProjectMemberDomain', () => {
                 createdBy: 'target-id',
                 workspaceId: 'workspace-id',
             });
-            expect(repository.removeMember).toHaveBeenCalledWith(
-                'member-id',
-                {}
-            );
+            expect(repository.removeMember).toHaveBeenCalledWith('member-id');
             expect(activityLog.stagePrepared).toHaveBeenCalledWith([{}]);
         });
 
@@ -690,10 +635,7 @@ describe('ProjectMemberDomain', () => {
 
             await domain.leaveProject(project, adminMember);
 
-            expect(repository.removeMember).toHaveBeenCalledWith(
-                'member-id',
-                {}
-            );
+            expect(repository.removeMember).toHaveBeenCalledWith('member-id');
         });
     });
 });

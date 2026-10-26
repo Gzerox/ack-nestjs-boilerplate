@@ -43,16 +43,8 @@ export interface IRoleRepository {
         }: IPaginationQueryOffsetParams<Prisma.RoleWhereInput>,
         scope?: Record<string, IPaginationEqual>
     ): Promise<IResponsePaginationReturn<IRoleWithPolicyCount>>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findOneWithPoliciesById(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<IRoleWithPolicies | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findOneById(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<IRole | null>;
+    findOneWithPoliciesById(id: string): Promise<IRoleWithPolicies | null>;
+    findOneById(id: string): Promise<IRole | null>;
     findManyByIds(ids: string[]): Promise<IRole[]>;
     findOneByIdInTx(
         tx: IDatabaseTransactionClient,
@@ -73,16 +65,7 @@ export interface IRoleRepository {
     ): Promise<void>;
     existsByScopeAndKey(scope: EnumRoleScope, key: string): Promise<boolean>;
     create(data: IRoleCreate): Promise<IRoleWithPolicies>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    update(
-        id: string,
-        data: IRoleUpdate,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<IRoleWithPolicies | null>;
+    update(id: string, data: IRoleUpdate): Promise<IRoleWithPolicies | null>;
     isUsedById(id: string): Promise<boolean>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    delete(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<Role | null>;
+    delete(id: string): Promise<Role | null>;
 }

@@ -64,7 +64,7 @@ One request builds ONE ability. Exactly one policy decorator sits at slot #4 of 
 - **`PolicyGuard` enforces the route requirements.** It reads the stored ability and the `PolicyRequiredMetaKey` metadata and checks every required `{ subject, action }` pair as a type-level check, answering one `PolicyForbiddenException` that lists every missing pair. It never loads a record.
 - **`@PolicyAbility()` is for a route whose HTTP service makes the decision.** It declares no requirement and enforces nothing; the service calls `PolicyAbilityDomain.scope` / `authorize` (`rules/security.md`).
 - **A route with no policy decorator loads no ability.** `UserGuard` authenticates and stores the user; it never loads policies or builds an ability. The workspace and project member guards store the acting member and role and never build or merge an ability.
-- **Record-level decisions are made in the HTTP service, not in a guard.** A guard checks the subject type. A decision about one record or a list is the service's `scope(action, subject)` handed to the domain as `additionalWhere`, or its `authorize(action, target)` (`rules/security.md`).
+- **Record-level decisions are made in the HTTP service, not in a guard.** A guard checks the subject type. A list hands `scope(action, subject)` to the domain as `additionalWhere`. A single record loads by identity and calls `authorize(action, target)` (`rules/security.md`).
 - A policy decorator sits ABOVE the `@Workspace*Protected` / `@Project*Protected` decorators it depends on, so its guards run after the context they read is stored.
 
 ### `@RoleProtected` never lists `superAdmin` (HARD)

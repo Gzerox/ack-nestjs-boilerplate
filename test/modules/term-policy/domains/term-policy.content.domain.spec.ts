@@ -84,15 +84,11 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(null);
 
         await expect(
-            service.addContentByAdmin(
-                'missing',
-                {
-                    language: EnumMessageLanguage.en,
-                    key: 'key',
-                    size: 100,
-                },
-                {}
-            )
+            service.addContentByAdmin('missing', {
+                language: EnumMessageLanguage.en,
+                key: 'key',
+                size: 100,
+            })
         ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
     });
 
@@ -103,7 +99,7 @@ describe('TermPolicyContentDomain', () => {
         });
 
         await expect(
-            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en, {})
+            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
         ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
     });
 
@@ -112,15 +108,11 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockReturnValue(content);
 
         await expect(
-            service.addContentByAdmin(
-                draft.id,
-                {
-                    language: EnumMessageLanguage.en,
-                    key: 'key',
-                    size: 100,
-                },
-                {}
-            )
+            service.addContentByAdmin(draft.id, {
+                language: EnumMessageLanguage.en,
+                key: 'key',
+                size: 100,
+            })
         ).rejects.toBeInstanceOf(TermPolicyContentExistException);
     });
 
@@ -144,24 +136,16 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.addContent.mockResolvedValue(draft);
 
         await expect(
-            service.addContentByAdmin(
-                draft.id,
-                {
-                    language: EnumMessageLanguage.en,
-                    key: mapped.key,
-                    size: mapped.size,
-                },
-                {}
-            )
-        ).resolves.toBeUndefined();
-        expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
-            draft.id,
-            {
+            service.addContentByAdmin(draft.id, {
                 language: EnumMessageLanguage.en,
-                ...mapped,
-            },
-            {}
-        );
+                key: mapped.key,
+                size: mapped.size,
+            })
+        ).resolves.toBeUndefined();
+        expect(termPolicyRepository.addContent).toHaveBeenCalledWith(draft.id, {
+            language: EnumMessageLanguage.en,
+            ...mapped,
+        });
     });
 
     it('rejects removing a language absent from the draft', async () => {
@@ -169,7 +153,7 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockReturnValue(null);
 
         await expect(
-            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en, {})
+            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
         ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
     });
 
@@ -248,20 +232,15 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.updateContent.mockResolvedValue(draft);
 
         await expect(
-            service.updateContentByAdmin(
-                draft.id,
-                {
-                    language: content.language,
-                    key: content.key,
-                    size: content.size,
-                },
-                {}
-            )
+            service.updateContentByAdmin(draft.id, {
+                language: content.language,
+                key: content.key,
+                size: content.size,
+            })
         ).resolves.toBeUndefined();
         expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
             draft.id,
-            { language: content.language, ...mapped },
-            {}
+            { language: content.language, ...mapped }
         );
         expect(activityLogDomain.prepare).toHaveBeenCalledWith({
             action: EnumActivityLogAction.adminTermPolicyUpdateContent,
@@ -284,15 +263,11 @@ describe('TermPolicyContentDomain', () => {
         });
 
         await expect(
-            service.updateContentByAdmin(
-                draft.id,
-                {
-                    language: content.language,
-                    key: content.key,
-                    size: content.size,
-                },
-                {}
-            )
+            service.updateContentByAdmin(draft.id, {
+                language: content.language,
+                key: content.key,
+                size: content.size,
+            })
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -314,15 +289,11 @@ describe('TermPolicyContentDomain', () => {
         });
 
         await expect(
-            service.addContentByAdmin(
-                draft.id,
-                {
-                    language: content.language,
-                    key: content.key,
-                    size: content.size,
-                },
-                {}
-            )
+            service.addContentByAdmin(draft.id, {
+                language: content.language,
+                key: content.key,
+                size: content.size,
+            })
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -332,12 +303,11 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.removeContent.mockResolvedValue(draft);
 
         await expect(
-            service.removeContentByAdmin(draft.id, content.language, {})
+            service.removeContentByAdmin(draft.id, content.language)
         ).resolves.toBeUndefined();
         expect(termPolicyRepository.removeContent).toHaveBeenCalledWith(
             draft.id,
-            { language: content.language },
-            {}
+            { language: content.language }
         );
         expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
     });
@@ -355,7 +325,7 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.removeContent.mockRejectedValue(error);
 
         await expect(
-            service.removeContentByAdmin(draft.id, content.language, {})
+            service.removeContentByAdmin(draft.id, content.language)
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -363,7 +333,7 @@ describe('TermPolicyContentDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(null);
 
         await expect(
-            service.getContentByAdmin('missing', content.language, {})
+            service.getContentByAdmin('missing', content.language)
         ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
     });
 
@@ -372,7 +342,7 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockReturnValue(null);
 
         await expect(
-            service.getContentByAdmin(draft.id, content.language, {})
+            service.getContentByAdmin(draft.id, content.language)
         ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
     });
 
@@ -382,7 +352,7 @@ describe('TermPolicyContentDomain', () => {
         awsS3Service.presignGetItem.mockResolvedValue(null);
 
         await expect(
-            service.getContentByAdmin(draft.id, content.language, {})
+            service.getContentByAdmin(draft.id, content.language)
         ).rejects.toBeInstanceOf(AwsServiceUnavailableException);
     });
 
@@ -396,15 +366,14 @@ describe('TermPolicyContentDomain', () => {
         awsS3Service.presignGetItem.mockResolvedValue(presign);
 
         await expect(
-            service.getContentByAdmin(draft.id, content.language, {})
+            service.getContentByAdmin(draft.id, content.language)
         ).resolves.toBe(presign);
         expect(awsS3Service.presignGetItem).toHaveBeenCalledWith(content.key, {
             access: EnumAwsS3Accessibility.private,
         });
     });
 
-    describe('additionalWhere', () => {
-        const additionalWhere = { type: EnumTermPolicyType.privacy };
+    describe('content writes', () => {
         const mapped = {
             bucket: content.bucket,
             key: content.key,
@@ -421,25 +390,19 @@ describe('TermPolicyContentDomain', () => {
             size: content.size,
         };
 
-        it('updateContentByAdmin forwards additionalWhere to the draft read and the scoped write', async () => {
+        it('updateContentByAdmin calls the draft read and the write', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(draft);
             awsS3Service.mapPresign.mockReturnValue(mapped);
             termPolicyRepository.updateContent.mockResolvedValue(draft);
 
-            await service.updateContentByAdmin(
-                draft.id,
-                upload,
-                additionalWhere
-            );
+            await service.updateContentByAdmin(draft.id, upload);
 
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
-                draft.id,
-                additionalWhere
+                draft.id
             );
             expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
                 draft.id,
-                { language: content.language, ...mapped },
-                additionalWhere
+                { language: content.language, ...mapped }
             );
         });
 
@@ -449,26 +412,21 @@ describe('TermPolicyContentDomain', () => {
             termPolicyRepository.updateContent.mockResolvedValue(null);
 
             await expect(
-                service.updateContentByAdmin(draft.id, upload, additionalWhere)
+                service.updateContentByAdmin(draft.id, upload)
             ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it.each([additionalWhere, {}])(
-            'updateContentByAdmin throws TermPolicyNotFoundException when the draft read returns null (additionalWhere %j)',
-            async extra => {
-                termPolicyRepository.findOneById.mockResolvedValue(null);
+        it('updateContentByAdmin throws TermPolicyNotFoundException when the draft read returns null', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
 
-                await expect(
-                    service.updateContentByAdmin(draft.id, upload, extra)
-                ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-                expect(
-                    termPolicyRepository.updateContent
-                ).not.toHaveBeenCalled();
-            }
-        );
+            await expect(
+                service.updateContentByAdmin(draft.id, upload)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+            expect(termPolicyRepository.updateContent).not.toHaveBeenCalled();
+        });
 
-        it('addContentByAdmin forwards additionalWhere to the draft read and the scoped write', async () => {
+        it('addContentByAdmin calls the draft read and the write', async () => {
             termPolicyRepository.findOneById.mockResolvedValue({
                 ...draft,
                 contents: [],
@@ -477,16 +435,14 @@ describe('TermPolicyContentDomain', () => {
             awsS3Service.mapPresign.mockReturnValue(mapped);
             termPolicyRepository.addContent.mockResolvedValue(draft);
 
-            await service.addContentByAdmin(draft.id, upload, additionalWhere);
+            await service.addContentByAdmin(draft.id, upload);
 
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
-                draft.id,
-                additionalWhere
+                draft.id
             );
             expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
                 draft.id,
-                { language: content.language, ...mapped },
-                additionalWhere
+                { language: content.language, ...mapped }
             );
         });
 
@@ -500,42 +456,33 @@ describe('TermPolicyContentDomain', () => {
             termPolicyRepository.addContent.mockResolvedValue(null);
 
             await expect(
-                service.addContentByAdmin(draft.id, upload, additionalWhere)
+                service.addContentByAdmin(draft.id, upload)
             ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it.each([additionalWhere, {}])(
-            'addContentByAdmin throws TermPolicyNotFoundException when the draft read returns null (additionalWhere %j)',
-            async extra => {
-                termPolicyRepository.findOneById.mockResolvedValue(null);
+        it('addContentByAdmin throws TermPolicyNotFoundException when the draft read returns null', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
 
-                await expect(
-                    service.addContentByAdmin(draft.id, upload, extra)
-                ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-                expect(termPolicyRepository.addContent).not.toHaveBeenCalled();
-            }
-        );
+            await expect(
+                service.addContentByAdmin(draft.id, upload)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+            expect(termPolicyRepository.addContent).not.toHaveBeenCalled();
+        });
 
-        it('removeContentByAdmin forwards additionalWhere to the draft read and the scoped write', async () => {
+        it('removeContentByAdmin calls the draft read and the write', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(draft);
             termPolicyUtil.getContentByLanguage.mockReturnValue(content);
             termPolicyRepository.removeContent.mockResolvedValue(draft);
 
-            await service.removeContentByAdmin(
-                draft.id,
-                content.language,
-                additionalWhere
-            );
+            await service.removeContentByAdmin(draft.id, content.language);
 
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
-                draft.id,
-                additionalWhere
+                draft.id
             );
             expect(termPolicyRepository.removeContent).toHaveBeenCalledWith(
                 draft.id,
-                { language: content.language },
-                additionalWhere
+                { language: content.language }
             );
         });
 
@@ -545,34 +492,21 @@ describe('TermPolicyContentDomain', () => {
             termPolicyRepository.removeContent.mockResolvedValue(null);
 
             await expect(
-                service.removeContentByAdmin(
-                    draft.id,
-                    content.language,
-                    additionalWhere
-                )
+                service.removeContentByAdmin(draft.id, content.language)
             ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it.each([additionalWhere, {}])(
-            'removeContentByAdmin throws TermPolicyNotFoundException when the draft read returns null (additionalWhere %j)',
-            async extra => {
-                termPolicyRepository.findOneById.mockResolvedValue(null);
+        it('removeContentByAdmin throws TermPolicyNotFoundException when the draft read returns null', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
 
-                await expect(
-                    service.removeContentByAdmin(
-                        draft.id,
-                        content.language,
-                        extra
-                    )
-                ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-                expect(
-                    termPolicyRepository.removeContent
-                ).not.toHaveBeenCalled();
-            }
-        );
+            await expect(
+                service.removeContentByAdmin(draft.id, content.language)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+            expect(termPolicyRepository.removeContent).not.toHaveBeenCalled();
+        });
 
-        it('getContentByAdmin forwards additionalWhere to the read', async () => {
+        it('getContentByAdmin calls the read', async () => {
             const presign =
                 mock<
                     NonNullable<
@@ -583,52 +517,39 @@ describe('TermPolicyContentDomain', () => {
             termPolicyUtil.getContentByLanguage.mockReturnValue(content);
             awsS3Service.presignGetItem.mockResolvedValue(presign);
 
-            await service.getContentByAdmin(
-                draft.id,
-                content.language,
-                additionalWhere
-            );
+            await service.getContentByAdmin(draft.id, content.language);
 
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
-                draft.id,
-                additionalWhere
+                draft.id
             );
         });
 
-        it('getContentByAdmin reads with an empty where', async () => {
+        it('getContentByAdmin reads', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(draft);
             termPolicyUtil.getContentByLanguage.mockReturnValue(null);
 
             await expect(
-                service.getContentByAdmin(draft.id, content.language, {})
+                service.getContentByAdmin(draft.id, content.language)
             ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
-                draft.id,
-                {}
+                draft.id
             );
         });
 
-        it.each([additionalWhere, {}])(
-            'getContentByAdmin throws TermPolicyNotFoundException when the read returns null (additionalWhere %j)',
-            async extra => {
-                termPolicyRepository.findOneById.mockResolvedValue(null);
+        it('getContentByAdmin throws TermPolicyNotFoundException when the read returns null', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
 
-                await expect(
-                    service.getContentByAdmin(draft.id, content.language, extra)
-                ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-            }
-        );
+            await expect(
+                service.getContentByAdmin(draft.id, content.language)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+        });
 
         it('content language missing on a readable term policy still throws TermPolicyContentNotFoundException', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(draft);
             termPolicyUtil.getContentByLanguage.mockReturnValue(null);
 
             await expect(
-                service.removeContentByAdmin(
-                    draft.id,
-                    content.language,
-                    additionalWhere
-                )
+                service.removeContentByAdmin(draft.id, content.language)
             ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
             expect(termPolicyRepository.removeContent).not.toHaveBeenCalled();
         });

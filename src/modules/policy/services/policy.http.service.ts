@@ -23,11 +23,7 @@ export class PolicyHttpService {
     ) {}
 
     private async loadWritableRole(roleId: string): Promise<IRole> {
-        const roleScope = this.policyAbilityDomain.scope(
-            EnumPolicyAction.read,
-            EnumPolicySubject.Role
-        );
-        const role = await this.roleDomain.getOne(roleId, roleScope);
+        const role = await this.roleDomain.getOne(roleId);
         this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
             subject(EnumPolicySubject.Role, role)

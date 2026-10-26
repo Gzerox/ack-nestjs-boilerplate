@@ -21,14 +21,12 @@ export interface IActivityLogRepository {
         }: IPaginationQueryOffsetParams<Prisma.ActivityLogWhereInput>,
         additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         scope: IActivityLogScope,
         {
             where,
             ...params
-        }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere: Prisma.ActivityLogWhereInput
+        }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>
     ): Promise<IPaginationCursorReturn<IActivityLog>>;
     createMany(rows: IActivityLogCreate[]): Promise<Prisma.BatchPayload>;
 }

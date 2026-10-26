@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -155,11 +156,11 @@ export class RoleHttpService {
     }
 
     async getOne(id: string): Promise<IResponseReturn<RoleDto>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const role = await this.roleDomain.getOne(id);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.Role
+            subject(EnumPolicySubject.Role, role)
         );
-        const role = await this.roleDomain.getOne(id, scopeWhere);
 
         return { data: role };
     }
@@ -168,15 +169,12 @@ export class RoleHttpService {
         id: string,
         body: RoleUpdateRequestDto
     ): Promise<IResponseReturn<RoleDto>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const role = await this.roleDomain.getOne(id);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Role
+            subject(EnumPolicySubject.Role, role)
         );
-        const updated = await this.roleDomain.updateByAdmin(
-            id,
-            body,
-            scopeWhere
-        );
+        const updated = await this.roleDomain.updateByAdmin(id, body);
 
         return { data: updated };
     }
@@ -190,11 +188,12 @@ export class RoleHttpService {
     }
 
     async deleteByAdmin(id: string): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const role = await this.roleDomain.getOne(id);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.Role
+            subject(EnumPolicySubject.Role, role)
         );
-        await this.roleDomain.deleteByAdmin(id, scopeWhere);
+        await this.roleDomain.deleteByAdmin(id);
 
         return {};
     }

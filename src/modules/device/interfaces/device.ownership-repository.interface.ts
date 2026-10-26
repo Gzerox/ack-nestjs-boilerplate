@@ -25,14 +25,12 @@ export interface IDeviceOwnershipRepository {
         userId: string,
         deviceOwnershipId: string
     ): Promise<string | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     removeOwnershipInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         deviceOwnershipId: string,
         removedBy: string,
-        now: Date,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        now: Date
     ): Promise<IDeviceOwnership | null>;
     revokeAllByUserInTx(
         tx: IDatabaseTransactionClient,
@@ -59,18 +57,11 @@ export interface IDeviceOwnershipRepository {
         }: IPaginationQueryCursorParams<Prisma.DeviceOwnershipWhereInput>
     ): Promise<IResponsePaginationReturn<IDeviceOwnershipWithSession>>;
     findTokensByUserId(userId: string): Promise<IDeviceOwnershipWithDevice[]>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     findOneActive(
         userId: string,
-        deviceOwnershipId: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
+        deviceOwnershipId: string
     ): Promise<DeviceOwnership | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    existsActive(
-        userId: string,
-        deviceOwnershipId: string,
-        additionalWhere: Prisma.DeviceOwnershipWhereInput
-    ): Promise<boolean>;
+    existsActive(userId: string, deviceOwnershipId: string): Promise<boolean>;
     touchInTx(
         tx: IDatabaseTransactionClient,
         userId: string,

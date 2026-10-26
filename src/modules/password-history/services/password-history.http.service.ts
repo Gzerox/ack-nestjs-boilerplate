@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -33,11 +34,11 @@ export class PasswordHistoryHttpService {
         userId: string,
         query: PasswordHistoryAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
-        const userWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userDomain.getOne(userId, userWhere);
 
         const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,

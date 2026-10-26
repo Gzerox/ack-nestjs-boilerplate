@@ -143,18 +143,9 @@ export class FeatureFlagDomain {
         return this.featureFlagRepository.findWithPaginationCursor(pagination);
     }
 
-    /**
-     * Returns the stored flag; callers judge it, this method does not.
-     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
-     */
-    async getOne(
-        id: string,
-        additionalWhere: Prisma.FeatureFlagWhereInput
-    ): Promise<FeatureFlag> {
-        const featureFlag = await this.featureFlagRepository.findOneById(
-            id,
-            additionalWhere
-        );
+    /** Returns the stored flag; callers judge it, this method does not. */
+    async getOne(id: string): Promise<FeatureFlag> {
+        const featureFlag = await this.featureFlagRepository.findOneById(id);
         if (!featureFlag) {
             throw new FeatureFlagNotFoundException();
         }
@@ -162,25 +153,16 @@ export class FeatureFlagDomain {
         return featureFlag;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatusByAdmin(
         id: string,
-        data: IFeatureFlagUpdateStatus,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        data: IFeatureFlagUpdateStatus
     ): Promise<FeatureFlag> {
-        const featureFlag = await this.featureFlagRepository.findOneById(
-            id,
-            additionalWhere
-        );
+        const featureFlag = await this.featureFlagRepository.findOneById(id);
         if (!featureFlag) {
             throw new FeatureFlagNotFoundException();
         }
 
-        const updated = await this.featureFlagRepository.updateStatus(
-            id,
-            data,
-            additionalWhere
-        );
+        const updated = await this.featureFlagRepository.updateStatus(id, data);
         if (!updated) {
             throw new FeatureFlagNotFoundException();
         }
@@ -190,16 +172,11 @@ export class FeatureFlagDomain {
         return updated;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMetadataByAdmin(
         id: string,
-        data: IFeatureFlagUpdateMetadata,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        data: IFeatureFlagUpdateMetadata
     ): Promise<FeatureFlag> {
-        const featureFlag = await this.featureFlagRepository.findOneById(
-            id,
-            additionalWhere
-        );
+        const featureFlag = await this.featureFlagRepository.findOneById(id);
         if (!featureFlag) {
             throw new FeatureFlagNotFoundException();
         }
@@ -214,8 +191,7 @@ export class FeatureFlagDomain {
 
         const updated = await this.featureFlagRepository.updateMetadata(
             id,
-            data,
-            additionalWhere
+            data
         );
         if (!updated) {
             throw new FeatureFlagNotFoundException();

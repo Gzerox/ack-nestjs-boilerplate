@@ -107,14 +107,12 @@ export class WorkspaceJoinRequestDomain {
 
     private async validatePendingJoinRequest(
         workspaceJoinRequestId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        workspaceId: string
     ): Promise<WorkspaceJoinRequest> {
         const joinRequest =
             await this.workspaceJoinRequestRepository.findByIdAndWorkspace(
                 workspaceJoinRequestId,
-                workspaceId,
-                additionalWhere
+                workspaceId
             );
         if (!joinRequest) {
             throw new WorkspaceJoinRequestNotFoundException();
@@ -134,8 +132,7 @@ export class WorkspaceJoinRequestDomain {
         await this.assertJoinRequestAllowed();
 
         const workspace = await this.workspaceRepository.findActiveById(
-            create.workspaceId,
-            {}
+            create.workspaceId
         );
         if (!workspace) {
             throw new WorkspaceNotFoundException();
@@ -199,19 +196,33 @@ export class WorkspaceJoinRequestDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
+    /** Loads the join request in the workspace. */
+    async getByIdAndWorkspace(
+        workspaceJoinRequestId: string,
+        workspaceId: string
+    ): Promise<WorkspaceJoinRequest> {
+        const joinRequest =
+            await this.workspaceJoinRequestRepository.findByIdAndWorkspace(
+                workspaceJoinRequestId,
+                workspaceId
+            );
+        if (!joinRequest) {
+            throw new WorkspaceJoinRequestNotFoundException();
+        }
+
+        return joinRequest;
+    }
+
     async acceptJoinRequest(
         workspace: Workspace,
         reviewerId: string,
-        workspaceJoinRequestId: string,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        workspaceJoinRequestId: string
     ): Promise<void> {
         await this.assertJoinRequestAllowed();
 
         const joinRequest = await this.validatePendingJoinRequest(
             workspaceJoinRequestId,
-            workspace.id,
-            additionalWhere
+            workspace.id
         );
         const reviewedAt = this.helperDateService.create();
         const events = [
@@ -257,8 +268,7 @@ export class WorkspaceJoinRequestDomain {
                     tx,
                     joinRequest.id,
                     reviewerId,
-                    reviewedAt,
-                    additionalWhere
+                    reviewedAt
                 );
             if (!accepted) {
                 throw new WorkspaceJoinRequestNotFoundException();
@@ -277,20 +287,17 @@ export class WorkspaceJoinRequestDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async rejectJoinRequest(
         workspace: Workspace,
         reviewerId: string,
         workspaceJoinRequestId: string,
-        rejectReasonCode: EnumWorkspaceJoinRejectReason,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        rejectReasonCode: EnumWorkspaceJoinRejectReason
     ): Promise<void> {
         await this.assertJoinRequestAllowed();
 
         const joinRequest = await this.validatePendingJoinRequest(
             workspaceJoinRequestId,
-            workspace.id,
-            additionalWhere
+            workspace.id
         );
         const reviewedAt = this.helperDateService.create();
 
@@ -319,8 +326,7 @@ export class WorkspaceJoinRequestDomain {
             workspaceJoinRequestId,
             reviewerId,
             rejectReasonCode,
-            reviewedAt,
-            additionalWhere
+            reviewedAt
         );
         if (!rejected) {
             throw new WorkspaceJoinRequestNotFoundException();

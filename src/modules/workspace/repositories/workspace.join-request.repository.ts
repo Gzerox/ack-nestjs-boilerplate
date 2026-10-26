@@ -39,19 +39,12 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         return count > 0;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdAndWorkspace(
         workspaceJoinRequestId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        workspaceId: string
     ): Promise<WorkspaceJoinRequest | null> {
         return this.databaseService.client.workspaceJoinRequest.findFirst({
-            where: {
-                AND: [
-                    additionalWhere,
-                    { id: workspaceJoinRequestId, workspaceId },
-                ],
-            },
+            where: { id: workspaceJoinRequestId, workspaceId },
         });
     }
 
@@ -97,18 +90,14 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async acceptInTx(
         tx: IDatabaseTransactionClient,
         workspaceJoinRequestId: string,
         reviewerId: string,
-        reviewedAt: Date,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        reviewedAt: Date
     ): Promise<WorkspaceJoinRequest | null> {
         const { count } = await tx.workspaceJoinRequest.updateMany({
-            where: {
-                AND: [additionalWhere, { id: workspaceJoinRequestId }],
-            },
+            where: { id: workspaceJoinRequestId },
             data: {
                 status: EnumWorkspaceJoinRequestStatus.accepted,
                 reviewedByUserId: reviewerId,
@@ -124,19 +113,15 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async reject(
         workspaceJoinRequestId: string,
         reviewerId: string,
         rejectReasonCode: EnumWorkspaceJoinRejectReason,
-        reviewedAt: Date,
-        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
+        reviewedAt: Date
     ): Promise<WorkspaceJoinRequest | null> {
         const { count } =
             await this.databaseService.client.workspaceJoinRequest.updateMany({
-                where: {
-                    AND: [additionalWhere, { id: workspaceJoinRequestId }],
-                },
+                where: { id: workspaceJoinRequestId },
                 data: {
                     status: EnumWorkspaceJoinRequestStatus.rejected,
                     rejectReasonCode,

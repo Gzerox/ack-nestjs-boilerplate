@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
@@ -12,7 +13,9 @@ import {
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
 import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
 import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { ProjectMemberDefaultAvailableOrderBy } from '@modules/project/constants/project.list.constant';
@@ -154,8 +157,7 @@ describe('ProjectMemberHttpService', () => {
         );
         expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
             EnumPolicyAction.create,
-            expect.objectContaining({
-                __caslSubjectType__: EnumPolicySubject.ProjectMember,
+            subject(EnumPolicySubject.ProjectMember, {
                 projectId: project.id,
                 userId: body.userId,
                 roleId: body.roleId,
@@ -167,12 +169,8 @@ describe('ProjectMemberHttpService', () => {
         const body = mock<ProjectMemberUpdateRoleRequestDto>({
             roleId: 'role-id',
         });
-        const scopeWhere: Prisma.ProjectMemberWhereInput = {
-            projectId: 'project-id',
-        };
 
-        it('passes scope(update, ProjectMember) as additionalWhere to the lookup and the write', async () => {
-            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        it('loads the member by identity, authorizes update, and writes', async () => {
             projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
                 targetMember
             );
@@ -184,29 +182,23 @@ describe('ProjectMemberHttpService', () => {
                 body
             );
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
-                EnumPolicyAction.update,
-                EnumPolicySubject.ProjectMember
-            );
             expect(
                 projectMemberDomain.getOneByIdAndProject
-            ).toHaveBeenCalledWith(
-                'project-id',
-                'target-member-id',
-                scopeWhere
+            ).toHaveBeenCalledWith('project-id', 'target-member-id');
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.ProjectMember, targetMember)
             );
             expect(projectMemberDomain.updateMemberRole).toHaveBeenCalledWith(
                 project,
                 'actor-id',
                 targetMember,
-                body.roleId,
-                scopeWhere
+                body.roleId
             );
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
 
-        it('does not mutate when the scoped lookup throws ProjectMemberNotFoundException', async () => {
-            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        it('does not authorize or write when the lookup throws ProjectMemberNotFoundException', async () => {
             projectMemberDomain.getOneByIdAndProject.mockRejectedValue(
                 new ProjectMemberNotFoundException()
             );
@@ -219,42 +211,102 @@ describe('ProjectMemberHttpService', () => {
                     body
                 )
             ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(projectMemberDomain.updateMemberRole).not.toHaveBeenCalled();
         });
+
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not write',
+            async (_name, error) => {
+                projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
+                    targetMember
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
+
+                await expect(
+                    service.updateMemberRole(
+                        project,
+                        'actor-id',
+                        'target-member-id',
+                        body
+                    )
+                ).rejects.toThrow(error);
+                expect(
+                    projectMemberDomain.updateMemberRole
+                ).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('removeMember', () => {
-        const scopeWhere: Prisma.ProjectMemberWhereInput = {
-            projectId: 'project-id',
-        };
-
-        it('passes scope(delete, ProjectMember) as additionalWhere to the lookup and the write', async () => {
-            policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        it('loads the member by identity, authorizes delete, and writes', async () => {
             projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
                 targetMember
             );
 
             await service.removeMember(project, 'actor-id', 'target-member-id');
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
-                EnumPolicyAction.delete,
-                EnumPolicySubject.ProjectMember
-            );
             expect(
                 projectMemberDomain.getOneByIdAndProject
-            ).toHaveBeenCalledWith(
-                'project-id',
-                'target-member-id',
-                scopeWhere
+            ).toHaveBeenCalledWith('project-id', 'target-member-id');
+            expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.delete,
+                subject(EnumPolicySubject.ProjectMember, targetMember)
             );
             expect(projectMemberDomain.removeMember).toHaveBeenCalledWith(
                 project,
                 'actor-id',
-                targetMember,
-                scopeWhere
+                targetMember
             );
-            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
         });
+
+        it('does not authorize or write when the lookup throws ProjectMemberNotFoundException', async () => {
+            projectMemberDomain.getOneByIdAndProject.mockRejectedValue(
+                new ProjectMemberNotFoundException()
+            );
+
+            await expect(
+                service.removeMember(project, 'actor-id', 'target-member-id')
+            ).rejects.toBeInstanceOf(ProjectMemberNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(projectMemberDomain.removeMember).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['PolicyForbiddenException', new PolicyForbiddenException()],
+            [
+                'RequestContextMissingException',
+                new RequestContextMissingException(PolicyAbilityStoreKey),
+            ],
+        ])(
+            'propagates %s from authorize and does not write',
+            async (_name, error) => {
+                projectMemberDomain.getOneByIdAndProject.mockResolvedValue(
+                    targetMember
+                );
+                policyAbilityDomain.authorize.mockImplementation(() => {
+                    throw error;
+                });
+
+                await expect(
+                    service.removeMember(
+                        project,
+                        'actor-id',
+                        'target-member-id'
+                    )
+                ).rejects.toThrow(error);
+                expect(projectMemberDomain.removeMember).not.toHaveBeenCalled();
+            }
+        );
     });
 
     it('delegates leaving the project to the domain', async () => {

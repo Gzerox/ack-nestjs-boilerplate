@@ -15,7 +15,12 @@ import {
     EnumWorkspaceInviteStatus,
     Prisma,
 } from '@generated/prisma-client/client';
-import type { Project, User, Workspace } from '@generated/prisma-client/client';
+import type {
+    Project,
+    User,
+    Workspace,
+    WorkspaceInvite,
+} from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { FeatureFlagDomain } from '@modules/feature-flag/domains/feature-flag.domain';
 import type { INotificationWorkspaceInvitePayload } from '@modules/notification/interfaces/notification.interface';
@@ -336,8 +341,7 @@ export class WorkspaceInviteDomain {
         if (create.projectId) {
             projectLookup = this.projectDomain.getActiveByIdAndWorkspace(
                 create.projectId,
-                workspace.id,
-                {}
+                workspace.id
             );
         } else {
             projectLookup = null;
@@ -414,21 +418,35 @@ export class WorkspaceInviteDomain {
         return invite;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
+    /** Loads the invite in the workspace. */
+    async getByIdAndWorkspace(
+        workspaceInviteId: string,
+        workspaceId: string
+    ): Promise<WorkspaceInvite> {
+        const invite =
+            await this.workspaceInviteRepository.findByIdAndWorkspace(
+                workspaceInviteId,
+                workspaceId
+            );
+        if (!invite) {
+            throw new WorkspaceInviteNotFoundException();
+        }
+
+        return invite;
+    }
+
     async resendInvite(
         workspace: Workspace,
         actorId: string,
         workspaceInviteId: string,
-        expiryDuration: EnumWorkspaceInviteExpiry | undefined,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        expiryDuration: EnumWorkspaceInviteExpiry | undefined
     ): Promise<IWorkspaceInviteWithRole> {
         await this.assertInvitationAllowed();
 
         const existing =
             await this.workspaceInviteRepository.findByIdAndWorkspace(
                 workspaceInviteId,
-                workspace.id,
-                additionalWhere
+                workspace.id
             );
         if (!existing) {
             throw new WorkspaceInviteNotFoundException();
@@ -443,8 +461,7 @@ export class WorkspaceInviteDomain {
                 workspaceInviteId,
                 tokenData.hashedToken,
                 tokenData.reference,
-                tokenData.expiredAt,
-                additionalWhere
+                tokenData.expiredAt
             ),
             this.userDomain.getOneActiveByEmail(existing.email),
         ]);
@@ -463,20 +480,17 @@ export class WorkspaceInviteDomain {
         return invite;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async revokeInvite(
         workspaceId: string,
         actorId: string,
-        workspaceInviteId: string,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        workspaceInviteId: string
     ): Promise<void> {
         await this.assertInvitationAllowed();
 
         const existing =
             await this.workspaceInviteRepository.findByIdAndWorkspace(
                 workspaceInviteId,
-                workspaceId,
-                additionalWhere
+                workspaceId
             );
         if (!existing) {
             throw new WorkspaceInviteNotFoundException();
@@ -514,10 +528,8 @@ export class WorkspaceInviteDomain {
             events.push(workspaceInviteRevokedByAdminEvent);
         }
 
-        const revoked = await this.workspaceInviteRepository.revoke(
-            workspaceInviteId,
-            additionalWhere
-        );
+        const revoked =
+            await this.workspaceInviteRepository.revoke(workspaceInviteId);
         if (!revoked) {
             throw new WorkspaceInviteNotFoundException();
         }
@@ -656,7 +668,7 @@ export class WorkspaceInviteDomain {
         const invite = await this.validateInviteToken(inviteToken);
 
         const [workspace, inviter] = await Promise.all([
-            this.workspaceRepository.findActiveById(invite.workspaceId, {}),
+            this.workspaceRepository.findActiveById(invite.workspaceId),
             invite.invitedByUserId
                 ? this.userDomain.getNameById(invite.invitedByUserId)
                 : null,

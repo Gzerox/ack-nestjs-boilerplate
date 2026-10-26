@@ -114,19 +114,22 @@ export class WorkspaceInviteHttpService {
         workspaceInviteId: string,
         { expiryDuration }: WorkspaceInviteResendRequestDto
     ): Promise<IResponseReturn<WorkspaceInviteResponseDto>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.update,
-            EnumPolicySubject.WorkspaceInvite
+        const invite = await this.workspaceInviteDomain.getByIdAndWorkspace(
+            workspaceInviteId,
+            workspace.id
         );
-        const invite = await this.workspaceInviteDomain.resendInvite(
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.update,
+            subject(EnumPolicySubject.WorkspaceInvite, invite)
+        );
+        const resent = await this.workspaceInviteDomain.resendInvite(
             workspace,
             actorId,
             workspaceInviteId,
-            expiryDuration,
-            scopeWhere
+            expiryDuration
         );
 
-        return { data: this.workspaceUtil.mapInvite(invite) };
+        return { data: this.workspaceUtil.mapInvite(resent) };
     }
 
     async revokeInvite(
@@ -134,15 +137,18 @@ export class WorkspaceInviteHttpService {
         actorId: string,
         workspaceInviteId: string
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const invite = await this.workspaceInviteDomain.getByIdAndWorkspace(
+            workspaceInviteId,
+            workspaceId
+        );
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.WorkspaceInvite
+            subject(EnumPolicySubject.WorkspaceInvite, invite)
         );
         await this.workspaceInviteDomain.revokeInvite(
             workspaceId,
             actorId,
-            workspaceInviteId,
-            scopeWhere
+            workspaceInviteId
         );
     }
 

@@ -10,7 +10,6 @@ import {
     EnumActivityLogAction,
     EnumApiKeyType,
     type ApiKey,
-    type Prisma,
 } from '@generated/prisma-client';
 import { ApiKeyExpiredException } from '@modules/api-key/exceptions/api-key.expired.exception';
 import { ApiKeyInactiveException } from '@modules/api-key/exceptions/api-key.inactive.exception';
@@ -184,19 +183,16 @@ describe('ApiKeyDomain', () => {
         it('returns the stored key without judging it', async () => {
             apiKeyRepository.findOneById.mockResolvedValue(apiKey);
 
-            await expect(service.getOne(apiKey.id, {})).resolves.toEqual(
-                apiKey
-            );
+            await expect(service.getOne(apiKey.id)).resolves.toEqual(apiKey);
             expect(apiKeyRepository.findOneById).toHaveBeenCalledWith(
-                apiKey.id,
-                {}
+                apiKey.id
             );
         });
 
         it('throws ApiKeyNotFoundException when the key is unknown', async () => {
             apiKeyRepository.findOneById.mockResolvedValue(null);
 
-            await expect(service.getOne('unknown', {})).rejects.toBeInstanceOf(
+            await expect(service.getOne('unknown')).rejects.toBeInstanceOf(
                 ApiKeyNotFoundException
             );
         });
@@ -333,7 +329,7 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.findOneById.mockResolvedValue(null);
 
             await expect(
-                service.updateStatusByAdmin('unknown', false, {})
+                service.updateStatusByAdmin('unknown', false)
             ).rejects.toBeInstanceOf(ApiKeyNotFoundException);
         });
 
@@ -342,7 +338,7 @@ describe('ApiKeyDomain', () => {
             apiKeyUtil.isExpired.mockReturnValue(true);
 
             await expect(
-                service.updateStatusByAdmin(apiKey.id, false, {})
+                service.updateStatusByAdmin(apiKey.id, false)
             ).rejects.toBeInstanceOf(ApiKeyExpiredException);
             expect(apiKeyRepository.updateStatus).not.toHaveBeenCalled();
         });
@@ -354,12 +350,11 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.updateStatus.mockResolvedValue(updated);
 
             await expect(
-                service.updateStatusByAdmin(apiKey.id, false, {})
+                service.updateStatusByAdmin(apiKey.id, false)
             ).resolves.toBe(updated);
             expect(apiKeyRepository.updateStatus).toHaveBeenCalledWith(
                 apiKey.id,
-                { isActive: false },
-                {}
+                { isActive: false }
             );
             expect(apiKeyCache.deleteCacheByKey).toHaveBeenCalledWith(
                 apiKey.key
@@ -373,12 +368,11 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.updateName.mockResolvedValue(updated);
 
             await expect(
-                service.updateByAdmin(apiKey.id, 'Renamed', {})
+                service.updateByAdmin(apiKey.id, 'Renamed')
             ).resolves.toBe(updated);
             expect(apiKeyRepository.updateName).toHaveBeenCalledWith(
                 apiKey.id,
-                'Renamed',
-                {}
+                'Renamed'
             );
         });
 
@@ -387,7 +381,7 @@ describe('ApiKeyDomain', () => {
             apiKeyUtil.isActive.mockReturnValue(true);
 
             await expect(
-                service.updateByAdmin(apiKey.id, undefined, {})
+                service.updateByAdmin(apiKey.id, undefined)
             ).resolves.toBe(apiKey);
             expect(apiKeyRepository.updateName).not.toHaveBeenCalled();
         });
@@ -402,7 +396,7 @@ describe('ApiKeyDomain', () => {
                 apiKeyUtil.isActive.mockReturnValue(isActive);
 
                 await expect(
-                    service.updateByAdmin(apiKey.id, 'Renamed', {})
+                    service.updateByAdmin(apiKey.id, 'Renamed')
                 ).rejects.toBeInstanceOf(ExceptionClass);
             }
         );
@@ -423,12 +417,11 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.updateDates.mockResolvedValue(updated);
 
             await expect(
-                service.updateDatesByAdmin(apiKey.id, startAt, endAt, {})
+                service.updateDatesByAdmin(apiKey.id, startAt, endAt)
             ).resolves.toBe(updated);
             expect(apiKeyRepository.updateDates).toHaveBeenCalledWith(
                 apiKey.id,
-                { startAt: startAtDay, endAt: endAtDay },
-                {}
+                { startAt: startAtDay, endAt: endAtDay }
             );
         });
 
@@ -440,7 +433,7 @@ describe('ApiKeyDomain', () => {
             apiKeyCredentialUtil.createHash.mockReturnValue('new-hash');
             apiKeyRepository.updateHash.mockResolvedValue(updated);
 
-            await expect(service.resetByAdmin(apiKey.id, {})).resolves.toEqual({
+            await expect(service.resetByAdmin(apiKey.id)).resolves.toEqual({
                 apiKey: updated,
                 secret: 'new-secret',
             });
@@ -457,10 +450,10 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.findOneById.mockResolvedValue(apiKey);
             apiKeyRepository.delete.mockResolvedValue(apiKey);
 
-            await expect(service.deleteByAdmin(apiKey.id, {})).resolves.toBe(
+            await expect(service.deleteByAdmin(apiKey.id)).resolves.toBe(
                 apiKey
             );
-            expect(apiKeyRepository.delete).toHaveBeenCalledWith(apiKey.id, {});
+            expect(apiKeyRepository.delete).toHaveBeenCalledWith(apiKey.id);
             expect(apiKeyCache.deleteCacheByKey).toHaveBeenCalledWith(
                 apiKey.key
             );
@@ -475,15 +468,12 @@ describe('ApiKeyDomain', () => {
             apiKeyRepository.findOneById.mockResolvedValue(null);
 
             await expect(
-                service.deleteByAdmin('unknown', {})
+                service.deleteByAdmin('unknown')
             ).rejects.toBeInstanceOf(ApiKeyNotFoundException);
         });
     });
 
     describe('scoped lookups and mutations', () => {
-        const additionalWhere = {
-            isActive: true,
-        } satisfies Prisma.ApiKeyWhereInput;
         const startAt = new Date('2026-02-01T12:00:00.000Z');
         const endAt = new Date('2026-03-01T12:00:00.000Z');
 
@@ -496,119 +486,91 @@ describe('ApiKeyDomain', () => {
         });
 
         describe('getOne', () => {
-            it('forwards additionalWhere to findOneById', async () => {
-                await service.getOne(apiKey.id, additionalWhere);
+            it('calls findOneById', async () => {
+                await service.getOne(apiKey.id);
 
                 expect(apiKeyRepository.findOneById).toHaveBeenCalledWith(
-                    apiKey.id,
-                    additionalWhere
+                    apiKey.id
                 );
             });
 
-            it('calls findOneById with an empty where and returns the same result', async () => {
-                await expect(service.getOne(apiKey.id, {})).resolves.toBe(
-                    apiKey
-                );
+            it('calls findOneById and returns the same result', async () => {
+                await expect(service.getOne(apiKey.id)).resolves.toBe(apiKey);
                 expect(apiKeyRepository.findOneById).toHaveBeenCalledWith(
-                    apiKey.id,
-                    {}
+                    apiKey.id
                 );
             });
 
-            it.each([[{}], [additionalWhere]])(
-                'throws ApiKeyNotFoundException when findOneById returns null',
-                async where => {
-                    apiKeyRepository.findOneById.mockResolvedValue(null);
+            it('throws ApiKeyNotFoundException when findOneById returns null', async () => {
+                apiKeyRepository.findOneById.mockResolvedValue(null);
 
-                    await expect(
-                        service.getOne(apiKey.id, where)
-                    ).rejects.toBeInstanceOf(ApiKeyNotFoundException);
-                }
-            );
+                await expect(service.getOne(apiKey.id)).rejects.toBeInstanceOf(
+                    ApiKeyNotFoundException
+                );
+            });
         });
 
         describe.each([
             {
                 method: 'updateStatusByAdmin',
                 write: 'updateStatus',
-                call: (where: Prisma.ApiKeyWhereInput) =>
-                    service.updateStatusByAdmin(apiKey.id, false, where),
+                call: () => service.updateStatusByAdmin(apiKey.id, false),
                 args: [apiKey.id, { isActive: false }],
             },
             {
                 method: 'updateByAdmin',
                 write: 'updateName',
-                call: (where: Prisma.ApiKeyWhereInput) =>
-                    service.updateByAdmin(apiKey.id, 'Renamed', where),
+                call: () => service.updateByAdmin(apiKey.id, 'Renamed'),
                 args: [apiKey.id, 'Renamed'],
             },
             {
                 method: 'updateDatesByAdmin',
                 write: 'updateDates',
-                call: (where: Prisma.ApiKeyWhereInput) =>
-                    service.updateDatesByAdmin(
-                        apiKey.id,
-                        startAt,
-                        endAt,
-                        where
-                    ),
+                call: () =>
+                    service.updateDatesByAdmin(apiKey.id, startAt, endAt),
                 args: [apiKey.id, { startAt: now, endAt: now }],
             },
             {
                 method: 'resetByAdmin',
                 write: 'updateHash',
-                call: (where: Prisma.ApiKeyWhereInput) =>
-                    service.resetByAdmin(apiKey.id, where),
+                call: () => service.resetByAdmin(apiKey.id),
                 args: [apiKey.id, 'new-hash'],
             },
             {
                 method: 'deleteByAdmin',
                 write: 'delete',
-                call: (where: Prisma.ApiKeyWhereInput) =>
-                    service.deleteByAdmin(apiKey.id, where),
+                call: () => service.deleteByAdmin(apiKey.id),
                 args: [apiKey.id],
             },
         ] as const)('$method', ({ write, call, args }) => {
-            it(`forwards additionalWhere to ${write}`, async () => {
+            it(`loads the key and calls ${write}`, async () => {
                 apiKeyRepository[write].mockResolvedValue(apiKey);
 
-                await call(additionalWhere);
+                await call();
 
                 expect(apiKeyRepository.findOneById).toHaveBeenCalledWith(
-                    apiKey.id,
-                    additionalWhere
+                    apiKey.id
                 );
-                expect(apiKeyRepository[write]).toHaveBeenCalledWith(
-                    ...args,
-                    additionalWhere
-                );
+                expect(apiKeyRepository[write]).toHaveBeenCalledWith(...args);
             });
 
-            it(`calls ${write} with an empty where and returns the same result`, async () => {
+            it(`calls ${write} and returns the same result`, async () => {
                 apiKeyRepository[write].mockResolvedValue(apiKey);
 
-                await call({});
+                await call();
 
-                expect(apiKeyRepository[write]).toHaveBeenCalledWith(
-                    ...args,
-                    {}
-                );
+                expect(apiKeyRepository[write]).toHaveBeenCalledWith(...args);
             });
 
-            it.each([[{}], [additionalWhere]])(
-                `throws ApiKeyNotFoundException and does not touch the cache when ${write} returns null`,
-                async where => {
-                    apiKeyRepository[write].mockResolvedValue(null);
+            it(`throws ApiKeyNotFoundException and does not touch the cache when ${write} returns null`, async () => {
+                apiKeyRepository[write].mockResolvedValue(null);
 
-                    await expect(call(where)).rejects.toBeInstanceOf(
-                        ApiKeyNotFoundException
-                    );
-                    expect(apiKeyCache.deleteCacheByKey).not.toHaveBeenCalled();
-                    expect(
-                        activityLogDomain.stagePrepared
-                    ).not.toHaveBeenCalled();
-                }
-            );
+                await expect(call()).rejects.toBeInstanceOf(
+                    ApiKeyNotFoundException
+                );
+                expect(apiKeyCache.deleteCacheByKey).not.toHaveBeenCalled();
+                expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+            });
         });
     });
 

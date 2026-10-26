@@ -18,11 +18,9 @@ export interface IProjectMemberRepository {
         projectId: string,
         userId: string
     ): Promise<IProjectMemberWithGuardRole | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndProject(
         projectMemberId: string,
-        projectId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        projectId: string
     ): Promise<IProjectMemberWithRole | null>;
     countAdmins(projectId: string): Promise<number>;
     /** Extra caller-supplied constraint, AND-composed first. */
@@ -47,15 +45,9 @@ export interface IProjectMemberRepository {
         roleId: string,
         createdBy: string
     ): Promise<IProjectMember>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     updateRole(
         targetMemberId: string,
-        roleId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        roleId: string
     ): Promise<ProjectMember | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    removeMember(
-        targetMemberId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
-    ): Promise<ProjectMember | null>;
+    removeMember(targetMemberId: string): Promise<ProjectMember | null>;
 }

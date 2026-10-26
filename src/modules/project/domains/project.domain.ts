@@ -121,8 +121,7 @@ export class ProjectDomain {
 
         const project = await this.projectRepository.findActiveByIdAndWorkspace(
             projectId,
-            workspaceId,
-            {}
+            workspaceId
         );
         if (!project) {
             throw new ProjectNotFoundException();
@@ -131,29 +130,24 @@ export class ProjectDomain {
         return project;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async getActiveByIdAndWorkspace(
         projectId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.ProjectWhereInput
+        workspaceId: string
     ): Promise<Project | null> {
         return this.projectRepository.findActiveByIdAndWorkspace(
             projectId,
-            workspaceId,
-            additionalWhere
+            workspaceId
         );
     }
 
-    /** Re-reads the active project; `additionalWhere` is an extra caller-supplied constraint, AND-composed first. */
+    /** Re-reads the active project. */
     async getCurrentProject(
         projectId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.ProjectWhereInput
+        workspaceId: string
     ): Promise<Project> {
         const project = await this.getActiveByIdAndWorkspace(
             projectId,
-            workspaceId,
-            additionalWhere
+            workspaceId
         );
         if (!project) {
             throw new ProjectNotFoundException();
@@ -233,12 +227,10 @@ export class ProjectDomain {
         throw new DatabaseUniqueValueGenerationFailedException();
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateProject(
         project: Project,
         actorId: string,
-        update: IProjectUpdate,
-        additionalWhere: Prisma.ProjectWhereInput
+        update: IProjectUpdate
     ): Promise<Project> {
         const events = [
             this.activityLogDomain.prepare({
@@ -251,8 +243,7 @@ export class ProjectDomain {
 
         const row = await this.projectRepository.updateDetails(
             project.id,
-            update,
-            additionalWhere
+            update
         );
         if (!row) {
             throw new ProjectNotFoundException();
@@ -263,12 +254,10 @@ export class ProjectDomain {
         return row;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateProjectSlug(
         project: Project,
         actorId: string,
-        slug: string,
-        additionalWhere: Prisma.ProjectWhereInput
+        slug: string
     ): Promise<Project> {
         this.assertSlugAllowed(slug);
 
@@ -292,11 +281,7 @@ export class ProjectDomain {
 
         let row: Project | null;
         try {
-            row = await this.projectRepository.updateSlug(
-                project.id,
-                slug,
-                additionalWhere
-            );
+            row = await this.projectRepository.updateSlug(project.id, slug);
         } catch (error: unknown) {
             const isSlugCollision = this.databaseUtil.isUniqueCollision(
                 error,
@@ -318,12 +303,7 @@ export class ProjectDomain {
         return row;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async softDeleteProject(
-        project: Project,
-        actorId: string,
-        additionalWhere: Prisma.ProjectWhereInput
-    ): Promise<void> {
+    async softDeleteProject(project: Project, actorId: string): Promise<void> {
         const events = [
             this.activityLogDomain.prepare({
                 action: EnumActivityLogAction.projectDeleted,
@@ -337,8 +317,7 @@ export class ProjectDomain {
         const deleted = await this.projectRepository.softDelete(
             project.id,
             deletedAt,
-            actorId,
-            additionalWhere
+            actorId
         );
         if (!deleted) {
             throw new ProjectNotFoundException();
@@ -374,15 +353,9 @@ export class ProjectDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async getByIdForAdmin(
-        projectId: string,
-        additionalWhere: Prisma.ProjectWhereInput
-    ): Promise<Project> {
-        const project = await this.projectRepository.findByIdForAdmin(
-            projectId,
-            additionalWhere
-        );
+    async getByIdForAdmin(projectId: string): Promise<Project> {
+        const project =
+            await this.projectRepository.findByIdForAdmin(projectId);
         if (!project) {
             throw new ProjectNotFoundException();
         }

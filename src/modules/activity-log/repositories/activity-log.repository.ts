@@ -50,14 +50,12 @@ export class ActivityLogRepository implements IActivityLogRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findWithPaginationCursor(
         scope: IActivityLogScope,
         {
             where,
             ...params
-        }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere: Prisma.ActivityLogWhereInput
+        }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>
     ): Promise<IPaginationCursorReturn<IActivityLog>> {
         return this.paginationService.cursor<
             IActivityLog,
@@ -65,7 +63,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         >(this.databaseService.client.activityLog, {
             ...params,
             where: {
-                AND: [additionalWhere, where ?? {}, scope],
+                AND: [where ?? {}, scope],
             },
             include: {
                 user: {

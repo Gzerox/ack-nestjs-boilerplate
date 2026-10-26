@@ -21,11 +21,9 @@ export interface IWorkspaceInviteRepository {
     findPendingByHashedToken(
         hashedToken: string
     ): Promise<IWorkspaceInviteWithRole | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndWorkspace(
         workspaceInviteId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        workspaceId: string
     ): Promise<WorkspaceInvite | null>;
     existsPendingByWorkspaceAndEmail(
         workspaceId: string,
@@ -53,19 +51,13 @@ export interface IWorkspaceInviteRepository {
         expiredAt,
         invitedByUserId,
     }: IWorkspaceInviteCreateData): Promise<IWorkspaceInviteWithRole>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     rotateForResend(
         workspaceInviteId: string,
         hashedToken: string,
         reference: string,
-        expiredAt: Date,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
+        expiredAt: Date
     ): Promise<IWorkspaceInviteWithRole | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    revoke(
-        workspaceInviteId: string,
-        additionalWhere: Prisma.WorkspaceInviteWhereInput
-    ): Promise<WorkspaceInvite | null>;
+    revoke(workspaceInviteId: string): Promise<WorkspaceInvite | null>;
     acceptInTx(
         tx: IDatabaseTransactionClient,
         workspaceInviteId: string,

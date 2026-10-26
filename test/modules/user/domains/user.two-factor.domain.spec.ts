@@ -791,12 +791,12 @@ describe('UserTwoFactorDomain', () => {
 
     describe('resetTwoFactorByAdminInTx', () => {
         it('resets another active user, clears attempt locks, and sends the notification', async () => {
-            await service.resetTwoFactorByAdmin(user.id, 'admin-id', {});
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
 
             expect(sessionDomain.revokeActiveByUserInTx).toHaveBeenCalled();
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
-            ).toHaveBeenCalledWith(expect.any(Object), user.id, {});
+            ).toHaveBeenCalledWith(expect.any(Object), user.id);
             expect(authCache.clearLockTwoFactorAttempt).toHaveBeenCalledWith(
                 user
             );
@@ -805,44 +805,30 @@ describe('UserTwoFactorDomain', () => {
             ).toHaveBeenCalledWith(user.id, 'admin-id');
         });
 
-        it('forwards additionalWhere to the preliminary read and the scoped reset', async () => {
-            const additionalWhere = { id: user.id };
-
-            await service.resetTwoFactorByAdmin(
-                user.id,
-                'admin-id',
-                additionalWhere
-            );
+        it('calls the preliminary read and the scoped reset', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
 
             expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
-                user.id,
-                additionalWhere
+                user.id
             );
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
-            ).toHaveBeenCalledWith(
-                expect.any(Object),
-                user.id,
-                additionalWhere
-            );
+            ).toHaveBeenCalledWith(expect.any(Object), user.id);
         });
 
-        it('reads with an empty where', async () => {
-            await service.resetTwoFactorByAdmin(user.id, 'admin-id', {});
+        it('reads', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
 
             expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
-                user.id,
-                {}
+                user.id
             );
         });
 
-        it('throws UserNotFoundException when the read is excluded by additionalWhere', async () => {
+        it('throws UserNotFoundException when the read is missing', async () => {
             userRepository.findOneWithRoleById.mockResolvedValue(null);
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {
-                    id: user.id,
-                })
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(UserNotFoundException);
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
@@ -855,9 +841,7 @@ describe('UserTwoFactorDomain', () => {
             );
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {
-                    id: user.id,
-                })
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(UserNotFoundException);
             expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
             expect(
@@ -867,7 +851,7 @@ describe('UserTwoFactorDomain', () => {
 
         it('throws UserNotSelfException when an admin resets their own 2FA', async () => {
             await expect(
-                service.resetTwoFactorByAdmin(user.id, user.id, {})
+                service.resetTwoFactorByAdmin(user.id, user.id)
             ).rejects.toBeInstanceOf(UserNotSelfException);
             expect(userRepository.findOneWithRoleById).not.toHaveBeenCalled();
         });
@@ -879,7 +863,7 @@ describe('UserTwoFactorDomain', () => {
             });
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(UserBlockedInvalidException);
             expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
         });
@@ -888,7 +872,7 @@ describe('UserTwoFactorDomain', () => {
             userRepository.findOneWithRoleById.mockResolvedValue(null);
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
 
@@ -899,7 +883,7 @@ describe('UserTwoFactorDomain', () => {
             });
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(AuthTwoFactorNotEnabledException);
         });
 
@@ -909,7 +893,7 @@ describe('UserTwoFactorDomain', () => {
             );
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(AppUnknownException);
         });
 
@@ -919,7 +903,7 @@ describe('UserTwoFactorDomain', () => {
             );
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
             ).rejects.toBeInstanceOf(AuthTwoFactorInvalidException);
         });
     });

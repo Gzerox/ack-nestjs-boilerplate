@@ -828,8 +828,7 @@ describe('UserLoginDomain', () => {
 
         expect(sessionDomain.validateActive).toHaveBeenCalledWith(
             user.id,
-            'session-id',
-            {}
+            'session-id'
         );
         expect(sessionDomain.revokeInTx).toHaveBeenCalledWith(
             transactionClient,

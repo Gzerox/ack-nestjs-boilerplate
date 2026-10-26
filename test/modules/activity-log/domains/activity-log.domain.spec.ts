@@ -297,31 +297,31 @@ describe('ActivityLogDomain', () => {
         const workspaceScope = { workspaceId: 'workspace-id' };
 
         await domain.getListOffset(userScope, offsetPagination, {});
-        await domain.getListCursor(workspaceScope, cursorPagination, {});
+        await domain.getListCursor(workspaceScope, cursorPagination);
 
         expect(
             activityLogRepository.findWithPaginationOffset
         ).toHaveBeenCalledWith(userScope, offsetPagination, {});
         expect(
             activityLogRepository.findWithPaginationCursor
-        ).toHaveBeenCalledWith(workspaceScope, cursorPagination, {});
+        ).toHaveBeenCalledWith(workspaceScope, cursorPagination);
     });
 
-    it('forwards the accessible where as the trailing repository argument', async () => {
+    it('forwards the accessible where on the offset list', async () => {
         const offsetPagination = { skip: 0, limit: 10 };
         const cursorPagination = { cursor: 'cursor', limit: 10 };
         const scopeWhere = { userId: 'user-id' };
         const scope = { workspaceId: 'workspace-id', userId: 'user-id' };
 
         await domain.getListOffset(scope, offsetPagination, scopeWhere);
-        await domain.getListCursor(scope, cursorPagination, scopeWhere);
+        await domain.getListCursor(scope, cursorPagination);
 
         expect(
             activityLogRepository.findWithPaginationOffset
         ).toHaveBeenCalledWith(scope, offsetPagination, scopeWhere);
         expect(
             activityLogRepository.findWithPaginationCursor
-        ).toHaveBeenCalledWith(scope, cursorPagination, scopeWhere);
+        ).toHaveBeenCalledWith(scope, cursorPagination);
     });
 
     describe('getContract', () => {

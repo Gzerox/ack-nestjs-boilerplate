@@ -152,18 +152,9 @@ export class ApiKeyDomain {
         return { apiKey: created, secret };
     }
 
-    /**
-     * Returns the stored key; callers judge it, this method does not.
-     * `additionalWhere` is an extra caller-supplied constraint, AND-composed first.
-     */
-    async getOne(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey> {
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+    /** Returns the stored key; callers judge it, this method does not. */
+    async getOne(id: string): Promise<ApiKey> {
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         if (!apiKey) {
             throw new ApiKeyNotFoundException();
         }
@@ -171,16 +162,9 @@ export class ApiKeyDomain {
         return apiKey;
     }
 
-    async updateStatusByAdmin(
-        id: string,
-        isActive: boolean,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey> {
+    async updateStatusByAdmin(id: string, isActive: boolean): Promise<ApiKey> {
         const today = this.helperDateService.create();
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         if (!apiKey) {
             throw new ApiKeyNotFoundException();
         }
@@ -204,11 +188,9 @@ export class ApiKeyDomain {
                 true
             ),
         ];
-        const updated = await this.apiKeyRepository.updateStatus(
-            id,
-            { isActive },
-            additionalWhere
-        );
+        const updated = await this.apiKeyRepository.updateStatus(id, {
+            isActive,
+        });
         if (!updated) {
             throw new ApiKeyNotFoundException();
         }
@@ -219,15 +201,8 @@ export class ApiKeyDomain {
         return updated;
     }
 
-    async updateByAdmin(
-        id: string,
-        name: string | undefined,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey> {
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+    async updateByAdmin(id: string, name: string | undefined): Promise<ApiKey> {
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         this.validateApiKey(apiKey);
 
         const updatedAt = this.helperDateService.create();
@@ -245,11 +220,7 @@ export class ApiKeyDomain {
         ];
         let updated: ApiKey | null;
         if (name) {
-            updated = await this.apiKeyRepository.updateName(
-                id,
-                name,
-                additionalWhere
-            );
+            updated = await this.apiKeyRepository.updateName(id, name);
         } else {
             updated = apiKey;
         }
@@ -266,15 +237,11 @@ export class ApiKeyDomain {
     async updateDatesByAdmin(
         id: string,
         startAt: Date,
-        endAt: Date,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        endAt: Date
     ): Promise<ApiKey> {
         this.validateStartAtIsFuture(startAt);
 
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         this.validateApiKey(apiKey);
 
         const newStartAt = this.helperDateService.create(startAt, {
@@ -293,14 +260,10 @@ export class ApiKeyDomain {
                 true
             ),
         ];
-        const updated = await this.apiKeyRepository.updateDates(
-            id,
-            {
-                startAt: newStartAt,
-                endAt: newEndAt,
-            },
-            additionalWhere
-        );
+        const updated = await this.apiKeyRepository.updateDates(id, {
+            startAt: newStartAt,
+            endAt: newEndAt,
+        });
         if (!updated) {
             throw new ApiKeyNotFoundException();
         }
@@ -311,14 +274,8 @@ export class ApiKeyDomain {
         return updated;
     }
 
-    async resetByAdmin(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<IApiKeyWithSecret> {
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+    async resetByAdmin(id: string): Promise<IApiKeyWithSecret> {
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         this.validateApiKey(apiKey);
 
         const secret: string = this.apiKeyCredentialUtil.createSecret();
@@ -335,11 +292,7 @@ export class ApiKeyDomain {
                 true
             ),
         ];
-        const updated = await this.apiKeyRepository.updateHash(
-            id,
-            hash,
-            additionalWhere
-        );
+        const updated = await this.apiKeyRepository.updateHash(id, hash);
         if (!updated) {
             throw new ApiKeyNotFoundException();
         }
@@ -350,14 +303,8 @@ export class ApiKeyDomain {
         return { apiKey: updated, secret };
     }
 
-    async deleteByAdmin(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey> {
-        const apiKey = await this.apiKeyRepository.findOneById(
-            id,
-            additionalWhere
-        );
+    async deleteByAdmin(id: string): Promise<ApiKey> {
+        const apiKey = await this.apiKeyRepository.findOneById(id);
         if (!apiKey) {
             throw new ApiKeyNotFoundException();
         }
@@ -371,7 +318,7 @@ export class ApiKeyDomain {
                 true
             ),
         ];
-        const deleted = await this.apiKeyRepository.delete(id, additionalWhere);
+        const deleted = await this.apiKeyRepository.delete(id);
         if (!deleted) {
             throw new ApiKeyNotFoundException();
         }

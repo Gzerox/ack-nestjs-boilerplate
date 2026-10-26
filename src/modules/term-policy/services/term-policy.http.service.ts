@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -119,14 +120,12 @@ export class TermPolicyHttpService {
     async deleteByAdmin(
         termPolicyId: string
     ): Promise<IResponseReturn<TermPolicy>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
-        const deleted = await this.termPolicyDomain.deleteByAdmin(
-            termPolicyId,
-            scopeWhere
-        );
+        const deleted = await this.termPolicyDomain.deleteByAdmin(termPolicyId);
 
         return { data: deleted };
     }
@@ -135,15 +134,12 @@ export class TermPolicyHttpService {
         termPolicyId: string,
         updatedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const termPolicy = await this.termPolicyDomain.getOne(termPolicyId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.TermPolicy
+            subject(EnumPolicySubject.TermPolicy, termPolicy)
         );
-        await this.termPolicyDomain.publishByAdmin(
-            termPolicyId,
-            updatedBy,
-            scopeWhere
-        );
+        await this.termPolicyDomain.publishByAdmin(termPolicyId, updatedBy);
 
         return {};
     }

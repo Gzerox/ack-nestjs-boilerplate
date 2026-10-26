@@ -8,7 +8,7 @@ import {
     EnumPasswordHistoryType,
     EnumUserStatus,
 } from '@generated/prisma-client/client';
-import type { Prisma, User } from '@generated/prisma-client/client';
+import type { User } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import type { IAuthTwoFactorVerifyResult } from '@modules/auth/interfaces/auth.interface';
 import { AuthPasswordUtil } from '@modules/auth/utils/auth.password.util';
@@ -196,20 +196,15 @@ export class UserPasswordDomain {
         }
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updatePasswordByAdmin(
         userId: string,
-        updatedBy: string,
-        additionalWhere: Prisma.UserWhereInput
+        updatedBy: string
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneById(
-            userId,
-            additionalWhere
-        );
+        const user = await this.userRepository.findOneById(userId);
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -231,8 +226,7 @@ export class UserPasswordDomain {
                         tx,
                         userId,
                         password,
-                        updatedBy,
-                        additionalWhere
+                        updatedBy
                     );
                     await this.passwordHistoryDomain.createInTx(
                         tx,
@@ -380,8 +374,7 @@ export class UserPasswordDomain {
                     tx,
                     user.id,
                     password,
-                    user.id,
-                    {}
+                    user.id
                 );
                 await this.passwordHistoryDomain.createInTx(
                     tx,
@@ -563,8 +556,7 @@ export class UserPasswordDomain {
                     tx,
                     resetPassword.userId,
                     password,
-                    resetPassword.userId,
-                    {}
+                    resetPassword.userId
                 );
                 await this.passwordHistoryDomain.createInTx(
                     tx,

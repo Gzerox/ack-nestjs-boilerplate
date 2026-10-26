@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -38,6 +39,8 @@ describe('ActivityLogHttpService', () => {
     const userDomain: MockProxy<UserDomain> = mock<UserDomain>();
     const workspaceDomain: MockProxy<WorkspaceDomain> = mock<WorkspaceDomain>();
     const scopeWhere = { userId: 'user-id' };
+    const user = mock<IUserProfile>();
+    const workspace = mock<Workspace>();
     const log = mock<IActivityLog>();
     const offsetParams = {
         where: undefined,
@@ -92,6 +95,8 @@ describe('ActivityLogHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        userDomain.getOne.mockResolvedValue(user);
+        workspaceDomain.getByIdForAdmin.mockResolvedValue(workspace);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -109,9 +114,9 @@ describe('ActivityLogHttpService', () => {
     });
 
     describe('getListOffset', () => {
-        it('passes the read predicate of ActivityLog to the domain list without a parent record check', async () => {
+        it('scopes ActivityLog and does not load a parent when neither id is set', async () => {
             const query = {};
-            const scope = { workspaceId: 'workspace-id', userId: 'user-id' };
+            const scope = { userId: '', workspaceId: '' };
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
                 storePatch: offsetStorePatch,
@@ -120,6 +125,8 @@ describe('ActivityLogHttpService', () => {
 
             const result = await service.getListOffset(scope, query);
 
+            expect(userDomain.getOne).not.toHaveBeenCalled();
+            expect(workspaceDomain.getByIdForAdmin).not.toHaveBeenCalled();
             expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
@@ -140,7 +147,7 @@ describe('ActivityLogHttpService', () => {
             expect(result).toEqual(offsetPage);
         });
 
-        it('user scope: loads the user with scope(read, User) then lists', async () => {
+        it('user scope: loads the user, authorizes read, then lists under the ActivityLog scope', async () => {
             const callOrder: string[] = [];
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -148,7 +155,10 @@ describe('ActivityLogHttpService', () => {
             } as never);
             userDomain.getOne.mockImplementation(async () => {
                 callOrder.push('parent');
-                return mock<IUserProfile>();
+                return user;
+            });
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                callOrder.push('authorize');
             });
             activityLogDomain.getListOffset.mockImplementation(async () => {
                 callOrder.push('list');
@@ -157,19 +167,25 @@ describe('ActivityLogHttpService', () => {
 
             await service.getListOffset({ userId: 'user-id' }, {});
 
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, user)
+            );
             expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                EnumPolicySubject.User
-            );
-            expect(userDomain.getOne).toHaveBeenCalledWith(
-                'user-id',
-                scopeWhere
+                EnumPolicySubject.ActivityLog
             );
             expect(workspaceDomain.getByIdForAdmin).not.toHaveBeenCalled();
-            expect(callOrder).toEqual(['parent', 'list']);
+            expect(activityLogDomain.getListOffset).toHaveBeenCalledWith(
+                { userId: 'user-id' },
+                offsetParams,
+                scopeWhere
+            );
+            expect(callOrder).toEqual(['parent', 'authorize', 'list']);
         });
 
-        it('workspace scope: loads the workspace via getByIdForAdmin with scope(read, Workspace) then lists', async () => {
+        it('workspace scope: loads the workspace, authorizes read, then lists under the ActivityLog scope', async () => {
             const callOrder: string[] = [];
             paginationQueryUtil.offset.mockReturnValue({
                 params: offsetParams,
@@ -177,7 +193,10 @@ describe('ActivityLogHttpService', () => {
             } as never);
             workspaceDomain.getByIdForAdmin.mockImplementation(async () => {
                 callOrder.push('parent');
-                return mock<Workspace>();
+                return workspace;
+            });
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                callOrder.push('authorize');
             });
             activityLogDomain.getListOffset.mockImplementation(async () => {
                 callOrder.push('list');
@@ -189,16 +208,24 @@ describe('ActivityLogHttpService', () => {
                 {}
             );
 
+            expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
+                'workspace-id'
+            );
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.Workspace, workspace)
+            );
             expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
                 EnumPolicyAction.read,
-                EnumPolicySubject.Workspace
-            );
-            expect(workspaceDomain.getByIdForAdmin).toHaveBeenCalledWith(
-                'workspace-id',
-                scopeWhere
+                EnumPolicySubject.ActivityLog
             );
             expect(userDomain.getOne).not.toHaveBeenCalled();
-            expect(callOrder).toEqual(['parent', 'list']);
+            expect(activityLogDomain.getListOffset).toHaveBeenCalledWith(
+                { workspaceId: 'workspace-id', userId: 'user-id' },
+                offsetParams,
+                scopeWhere
+            );
+            expect(callOrder).toEqual(['parent', 'authorize', 'list']);
         });
 
         it('parent miss: throws the user 404 and never lists', async () => {
@@ -207,6 +234,7 @@ describe('ActivityLogHttpService', () => {
             await expect(
                 service.getListOffset({ userId: 'user-id' }, {})
             ).rejects.toThrow(UserNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(activityLogDomain.getListOffset).not.toHaveBeenCalled();
         });
 
@@ -218,28 +246,31 @@ describe('ActivityLogHttpService', () => {
             await expect(
                 service.getListOffset({ workspaceId: 'workspace-id' }, {})
             ).rejects.toThrow(WorkspaceNotFoundException);
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(activityLogDomain.getListOffset).not.toHaveBeenCalled();
         });
 
         it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
             await expect(
                 service.getListOffset({ userId: 'user-id' }, {})
             ).rejects.toThrow(PolicyForbiddenException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
             expect(activityLogDomain.getListOffset).not.toHaveBeenCalled();
         });
 
         it('throws RequestContextMissingException and skips the domain when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
             await expect(
                 service.getListOffset({ userId: 'user-id' }, {})
             ).rejects.toThrow(RequestContextMissingException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
             expect(activityLogDomain.getListOffset).not.toHaveBeenCalled();
         });
     });
@@ -265,10 +296,10 @@ describe('ActivityLogHttpService', () => {
             );
             expect(activityLogDomain.getListCursor).toHaveBeenCalledWith(
                 scope,
-                cursorParams,
-                {}
+                cursorParams
             );
             expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
             expect(result).toEqual(cursorPage);
         });
     });

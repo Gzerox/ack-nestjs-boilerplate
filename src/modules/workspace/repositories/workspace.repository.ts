@@ -23,18 +23,10 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         private readonly paginationService: PaginationService
     ) {}
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findActiveById(
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
-    ): Promise<Workspace | null> {
+    async findActiveById(workspaceId: string): Promise<Workspace | null> {
         return this.databaseService.client.workspace.findFirst({
             where: {
-                AND: [
-                    additionalWhere,
-                    { id: workspaceId },
-                    WorkspaceActiveFilter,
-                ],
+                AND: [{ id: workspaceId }, WorkspaceActiveFilter],
             },
         });
     }
@@ -49,13 +41,9 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findByIdForAdmin(
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
-    ): Promise<Workspace | null> {
+    async findByIdForAdmin(workspaceId: string): Promise<Workspace | null> {
         return this.databaseService.client.workspace.findFirst({
-            where: { AND: [additionalWhere, { id: workspaceId }] },
+            where: { id: workspaceId },
         });
     }
 
@@ -138,15 +126,13 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateDetails(
         workspaceId: string,
-        { name, description }: WorkspaceUpdateRequestDto,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        { name, description }: WorkspaceUpdateRequestDto
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere, { id: workspaceId }] },
+                where: { id: workspaceId },
                 data: {
                     name,
                     description,
@@ -162,15 +148,13 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateIsPublic(
         workspaceId: string,
-        isPublic: boolean,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        isPublic: boolean
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere, { id: workspaceId }] },
+                where: { id: workspaceId },
                 data: {
                     isPublic,
                 },
@@ -185,15 +169,13 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateSlug(
         workspaceId: string,
-        slug: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        slug: string
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere, { id: workspaceId }] },
+                where: { id: workspaceId },
                 data: {
                     slug,
                 },
@@ -208,21 +190,15 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async softDeleteInTx(
         tx: IDatabaseTransactionClient,
         workspaceId: string,
         deletedAt: Date,
-        deletedBy: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        deletedBy: string
     ): Promise<Workspace | null> {
         const { count } = await tx.workspace.updateMany({
             where: {
-                AND: [
-                    additionalWhere,
-                    { id: workspaceId },
-                    WorkspaceActiveFilter,
-                ],
+                AND: [{ id: workspaceId }, WorkspaceActiveFilter],
             },
             data: {
                 deletedAt,

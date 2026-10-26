@@ -71,19 +71,14 @@ export class ProjectMemberDomain {
         return member;
     }
 
-    /**
-     * Loads the member the route addresses within the project, AND-composed with the optional additionalWhere, so a record it excludes reads as not found.
-     * Extra caller-supplied constraint, AND-composed first.
-     */
+    /** Loads the member the route addresses within the project. */
     async getOneByIdAndProject(
         projectId: string,
-        projectMemberId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        projectMemberId: string
     ): Promise<IProjectMemberWithRole> {
         const target = await this.projectMemberRepository.findByIdAndProject(
             projectMemberId,
-            projectId,
-            additionalWhere
+            projectId
         );
         if (!target) {
             throw new ProjectMemberNotFoundException();
@@ -176,13 +171,11 @@ export class ProjectMemberDomain {
         return member;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateMemberRole(
         project: Project,
         actorId: string,
         targetMember: IProjectMemberWithRole,
-        roleId: string,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        roleId: string
     ): Promise<void> {
         const role = await this.roleDomain.resolve(
             roleId,
@@ -217,8 +210,7 @@ export class ProjectMemberDomain {
 
         const updated = await this.projectMemberRepository.updateRole(
             targetMember.id,
-            role.id,
-            additionalWhere
+            role.id
         );
         if (!updated) {
             throw new ProjectMemberNotFoundException();
@@ -227,12 +219,10 @@ export class ProjectMemberDomain {
         this.activityLogDomain.stagePrepared(events);
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async removeMember(
         project: Project,
         actorId: string,
-        targetMember: IProjectMemberWithRole,
-        additionalWhere: Prisma.ProjectMemberWhereInput
+        targetMember: IProjectMemberWithRole
     ): Promise<void> {
         if (targetMember.userId === actorId) {
             throw new ProjectMemberPeerForbiddenException();
@@ -263,8 +253,7 @@ export class ProjectMemberDomain {
         }
 
         const removed = await this.projectMemberRepository.removeMember(
-            targetMember.id,
-            additionalWhere
+            targetMember.id
         );
         if (!removed) {
             throw new ProjectMemberNotFoundException();
@@ -290,7 +279,7 @@ export class ProjectMemberDomain {
             }),
         ];
 
-        await this.projectMemberRepository.removeMember(member.id, {});
+        await this.projectMemberRepository.removeMember(member.id);
 
         this.activityLogDomain.stagePrepared(events);
     }

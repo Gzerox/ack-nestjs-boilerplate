@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -89,6 +90,7 @@ describe('FeatureFlagHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        featureFlagDomain.getOne.mockResolvedValue(flag);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -178,25 +180,25 @@ describe('FeatureFlagHttpService', () => {
             rolloutPercent: 50,
         } satisfies FeatureFlagUpdateStatusRequestDto;
 
-        it('passes scope(update, FeatureFlag) as additionalWhere and wraps the updated flag', async () => {
+        it('loads the flag by id, authorizes update, and writes by id', async () => {
             featureFlagDomain.updateStatusByAdmin.mockResolvedValue(flag);
 
             await expect(
                 service.updateStatusByAdmin('flag-id', body)
             ).resolves.toEqual({ data: flag });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(featureFlagDomain.getOne).toHaveBeenCalledWith('flag-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.FeatureFlag
+                subject(EnumPolicySubject.FeatureFlag, flag)
             );
             expect(featureFlagDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'flag-id',
-                body,
-                scopeWhere
+                body
             );
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability denies the flag', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -209,7 +211,7 @@ describe('FeatureFlagHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 
@@ -227,23 +229,24 @@ describe('FeatureFlagHttpService', () => {
             metadata: { newFeature: true },
         } satisfies FeatureFlagUpdateMetadataRequestDto;
 
-        it('passes scope(update, FeatureFlag) as additionalWhere and wraps the updated flag', async () => {
+        it('loads the flag by id, authorizes update, and writes by id', async () => {
             featureFlagDomain.updateMetadataByAdmin.mockResolvedValue(flag);
 
             await expect(
                 service.updateMetadataByAdmin('flag-id', body)
             ).resolves.toEqual({ data: flag });
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(featureFlagDomain.getOne).toHaveBeenCalledWith('flag-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.FeatureFlag
+                subject(EnumPolicySubject.FeatureFlag, flag)
             );
             expect(
                 featureFlagDomain.updateMetadataByAdmin
-            ).toHaveBeenCalledWith('flag-id', body, scopeWhere);
+            ).toHaveBeenCalledWith('flag-id', body);
         });
 
-        it('throws PolicyForbiddenException and never calls the domain mutation when the ability has no update rule', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('throws PolicyForbiddenException and never calls the domain mutation when the ability denies the flag', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -256,7 +259,7 @@ describe('FeatureFlagHttpService', () => {
         });
 
         it('throws RequestContextMissingException and writes nothing when no ability is stored', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new RequestContextMissingException(PolicyAbilityStoreKey);
             });
 

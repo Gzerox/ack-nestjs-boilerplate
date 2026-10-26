@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -37,20 +38,18 @@ export class ActivityLogHttpService {
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         const { workspaceId, userId } = scope;
         if (workspaceId) {
-            const workspaceWhere = this.policyAbilityDomain.scope(
+            const workspace =
+                await this.workspaceDomain.getByIdForAdmin(workspaceId);
+            this.policyAbilityDomain.authorize(
                 EnumPolicyAction.read,
-                EnumPolicySubject.Workspace
-            );
-            await this.workspaceDomain.getByIdForAdmin(
-                workspaceId,
-                workspaceWhere
+                subject(EnumPolicySubject.Workspace, workspace)
             );
         } else if (userId) {
-            const userWhere = this.policyAbilityDomain.scope(
+            const user = await this.userDomain.getOne(userId);
+            this.policyAbilityDomain.authorize(
                 EnumPolicyAction.read,
-                EnumPolicySubject.User
+                subject(EnumPolicySubject.User, user)
             );
-            await this.userDomain.getOne(userId, userWhere);
         }
 
         const scopeWhere = this.policyAbilityDomain.scope(
@@ -93,8 +92,7 @@ export class ActivityLogHttpService {
 
         const { data, ...others } = await this.activityLogDomain.getListCursor(
             scope,
-            params,
-            {}
+            params
         );
 
         return {

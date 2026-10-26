@@ -82,14 +82,13 @@ export class ProjectHttpService {
     }
 
     async getProject(project: Project): Promise<IResponseReturn<Project>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.read,
-            EnumPolicySubject.Project
-        );
         const current = await this.projectDomain.getCurrentProject(
             project.id,
-            project.workspaceId,
-            scopeWhere
+            project.workspaceId
+        );
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.read,
+            subject(EnumPolicySubject.Project, current)
         );
 
         return { data: current };
@@ -100,15 +99,14 @@ export class ProjectHttpService {
         actorId: string,
         { name, description }: ProjectUpdateRequestDto
     ): Promise<IResponseReturn<Project>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Project
+            subject(EnumPolicySubject.Project, project)
         );
         const updated = await this.projectDomain.updateProject(
             project,
             actorId,
-            { name, description },
-            scopeWhere
+            { name, description }
         );
 
         return { data: updated };
@@ -119,30 +117,25 @@ export class ProjectHttpService {
         actorId: string,
         { slug }: ProjectUpdateSlugRequestDto
     ): Promise<IResponseReturn<Project>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Project
+            subject(EnumPolicySubject.Project, project)
         );
         const updated = await this.projectDomain.updateProjectSlug(
             project,
             actorId,
-            slug,
-            scopeWhere
+            slug
         );
 
         return { data: updated };
     }
 
     async softDeleteProject(project: Project, actorId: string): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.Project
+            subject(EnumPolicySubject.Project, project)
         );
-        await this.projectDomain.softDeleteProject(
-            project,
-            actorId,
-            scopeWhere
-        );
+        await this.projectDomain.softDeleteProject(project, actorId);
     }
 
     async getListForAdmin(
@@ -180,13 +173,10 @@ export class ProjectHttpService {
     }
 
     async getForAdmin(projectId: string): Promise<IResponseReturn<Project>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const project = await this.projectDomain.getByIdForAdmin(projectId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.Project
-        );
-        const project = await this.projectDomain.getByIdForAdmin(
-            projectId,
-            scopeWhere
+            subject(EnumPolicySubject.Project, project)
         );
 
         return { data: project };

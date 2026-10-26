@@ -22,11 +22,9 @@ export interface IWorkspaceMemberRepository {
         workspaceId: string,
         userId: string
     ): Promise<WorkspaceMember | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     findByIdAndWorkspace(
         workspaceMemberId: string,
-        workspaceId: string,
-        additionalWhere: Prisma.WorkspaceMemberWhereInput
+        workspaceId: string
     ): Promise<IWorkspaceMemberWithRole | null>;
     countOwnedActiveByUser(userId: string): Promise<number>;
     countOwners(workspaceId: string): Promise<number>;
@@ -59,23 +57,15 @@ export interface IWorkspaceMemberRepository {
         roleId: string,
         actorId: string
     ): Promise<WorkspaceMember>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     updateRole(
         targetMemberId: string,
-        roleId: string,
-        additionalWhere: Prisma.WorkspaceMemberWhereInput
+        roleId: string
     ): Promise<WorkspaceMember | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    removeMember(
-        targetMemberId: string,
-        additionalWhere: Prisma.WorkspaceMemberWhereInput
-    ): Promise<WorkspaceMember | null>;
-    /** Extra caller-supplied constraint on the workspace, AND-composed first. */
+    removeMember(targetMemberId: string): Promise<WorkspaceMember | null>;
     transferOwnership(
         fromMemberId: string,
         toMemberId: string,
         ownerRoleId: string,
-        adminRoleId: string,
-        additionalWhere: Prisma.WorkspaceWhereInput
+        adminRoleId: string
     ): Promise<WorkspaceMember | null>;
 }

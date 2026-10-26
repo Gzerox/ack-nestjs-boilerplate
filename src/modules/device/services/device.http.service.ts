@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
@@ -37,11 +38,11 @@ export class DeviceHttpService {
         userId: string,
         query: DeviceAdminListRequestDto
     ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
-        const userWhere = this.policyAbilityDomain.scope(
+        const user = await this.userDomain.getOne(userId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.User
+            subject(EnumPolicySubject.User, user)
         );
-        await this.userDomain.getOne(userId, userWhere);
 
         const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,
@@ -141,15 +142,18 @@ export class DeviceHttpService {
         deviceOwnershipId: string,
         removedBy: string
     ): Promise<IResponseReturn<void>> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const deviceOwnership = await this.deviceDomain.getOneActive(
+            userId,
+            deviceOwnershipId
+        );
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.delete,
-            EnumPolicySubject.DeviceOwnership
+            subject(EnumPolicySubject.DeviceOwnership, deviceOwnership)
         );
         await this.deviceDomain.removeByAdmin(
             userId,
             deviceOwnershipId,
-            removedBy,
-            scopeWhere
+            removedBy
         );
 
         return {};

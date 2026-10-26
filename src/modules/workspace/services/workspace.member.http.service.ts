@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -40,15 +41,14 @@ export class WorkspaceMemberHttpService {
         actorMember: IWorkspaceMemberWithRole,
         { targetUserId }: WorkspaceTransferOwnershipRequestDto
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspace)
         );
         await this.workspaceMemberDomain.transferOwnership(
             workspace.id,
             actorMember,
-            targetUserId,
-            scopeWhere
+            targetUserId
         );
     }
 
@@ -108,22 +108,20 @@ export class WorkspaceMemberHttpService {
         targetMemberId: string,
         { roleId }: WorkspaceMemberUpdateRoleRequestDto
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.update,
-            EnumPolicySubject.WorkspaceMember
-        );
         const targetMember =
             await this.workspaceMemberDomain.getOneByIdAndWorkspace(
                 workspaceId,
-                targetMemberId,
-                scopeWhere
+                targetMemberId
             );
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.update,
+            subject(EnumPolicySubject.WorkspaceMember, targetMember)
+        );
         await this.workspaceMemberDomain.updateMemberRole(
             workspaceId,
             actorMember,
             targetMember,
-            roleId,
-            scopeWhere
+            roleId
         );
     }
 
@@ -132,21 +130,19 @@ export class WorkspaceMemberHttpService {
         actorMember: IWorkspaceMemberWithRole,
         targetMemberId: string
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
-            EnumPolicyAction.delete,
-            EnumPolicySubject.WorkspaceMember
-        );
         const targetMember =
             await this.workspaceMemberDomain.getOneByIdAndWorkspace(
                 workspaceId,
-                targetMemberId,
-                scopeWhere
+                targetMemberId
             );
+        this.policyAbilityDomain.authorize(
+            EnumPolicyAction.delete,
+            subject(EnumPolicySubject.WorkspaceMember, targetMember)
+        );
         await this.workspaceMemberDomain.removeMember(
             workspaceId,
             actorMember,
-            targetMember,
-            scopeWhere
+            targetMember
         );
     }
 
@@ -154,11 +150,12 @@ export class WorkspaceMemberHttpService {
         workspaceId: string,
         query: WorkspaceAdminMemberListRequestDto
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
-        const workspaceWhere = this.policyAbilityDomain.scope(
+        const workspace =
+            await this.workspaceDomain.getByIdForAdmin(workspaceId);
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.read,
-            EnumPolicySubject.Workspace
+            subject(EnumPolicySubject.Workspace, workspace)
         );
-        await this.workspaceDomain.getByIdForAdmin(workspaceId, workspaceWhere);
 
         const scopeWhere = this.policyAbilityDomain.scope(
             EnumPolicyAction.read,

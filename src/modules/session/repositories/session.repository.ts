@@ -81,27 +81,20 @@ export class SessionRepository implements ISessionRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findOneActive(
         userId: string,
-        sessionId: string,
-        additionalWhere: Prisma.SessionWhereInput
+        sessionId: string
     ): Promise<ISession | null> {
         const today = this.helperDateService.create();
 
         return this.databaseService.client.session.findFirst({
             where: {
-                AND: [
-                    additionalWhere,
-                    {
-                        id: sessionId,
-                        userId,
-                        expiredAt: {
-                            gte: today,
-                        },
-                        isRevoked: false,
-                    },
-                ],
+                id: sessionId,
+                userId,
+                expiredAt: {
+                    gte: today,
+                },
+                isRevoked: false,
             },
             include: {
                 user: {
@@ -207,22 +200,15 @@ export class SessionRepository implements ISessionRepository {
         return count > 0;
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async revokeByAdmin(
         sessionId: string,
         revokedBy: string,
-        revokedAt: Date,
-        additionalWhere: Prisma.SessionWhereInput
+        revokedAt: Date
     ): Promise<boolean> {
         const { count } = await this.databaseService.client.session.updateMany({
             where: {
-                AND: [
-                    additionalWhere,
-                    {
-                        id: sessionId,
-                        isRevoked: false,
-                    },
-                ],
+                id: sessionId,
+                isRevoked: false,
             },
             data: {
                 isRevoked: true,
@@ -234,42 +220,27 @@ export class SessionRepository implements ISessionRepository {
         return count > 0;
     }
 
-    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
     async revokeActiveByUser(
         userId: string,
         revokedBy: string,
-        revokedAt: Date,
-        additionalWhere: Prisma.UserWhereInput
+        revokedAt: Date
     ): Promise<ISessionRef[]> {
         return this.databaseService.withTransaction(async tx =>
-            this.revokeActiveByUserInTx(
-                tx,
-                userId,
-                revokedBy,
-                revokedAt,
-                additionalWhere
-            )
+            this.revokeActiveByUserInTx(tx, userId, revokedBy, revokedAt)
         );
     }
 
-    /** Extra caller-supplied constraint on the owning user, AND-composed first. */
     async revokeActiveByUserInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         revokedBy: string,
-        revokedAt: Date,
-        additionalWhere: Prisma.UserWhereInput
+        revokedAt: Date
     ): Promise<ISessionRef[]> {
         const sessions = await tx.session.findMany({
             where: {
-                AND: [
-                    { user: additionalWhere },
-                    {
-                        userId,
-                        isRevoked: false,
-                        expiredAt: { gte: revokedAt },
-                    },
-                ],
+                userId,
+                isRevoked: false,
+                expiredAt: { gte: revokedAt },
             },
             select: { id: true },
         });

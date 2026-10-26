@@ -19,21 +19,13 @@ export interface IFeatureFlagRepository {
         pagination: IPaginationQueryCursorParams<Prisma.FeatureFlagWhereInput>
     ): Promise<IResponsePaginationReturn<FeatureFlag>>;
     findOneByKey(key: string): Promise<IFeatureFlagWithTargetUsers | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
-    findOneById(
-        id: string,
-        additionalWhere: Prisma.FeatureFlagWhereInput
-    ): Promise<FeatureFlag | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
+    findOneById(id: string): Promise<FeatureFlag | null>;
     updateStatus(
         id: string,
-        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto
     ): Promise<FeatureFlag | null>;
-    /** Extra caller-supplied constraint, AND-composed first. */
     updateMetadata(
         id: string,
-        { metadata }: FeatureFlagUpdateMetadataRequestDto,
-        additionalWhere: Prisma.FeatureFlagWhereInput
+        { metadata }: FeatureFlagUpdateMetadataRequestDto
     ): Promise<FeatureFlag | null>;
 }

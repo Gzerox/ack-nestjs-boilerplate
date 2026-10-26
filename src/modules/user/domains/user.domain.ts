@@ -120,7 +120,7 @@ export class UserDomain {
             throw new UserNotAuthenticatedException();
         }
 
-        const user = await this.userRepository.findOneWithRoleById(userId, {});
+        const user = await this.userRepository.findOneWithRoleById(userId);
         if (!user) {
             throw new UserNotFoundForbiddenException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -218,20 +218,17 @@ export class UserDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updatePasswordInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
         password: IAuthPassword,
-        updatedBy: string,
-        additionalWhere: Prisma.UserWhereInput
+        updatedBy: string
     ): Promise<User> {
         const user = await this.userRepository.updatePasswordInTx(
             tx,
             userId,
             password,
-            updatedBy,
-            additionalWhere
+            updatedBy
         );
         if (!user) {
             throw new UserNotFoundException();
@@ -269,15 +266,8 @@ export class UserDomain {
         return this.userRepository.findActive();
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async getOne(
-        id: string,
-        additionalWhere: Prisma.UserWhereInput
-    ): Promise<IUserProfile> {
-        const user = await this.userRepository.findOneProfileById(
-            id,
-            additionalWhere
-        );
+    async getOne(id: string): Promise<IUserProfile> {
+        const user = await this.userRepository.findOneProfileById(id);
         if (!user) {
             throw new UserNotFoundException();
         }
@@ -384,21 +374,16 @@ export class UserDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatusByAdmin(
         userId: string,
         status: EnumUserStatus,
-        updatedBy: string,
-        additionalWhere: Prisma.UserWhereInput
+        updatedBy: string
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
         }
 
-        const user = await this.userRepository.findOneById(
-            userId,
-            additionalWhere
-        );
+        const user = await this.userRepository.findOneById(userId);
         if (!user) {
             throw new UserNotFoundException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -419,8 +404,7 @@ export class UserDomain {
                         await this.userRepository.updateStatusByAdminInTx(
                             tx,
                             userId,
-                            { status },
-                            additionalWhere
+                            { status }
                         );
                     if (!row) {
                         throw new UserNotFoundException();

@@ -102,24 +102,18 @@ export class RoleRepository implements IRoleRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async findOneWithPoliciesById(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
+        id: string
     ): Promise<IRoleWithPolicies | null> {
         return this.databaseService.client.role.findFirst({
-            where: { AND: [additionalWhere, { id }] },
+            where: { id },
             include: RolePoliciesInclude,
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findOneById(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<IRole | null> {
+    async findOneById(id: string): Promise<IRole | null> {
         return this.databaseService.client.role.findFirst({
-            where: { AND: [additionalWhere, { id }] },
+            where: { id },
             select: RoleSelect,
         });
     }
@@ -191,15 +185,13 @@ export class RoleRepository implements IRoleRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async update(
         id: string,
-        data: IRoleUpdate,
-        additionalWhere: Prisma.RoleWhereInput
+        data: IRoleUpdate
     ): Promise<IRoleWithPolicies | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.role.updateMany({
-                where: { AND: [additionalWhere, { id }] },
+                where: { id },
                 data,
             });
             if (count === 0) {
@@ -225,15 +217,9 @@ export class RoleRepository implements IRoleRepository {
         return Object.values(role._count).some(count => count > 0);
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async delete(
-        id: string,
-        additionalWhere: Prisma.RoleWhereInput
-    ): Promise<Role | null> {
+    async delete(id: string): Promise<Role | null> {
         return this.databaseService.withTransaction(async tx => {
-            const where: Prisma.RoleWhereInput = {
-                AND: [additionalWhere, { id }],
-            };
+            const where: Prisma.RoleWhereInput = { id };
             const existing = await tx.role.findFirst({ where });
             if (!existing) {
                 return null;

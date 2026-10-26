@@ -286,16 +286,13 @@ export class ActivityLogDomain {
         );
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async getListCursor(
         scope: IActivityLogScope,
-        pagination: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere: Prisma.ActivityLogWhereInput
+        pagination: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         return this.activityLogRepository.findWithPaginationCursor(
             scope,
-            pagination,
-            additionalWhere
+            pagination
         );
     }
 }

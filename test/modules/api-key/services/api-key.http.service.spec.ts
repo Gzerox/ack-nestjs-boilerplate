@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
@@ -101,6 +102,7 @@ describe('ApiKeyHttpService', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        apiKeyDomain.getOne.mockResolvedValue(apiKey);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -235,7 +237,7 @@ describe('ApiKeyHttpService', () => {
     });
 
     describe('updateStatusByAdmin', () => {
-        it('passes scope(update, ApiKey) as additionalWhere and wraps the updated key', async () => {
+        it('loads the key by id, authorizes update, and writes by id', async () => {
             const updated = { ...apiKey, isActive: false } satisfies ApiKey;
             apiKeyDomain.updateStatusByAdmin.mockResolvedValue(updated);
 
@@ -243,15 +245,14 @@ describe('ApiKeyHttpService', () => {
                 isActive: false,
             } satisfies ApiKeyUpdateStatusRequestDto);
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.ApiKey
+                subject(EnumPolicySubject.ApiKey, apiKey)
             );
-            expect(apiKeyDomain.getOne).not.toHaveBeenCalled();
             expect(apiKeyDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'api-key-id',
-                false,
-                scopeWhere
+                false
             );
             expect(result).toEqual({ data: updated });
         });
@@ -263,9 +264,9 @@ describe('ApiKeyHttpService', () => {
                 new RequestContextMissingException(PolicyAbilityStoreKey),
             ],
         ])(
-            'propagates %s from scope and never calls the domain mutation',
+            'propagates %s from authorize and never calls the domain mutation',
             async (_name, error) => {
-                policyAbilityDomain.scope.mockImplementation(() => {
+                policyAbilityDomain.authorize.mockImplementation(() => {
                     throw error;
                 });
 
@@ -280,7 +281,7 @@ describe('ApiKeyHttpService', () => {
     });
 
     describe('updateByAdmin', () => {
-        it('passes scope(update, ApiKey) as additionalWhere and wraps the updated key', async () => {
+        it('loads the key by id, authorizes update, and writes by id', async () => {
             const updated = {
                 ...apiKey,
                 name: 'Renamed key',
@@ -291,21 +292,20 @@ describe('ApiKeyHttpService', () => {
                 name: 'Renamed key',
             } satisfies ApiKeyUpdateRequestDto);
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.ApiKey
+                subject(EnumPolicySubject.ApiKey, apiKey)
             );
-            expect(apiKeyDomain.getOne).not.toHaveBeenCalled();
             expect(apiKeyDomain.updateByAdmin).toHaveBeenCalledWith(
                 'api-key-id',
-                'Renamed key',
-                scopeWhere
+                'Renamed key'
             );
             expect(result).toEqual({ data: updated });
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain mutation', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates PolicyForbiddenException from authorize and never calls the domain mutation', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -320,7 +320,7 @@ describe('ApiKeyHttpService', () => {
         const startAt = new Date('2026-02-01T00:00:00.000Z');
         const endAt = new Date('2026-03-01T00:00:00.000Z');
 
-        it('passes scope(update, ApiKey) as additionalWhere and wraps the updated key', async () => {
+        it('loads the key by id, authorizes update, and writes by id', async () => {
             const updated = { ...apiKey, startAt, endAt } satisfies ApiKey;
             apiKeyDomain.updateDatesByAdmin.mockResolvedValue(updated);
 
@@ -329,22 +329,21 @@ describe('ApiKeyHttpService', () => {
                 endAt,
             } satisfies ApiKeyUpdateDateRequestDto);
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.ApiKey
+                subject(EnumPolicySubject.ApiKey, apiKey)
             );
-            expect(apiKeyDomain.getOne).not.toHaveBeenCalled();
             expect(apiKeyDomain.updateDatesByAdmin).toHaveBeenCalledWith(
                 'api-key-id',
                 startAt,
-                endAt,
-                scopeWhere
+                endAt
             );
             expect(result).toEqual({ data: updated });
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain mutation', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates PolicyForbiddenException from authorize and never calls the domain mutation', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -356,7 +355,7 @@ describe('ApiKeyHttpService', () => {
     });
 
     describe('resetByAdmin', () => {
-        it('passes scope(update, ApiKey) as additionalWhere and maps the raw secret onto the response', async () => {
+        it('loads the key by id, authorizes update, and maps the reset secret', async () => {
             apiKeyDomain.resetByAdmin.mockResolvedValue({
                 apiKey,
                 secret: 'reset-secret',
@@ -369,14 +368,13 @@ describe('ApiKeyHttpService', () => {
 
             const result = await service.resetByAdmin('api-key-id');
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.update,
-                EnumPolicySubject.ApiKey
+                subject(EnumPolicySubject.ApiKey, apiKey)
             );
-            expect(apiKeyDomain.getOne).not.toHaveBeenCalled();
             expect(apiKeyDomain.resetByAdmin).toHaveBeenCalledWith(
-                'api-key-id',
-                scopeWhere
+                'api-key-id'
             );
             expect(apiKeyUtil.mapCreate).toHaveBeenCalledWith(
                 apiKey,
@@ -385,8 +383,8 @@ describe('ApiKeyHttpService', () => {
             expect(result).toEqual({ data: resetWithSecret });
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain mutation', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates PolicyForbiddenException from authorize and never calls the domain mutation', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 
@@ -398,25 +396,24 @@ describe('ApiKeyHttpService', () => {
     });
 
     describe('deleteByAdmin', () => {
-        it('passes scope(delete, ApiKey) as additionalWhere and wraps the deleted key', async () => {
+        it('loads the key by id, authorizes delete, and writes by id', async () => {
             apiKeyDomain.deleteByAdmin.mockResolvedValue(apiKey);
 
             const result = await service.deleteByAdmin('api-key-id');
 
-            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+            expect(apiKeyDomain.getOne).toHaveBeenCalledWith('api-key-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
                 EnumPolicyAction.delete,
-                EnumPolicySubject.ApiKey
+                subject(EnumPolicySubject.ApiKey, apiKey)
             );
-            expect(apiKeyDomain.getOne).not.toHaveBeenCalled();
             expect(apiKeyDomain.deleteByAdmin).toHaveBeenCalledWith(
-                'api-key-id',
-                scopeWhere
+                'api-key-id'
             );
             expect(result).toEqual({ data: apiKey });
         });
 
-        it('propagates PolicyForbiddenException from scope and never calls the domain mutation', async () => {
-            policyAbilityDomain.scope.mockImplementation(() => {
+        it('propagates PolicyForbiddenException from authorize and never calls the domain mutation', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
                 throw new PolicyForbiddenException();
             });
 

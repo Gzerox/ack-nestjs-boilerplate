@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
@@ -95,15 +96,19 @@ export class WorkspaceJoinRequestHttpService {
         reviewerId: string,
         workspaceJoinRequestId: string
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const joinRequest =
+            await this.workspaceJoinRequestDomain.getByIdAndWorkspace(
+                workspaceJoinRequestId,
+                workspace.id
+            );
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.WorkspaceJoinRequest
+            subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
         );
         await this.workspaceJoinRequestDomain.acceptJoinRequest(
             workspace,
             reviewerId,
-            workspaceJoinRequestId,
-            scopeWhere
+            workspaceJoinRequestId
         );
     }
 
@@ -113,16 +118,20 @@ export class WorkspaceJoinRequestHttpService {
         workspaceJoinRequestId: string,
         { rejectReasonCode }: WorkspaceJoinRequestRejectRequestDto
     ): Promise<void> {
-        const scopeWhere = this.policyAbilityDomain.scope(
+        const joinRequest =
+            await this.workspaceJoinRequestDomain.getByIdAndWorkspace(
+                workspaceJoinRequestId,
+                workspace.id
+            );
+        this.policyAbilityDomain.authorize(
             EnumPolicyAction.update,
-            EnumPolicySubject.WorkspaceJoinRequest
+            subject(EnumPolicySubject.WorkspaceJoinRequest, joinRequest)
         );
         await this.workspaceJoinRequestDomain.rejectJoinRequest(
             workspace,
             reviewerId,
             workspaceJoinRequestId,
-            rejectReasonCode,
-            scopeWhere
+            rejectReasonCode
         );
     }
 }

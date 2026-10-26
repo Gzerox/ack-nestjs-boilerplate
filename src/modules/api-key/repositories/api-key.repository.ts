@@ -25,14 +25,11 @@ export class ApiKeyRepository implements IApiKeyRepository {
 
     private async updateScoped(
         id: string,
-        data: Prisma.ApiKeyUpdateManyMutationInput,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        data: Prisma.ApiKeyUpdateManyMutationInput
     ): Promise<ApiKey | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.apiKey.updateMany({
-                where: {
-                    AND: [additionalWhere, { id }],
-                },
+                where: { id },
                 data,
             });
             if (count === 0) {
@@ -94,63 +91,37 @@ export class ApiKeyRepository implements IApiKeyRepository {
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async findOneById(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null> {
+    async findOneById(id: string): Promise<ApiKey | null> {
         return this.databaseService.client.apiKey.findFirst({
-            where: {
-                AND: [additionalWhere, { id }],
-            },
+            where: { id },
         });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateStatus(
         id: string,
-        { isActive }: ApiKeyUpdateStatusRequestDto,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        { isActive }: ApiKeyUpdateStatusRequestDto
     ): Promise<ApiKey | null> {
-        return this.updateScoped(id, { isActive }, additionalWhere);
+        return this.updateScoped(id, { isActive });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async updateName(
-        id: string,
-        name: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null> {
-        return this.updateScoped(id, { name }, additionalWhere);
+    async updateName(id: string, name: string): Promise<ApiKey | null> {
+        return this.updateScoped(id, { name });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
     async updateDates(
         id: string,
-        { startAt, endAt }: ApiKeyUpdateDateRequestDto,
-        additionalWhere: Prisma.ApiKeyWhereInput
+        { startAt, endAt }: ApiKeyUpdateDateRequestDto
     ): Promise<ApiKey | null> {
-        return this.updateScoped(id, { startAt, endAt }, additionalWhere);
+        return this.updateScoped(id, { startAt, endAt });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async updateHash(
-        id: string,
-        hash: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null> {
-        return this.updateScoped(id, { hash }, additionalWhere);
+    async updateHash(id: string, hash: string): Promise<ApiKey | null> {
+        return this.updateScoped(id, { hash });
     }
 
-    /** Extra caller-supplied constraint, AND-composed first. */
-    async delete(
-        id: string,
-        additionalWhere: Prisma.ApiKeyWhereInput
-    ): Promise<ApiKey | null> {
+    async delete(id: string): Promise<ApiKey | null> {
         return this.databaseService.withTransaction(async tx => {
-            const where: Prisma.ApiKeyWhereInput = {
-                AND: [additionalWhere, { id }],
-            };
+            const where: Prisma.ApiKeyWhereInput = { id };
             const existing = await tx.apiKey.findFirst({ where });
             if (!existing) {
                 return null;

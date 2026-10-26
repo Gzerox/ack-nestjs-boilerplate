@@ -45,11 +45,10 @@ export const DocPolicyErrorResponses = {
 } as const;
 
 /**
- * Subjects that name no database model, so a rule on them carries no conditions.
+ * Subjects that reject stored conditions.
  * @public
  */
 export const PolicyNonModelSubjects: readonly EnumPolicySubject[] = [
     EnumPolicySubject.all,
     EnumPolicySubject.Analytic,
-    EnumPolicySubject.WorkspaceAnalytic,
 ];

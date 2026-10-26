@@ -209,7 +209,6 @@ describe('PolicyDomain', () => {
         it.each([
             [EnumRoleScope.platform, EnumPolicySubject.all],
             [EnumRoleScope.platform, EnumPolicySubject.Analytic],
-            [EnumRoleScope.workspace, EnumPolicySubject.WorkspaceAnalytic],
         ])(
             'rejects conditions on the %s non-model subject %s with conditionsNotAllowed',
             (scope, subject) => {
@@ -247,6 +246,16 @@ describe('PolicyDomain', () => {
                     }),
                 EnumPolicyInvalidRuleReason.roleScopeInvalid
             );
+        });
+
+        it('accepts a workspaceId condition on WorkspaceAnalytic', () => {
+            expect(() =>
+                service.validateRule(EnumRoleScope.workspace, {
+                    subject: EnumPolicySubject.WorkspaceAnalytic,
+                    action: [EnumPolicyAction.read],
+                    conditions: { workspaceId: '${workspaceId}' },
+                })
+            ).not.toThrow();
         });
 
         it('workspace scope accepts ProjectMember', () => {

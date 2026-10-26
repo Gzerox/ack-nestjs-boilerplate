@@ -126,8 +126,8 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.read,
                 EnumPolicyAction.update,
             ]),
-            workspaceRule(EnumPolicySubject.Project, [EnumPolicyAction.create]),
             workspaceRule(EnumPolicySubject.Project, [
+                EnumPolicyAction.create,
                 EnumPolicyAction.read,
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
@@ -138,7 +138,9 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
             ]),
-            rule(EnumPolicySubject.WorkspaceAnalytic, [EnumPolicyAction.read]),
+            workspaceRule(EnumPolicySubject.WorkspaceAnalytic, [
+                EnumPolicyAction.read,
+            ]),
         ],
     },
     {
@@ -161,8 +163,8 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.read,
                 EnumPolicyAction.update,
             ]),
-            workspaceRule(EnumPolicySubject.Project, [EnumPolicyAction.create]),
             workspaceRule(EnumPolicySubject.Project, [
+                EnumPolicyAction.create,
                 EnumPolicyAction.read,
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
@@ -173,7 +175,9 @@ const PolicyData: IMigrationPolicyData[] = [
                 EnumPolicyAction.update,
                 EnumPolicyAction.delete,
             ]),
-            rule(EnumPolicySubject.WorkspaceAnalytic, [EnumPolicyAction.read]),
+            workspaceRule(EnumPolicySubject.WorkspaceAnalytic, [
+                EnumPolicyAction.read,
+            ]),
         ],
     },
     {

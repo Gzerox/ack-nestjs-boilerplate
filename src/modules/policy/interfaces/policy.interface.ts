@@ -39,13 +39,15 @@ export interface IEffectivePermission<
 
 export type PolicyModelSubject = Extract<EnumPolicySubject, Prisma.ModelName>;
 
-type PolicyModelRecordMap = {
+type PolicyRecordMap = {
     [TSubject in PolicyModelSubject]: Partial<
         Prisma.TypeMap['model'][TSubject]['payload']['scalars']
     >;
+} & {
+    WorkspaceAnalytic: { workspaceId?: string };
 };
 
-type PolicyModelAbilitySubject = Subjects<PolicyModelRecordMap>;
+type PolicyRecordAbilitySubject = Subjects<PolicyRecordMap>;
 
 export type PolicyWhereInput<TSubject extends PolicyModelSubject> =
     WhereInputOf<Prisma.TypeMap, TSubject>;
@@ -55,7 +57,7 @@ export type PolicyAbilitySubject<
 > =
     | TSubject
     | Extract<
-          PolicyModelAbilitySubject,
+          PolicyRecordAbilitySubject,
           { readonly __caslSubjectType__: TSubject }
       >;
 

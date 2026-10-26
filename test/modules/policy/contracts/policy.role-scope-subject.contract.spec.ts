@@ -57,11 +57,7 @@ describe('PolicyRoleScopeSubjectContract', () => {
 
     it('names the non-model subjects', () => {
         expect([...PolicyNonModelSubjects].sort()).toEqual(
-            [
-                EnumPolicySubject.all,
-                EnumPolicySubject.Analytic,
-                EnumPolicySubject.WorkspaceAnalytic,
-            ].sort()
+            [EnumPolicySubject.all, EnumPolicySubject.Analytic].sort()
         );
     });
 });

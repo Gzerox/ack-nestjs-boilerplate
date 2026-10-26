@@ -26,12 +26,12 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findActiveById(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         return this.databaseService.client.workspace.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     { id: workspaceId },
                     WorkspaceActiveFilter,
                 ],
@@ -52,10 +52,10 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdForAdmin(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         return this.databaseService.client.workspace.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+            where: { AND: [additionalWhere, { id: workspaceId }] },
         });
     }
 
@@ -104,8 +104,8 @@ export class WorkspaceRepository implements IWorkspaceRepository {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.WorkspaceWhereInput>,
-        isPublic?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        isPublic: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<IResponsePaginationReturn<Workspace>> {
         return this.paginationService.offset<
             Workspace,
@@ -113,7 +113,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         >(this.databaseService.client.workspace, {
             ...others,
             where: {
-                AND: [additionalWhere ?? {}, filters ?? {}, { ...isPublic }],
+                AND: [additionalWhere, filters ?? {}, { ...isPublic }],
             },
         });
     }
@@ -142,11 +142,11 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     async updateDetails(
         workspaceId: string,
         { name, description }: WorkspaceUpdateRequestDto,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                where: { AND: [additionalWhere, { id: workspaceId }] },
                 data: {
                     name,
                     description,
@@ -166,11 +166,11 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     async updateIsPublic(
         workspaceId: string,
         isPublic: boolean,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                where: { AND: [additionalWhere, { id: workspaceId }] },
                 data: {
                     isPublic,
                 },
@@ -189,11 +189,11 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     async updateSlug(
         workspaceId: string,
         slug: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspace.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id: workspaceId }] },
+                where: { AND: [additionalWhere, { id: workspaceId }] },
                 data: {
                     slug,
                 },
@@ -214,12 +214,12 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         workspaceId: string,
         deletedAt: Date,
         deletedBy: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null> {
         const { count } = await tx.workspace.updateMany({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     { id: workspaceId },
                     WorkspaceActiveFilter,
                 ],

@@ -78,7 +78,7 @@ export class ProjectMemberDomain {
     async getOneByIdAndProject(
         projectId: string,
         projectMemberId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole> {
         const target = await this.projectMemberRepository.findByIdAndProject(
             projectMemberId,
@@ -96,7 +96,7 @@ export class ProjectMemberDomain {
     async getMembersList(
         project: Project,
         pagination: IPaginationQueryCursorParams<Prisma.ProjectMemberWhereInput>,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IResponsePaginationReturn<IProjectMember>> {
         return this.projectMemberRepository.findWithPaginationCursor(
             project.id,
@@ -182,7 +182,7 @@ export class ProjectMemberDomain {
         actorId: string,
         targetMember: IProjectMemberWithRole,
         roleId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<void> {
         const role = await this.roleDomain.resolve(
             roleId,
@@ -232,7 +232,7 @@ export class ProjectMemberDomain {
         project: Project,
         actorId: string,
         targetMember: IProjectMemberWithRole,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<void> {
         if (targetMember.userId === actorId) {
             throw new ProjectMemberPeerForbiddenException();
@@ -290,7 +290,7 @@ export class ProjectMemberDomain {
             }),
         ];
 
-        await this.projectMemberRepository.removeMember(member.id);
+        await this.projectMemberRepository.removeMember(member.id, {});
 
         this.activityLogDomain.stagePrepared(events);
     }

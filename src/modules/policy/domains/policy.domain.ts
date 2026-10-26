@@ -10,7 +10,7 @@ import type { PolicyCreateRequestDto } from '@modules/policy/dtos/request/policy
 import type { PolicyUpdateRequestDto } from '@modules/policy/dtos/request/policy.update.request.dto';
 import { PolicyCache } from '@modules/policy/caches/policy.cache';
 import type {
-    IPolicyRoleReference,
+    IPolicyRoleRevision,
     IPolicyRule,
 } from '@modules/policy/interfaces/policy.interface';
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
@@ -90,16 +90,16 @@ export class PolicyDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findManyByRole(
         roleId: string,
-        additionalWhere?: Prisma.PolicyWhereInput
+        additionalWhere: Prisma.PolicyWhereInput
     ): Promise<Policy[]> {
         return this.policyRepository.findManyByRoleId(roleId, additionalWhere);
     }
 
-    /** Returns the raw policy rows of every referenced role revision, read through the policy cache. Takes no ability. */
-    async findManyByRoleReferences(
-        references: IPolicyRoleReference[]
+    /** Returns the raw policy rows of every role revision, read through the policy cache. Takes no ability. */
+    async findManyByRoleRevisions(
+        roleRevisions: IPolicyRoleRevision[]
     ): Promise<IPolicyRule[]> {
-        return this.policyCache.getByRoleReferences(references);
+        return this.policyCache.getByRoleRevisions(roleRevisions);
     }
 
     async createByAdmin(

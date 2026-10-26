@@ -32,7 +32,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         return this.paginationService.offset<
             IActivityLog,
@@ -40,7 +40,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         >(this.databaseService.client.activityLog, {
             ...params,
             where: {
-                AND: [additionalWhere ?? {}, where ?? {}, scope],
+                AND: [additionalWhere, where ?? {}, scope],
             },
             include: {
                 user: {
@@ -57,7 +57,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
             where,
             ...params
         }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IPaginationCursorReturn<IActivityLog>> {
         return this.paginationService.cursor<
             IActivityLog,
@@ -65,7 +65,7 @@ export class ActivityLogRepository implements IActivityLogRepository {
         >(this.databaseService.client.activityLog, {
             ...params,
             where: {
-                AND: [additionalWhere ?? {}, where ?? {}, scope],
+                AND: [additionalWhere, where ?? {}, scope],
             },
             include: {
                 user: {

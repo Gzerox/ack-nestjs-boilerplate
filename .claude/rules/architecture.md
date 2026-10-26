@@ -30,16 +30,16 @@ its definition (`rules/nest-wiring.md`).
 - **A multi-step write on this repository's own model may open a transaction here** through `this.databaseService.withTransaction` (`rules/database.md`). A write that also touches another repository's model is not opened here; the domain composes those repositories inside `this.databaseService.withTransaction`.
 - **A repository never injects or calls another repository.** Same-feature siblings are composed by the domain.
 - **No CASL below the HTTP service.** A repository imports nothing from `@casl/*` and nothing of the policy module's ability types (`PolicyWhereInput`, `PolicyAbility`, `PolicyAbilitySubject`, `PolicyModelSubject`, `PolicyAbilityRule`).
-- **The extra filter is `additionalWhere?: Prisma.<Model>WhereInput`** — optional, trailing (`rules/null-safety.md`), model-typed, with the JSDoc line "Extra caller-supplied constraint, AND-composed first." It is a neutral caller constraint: the repository does not know where it came from and never requires, validates, inspects or branches on it.
-  - The method composes `AND: [additionalWhere ?? {}, …business filters]`, the extra constraint first.
-  - Every method behaves identically with `additionalWhere` absent: same business filters, same result shape, and a lookup `null` or a mutation `count === 0` lets the caller raise its not-found.
+- **The extra filter is `additionalWhere: Prisma.<Model>WhereInput`** — required, trailing (`rules/null-safety.md`), model-typed, with the JSDoc line "Extra caller-supplied constraint, AND-composed first." It is a neutral caller constraint: the repository does not know where it came from and never validates, inspects or branches on it.
+  - The method composes `AND: [additionalWhere, …business filters]`, the extra constraint first.
+  - A caller that means no extra constraint passes `{}`. That object matches every row, so the method keeps the same business filters and the same result shape. A lookup `null` or a mutation `count === 0` lets the caller raise its not-found.
   - A single-row update or delete the extra constraint can narrow is `updateMany` / `deleteMany` (or the live-filtered soft delete) followed by a re-read on `count > 0`; on `count === 0` the method returns `null`.
 - **It is the persistence port.** The class `implements I<Feature>[<Concern>]Repository` at
   `interfaces/<module>.[<concern>-]repository.interface.ts`. The interface file and the
   class file are separate (`rules/naming.md`). Callers inject the class (`UserRepository`);
   Nest cannot inject an interface without a token. Domain and HTTP see `string` IDs
   throughout — the Prisma `@db.Uuid` column uses the same representation, so there is no
-  id-dialect mapping to own. A Prisma filter shape crosses this port only as the optional `additionalWhere`
+  id-dialect mapping to own. A Prisma filter shape crosses this port only as the required `additionalWhere`
   below; a domain never builds one. Public repository methods return named `I*` shapes, Prisma models, or
   primitives — not `unknown` or `Record<string, unknown>` (`rules/null-safety.md`).
 
@@ -52,7 +52,7 @@ its definition (`rules/nest-wiring.md`).
 - Injects the repositories of its OWN feature as classes — **one or many, or none**. A domain whose work is pure rule validation reads no state and injects nothing; it still belongs here, because a rejection that RAISES is domain work wherever it rests (`rules/exceptions.md`). Another feature's data comes from that feature's domain, never from its repository (`rules/cross-module.md`). Injects other domains, utils and queue classes by the tier table below.
 - **Injects `DatabaseService` only to call `withTransaction`.** It never issues a model query on `client`. Feature data access still goes through a repository. This is the single hardest rule in the file.
 - **Opens a transaction when the work spans more than one repository.** It calls `this.databaseService.withTransaction` and passes the `tx` into each `*InTx` repository or domain method (`rules/database.md`). A single-repository write does not open one here.
-- **No CASL in a feature domain.** A domain imports nothing from `@casl/*` and none of the policy module's ability types, and it never calls `PolicyAbilityDomain` (`rules/security.md`). A domain method that supports caller narrowing takes a trailing `additionalWhere?: Prisma.<Model>WhereInput`, forwards it to the repository unchanged, and raises its not-found exception when the repository answers `null`. It works identically when `additionalWhere` is absent, which is how processors, seeds, `/system` routes and other trusted callers call it.
+- **No CASL in a feature domain.** A domain imports nothing from `@casl/*` and none of the policy module's ability types, and it never calls `PolicyAbilityDomain` (`rules/security.md`). A domain method that supports caller narrowing takes a trailing `additionalWhere: Prisma.<Model>WhereInput`, forwards it to the repository unchanged, and raises its not-found exception when the repository answers `null`. A trusted caller that means no extra constraint passes `{}`.
 - Provided by `<feature>.domain.module.ts`, and it is the only layer another feature's domain, HTTP, or processor module ever consumes.
 
 ## HTTP service — `<module>[.<concern>].http.service.ts`

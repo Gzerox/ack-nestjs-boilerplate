@@ -129,7 +129,7 @@ export class FeatureFlagDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.FeatureFlagWhereInput>,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<IResponsePaginationReturn<FeatureFlag>> {
         return this.featureFlagRepository.findWithPaginationOffsetByAdmin(
             pagination,
@@ -149,7 +149,7 @@ export class FeatureFlagDomain {
      */
     async getOne(
         id: string,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag> {
         const featureFlag = await this.featureFlagRepository.findOneById(
             id,
@@ -166,7 +166,7 @@ export class FeatureFlagDomain {
     async updateStatusByAdmin(
         id: string,
         data: IFeatureFlagUpdateStatus,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag> {
         const featureFlag = await this.featureFlagRepository.findOneById(
             id,
@@ -194,7 +194,7 @@ export class FeatureFlagDomain {
     async updateMetadataByAdmin(
         id: string,
         data: IFeatureFlagUpdateMetadata,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag> {
         const featureFlag = await this.featureFlagRepository.findOneById(
             id,

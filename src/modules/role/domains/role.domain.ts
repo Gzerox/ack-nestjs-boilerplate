@@ -56,8 +56,8 @@ export class RoleDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListOffsetByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.RoleWhereInput>,
-        scope?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.RoleWhereInput
+        scope: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IResponsePaginationReturn<IRoleWithPolicyCount>> {
         return this.roleRepository.findWithPaginationOffsetByAdmin(
             pagination,
@@ -87,7 +87,7 @@ export class RoleDomain {
     }
 
     async getById(roleId: string): Promise<IRole | null> {
-        return this.roleRepository.findOneById(roleId);
+        return this.roleRepository.findOneById(roleId, {});
     }
 
     async getByIds(roleIds: string[]): Promise<IRole[]> {
@@ -129,7 +129,7 @@ export class RoleDomain {
         roleId: string,
         expectedScope: EnumRoleScope
     ): Promise<IRole> {
-        const role = await this.roleRepository.findOneById(roleId);
+        const role = await this.roleRepository.findOneById(roleId, {});
         if (!role) {
             throw new RoleNotFoundException();
         }
@@ -157,7 +157,7 @@ export class RoleDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getOne(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies> {
         const role = await this.roleRepository.findOneWithPoliciesById(
             id,
@@ -174,7 +174,7 @@ export class RoleDomain {
     async updateByAdmin(
         id: string,
         { name, description }: IRoleUpdate,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies> {
         const role = await this.roleRepository.findOneById(id, additionalWhere);
         if (!role) {
@@ -249,7 +249,7 @@ export class RoleDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async deleteByAdmin(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<void> {
         const [role, isUsed] = await Promise.all([
             this.roleRepository.findOneById(id, additionalWhere),

@@ -15,13 +15,13 @@ export interface IWorkspaceRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findActiveById(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
     findActivePublicBySlug(slug: string): Promise<Workspace | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findByIdForAdmin(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
     existsBySlug(slug: string, excludeWorkspaceId?: string): Promise<boolean>;
     findWithPaginationCursorByMember(
@@ -34,8 +34,8 @@ export interface IWorkspaceRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetForAdmin(
         params: IPaginationQueryOffsetParams<Prisma.WorkspaceWhereInput>,
-        isPublic?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        isPublic: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<IResponsePaginationReturn<Workspace>>;
     createInTx(
         tx: IDatabaseTransactionClient,
@@ -48,19 +48,19 @@ export interface IWorkspaceRepository {
     updateDetails(
         workspaceId: string,
         { name, description }: WorkspaceUpdateRequestDto,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateIsPublic(
         workspaceId: string,
         isPublic: boolean,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateSlug(
         workspaceId: string,
         slug: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     softDeleteInTx(
@@ -68,6 +68,6 @@ export interface IWorkspaceRepository {
         workspaceId: string,
         deletedAt: Date,
         deletedBy: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace | null>;
 }

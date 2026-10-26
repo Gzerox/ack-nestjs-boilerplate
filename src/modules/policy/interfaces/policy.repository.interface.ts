@@ -8,7 +8,7 @@ export interface IPolicyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findManyByRoleId(
         roleId: string,
-        additionalWhere?: Prisma.PolicyWhereInput
+        additionalWhere: Prisma.PolicyWhereInput
     ): Promise<Policy[]>;
     findManyByRoleIds(roleIds: string[]): Promise<IPolicyRuleWithRole[]>;
     findOneByRoleIdAndId(roleId: string, id: string): Promise<Policy | null>;

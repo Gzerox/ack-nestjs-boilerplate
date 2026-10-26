@@ -127,11 +127,11 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
         deviceOwnershipId: string,
         removedBy: string,
         now: Date,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<IDeviceOwnership | null> {
         const { count } = await tx.deviceOwnership.updateMany({
             where: {
-                AND: [additionalWhere ?? {}, { id: deviceOwnershipId, userId }],
+                AND: [additionalWhere, { id: deviceOwnershipId, userId }],
             },
             data: {
                 isRevoked: true,
@@ -194,8 +194,8 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        isRevoked: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<IResponsePaginationReturn<IDeviceOwnership>> {
         const today = this.helperDateService.create();
 
@@ -206,7 +206,7 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...isRevoked,
@@ -312,12 +312,12 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
     async findOneActive(
         userId: string,
         deviceOwnershipId: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<DeviceOwnership | null> {
         return this.databaseService.client.deviceOwnership.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         id: deviceOwnershipId,
                         userId,
@@ -332,12 +332,12 @@ export class DeviceOwnershipRepository implements IDeviceOwnershipRepository {
     async existsActive(
         userId: string,
         deviceOwnershipId: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<boolean> {
         const count = await this.databaseService.client.deviceOwnership.count({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         id: deviceOwnershipId,
                         userId,

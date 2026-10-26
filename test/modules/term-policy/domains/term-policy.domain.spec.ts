@@ -108,10 +108,10 @@ describe('TermPolicyDomain', () => {
         it('returns the stored policy without judging it', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(draft);
 
-            await expect(service.getOne(draft.id)).resolves.toEqual(draft);
+            await expect(service.getOne(draft.id, {})).resolves.toEqual(draft);
             expect(termPolicyRepository.findOneById).toHaveBeenCalledWith(
                 draft.id,
-                undefined
+                {}
             );
         });
 
@@ -126,7 +126,7 @@ describe('TermPolicyDomain', () => {
             );
         });
 
-        it.each([additionalWhere, undefined])(
+        it.each([additionalWhere, {}])(
             'throws TermPolicyNotFoundException when the policy is unknown (additionalWhere %j)',
             async extra => {
                 termPolicyRepository.findOneById.mockResolvedValue(null);
@@ -142,7 +142,7 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(null);
 
         await expect(
-            service.publishByAdmin('missing', 'admin-id')
+            service.publishByAdmin('missing', 'admin-id', {})
         ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
     });
 
@@ -153,7 +153,7 @@ describe('TermPolicyDomain', () => {
         });
 
         await expect(
-            service.publishByAdmin(draft.id, 'admin-id')
+            service.publishByAdmin(draft.id, 'admin-id', {})
         ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
     });
 
@@ -164,7 +164,7 @@ describe('TermPolicyDomain', () => {
         });
 
         await expect(
-            service.publishByAdmin(draft.id, 'admin-id')
+            service.publishByAdmin(draft.id, 'admin-id', {})
         ).rejects.toBeInstanceOf(TermPolicyContentEmptyException);
     });
 
@@ -194,13 +194,13 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.publishInTx.mockResolvedValue(published);
 
         await expect(
-            service.publishByAdmin(draft.id, 'admin-id')
+            service.publishByAdmin(draft.id, 'admin-id', {})
         ).resolves.toBeUndefined();
         expect(termPolicyRepository.publishInTx).toHaveBeenCalledWith(
             expect.anything(),
             draft.id,
             [{ ...publicItem, language: EnumMessageLanguage.en }],
-            undefined
+            {}
         );
         expect(awsS3Service.copyItems).toHaveBeenCalledWith(
             draft.contents,
@@ -244,7 +244,7 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.findPublished.mockResolvedValue(result);
 
         await expect(
-            service.getListByAdmin(pagination, filter, status)
+            service.getListByAdmin(pagination, filter, status, {})
         ).resolves.toBe(result);
         await expect(
             service.getListPublished(pagination, filter)
@@ -253,7 +253,7 @@ describe('TermPolicyDomain', () => {
             pagination,
             filter,
             status,
-            undefined
+            {}
         );
     });
 
@@ -370,9 +370,9 @@ describe('TermPolicyDomain', () => {
     it('rejects deleting an unknown policy', async () => {
         termPolicyRepository.findOneById.mockResolvedValue(null);
 
-        await expect(service.deleteByAdmin('missing')).rejects.toBeInstanceOf(
-            TermPolicyNotFoundException
-        );
+        await expect(
+            service.deleteByAdmin('missing', {})
+        ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
     });
 
     it('rejects deleting a published policy', async () => {
@@ -381,9 +381,9 @@ describe('TermPolicyDomain', () => {
             status: EnumTermPolicyStatus.published,
         });
 
-        await expect(service.deleteByAdmin(draft.id)).rejects.toBeInstanceOf(
-            TermPolicyStatusInvalidException
-        );
+        await expect(
+            service.deleteByAdmin(draft.id, {})
+        ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
     });
 
     it('deletes a draft and its private content', async () => {
@@ -391,11 +391,8 @@ describe('TermPolicyDomain', () => {
         termPolicyUtil.getPath.mockReturnValue('private/privacy/1');
         termPolicyRepository.delete.mockResolvedValue(draft);
 
-        await expect(service.deleteByAdmin(draft.id)).resolves.toBe(draft);
-        expect(termPolicyRepository.delete).toHaveBeenCalledWith(
-            draft.id,
-            undefined
-        );
+        await expect(service.deleteByAdmin(draft.id, {})).resolves.toBe(draft);
+        expect(termPolicyRepository.delete).toHaveBeenCalledWith(draft.id, {});
         expect(awsS3Service.deleteDir).toHaveBeenCalledWith(
             'private/privacy/1',
             { access: EnumAwsS3Accessibility.private }
@@ -416,9 +413,9 @@ describe('TermPolicyDomain', () => {
             throw error;
         });
 
-        await expect(service.deleteByAdmin(draft.id)).rejects.toBeInstanceOf(
-            expected
-        );
+        await expect(
+            service.deleteByAdmin(draft.id, {})
+        ).rejects.toBeInstanceOf(expected);
     });
 
     it.each([
@@ -435,7 +432,7 @@ describe('TermPolicyDomain', () => {
         });
 
         await expect(
-            service.publishByAdmin(draft.id, 'admin-id')
+            service.publishByAdmin(draft.id, 'admin-id', {})
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -461,7 +458,7 @@ describe('TermPolicyDomain', () => {
             );
         });
 
-        it.each([additionalWhere, undefined])(
+        it.each([additionalWhere, {}])(
             'deleteByAdmin throws TermPolicyNotFoundException when the read returns null (additionalWhere %j)',
             async extra => {
                 termPolicyRepository.findOneById.mockResolvedValue(null);
@@ -524,7 +521,7 @@ describe('TermPolicyDomain', () => {
             );
         });
 
-        it.each([additionalWhere, undefined])(
+        it.each([additionalWhere, {}])(
             'publishByAdmin throws TermPolicyNotFoundException when the read returns null (additionalWhere %j)',
             async extra => {
                 termPolicyRepository.findOneById.mockResolvedValue(null);

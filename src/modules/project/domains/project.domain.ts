@@ -121,7 +121,8 @@ export class ProjectDomain {
 
         const project = await this.projectRepository.findActiveByIdAndWorkspace(
             projectId,
-            workspaceId
+            workspaceId,
+            {}
         );
         if (!project) {
             throw new ProjectNotFoundException();
@@ -134,7 +135,7 @@ export class ProjectDomain {
     async getActiveByIdAndWorkspace(
         projectId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.projectRepository.findActiveByIdAndWorkspace(
             projectId,
@@ -147,7 +148,7 @@ export class ProjectDomain {
     async getCurrentProject(
         projectId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project> {
         const project = await this.getActiveByIdAndWorkspace(
             projectId,
@@ -168,7 +169,7 @@ export class ProjectDomain {
     async getListForMember(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.projectRepository.findWithPaginationCursorForWorkspace(
             workspaceId,
@@ -237,7 +238,7 @@ export class ProjectDomain {
         project: Project,
         actorId: string,
         update: IProjectUpdate,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project> {
         const events = [
             this.activityLogDomain.prepare({
@@ -267,7 +268,7 @@ export class ProjectDomain {
         project: Project,
         actorId: string,
         slug: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project> {
         this.assertSlugAllowed(slug);
 
@@ -321,7 +322,7 @@ export class ProjectDomain {
     async softDeleteProject(
         project: Project,
         actorId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<void> {
         const events = [
             this.activityLogDomain.prepare({
@@ -363,8 +364,8 @@ export class ProjectDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListForAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.ProjectWhereInput>,
-        workspaceId?: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        workspaceId: string | undefined,
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.projectRepository.findWithPaginationOffsetForAdmin(
             pagination,
@@ -376,7 +377,7 @@ export class ProjectDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getByIdForAdmin(
         projectId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project> {
         const project = await this.projectRepository.findByIdForAdmin(
             projectId,

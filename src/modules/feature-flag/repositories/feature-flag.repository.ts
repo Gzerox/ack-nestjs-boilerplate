@@ -23,12 +23,12 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
     private async updateScoped(
         id: string,
         data: Prisma.FeatureFlagUpdateManyMutationInput,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null> {
         const { count } =
             await this.databaseService.client.featureFlag.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id }],
+                    AND: [additionalWhere, { id }],
                 },
                 data,
             });
@@ -47,7 +47,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.FeatureFlagWhereInput>,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<IResponsePaginationReturn<FeatureFlag>> {
         return this.paginationService.offset<
             FeatureFlag,
@@ -55,7 +55,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
         >(this.databaseService.client.featureFlag, {
             ...others,
             where: {
-                AND: [additionalWhere ?? {}, where ?? {}],
+                AND: [additionalWhere, where ?? {}],
             },
         });
     }
@@ -85,11 +85,11 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneById(
         id: string,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null> {
         return this.databaseService.client.featureFlag.findFirst({
             where: {
-                AND: [additionalWhere ?? {}, { id }],
+                AND: [additionalWhere, { id }],
             },
         });
     }
@@ -98,7 +98,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
     async updateStatus(
         id: string,
         { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null> {
         return this.updateScoped(
             id,
@@ -111,7 +111,7 @@ export class FeatureFlagRepository implements IFeatureFlagRepository {
     async updateMetadata(
         id: string,
         { metadata }: FeatureFlagUpdateMetadataRequestDto,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null> {
         return this.updateScoped(id, { metadata }, additionalWhere);
     }

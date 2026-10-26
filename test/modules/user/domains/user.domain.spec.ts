@@ -329,7 +329,13 @@ describe('UserDomain', () => {
             scopeWhere
         );
 
-        await service.getListOffsetByAdmin(pagination);
+        await service.getListOffsetByAdmin(
+            pagination,
+            undefined,
+            undefined,
+            undefined,
+            {}
+        );
         expect(
             userRepository.findWithPaginationOffset
         ).toHaveBeenLastCalledWith(
@@ -337,7 +343,7 @@ describe('UserDomain', () => {
             undefined,
             undefined,
             undefined,
-            undefined
+            {}
         );
     });
 
@@ -360,7 +366,13 @@ describe('UserDomain', () => {
         userRepository.resetPasswordAttempt.mockResolvedValue(userRow);
 
         await expect(
-            service.getListOffsetByAdmin(pagination, status, roleId, countryId)
+            service.getListOffsetByAdmin(
+                pagination,
+                status,
+                roleId,
+                countryId,
+                {}
+            )
         ).resolves.toBe(page);
         await expect(service.getOneActive(userRow.id)).resolves.toBe(userRow);
         await expect(service.getOneActiveByEmail(userRow.email)).resolves.toBe(
@@ -368,7 +380,7 @@ describe('UserDomain', () => {
         );
         await expect(service.getNameById(userRow.id)).resolves.toBe(inviter);
         await expect(service.getListActive()).resolves.toEqual([contact]);
-        await expect(service.getOne(userRow.id)).resolves.toBe(profile);
+        await expect(service.getOne(userRow.id, {})).resolves.toBe(profile);
         await expect(service.increasePasswordAttempt(userRow.id)).resolves.toBe(
             userRow
         );
@@ -399,7 +411,8 @@ describe('UserDomain', () => {
                 transactionClient,
                 userRow.id,
                 password,
-                userRow.id
+                userRow.id,
+                {}
             )
         ).resolves.toBe(userRow);
         await expect(
@@ -418,7 +431,7 @@ describe('UserDomain', () => {
     it('rejects an unknown user profile', async () => {
         userRepository.findOneProfileById.mockResolvedValue(null);
 
-        await expect(service.getOne('missing')).rejects.toBeInstanceOf(
+        await expect(service.getOne('missing', {})).rejects.toBeInstanceOf(
             UserNotFoundException
         );
     });
@@ -439,14 +452,14 @@ describe('UserDomain', () => {
             );
         });
 
-        it('without additionalWhere reads by id only', async () => {
+        it('reads by id only', async () => {
             const profile = mock<IUserProfile>();
             userRepository.findOneProfileById.mockResolvedValue(profile);
 
-            await expect(service.getOne('user-1')).resolves.toBe(profile);
+            await expect(service.getOne('user-1', {})).resolves.toBe(profile);
             expect(userRepository.findOneProfileById).toHaveBeenCalledWith(
                 'user-1',
-                undefined
+                {}
             );
         });
 
@@ -604,7 +617,8 @@ describe('UserDomain', () => {
             await service.updateStatusByAdmin(
                 userRow.id,
                 EnumUserStatus.active,
-                'admin-id'
+                'admin-id',
+                {}
             );
 
             expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
@@ -626,7 +640,8 @@ describe('UserDomain', () => {
                 await service.updateStatusByAdmin(
                     userRow.id,
                     status,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 );
 
                 expect(sessionDomain.finalizeRevokeAll).toHaveBeenCalledWith(
@@ -658,22 +673,23 @@ describe('UserDomain', () => {
             );
         });
 
-        it('without additionalWhere calls the read and the write with undefined', async () => {
+        it('calls the read and the write with an empty where', async () => {
             await service.updateStatusByAdmin(
                 userRow.id,
                 EnumUserStatus.active,
-                'admin-id'
+                'admin-id',
+                {}
             );
 
             expect(userRepository.findOneById).toHaveBeenCalledWith(
                 userRow.id,
-                undefined
+                {}
             );
             expect(userRepository.updateStatusByAdminInTx).toHaveBeenCalledWith(
                 expect.any(Object),
                 userRow.id,
                 { status: EnumUserStatus.active },
-                undefined
+                {}
             );
         });
 
@@ -716,7 +732,8 @@ describe('UserDomain', () => {
                 service.updateStatusByAdmin(
                     userRow.id,
                     EnumUserStatus.inactive,
-                    userRow.id
+                    userRow.id,
+                    {}
                 )
             ).rejects.toBeInstanceOf(UserNotSelfException);
         });
@@ -728,7 +745,8 @@ describe('UserDomain', () => {
                 service.updateStatusByAdmin(
                     userRow.id,
                     EnumUserStatus.inactive,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
@@ -743,7 +761,8 @@ describe('UserDomain', () => {
                 service.updateStatusByAdmin(
                     userRow.id,
                     EnumUserStatus.active,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(UserBlockedInvalidException);
         });
@@ -757,7 +776,8 @@ describe('UserDomain', () => {
                 service.updateStatusByAdmin(
                     userRow.id,
                     EnumUserStatus.active,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
@@ -771,7 +791,8 @@ describe('UserDomain', () => {
                 service.updateStatusByAdmin(
                     userRow.id,
                     EnumUserStatus.active,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(AppUnknownException);
         });
@@ -799,13 +820,14 @@ describe('UserDomain', () => {
             );
         });
 
-        it('without additionalWhere calls the write with undefined and returns the same row', async () => {
+        it('calls the write with an empty where and returns the same row', async () => {
             await expect(
                 service.updatePasswordInTx(
                     transactionClient,
                     userRow.id,
                     password,
-                    'admin-id'
+                    'admin-id',
+                    {}
                 )
             ).resolves.toBe(userRow);
             expect(userRepository.updatePasswordInTx).toHaveBeenCalledWith(
@@ -813,11 +835,11 @@ describe('UserDomain', () => {
                 userRow.id,
                 password,
                 'admin-id',
-                undefined
+                {}
             );
         });
 
-        it.each([{ id: userRow.id }, undefined])(
+        it.each([{ id: userRow.id }, {}])(
             'throws UserNotFoundException when the write returns null (additionalWhere %j)',
             async additionalWhere => {
                 userRepository.updatePasswordInTx.mockResolvedValue(null);

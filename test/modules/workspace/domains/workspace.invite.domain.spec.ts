@@ -320,15 +320,10 @@ describe('WorkspaceInviteDomain', () => {
             scopeWhere
         );
 
-        await domain.getInvitesList(workspace.id, pagination);
+        await domain.getInvitesList(workspace.id, pagination, undefined, {});
         expect(
             inviteRepository.findWithPaginationCursor
-        ).toHaveBeenLastCalledWith(
-            workspace.id,
-            pagination,
-            undefined,
-            undefined
-        );
+        ).toHaveBeenLastCalledWith(workspace.id, pagination, undefined, {});
     });
 
     it('expires stale invitations through the repository with no additionalWhere', async () => {
@@ -345,9 +340,14 @@ describe('WorkspaceInviteDomain', () => {
         inviteRepository.findWithPaginationCursor.mockResolvedValue(result);
         await expect(domain.expireStalePending()).resolves.toBe(3);
         await expect(
-            domain.getInvitesList(workspace.id, pagination, {
-                status: { in: [EnumWorkspaceInviteStatus.pending] },
-            } as never)
+            domain.getInvitesList(
+                workspace.id,
+                pagination,
+                {
+                    status: { in: [EnumWorkspaceInviteStatus.pending] },
+                } as never,
+                {}
+            )
         ).resolves.toBe(result);
     });
 
@@ -514,7 +514,7 @@ describe('WorkspaceInviteDomain', () => {
     ])('rejects resending an unavailable invite', async (row, expected) => {
         inviteRepository.findByIdAndWorkspace.mockResolvedValue(row);
         await expect(
-            domain.resendInvite(workspace, 'actor-id', invite.id)
+            domain.resendInvite(workspace, 'actor-id', invite.id, undefined, {})
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -530,7 +530,8 @@ describe('WorkspaceInviteDomain', () => {
                 workspace,
                 'actor-id',
                 invite.id,
-                EnumWorkspaceInviteExpiry.threeDays
+                EnumWorkspaceInviteExpiry.threeDays,
+                {}
             )
         ).resolves.toBe(invite);
         expect(dateService.forward).toHaveBeenCalledWith(
@@ -576,28 +577,34 @@ describe('WorkspaceInviteDomain', () => {
             );
         });
 
-        it('without additionalWhere calls the repository with undefined and returns the same result', async () => {
+        it('calls the repository with an empty where and returns the same result', async () => {
             inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
             userDomain.getOneActiveByEmail.mockResolvedValue(null);
 
             await expect(
-                domain.resendInvite(workspace, 'actor-id', invite.id)
+                domain.resendInvite(
+                    workspace,
+                    'actor-id',
+                    invite.id,
+                    undefined,
+                    {}
+                )
             ).resolves.toBe(invite);
             expect(inviteRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
                 invite.id,
                 workspace.id,
-                undefined
+                {}
             );
             expect(inviteRepository.rotateForResend).toHaveBeenCalledWith(
                 invite.id,
                 'hashed-token',
                 'INV-REF',
                 expiredAt,
-                undefined
+                {}
             );
         });
 
-        it.each([additionalWhere, undefined])(
+        it.each([additionalWhere, {}])(
             'throws WorkspaceInviteNotFoundException and sends nothing when rotateForResend returns null (additionalWhere: %j)',
             async scoped => {
                 inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
@@ -632,7 +639,7 @@ describe('WorkspaceInviteDomain', () => {
     ])('rejects revoking an unavailable invite', async (row, expected) => {
         inviteRepository.findByIdAndWorkspace.mockResolvedValue(row);
         await expect(
-            domain.revokeInvite(workspace.id, 'actor-id', invite.id)
+            domain.revokeInvite(workspace.id, 'actor-id', invite.id, {})
         ).rejects.toBeInstanceOf(expected);
     });
 
@@ -646,12 +653,9 @@ describe('WorkspaceInviteDomain', () => {
             inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);
             inviteRepository.revoke.mockResolvedValue(invite);
             userDomain.getOneActiveByEmail.mockResolvedValue(user);
-            await domain.revokeInvite(workspace.id, actorId, invite.id);
+            await domain.revokeInvite(workspace.id, actorId, invite.id, {});
             expect(activityLogDomain.prepare).toHaveBeenCalledTimes(count);
-            expect(inviteRepository.revoke).toHaveBeenCalledWith(
-                invite.id,
-                undefined
-            );
+            expect(inviteRepository.revoke).toHaveBeenCalledWith(invite.id, {});
         }
     );
 
@@ -684,7 +688,7 @@ describe('WorkspaceInviteDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it.each([additionalWhere, undefined])(
+        it.each([additionalWhere, {}])(
             'throws WorkspaceInviteNotFoundException and stages nothing when revoke returns null (additionalWhere: %j)',
             async scoped => {
                 inviteRepository.findByIdAndWorkspace.mockResolvedValue(invite);

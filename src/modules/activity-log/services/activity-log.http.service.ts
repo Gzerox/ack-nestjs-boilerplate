@@ -93,7 +93,8 @@ export class ActivityLogHttpService {
 
         const { data, ...others } = await this.activityLogDomain.getListCursor(
             scope,
-            params
+            params,
+            {}
         );
 
         return {

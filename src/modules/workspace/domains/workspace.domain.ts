@@ -199,8 +199,10 @@ export class WorkspaceDomain {
             throw new WorkspaceNotFoundException();
         }
 
-        const workspace =
-            await this.workspaceRepository.findActiveById(workspaceId);
+        const workspace = await this.workspaceRepository.findActiveById(
+            workspaceId,
+            {}
+        );
         if (!workspace) {
             throw new WorkspaceNotFoundException();
         }
@@ -488,7 +490,7 @@ export class WorkspaceDomain {
     /** Re-reads the active workspace; `additionalWhere` is an extra caller-supplied constraint, AND-composed first. */
     async getCurrentWorkspace(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace> {
         const workspace = await this.workspaceRepository.findActiveById(
             workspaceId,
@@ -506,7 +508,7 @@ export class WorkspaceDomain {
         workspaceId: string,
         actorId: string,
         update: IWorkspaceUpdate,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace> {
         const events = [
             this.activityLogDomain.prepare({
@@ -536,7 +538,7 @@ export class WorkspaceDomain {
         workspaceId: string,
         actorId: string,
         isPublic: boolean,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace> {
         const events = [
             this.activityLogDomain.prepare({
@@ -566,7 +568,7 @@ export class WorkspaceDomain {
         workspaceId: string,
         actorId: string,
         slug: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace> {
         this.assertSlugAllowed(slug);
 
@@ -640,7 +642,7 @@ export class WorkspaceDomain {
     async softDeleteWorkspace(
         workspaceId: string,
         actorId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<void> {
         const events = [
             this.activityLogDomain.prepare({
@@ -686,8 +688,8 @@ export class WorkspaceDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListForAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.WorkspaceWhereInput>,
-        isPublic?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        isPublic: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<IResponsePaginationReturn<Workspace>> {
         return this.workspaceRepository.findWithPaginationOffsetForAdmin(
             pagination,
@@ -699,7 +701,7 @@ export class WorkspaceDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getByIdForAdmin(
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<Workspace> {
         const workspace = await this.workspaceRepository.findByIdForAdmin(
             workspaceId,

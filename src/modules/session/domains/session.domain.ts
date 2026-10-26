@@ -40,8 +40,8 @@ export class SessionDomain {
     async getListOffsetByAdmin(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.SessionWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.SessionWhereInput
+        isRevoked: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<IResponsePaginationReturn<ISessionList>> {
         return this.sessionRepository.findWithPaginationOffsetByAdmin(
             userId,
@@ -65,7 +65,7 @@ export class SessionDomain {
     async validateActive(
         userId: string,
         sessionId: string,
-        additionalWhere?: Prisma.SessionWhereInput
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<ISession> {
         const session = await this.sessionRepository.findOneActive(
             userId,
@@ -143,7 +143,8 @@ export class SessionDomain {
             tx,
             userId,
             revokedBy,
-            revokedAt
+            revokedAt,
+            {}
         );
     }
 
@@ -164,7 +165,7 @@ export class SessionDomain {
     }
 
     async revoke(userId: string, sessionId: string): Promise<void> {
-        await this.validateActive(userId, sessionId);
+        await this.validateActive(userId, sessionId, {});
 
         const events = [
             this.activityLogDomain.prepare({
@@ -192,7 +193,7 @@ export class SessionDomain {
         userId: string,
         sessionId: string,
         revokedBy: string,
-        additionalWhere?: Prisma.SessionWhereInput
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<void> {
         const session = await this.validateActive(
             userId,
@@ -333,7 +334,7 @@ export class SessionDomain {
     async revokeAllByAdmin(
         userId: string,
         revokedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === revokedBy) {
             throw new UserNotSelfException();

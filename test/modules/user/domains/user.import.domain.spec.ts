@@ -178,14 +178,14 @@ describe('UserImportDomain', () => {
         userRepository.findExport.mockResolvedValue([]);
         const status = { status: { in: ['active'] } };
         await expect(
-            domain.exportByAdmin(status as never, undefined, undefined)
+            domain.exportByAdmin(status as never, undefined, undefined, {})
         ).resolves.toEqual([]);
         expect(userRepository.findExport).toHaveBeenCalledWith(
             status,
             null,
             null,
             101,
-            undefined
+            {}
         );
     });
 

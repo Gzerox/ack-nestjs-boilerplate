@@ -108,7 +108,7 @@ export class WorkspaceJoinRequestDomain {
     private async validatePendingJoinRequest(
         workspaceJoinRequestId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest> {
         const joinRequest =
             await this.workspaceJoinRequestRepository.findByIdAndWorkspace(
@@ -134,7 +134,8 @@ export class WorkspaceJoinRequestDomain {
         await this.assertJoinRequestAllowed();
 
         const workspace = await this.workspaceRepository.findActiveById(
-            create.workspaceId
+            create.workspaceId,
+            {}
         );
         if (!workspace) {
             throw new WorkspaceNotFoundException();
@@ -185,8 +186,8 @@ export class WorkspaceJoinRequestDomain {
     async getJoinRequestsList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceJoinRequestWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<IResponsePaginationReturn<WorkspaceJoinRequest>> {
         await this.assertJoinRequestAllowed();
 
@@ -203,7 +204,7 @@ export class WorkspaceJoinRequestDomain {
         workspace: Workspace,
         reviewerId: string,
         workspaceJoinRequestId: string,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<void> {
         await this.assertJoinRequestAllowed();
 
@@ -282,7 +283,7 @@ export class WorkspaceJoinRequestDomain {
         reviewerId: string,
         workspaceJoinRequestId: string,
         rejectReasonCode: EnumWorkspaceJoinRejectReason,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<void> {
         await this.assertJoinRequestAllowed();
 

@@ -90,9 +90,9 @@ export class ApiKeyDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.ApiKeyWhereInput>,
-        isActive?: Record<string, IPaginationEqual>,
-        type?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        isActive: Record<string, IPaginationEqual> | undefined,
+        type: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<IResponsePaginationReturn<IApiKeyList>> {
         return this.apiKeyRepository.findWithPagination(
             pagination,
@@ -158,7 +158,7 @@ export class ApiKeyDomain {
      */
     async getOne(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey> {
         const apiKey = await this.apiKeyRepository.findOneById(
             id,
@@ -174,7 +174,7 @@ export class ApiKeyDomain {
     async updateStatusByAdmin(
         id: string,
         isActive: boolean,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey> {
         const today = this.helperDateService.create();
         const apiKey = await this.apiKeyRepository.findOneById(
@@ -221,8 +221,8 @@ export class ApiKeyDomain {
 
     async updateByAdmin(
         id: string,
-        name?: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        name: string | undefined,
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey> {
         const apiKey = await this.apiKeyRepository.findOneById(
             id,
@@ -267,7 +267,7 @@ export class ApiKeyDomain {
         id: string,
         startAt: Date,
         endAt: Date,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey> {
         this.validateStartAtIsFuture(startAt);
 
@@ -313,7 +313,7 @@ export class ApiKeyDomain {
 
     async resetByAdmin(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<IApiKeyWithSecret> {
         const apiKey = await this.apiKeyRepository.findOneById(
             id,
@@ -352,7 +352,7 @@ export class ApiKeyDomain {
 
     async deleteByAdmin(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey> {
         const apiKey = await this.apiKeyRepository.findOneById(
             id,

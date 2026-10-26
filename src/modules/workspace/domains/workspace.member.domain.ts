@@ -98,7 +98,7 @@ export class WorkspaceMemberDomain {
     async getOneByIdAndWorkspace(
         workspaceId: string,
         workspaceMemberId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole> {
         const target =
             await this.workspaceMemberRepository.findByIdAndWorkspace(
@@ -144,7 +144,7 @@ export class WorkspaceMemberDomain {
         workspaceId: string,
         actorMember: IWorkspaceMemberWithRole,
         targetUserId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<void> {
         if (actorMember.role.key !== EnumRoleWorkspaceKey.owner) {
             throw new WorkspaceMemberPeerForbiddenException();
@@ -225,7 +225,7 @@ export class WorkspaceMemberDomain {
             }),
         ];
 
-        await this.workspaceMemberRepository.removeMember(member.id);
+        await this.workspaceMemberRepository.removeMember(member.id, {});
 
         this.activityLogDomain.stagePrepared(events);
     }
@@ -234,8 +234,8 @@ export class WorkspaceMemberDomain {
     async getMembersList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
-        role?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        role: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         return this.workspaceMemberRepository.findWithPaginationCursor(
             workspaceId,
@@ -251,7 +251,7 @@ export class WorkspaceMemberDomain {
         actorMember: IWorkspaceMemberWithRole,
         targetMember: IWorkspaceMemberWithRole,
         roleId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<void> {
         this.assertPeerActionAllowed(actorMember, targetMember);
 
@@ -301,7 +301,7 @@ export class WorkspaceMemberDomain {
         workspaceId: string,
         actorMember: IWorkspaceMemberWithRole,
         targetMember: IWorkspaceMemberWithRole,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<void> {
         if (targetMember.userId === actorMember.userId) {
             throw new WorkspaceMemberPeerForbiddenException();
@@ -348,7 +348,7 @@ export class WorkspaceMemberDomain {
     async getMembersListForAdmin(
         workspaceId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         return this.workspaceMemberRepository.findWithPaginationOffset(
             workspaceId,

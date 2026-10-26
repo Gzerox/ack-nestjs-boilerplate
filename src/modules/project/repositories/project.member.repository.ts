@@ -56,15 +56,11 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
     async findByIdAndProject(
         projectMemberId: string,
         projectId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole | null> {
         return this.databaseService.client.projectMember.findFirst({
             where: {
-                AND: [
-                    additionalWhere ?? {},
-                    { id: projectMemberId },
-                    { projectId },
-                ],
+                AND: [additionalWhere, { id: projectMemberId }, { projectId }],
             },
             include: ProjectMemberRoleInclude,
         });
@@ -89,7 +85,7 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.ProjectMemberWhereInput>,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IResponsePaginationReturn<IProjectMember>> {
         return this.paginationService.cursor<
             IProjectMember,
@@ -98,7 +94,7 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         projectId,
@@ -169,12 +165,12 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
     async updateRole(
         targetMemberId: string,
         roleId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<ProjectMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.projectMember.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                    AND: [additionalWhere, { id: targetMemberId }],
                 },
                 data: {
                     roleId,
@@ -193,11 +189,11 @@ export class ProjectMemberRepository implements IProjectMemberRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async removeMember(
         targetMemberId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<ProjectMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.ProjectMemberWhereInput = {
-                AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                AND: [additionalWhere, { id: targetMemberId }],
             };
             const existing = await tx.projectMember.findFirst({ where });
             if (!existing) {

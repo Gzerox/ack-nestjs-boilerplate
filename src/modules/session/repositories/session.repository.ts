@@ -38,8 +38,8 @@ export class SessionRepository implements ISessionRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.SessionWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.SessionWhereInput
+        isRevoked: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<IResponsePaginationReturn<ISessionList>> {
         return this.paginationService.offset<
             ISessionList,
@@ -48,7 +48,7 @@ export class SessionRepository implements ISessionRepository {
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...isRevoked,
@@ -85,14 +85,14 @@ export class SessionRepository implements ISessionRepository {
     async findOneActive(
         userId: string,
         sessionId: string,
-        additionalWhere?: Prisma.SessionWhereInput
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<ISession | null> {
         const today = this.helperDateService.create();
 
         return this.databaseService.client.session.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         id: sessionId,
                         userId,
@@ -212,12 +212,12 @@ export class SessionRepository implements ISessionRepository {
         sessionId: string,
         revokedBy: string,
         revokedAt: Date,
-        additionalWhere?: Prisma.SessionWhereInput
+        additionalWhere: Prisma.SessionWhereInput
     ): Promise<boolean> {
         const { count } = await this.databaseService.client.session.updateMany({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         id: sessionId,
                         isRevoked: false,
@@ -239,7 +239,7 @@ export class SessionRepository implements ISessionRepository {
         userId: string,
         revokedBy: string,
         revokedAt: Date,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<ISessionRef[]> {
         return this.databaseService.withTransaction(async tx =>
             this.revokeActiveByUserInTx(
@@ -258,12 +258,12 @@ export class SessionRepository implements ISessionRepository {
         userId: string,
         revokedBy: string,
         revokedAt: Date,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<ISessionRef[]> {
         const sessions = await tx.session.findMany({
             where: {
                 AND: [
-                    { user: additionalWhere ?? {} },
+                    { user: additionalWhere },
                     {
                         userId,
                         isRevoked: false,

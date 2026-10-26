@@ -72,8 +72,8 @@ export type IPolicyRule = Pick<
     'subject' | 'action' | 'conditions' | 'inverted' | 'reason'
 >;
 
-/** A role at the policy revision a request read: the pair that keys the policy cache. */
-export interface IPolicyRoleReference {
+/** A role at the policy revision a request read: the pair `{ roleId, policyRevision }` that keys the policy cache. */
+export interface IPolicyRoleRevision {
     roleId: string;
     policyRevision: number;
 }

@@ -791,12 +791,12 @@ describe('UserTwoFactorDomain', () => {
 
     describe('resetTwoFactorByAdminInTx', () => {
         it('resets another active user, clears attempt locks, and sends the notification', async () => {
-            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id', {});
 
             expect(sessionDomain.revokeActiveByUserInTx).toHaveBeenCalled();
             expect(
                 userTwoFactorRepository.resetTwoFactorByAdminInTx
-            ).toHaveBeenCalledWith(expect.any(Object), user.id, undefined);
+            ).toHaveBeenCalledWith(expect.any(Object), user.id, {});
             expect(authCache.clearLockTwoFactorAttempt).toHaveBeenCalledWith(
                 user
             );
@@ -827,12 +827,12 @@ describe('UserTwoFactorDomain', () => {
             );
         });
 
-        it('without additionalWhere reads with undefined', async () => {
-            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
+        it('reads with an empty where', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id', {});
 
             expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
                 user.id,
-                undefined
+                {}
             );
         });
 
@@ -867,7 +867,7 @@ describe('UserTwoFactorDomain', () => {
 
         it('throws UserNotSelfException when an admin resets their own 2FA', async () => {
             await expect(
-                service.resetTwoFactorByAdmin(user.id, user.id)
+                service.resetTwoFactorByAdmin(user.id, user.id, {})
             ).rejects.toBeInstanceOf(UserNotSelfException);
             expect(userRepository.findOneWithRoleById).not.toHaveBeenCalled();
         });
@@ -879,7 +879,7 @@ describe('UserTwoFactorDomain', () => {
             });
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(UserBlockedInvalidException);
             expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
         });
@@ -888,7 +888,7 @@ describe('UserTwoFactorDomain', () => {
             userRepository.findOneWithRoleById.mockResolvedValue(null);
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
 
@@ -899,7 +899,7 @@ describe('UserTwoFactorDomain', () => {
             });
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(AuthTwoFactorNotEnabledException);
         });
 
@@ -909,7 +909,7 @@ describe('UserTwoFactorDomain', () => {
             );
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(AppUnknownException);
         });
 
@@ -919,7 +919,7 @@ describe('UserTwoFactorDomain', () => {
             );
 
             await expect(
-                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+                service.resetTwoFactorByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(AuthTwoFactorInvalidException);
         });
     });

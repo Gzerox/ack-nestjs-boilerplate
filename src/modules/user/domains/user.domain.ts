@@ -120,7 +120,7 @@ export class UserDomain {
             throw new UserNotAuthenticatedException();
         }
 
-        const user = await this.userRepository.findOneWithRoleById(userId);
+        const user = await this.userRepository.findOneWithRoleById(userId, {});
         if (!user) {
             throw new UserNotFoundForbiddenException();
         } else if (user.status === EnumUserStatus.blocked) {
@@ -147,10 +147,10 @@ export class UserDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListOffsetByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.UserWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        roleId?: Record<string, IPaginationEqual>,
-        countryId?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.UserWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        roleId: Record<string, IPaginationEqual> | undefined,
+        countryId: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IResponsePaginationReturn<IUserList>> {
         return this.userRepository.findWithPaginationOffset(
             pagination,
@@ -224,7 +224,7 @@ export class UserDomain {
         userId: string,
         password: IAuthPassword,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User> {
         const user = await this.userRepository.updatePasswordInTx(
             tx,
@@ -272,7 +272,7 @@ export class UserDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getOne(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserProfile> {
         const user = await this.userRepository.findOneProfileById(
             id,
@@ -389,7 +389,7 @@ export class UserDomain {
         userId: string,
         status: EnumUserStatus,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();

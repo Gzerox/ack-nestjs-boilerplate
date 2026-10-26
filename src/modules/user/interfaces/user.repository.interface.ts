@@ -34,16 +34,16 @@ export interface IUserRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.UserWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        roleId?: Record<string, IPaginationEqual>,
-        countryId?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.UserWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        roleId: Record<string, IPaginationEqual> | undefined,
+        countryId: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IResponsePaginationReturn<IUserList>>;
     findActive(): Promise<IUserContact[]>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null>;
     findOneActiveById(id: string): Promise<User | null>;
     findOneActiveByEmail(email: string): Promise<User | null>;
@@ -52,13 +52,13 @@ export interface IUserRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneProfileById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserProfile | null>;
     findOneActiveProfileById(id: string): Promise<IUserProfile | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneWithRoleById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUser | null>;
     findByEmails(emails: string[]): Promise<IUser[]>;
     findByUsernames(usernames: string[]): Promise<IUser[]>;
@@ -68,7 +68,7 @@ export interface IUserRepository {
         roleId: Record<string, IPaginationEqual> | null,
         countryId: Record<string, IPaginationEqual> | null,
         take: number,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserExport[]>;
     existsByEmail(email: string): Promise<boolean>;
     existsByUsername(username: string): Promise<boolean>;
@@ -85,7 +85,7 @@ export interface IUserRepository {
         tx: IDatabaseTransactionClient,
         id: string,
         { status }: UserUpdateStatusRequestDto,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null>;
     updateProfile(
         userId: string,
@@ -113,7 +113,7 @@ export interface IUserRepository {
         userId: string,
         { passwordCreated, passwordExpired, passwordHash }: IAuthPassword,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null>;
     increasePasswordAttempt(userId: string): Promise<User>;
     resetPasswordAttempt(userId: string): Promise<User>;

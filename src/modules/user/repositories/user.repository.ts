@@ -88,10 +88,10 @@ export class UserRepository implements IUserRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.UserWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        roleId?: Record<string, IPaginationEqual>,
-        countryId?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.UserWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        roleId: Record<string, IPaginationEqual> | undefined,
+        countryId: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IResponsePaginationReturn<IUserList>> {
         return this.paginationService.offset<IUserList, Prisma.UserWhereInput>(
             this.databaseService.client.user,
@@ -99,7 +99,7 @@ export class UserRepository implements IUserRepository {
                 ...params,
                 where: {
                     AND: [
-                        additionalWhere ?? {},
+                        additionalWhere,
                         {
                             ...where,
                             ...status,
@@ -131,10 +131,10 @@ export class UserRepository implements IUserRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null> {
         return this.databaseService.client.user.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
+            where: { AND: [additionalWhere, { id, deletedAt: null }] },
         });
     }
 
@@ -169,10 +169,10 @@ export class UserRepository implements IUserRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneProfileById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserProfile | null> {
         return this.databaseService.client.user.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
+            where: { AND: [additionalWhere, { id, deletedAt: null }] },
             include: {
                 ...UserWithRoleInclude,
                 country: true,
@@ -205,10 +205,10 @@ export class UserRepository implements IUserRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneWithRoleById(
         id: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUser | null> {
         return this.databaseService.client.user.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
+            where: { AND: [additionalWhere, { id, deletedAt: null }] },
             include: UserWithRoleInclude,
         });
     }
@@ -237,12 +237,12 @@ export class UserRepository implements IUserRepository {
         roleId: Record<string, IPaginationEqual> | null,
         countryId: Record<string, IPaginationEqual> | null,
         take: number,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserExport[]> {
         return this.databaseService.client.user.findMany({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...status,
                         ...countryId,
@@ -302,10 +302,10 @@ export class UserRepository implements IUserRepository {
         tx: IDatabaseTransactionClient,
         id: string,
         { status }: UserUpdateStatusRequestDto,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null> {
         const { count } = await tx.user.updateMany({
-            where: { AND: [additionalWhere ?? {}, { id, deletedAt: null }] },
+            where: { AND: [additionalWhere, { id, deletedAt: null }] },
             data: {
                 status,
             },
@@ -411,11 +411,11 @@ export class UserRepository implements IUserRepository {
         userId: string,
         { passwordCreated, passwordExpired, passwordHash }: IAuthPassword,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<User | null> {
         const { count } = await tx.user.updateMany({
             where: {
-                AND: [additionalWhere ?? {}, { id: userId, deletedAt: null }],
+                AND: [additionalWhere, { id: userId, deletedAt: null }],
             },
             data: {
                 password: passwordHash,

@@ -54,14 +54,14 @@ describe('PasswordHistoryDomain', () => {
         const pagination = { skip: 0, limit: 10 };
 
         await expect(
-            service.getListOffsetByAdmin('user-id', pagination)
+            service.getListOffsetByAdmin('user-id', pagination, {})
         ).resolves.toMatchObject({
             type: EnumPaginationType.offset,
             data: [],
         });
         expect(
             passwordHistoryRepository.findWithPaginationOffsetByAdmin
-        ).toHaveBeenCalledWith('user-id', pagination, undefined);
+        ).toHaveBeenCalledWith('user-id', pagination, {});
     });
 
     it('forwards the accessible where as the trailing repository argument of the admin list', async () => {

@@ -25,7 +25,7 @@ export interface IWorkspaceInviteRepository {
     findByIdAndWorkspace(
         workspaceInviteId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite | null>;
     existsPendingByWorkspaceAndEmail(
         workspaceId: string,
@@ -38,8 +38,8 @@ export interface IWorkspaceInviteRepository {
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.WorkspaceInviteWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceInviteList>>;
     createPending({
         workspaceInviteId,
@@ -59,12 +59,12 @@ export interface IWorkspaceInviteRepository {
         hashedToken: string,
         reference: string,
         expiredAt: Date,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IWorkspaceInviteWithRole | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     revoke(
         workspaceInviteId: string,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite | null>;
     acceptInTx(
         tx: IDatabaseTransactionClient,

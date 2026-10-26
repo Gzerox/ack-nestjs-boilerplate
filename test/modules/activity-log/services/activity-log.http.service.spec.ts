@@ -265,7 +265,8 @@ describe('ActivityLogHttpService', () => {
             );
             expect(activityLogDomain.getListCursor).toHaveBeenCalledWith(
                 scope,
-                cursorParams
+                cursorParams,
+                {}
             );
             expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
             expect(result).toEqual(cursorPage);

@@ -69,7 +69,8 @@ export class UserTwoFactorDomain {
         }
 
         const user = await this.userRepository.findOneWithRoleById(
-            challenge.userId
+            challenge.userId,
+            {}
         );
         if (!user) {
             throw new UserNotFoundException();
@@ -137,7 +138,8 @@ export class UserTwoFactorDomain {
         }
 
         const user = await this.userRepository.findOneWithRoleById(
-            challenge.userId
+            challenge.userId,
+            {}
         );
         if (!user) {
             throw new UserNotFoundException();
@@ -382,7 +384,7 @@ export class UserTwoFactorDomain {
     async resetTwoFactorByAdmin(
         userId: string,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();

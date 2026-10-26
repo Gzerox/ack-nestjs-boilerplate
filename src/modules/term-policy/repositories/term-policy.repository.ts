@@ -40,12 +40,12 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     private async touchScopedInTx(
         tx: IDatabaseTransactionClient,
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<boolean> {
         const updatedAt = this.helperDateService.create();
         const { count } = await tx.termPolicy.updateMany({
             where: {
-                AND: [additionalWhere ?? {}, { id: termPolicyId }],
+                AND: [additionalWhere, { id: termPolicyId }],
             },
             data: { updatedAt },
         });
@@ -59,9 +59,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.TermPolicyWhereInput>,
-        type?: Record<string, IPaginationIn>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        type: Record<string, IPaginationIn> | undefined,
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<IResponsePaginationReturn<TermPolicy>> {
         return this.paginationService.offset<
             TermPolicy,
@@ -70,7 +70,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...type,
@@ -123,11 +123,11 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneById(
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<ITermPolicy | null> {
         return this.databaseService.client.termPolicy.findFirst({
             where: {
-                AND: [additionalWhere ?? {}, { id: termPolicyId }],
+                AND: [additionalWhere, { id: termPolicyId }],
             },
             include: {
                 contents: true,
@@ -265,11 +265,11 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async delete(
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.TermPolicyWhereInput = {
-                AND: [additionalWhere ?? {}, { id: termPolicyId }],
+                AND: [additionalWhere, { id: termPolicyId }],
             };
             const existing = await tx.termPolicy.findFirst({ where });
             if (!existing) {
@@ -286,7 +286,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     async updateContent(
         termPolicyId: string,
         content: ITermPolicyContentCreate,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy | null> {
         return this.databaseService.withTransaction(async tx => {
             const touched = await this.touchScopedInTx(
@@ -316,7 +316,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     async addContent(
         termPolicyId: string,
         newContent: ITermPolicyContentCreate,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy | null> {
         return this.databaseService.withTransaction(async tx => {
             const touched = await this.touchScopedInTx(
@@ -340,7 +340,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
     async removeContent(
         termPolicyId: string,
         { language }: TermPolicyRemoveContentRequestDto,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy | null> {
         return this.databaseService.withTransaction(async tx => {
             const touched = await this.touchScopedInTx(
@@ -370,12 +370,12 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         tx: IDatabaseTransactionClient,
         termPolicyId: string,
         contents: ITermPolicyContentCreate[],
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy | null> {
         const publishedAt = this.helperDateService.create();
         const { count } = await tx.termPolicy.updateMany({
             where: {
-                AND: [additionalWhere ?? {}, { id: termPolicyId }],
+                AND: [additionalWhere, { id: termPolicyId }],
             },
             data: {
                 status: EnumTermPolicyStatus.published,

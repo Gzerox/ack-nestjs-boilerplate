@@ -497,7 +497,7 @@ export class UserLoginDomain {
         sessionId: string,
         deviceOwnershipId: string
     ): Promise<void> {
-        await this.sessionDomain.validateActive(userId, sessionId);
+        await this.sessionDomain.validateActive(userId, sessionId, {});
 
         const events = [
             this.activityLogDomain.prepare({

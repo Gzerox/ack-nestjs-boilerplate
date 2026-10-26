@@ -36,9 +36,9 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     private buildWorkspaceScopedWhere(
         workspaceId: string,
-        filters?: Prisma.WorkspaceMemberWhereInput,
-        role?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        filters: Prisma.WorkspaceMemberWhereInput | undefined,
+        role: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Prisma.WorkspaceMemberWhereInput {
         const roleKeys = role?.role?.in;
         const roleFilter: Prisma.WorkspaceMemberWhereInput = roleKeys
@@ -51,12 +51,7 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
             : {};
 
         return {
-            AND: [
-                additionalWhere ?? {},
-                filters ?? {},
-                roleFilter,
-                { workspaceId },
-            ],
+            AND: [additionalWhere, filters ?? {}, roleFilter, { workspaceId }],
         };
     }
 
@@ -89,12 +84,12 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
     async findByIdAndWorkspace(
         workspaceMemberId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole | null> {
         return this.databaseService.client.workspaceMember.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     { id: workspaceMemberId },
                     { workspaceId },
                 ],
@@ -155,7 +150,7 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
         const scopedWhere = this.buildWorkspaceScopedWhere(
             workspaceId,
@@ -188,8 +183,8 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
             where: filters,
             ...others
         }: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
-        role?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        role: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceMember>> {
         const scopedWhere = this.buildWorkspaceScopedWhere(
             workspaceId,
@@ -254,12 +249,12 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
     async updateRole(
         targetMemberId: string,
         roleId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<WorkspaceMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspaceMember.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                    AND: [additionalWhere, { id: targetMemberId }],
                 },
                 data: {
                     roleId,
@@ -278,11 +273,11 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async removeMember(
         targetMemberId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<WorkspaceMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.WorkspaceMemberWhereInput = {
-                AND: [additionalWhere ?? {}, { id: targetMemberId }],
+                AND: [additionalWhere, { id: targetMemberId }],
             };
             const existing = await tx.workspaceMember.findFirst({ where });
             if (!existing) {
@@ -304,15 +299,12 @@ export class WorkspaceMemberRepository implements IWorkspaceMemberRepository {
         toMemberId: string,
         ownerRoleId: string,
         adminRoleId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<WorkspaceMember | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.workspaceMember.updateMany({
                 where: {
-                    AND: [
-                        { workspace: additionalWhere ?? {} },
-                        { id: fromMemberId },
-                    ],
+                    AND: [{ workspace: additionalWhere }, { id: fromMemberId }],
                 },
                 data: {
                     roleId: adminRoleId,

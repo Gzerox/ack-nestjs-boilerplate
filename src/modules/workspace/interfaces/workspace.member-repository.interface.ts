@@ -26,7 +26,7 @@ export interface IWorkspaceMemberRepository {
     findByIdAndWorkspace(
         workspaceMemberId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IWorkspaceMemberWithRole | null>;
     countOwnedActiveByUser(userId: string): Promise<number>;
     countOwners(workspaceId: string): Promise<number>;
@@ -37,14 +37,14 @@ export interface IWorkspaceMemberRepository {
     findWithPaginationOffset(
         workspaceId: string,
         params: IPaginationQueryOffsetParams<Prisma.WorkspaceMemberWhereInput>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceMember>>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
         workspaceId: string,
         params: IPaginationQueryCursorParams<Prisma.WorkspaceMemberWhereInput>,
-        role?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        role: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceMember>>;
     createOwnerInTx(
         tx: IDatabaseTransactionClient,
@@ -63,12 +63,12 @@ export interface IWorkspaceMemberRepository {
     updateRole(
         targetMemberId: string,
         roleId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<WorkspaceMember | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     removeMember(
         targetMemberId: string,
-        additionalWhere?: Prisma.WorkspaceMemberWhereInput
+        additionalWhere: Prisma.WorkspaceMemberWhereInput
     ): Promise<WorkspaceMember | null>;
     /** Extra caller-supplied constraint on the workspace, AND-composed first. */
     transferOwnership(
@@ -76,6 +76,6 @@ export interface IWorkspaceMemberRepository {
         toMemberId: string,
         ownerRoleId: string,
         adminRoleId: string,
-        additionalWhere?: Prisma.WorkspaceWhereInput
+        additionalWhere: Prisma.WorkspaceWhereInput
     ): Promise<WorkspaceMember | null>;
 }

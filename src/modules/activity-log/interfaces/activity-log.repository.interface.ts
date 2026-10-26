@@ -19,7 +19,7 @@ export interface IActivityLogRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationCursor(
@@ -28,7 +28,7 @@ export interface IActivityLogRepository {
             where,
             ...params
         }: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IPaginationCursorReturn<IActivityLog>>;
     createMany(rows: IActivityLogCreate[]): Promise<Prisma.BatchPayload>;
 }

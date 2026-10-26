@@ -109,32 +109,32 @@ describe('PolicyDomain', () => {
             );
         });
 
-        it('without additionalWhere calls findManyByRoleId with undefined and returns the same result', async () => {
+        it('calls findManyByRoleId with an empty where and returns the same result', async () => {
             policyRepository.findManyByRoleId.mockResolvedValue([]);
 
-            await expect(service.findManyByRole('missing')).resolves.toEqual(
-                []
-            );
+            await expect(
+                service.findManyByRole('missing', {})
+            ).resolves.toEqual([]);
             expect(policyRepository.findManyByRoleId).toHaveBeenCalledWith(
                 'missing',
-                undefined
+                {}
             );
         });
     });
 
-    describe('findManyByRoleReferences', () => {
-        it('delegates to policyCache.getByRoleReferences', async () => {
-            const references = [
+    describe('findManyByRoleRevisions', () => {
+        it('delegates to policyCache.getByRoleRevisions', async () => {
+            const roleRevisions = [
                 { roleId: 'a', policyRevision: 1 },
                 { roleId: 'b', policyRevision: 2 },
             ];
-            policyCache.getByRoleReferences.mockResolvedValue([policy]);
+            policyCache.getByRoleRevisions.mockResolvedValue([policy]);
 
             await expect(
-                service.findManyByRoleReferences(references)
+                service.findManyByRoleRevisions(roleRevisions)
             ).resolves.toEqual([policy]);
-            expect(policyCache.getByRoleReferences).toHaveBeenCalledWith(
-                references
+            expect(policyCache.getByRoleRevisions).toHaveBeenCalledWith(
+                roleRevisions
             );
             expect(policyRepository.findManyByRoleIds).not.toHaveBeenCalled();
         });
@@ -532,7 +532,7 @@ describe('PolicyDomain', () => {
             await service.updateByAdmin(role, policy.id, ruleUpdate);
             await service.deleteByAdmin(role, policy.id);
 
-            expect(policyCache.getByRoleReferences).not.toHaveBeenCalled();
+            expect(policyCache.getByRoleRevisions).not.toHaveBeenCalled();
         });
     });
 

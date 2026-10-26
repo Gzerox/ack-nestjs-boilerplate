@@ -26,8 +26,8 @@ export interface IRoleRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.RoleWhereInput>,
-        scope?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.RoleWhereInput
+        scope: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IResponsePaginationReturn<IRoleWithPolicyCount>>;
     findWithPaginationCursorBySystem(
         {
@@ -46,12 +46,12 @@ export interface IRoleRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneWithPoliciesById(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneById(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRole | null>;
     findManyByIds(ids: string[]): Promise<IRole[]>;
     findOneByIdInTx(
@@ -77,12 +77,12 @@ export interface IRoleRepository {
     update(
         id: string,
         data: IRoleUpdate,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null>;
     isUsedById(id: string): Promise<boolean>;
     /** Extra caller-supplied constraint, AND-composed first. */
     delete(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<Role | null>;
 }

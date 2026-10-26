@@ -18,9 +18,9 @@ export interface IApiKeyRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.ApiKeyWhereInput>,
-        isActive?: Record<string, IPaginationEqual>,
-        type?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        isActive: Record<string, IPaginationEqual> | undefined,
+        type: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<IResponsePaginationReturn<IApiKeyList>>;
     create(
         apiKeyId: string,
@@ -31,36 +31,36 @@ export interface IApiKeyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneById(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateStatus(
         id: string,
         { isActive }: ApiKeyUpdateStatusRequestDto,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateName(
         id: string,
         name: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateDates(
         id: string,
         { startAt, endAt }: ApiKeyUpdateDateRequestDto,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateHash(
         id: string,
         hash: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     delete(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null>;
     findOneByKey(key: string): Promise<ApiKey | null>;
 }

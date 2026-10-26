@@ -14,12 +14,12 @@ export interface IProjectRepository {
     findActiveByIdAndWorkspace(
         projectId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findByIdForAdmin(
         projectId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
     existsBySlugInWorkspace(
         workspaceId: string,
@@ -30,13 +30,13 @@ export interface IProjectRepository {
     findWithPaginationCursorForWorkspace(
         workspaceId: string,
         params: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>>;
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetForAdmin(
         params: IPaginationQueryOffsetParams<Prisma.ProjectWhereInput>,
-        workspaceId?: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        workspaceId: string | undefined,
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>>;
     createInTx(
         tx: IDatabaseTransactionClient,
@@ -48,20 +48,20 @@ export interface IProjectRepository {
     updateDetails(
         projectId: string,
         { name, description }: ProjectUpdateRequestDto,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateSlug(
         projectId: string,
         slug: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     softDelete(
         projectId: string,
         deletedAt: Date,
         deletedBy: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null>;
     softDeleteByWorkspaceInTx(
         tx: IDatabaseTransactionClient,

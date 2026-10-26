@@ -47,8 +47,8 @@ export class DeviceDomain {
     async getListOffsetByAdmin(
         userId: string,
         pagination: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        isRevoked: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<IResponsePaginationReturn<IDeviceOwnership>> {
         return this.deviceOwnershipRepository.findWithPaginationOffsetByAdmin(
             userId,
@@ -189,7 +189,8 @@ export class DeviceDomain {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId
+                deviceOwnershipId,
+                {}
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -236,7 +237,8 @@ export class DeviceDomain {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(
                 userId,
-                deviceOwnershipId
+                deviceOwnershipId,
+                {}
             );
         if (!deviceOwnershipExists) {
             throw new DeviceNotFoundException();
@@ -260,7 +262,8 @@ export class DeviceDomain {
                             userId,
                             deviceOwnershipId,
                             userId,
-                            now
+                            now,
+                            {}
                         );
                     if (!row) {
                         throw new DeviceNotFoundException();
@@ -311,7 +314,7 @@ export class DeviceDomain {
     async getOneActive(
         userId: string,
         deviceOwnershipId: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<DeviceOwnership> {
         const deviceOwnership =
             await this.deviceOwnershipRepository.findOneActive(
@@ -331,7 +334,7 @@ export class DeviceDomain {
         userId: string,
         deviceOwnershipId: string,
         removedBy: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<void> {
         const deviceOwnershipExists =
             await this.deviceOwnershipRepository.existsActive(

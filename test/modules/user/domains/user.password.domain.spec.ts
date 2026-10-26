@@ -367,7 +367,7 @@ describe('UserPasswordDomain', () => {
 
     describe('updatePasswordByAdmin', () => {
         it('sets a temporary password, revokes sessions, notifies the user, and stages activity events', async () => {
-            await service.updatePasswordByAdmin(user.id, 'admin-id');
+            await service.updatePasswordByAdmin(user.id, 'admin-id', {});
 
             expect(authPasswordUtil.createPasswordRandom).toHaveBeenCalledTimes(
                 1
@@ -384,7 +384,7 @@ describe('UserPasswordDomain', () => {
                 user.id,
                 password,
                 'admin-id',
-                undefined
+                {}
             );
             expect(
                 notificationQueue.sendTemporaryPasswordByAdmin
@@ -431,13 +431,13 @@ describe('UserPasswordDomain', () => {
             );
         });
 
-        it('without additionalWhere reads with undefined and returns the same result', async () => {
+        it('reads with an empty where and returns the same result', async () => {
             await expect(
-                service.updatePasswordByAdmin(user.id, 'admin-id')
+                service.updatePasswordByAdmin(user.id, 'admin-id', {})
             ).resolves.toBeUndefined();
             expect(userRepository.findOneById).toHaveBeenCalledWith(
                 user.id,
-                undefined
+                {}
             );
         });
 
@@ -457,7 +457,7 @@ describe('UserPasswordDomain', () => {
 
         it('throws UserNotSelfException when an admin updates their own password', async () => {
             await expect(
-                service.updatePasswordByAdmin(user.id, user.id)
+                service.updatePasswordByAdmin(user.id, user.id, {})
             ).rejects.toBeInstanceOf(UserNotSelfException);
             expect(userRepository.findOneById).not.toHaveBeenCalled();
         });
@@ -469,7 +469,7 @@ describe('UserPasswordDomain', () => {
             });
 
             await expect(
-                service.updatePasswordByAdmin(user.id, 'admin-id')
+                service.updatePasswordByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(UserBlockedInvalidException);
             expect(authPasswordUtil.createPassword).not.toHaveBeenCalled();
         });
@@ -478,7 +478,7 @@ describe('UserPasswordDomain', () => {
             userRepository.findOneById.mockResolvedValue(null);
 
             await expect(
-                service.updatePasswordByAdmin(user.id, 'admin-id')
+                service.updatePasswordByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
 
@@ -488,7 +488,7 @@ describe('UserPasswordDomain', () => {
             );
 
             await expect(
-                service.updatePasswordByAdmin(user.id, 'admin-id')
+                service.updatePasswordByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(UserNotFoundException);
         });
 
@@ -498,7 +498,7 @@ describe('UserPasswordDomain', () => {
             );
 
             await expect(
-                service.updatePasswordByAdmin(user.id, 'admin-id')
+                service.updatePasswordByAdmin(user.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(AppUnknownException);
         });
     });
@@ -568,7 +568,8 @@ describe('UserPasswordDomain', () => {
                 expect.any(Object),
                 user.id,
                 password,
-                user.id
+                user.id,
+                {}
             );
             expect(
                 userLoginDomain.recordTwoFactorVerificationInTx
@@ -749,7 +750,8 @@ describe('UserPasswordDomain', () => {
                 expect.any(Object),
                 user.id,
                 password,
-                user.id
+                user.id,
+                {}
             );
             expect(
                 userLoginDomain.recordTwoFactorVerificationInTx

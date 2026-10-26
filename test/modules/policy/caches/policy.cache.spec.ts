@@ -3,7 +3,7 @@ import { HelperStringService } from '@common/helper/services/helper.string.servi
 import { EnumPolicyAction, EnumPolicySubject } from '@generated/prisma-client';
 import { PolicyCache } from '@modules/policy/caches/policy.cache';
 import type {
-    IPolicyRoleReference,
+    IPolicyRoleRevision,
     IPolicyRule,
     IPolicyRuleWithRole,
 } from '@modules/policy/interfaces/policy.interface';
@@ -38,7 +38,7 @@ describe('PolicyCache', () => {
         inverted: policy.inverted,
         reason: policy.reason,
     };
-    const reference: IPolicyRoleReference = {
+    const reference: IPolicyRoleRevision = {
         roleId: 'role-id',
         policyRevision: 3,
     };
@@ -77,12 +77,12 @@ describe('PolicyCache', () => {
         service = moduleRef.get(PolicyCache);
     });
 
-    describe('getByRoleReferences', () => {
+    describe('getByRoleRevisions', () => {
         it('hit on exact revision key returns cached rows without a repository call', async () => {
             cacheManager.mget.mockResolvedValue([[rule]]);
 
             await expect(
-                service.getByRoleReferences([reference])
+                service.getByRoleRevisions([reference])
             ).resolves.toEqual([rule]);
             expect(cacheManager.mget).toHaveBeenCalledExactlyOnceWith([key]);
             expect(policyRepository.findManyByRoleIds).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('PolicyCache', () => {
         it('key is Policy:Role:<id>:Rev:<n>, filled from the configured pattern', async () => {
             cacheManager.mget.mockResolvedValue([[rule]]);
 
-            await service.getByRoleReferences([reference]);
+            await service.getByRoleRevisions([reference]);
 
             expect(helperStringService.fillPattern).toHaveBeenCalledWith(
                 keyPattern,
@@ -112,7 +112,7 @@ describe('PolicyCache', () => {
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
 
             await expect(
-                service.getByRoleReferences([
+                service.getByRoleRevisions([
                     { roleId: 'role-id', policyRevision: 4 },
                 ])
             ).resolves.toEqual([policy]);
@@ -133,7 +133,7 @@ describe('PolicyCache', () => {
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
 
             await expect(
-                service.getByRoleReferences([
+                service.getByRoleRevisions([
                     reference,
                     { roleId: 'empty-role', policyRevision: 0 },
                 ])
@@ -152,7 +152,7 @@ describe('PolicyCache', () => {
         });
 
         it('role with no rows cached as [] and not reloaded on the next call', async () => {
-            const empty: IPolicyRoleReference = {
+            const empty: IPolicyRoleRevision = {
                 roleId: 'empty-role',
                 policyRevision: 0,
             };
@@ -169,10 +169,10 @@ describe('PolicyCache', () => {
             });
             policyRepository.findManyByRoleIds.mockResolvedValue([]);
 
-            await expect(service.getByRoleReferences([empty])).resolves.toEqual(
+            await expect(service.getByRoleRevisions([empty])).resolves.toEqual(
                 []
             );
-            await expect(service.getByRoleReferences([empty])).resolves.toEqual(
+            await expect(service.getByRoleRevisions([empty])).resolves.toEqual(
                 []
             );
 
@@ -186,7 +186,7 @@ describe('PolicyCache', () => {
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
 
             await expect(
-                service.getByRoleReferences([
+                service.getByRoleRevisions([
                     reference,
                     { roleId: 'other-role', policyRevision: 1 },
                 ])
@@ -200,7 +200,7 @@ describe('PolicyCache', () => {
             cacheManager.mget.mockResolvedValue([[rule]]);
 
             await expect(
-                service.getByRoleReferences([reference, { ...reference }])
+                service.getByRoleRevisions([reference, { ...reference }])
             ).resolves.toEqual([rule]);
             expect(cacheManager.mget).toHaveBeenCalledWith([key]);
         });
@@ -214,8 +214,8 @@ describe('PolicyCache', () => {
                 })
             );
 
-            const first = service.getByRoleReferences([reference]);
-            const second = service.getByRoleReferences([reference]);
+            const first = service.getByRoleRevisions([reference]);
+            const second = service.getByRoleRevisions([reference]);
             await flush();
             resolveLoad([policy]);
 
@@ -236,8 +236,8 @@ describe('PolicyCache', () => {
                     })
             );
 
-            const first = service.getByRoleReferences([reference]);
-            const second = service.getByRoleReferences([
+            const first = service.getByRoleRevisions([reference]);
+            const second = service.getByRoleRevisions([
                 { roleId: 'role-id', policyRevision: 4 },
             ]);
             await flush();
@@ -261,8 +261,8 @@ describe('PolicyCache', () => {
                 })
             );
 
-            const first = service.getByRoleReferences([reference]);
-            const second = service.getByRoleReferences([reference]);
+            const first = service.getByRoleRevisions([reference]);
+            const second = service.getByRoleRevisions([reference]);
             await flush();
             rejectLoad(error);
 
@@ -272,7 +272,7 @@ describe('PolicyCache', () => {
 
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
             await expect(
-                service.getByRoleReferences([reference])
+                service.getByRoleRevisions([reference])
             ).resolves.toEqual([policy]);
             expect(policyRepository.findManyByRoleIds).toHaveBeenCalledTimes(2);
         });
@@ -282,7 +282,7 @@ describe('PolicyCache', () => {
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
 
             await expect(
-                service.getByRoleReferences([reference])
+                service.getByRoleRevisions([reference])
             ).resolves.toEqual([policy]);
         });
 
@@ -292,7 +292,7 @@ describe('PolicyCache', () => {
             policyRepository.findManyByRoleIds.mockResolvedValue([policy]);
 
             await expect(
-                service.getByRoleReferences([reference])
+                service.getByRoleRevisions([reference])
             ).resolves.toEqual([policy]);
         });
     });
@@ -306,12 +306,12 @@ describe('PolicyCache', () => {
         });
     });
 
-    describe('getCacheByReferences', () => {
+    describe('getCacheByRoleRevisions', () => {
         it('maps only the references that hit, an empty list counting as a hit', async () => {
             cacheManager.mget.mockResolvedValue([[rule], null, []]);
 
             await expect(
-                service['getCacheByReferences']([
+                service['getCacheByRoleRevisions']([
                     reference,
                     { roleId: 'missed-role', policyRevision: 1 },
                     { roleId: 'empty-role', policyRevision: 0 },
@@ -328,14 +328,14 @@ describe('PolicyCache', () => {
             cacheManager.mget.mockRejectedValue(new Error('redis down'));
 
             await expect(
-                service['getCacheByReferences']([reference])
+                service['getCacheByRoleRevisions']([reference])
             ).resolves.toEqual(new Map());
         });
     });
 
-    describe('setCacheByReferences', () => {
+    describe('setCacheByRoleRevisions', () => {
         it('writes every key with the configured ttl', async () => {
-            await service['setCacheByReferences'](new Map([[key, [rule]]]));
+            await service['setCacheByRoleRevisions'](new Map([[key, [rule]]]));
 
             expect(cacheManager.mset).toHaveBeenCalledWith([
                 { key, value: [rule], ttl: 60000 },
@@ -346,7 +346,7 @@ describe('PolicyCache', () => {
             cacheManager.mset.mockRejectedValue(new Error('redis down'));
 
             await expect(
-                service['setCacheByReferences'](new Map([[key, [rule]]]))
+                service['setCacheByRoleRevisions'](new Map([[key, [rule]]]))
             ).resolves.toBeUndefined();
         });
     });

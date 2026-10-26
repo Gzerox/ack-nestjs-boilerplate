@@ -59,7 +59,7 @@ describe('PolicyAbilityGuard', () => {
             requestStoreService
         );
         policyAbilityDomain.requireStored.mockReturnValue(user);
-        policyDomain.findManyByRoleReferences.mockResolvedValue(policies);
+        policyDomain.findManyByRoleRevisions.mockResolvedValue(policies);
         policyAbilityFactory.build.mockReturnValue(ability);
     });
 
@@ -71,7 +71,7 @@ describe('PolicyAbilityGuard', () => {
             PolicyAbilityStoreKey
         );
         expect(policyAbilityDomain.requireStored).not.toHaveBeenCalled();
-        expect(policyDomain.findManyByRoleReferences).not.toHaveBeenCalled();
+        expect(policyDomain.findManyByRoleRevisions).not.toHaveBeenCalled();
         expect(requestStoreService.set).not.toHaveBeenCalled();
     });
 
@@ -86,7 +86,7 @@ describe('PolicyAbilityGuard', () => {
         expect(policyAbilityDomain.requireStored).toHaveBeenCalledWith(
             UserStoreKey
         );
-        expect(policyDomain.findManyByRoleReferences).not.toHaveBeenCalled();
+        expect(policyDomain.findManyByRoleRevisions).not.toHaveBeenCalled();
         expect(requestStoreService.set).not.toHaveBeenCalled();
     });
 
@@ -99,7 +99,7 @@ describe('PolicyAbilityGuard', () => {
         });
 
         await expect(guard.canActivate()).resolves.toBe(true);
-        expect(policyDomain.findManyByRoleReferences).toHaveBeenCalledWith([
+        expect(policyDomain.findManyByRoleRevisions).toHaveBeenCalledWith([
             { roleId: 'user-role-id', policyRevision: 2 },
             { roleId: 'workspace-member-role-id', policyRevision: 5 },
             { roleId: 'project-member-role-id', policyRevision: 7 },
@@ -120,7 +120,7 @@ describe('PolicyAbilityGuard', () => {
 
         await guard.canActivate();
 
-        expect(policyDomain.findManyByRoleReferences).toHaveBeenCalledWith([
+        expect(policyDomain.findManyByRoleRevisions).toHaveBeenCalledWith([
             { roleId: 'user-role-id', policyRevision: 2 },
         ]);
         expect(policyAbilityFactory.build).toHaveBeenCalledWith(policies, {
@@ -139,7 +139,7 @@ describe('PolicyAbilityGuard', () => {
 
         await guard.canActivate();
 
-        expect(policyDomain.findManyByRoleReferences).toHaveBeenCalledWith([
+        expect(policyDomain.findManyByRoleRevisions).toHaveBeenCalledWith([
             { roleId: 'user-role-id', policyRevision: 2 },
             { roleId: 'workspace-member-role-id', policyRevision: 5 },
         ]);
@@ -152,7 +152,7 @@ describe('PolicyAbilityGuard', () => {
     it('propagates a policy load failure and stores nothing', async () => {
         stubStore({});
         const error = new Error('db down');
-        policyDomain.findManyByRoleReferences.mockRejectedValue(error);
+        policyDomain.findManyByRoleRevisions.mockRejectedValue(error);
 
         await expect(guard.canActivate()).rejects.toBe(error);
         expect(policyAbilityFactory.build).not.toHaveBeenCalled();

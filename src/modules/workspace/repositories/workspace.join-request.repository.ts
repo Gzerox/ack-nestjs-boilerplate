@@ -43,12 +43,12 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
     async findByIdAndWorkspace(
         workspaceJoinRequestId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest | null> {
         return this.databaseService.client.workspaceJoinRequest.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     { id: workspaceJoinRequestId, workspaceId },
                 ],
             },
@@ -62,8 +62,8 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.WorkspaceJoinRequestWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<IPaginationCursorReturn<WorkspaceJoinRequest>> {
         return this.paginationService.cursor<
             WorkspaceJoinRequest,
@@ -72,7 +72,7 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...(status ?? {}),
@@ -103,11 +103,11 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         workspaceJoinRequestId: string,
         reviewerId: string,
         reviewedAt: Date,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest | null> {
         const { count } = await tx.workspaceJoinRequest.updateMany({
             where: {
-                AND: [additionalWhere ?? {}, { id: workspaceJoinRequestId }],
+                AND: [additionalWhere, { id: workspaceJoinRequestId }],
             },
             data: {
                 status: EnumWorkspaceJoinRequestStatus.accepted,
@@ -130,15 +130,12 @@ export class WorkspaceJoinRequestRepository implements IWorkspaceJoinRequestRepo
         reviewerId: string,
         rejectReasonCode: EnumWorkspaceJoinRejectReason,
         reviewedAt: Date,
-        additionalWhere?: Prisma.WorkspaceJoinRequestWhereInput
+        additionalWhere: Prisma.WorkspaceJoinRequestWhereInput
     ): Promise<WorkspaceJoinRequest | null> {
         const { count } =
             await this.databaseService.client.workspaceJoinRequest.updateMany({
                 where: {
-                    AND: [
-                        additionalWhere ?? {},
-                        { id: workspaceJoinRequestId },
-                    ],
+                    AND: [additionalWhere, { id: workspaceJoinRequestId }],
                 },
                 data: {
                     status: EnumWorkspaceJoinRequestStatus.rejected,

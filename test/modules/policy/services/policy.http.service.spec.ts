@@ -113,13 +113,16 @@ describe('PolicyHttpService', () => {
     });
 
     describe('listBySystem', () => {
-        it('lists without a where and never touches the ability', async () => {
+        it('lists with an empty where and never touches the ability', async () => {
             policyDomain.findManyByRole.mockResolvedValue([policy]);
 
             await expect(service.listBySystem('role-id')).resolves.toEqual({
                 data: { policies: [policy] },
             });
-            expect(policyDomain.findManyByRole).toHaveBeenCalledWith('role-id');
+            expect(policyDomain.findManyByRole).toHaveBeenCalledWith(
+                'role-id',
+                {}
+            );
             expect(policyAbilityDomain.scope).not.toHaveBeenCalled();
         });
     });

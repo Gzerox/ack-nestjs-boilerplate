@@ -32,7 +32,7 @@ export interface IDeviceOwnershipRepository {
         deviceOwnershipId: string,
         removedBy: string,
         now: Date,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<IDeviceOwnership | null>;
     revokeAllByUserInTx(
         tx: IDatabaseTransactionClient,
@@ -47,8 +47,8 @@ export interface IDeviceOwnershipRepository {
             where,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.DeviceOwnershipWhereInput>,
-        isRevoked?: Record<string, IPaginationEqual>,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        isRevoked: Record<string, IPaginationEqual> | undefined,
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<IResponsePaginationReturn<IDeviceOwnership>>;
     findActiveWithPaginationCursor(
         userId: string,
@@ -63,13 +63,13 @@ export interface IDeviceOwnershipRepository {
     findOneActive(
         userId: string,
         deviceOwnershipId: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<DeviceOwnership | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     existsActive(
         userId: string,
         deviceOwnershipId: string,
-        additionalWhere?: Prisma.DeviceOwnershipWhereInput
+        additionalWhere: Prisma.DeviceOwnershipWhereInput
     ): Promise<boolean>;
     touchInTx(
         tx: IDatabaseTransactionClient,

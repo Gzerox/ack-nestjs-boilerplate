@@ -200,7 +200,7 @@ export class UserPasswordDomain {
     async updatePasswordByAdmin(
         userId: string,
         updatedBy: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<void> {
         if (userId === updatedBy) {
             throw new UserNotSelfException();
@@ -380,7 +380,8 @@ export class UserPasswordDomain {
                     tx,
                     user.id,
                     password,
-                    user.id
+                    user.id,
+                    {}
                 );
                 await this.passwordHistoryDomain.createInTx(
                     tx,
@@ -562,7 +563,8 @@ export class UserPasswordDomain {
                     tx,
                     resetPassword.userId,
                     password,
-                    resetPassword.userId
+                    resetPassword.userId,
+                    {}
                 );
                 await this.passwordHistoryDomain.createInTx(
                     tx,

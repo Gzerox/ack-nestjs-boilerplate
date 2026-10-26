@@ -57,7 +57,7 @@ export class TermPolicyContentDomain {
 
     private async findOneDraftById(
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<ITermPolicy> {
         const termPolicy = await this.termPolicyRepository.findOneById(
             termPolicyId,
@@ -120,7 +120,7 @@ export class TermPolicyContentDomain {
     async updateContentByAdmin(
         termPolicyId: string,
         { key, size, language }: ITermPolicyContentUpload,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<void> {
         const termPolicy = await this.findOneDraftById(
             termPolicyId,
@@ -169,7 +169,7 @@ export class TermPolicyContentDomain {
     async addContentByAdmin(
         termPolicyId: string,
         { key, size, language }: ITermPolicyContentUpload,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<void> {
         const termPolicy = await this.findOneDraftById(
             termPolicyId,
@@ -226,7 +226,7 @@ export class TermPolicyContentDomain {
     async removeContentByAdmin(
         termPolicyId: string,
         language: EnumMessageLanguage,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<void> {
         const termPolicy = await this.findOneDraftById(
             termPolicyId,
@@ -275,7 +275,7 @@ export class TermPolicyContentDomain {
     async getContentByAdmin(
         termPolicyId: string,
         language: EnumMessageLanguage,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<IAwsS3Presign> {
         const termPolicy = await this.termPolicyRepository.findOneById(
             termPolicyId,

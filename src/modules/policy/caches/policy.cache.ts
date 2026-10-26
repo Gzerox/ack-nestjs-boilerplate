@@ -1,7 +1,7 @@
 import { CacheMainProvider } from '@common/cache/constants/cache.constant';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import type {
-    IPolicyRoleReference,
+    IPolicyRoleRevision,
     IPolicyRule,
 } from '@modules/policy/interfaces/policy.interface';
 import { PolicyRepository } from '@modules/policy/repositories/policy.repository';
@@ -33,18 +33,20 @@ export class PolicyCache {
         )!;
     }
 
-    private toKey(reference: IPolicyRoleReference): string {
+    private toKey(roleRevision: IPolicyRoleRevision): string {
         return this.helperStringService.fillPattern(this.keyPattern, {
-            roleId: reference.roleId,
-            policyRevision: String(reference.policyRevision),
+            roleId: roleRevision.roleId,
+            policyRevision: String(roleRevision.policyRevision),
         });
     }
 
-    /** One cache read for every reference; a read failure is logged and reads as all misses. */
-    private async getCacheByReferences(
-        references: IPolicyRoleReference[]
+    /** One cache read for every role revision; a read failure is logged and reads as all misses. */
+    private async getCacheByRoleRevisions(
+        roleRevisions: IPolicyRoleRevision[]
     ): Promise<Map<string, IPolicyRule[]>> {
-        const keys = references.map(reference => this.toKey(reference));
+        const keys = roleRevisions.map(roleRevision =>
+            this.toKey(roleRevision)
+        );
 
         try {
             const cached = await this.cacheManager.mget<IPolicyRule[]>(keys);
@@ -64,7 +66,7 @@ export class PolicyCache {
     }
 
     /** One cache write with the TTL; a write failure is logged and the loaded rows are still returned. */
-    private async setCacheByReferences(
+    private async setCacheByRoleRevisions(
         rulesByKey: Map<string, IPolicyRule[]>
     ): Promise<void> {
         try {
@@ -81,24 +83,24 @@ export class PolicyCache {
     }
 
     /**
-     * Loads the references in one query and caches them. A role with no rows maps to an empty
+     * Loads the role revisions in one query and caches them. A role with no rows maps to an empty
      * list. A load failure propagates and caches nothing.
      */
     private async loadByRoleIds(
-        references: IPolicyRoleReference[]
+        roleRevisions: IPolicyRoleRevision[]
     ): Promise<Map<string, IPolicyRule[]>> {
-        const roleIds = references.map(reference => reference.roleId);
+        const roleIds = roleRevisions.map(roleRevision => roleRevision.roleId);
         const rows = await this.policyRepository.findManyByRoleIds(roleIds);
         const byRoleId = Map.groupBy(rows, row => row.roleId);
         const loaded = new Map<string, IPolicyRule[]>(
-            references.map(reference => {
-                const key = this.toKey(reference);
+            roleRevisions.map(roleRevision => {
+                const key = this.toKey(roleRevision);
 
-                return [key, byRoleId.get(reference.roleId) ?? []];
+                return [key, byRoleId.get(roleRevision.roleId) ?? []];
             })
         );
 
-        await this.setCacheByReferences(loaded);
+        await this.setCacheByRoleRevisions(loaded);
 
         return loaded;
     }
@@ -118,22 +120,22 @@ export class PolicyCache {
     }
 
     /**
-     * Returns the rules of every referenced role revision, in request order, deduplicated by key.
+     * Returns the rules of every role revision, in request order, deduplicated by key.
      * One cache read for all keys; the misses share one repository query, and a concurrent miss
      * on the same key awaits the load already running instead of starting its own.
      */
-    async getByRoleReferences(
-        references: IPolicyRoleReference[]
+    async getByRoleRevisions(
+        roleRevisions: IPolicyRoleRevision[]
     ): Promise<IPolicyRule[]> {
-        const referenceByKey = new Map<string, IPolicyRoleReference>();
-        for (const reference of references) {
-            const key = this.toKey(reference);
-            referenceByKey.set(key, reference);
+        const roleRevisionByKey = new Map<string, IPolicyRoleRevision>();
+        for (const roleRevision of roleRevisions) {
+            const key = this.toKey(roleRevision);
+            roleRevisionByKey.set(key, roleRevision);
         }
 
-        const uniqueReferences = [...referenceByKey.values()];
-        const keys = [...referenceByKey.keys()];
-        const hits = await this.getCacheByReferences(uniqueReferences);
+        const uniqueRoleRevisions = [...roleRevisionByKey.values()];
+        const keys = [...roleRevisionByKey.keys()];
+        const hits = await this.getCacheByRoleRevisions(uniqueRoleRevisions);
         const missedKeys = keys.filter(key => !hits.has(key));
 
         if (missedKeys.length === 0) {
@@ -141,20 +143,20 @@ export class PolicyCache {
         }
 
         const pending = new Map<string, Promise<IPolicyRule[]>>();
-        const toLoad: IPolicyRoleReference[] = [];
+        const toLoad: IPolicyRoleRevision[] = [];
         for (const key of missedKeys) {
             const running = this.inFlight.get(key);
             if (running) {
                 pending.set(key, running);
             } else {
-                toLoad.push(referenceByKey.get(key)!);
+                toLoad.push(roleRevisionByKey.get(key)!);
             }
         }
 
         if (toLoad.length > 0) {
             const loading = this.loadByRoleIds(toLoad);
-            for (const reference of toLoad) {
-                const key = this.toKey(reference);
+            for (const roleRevision of toLoad) {
+                const key = this.toKey(roleRevision);
                 const slice = this.takeSlice(key, loading);
                 this.inFlight.set(key, slice);
                 pending.set(key, slice);

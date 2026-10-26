@@ -26,12 +26,12 @@ export class ApiKeyRepository implements IApiKeyRepository {
     private async updateScoped(
         id: string,
         data: Prisma.ApiKeyUpdateManyMutationInput,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.apiKey.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id }],
+                    AND: [additionalWhere, { id }],
                 },
                 data,
             });
@@ -51,9 +51,9 @@ export class ApiKeyRepository implements IApiKeyRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.ApiKeyWhereInput>,
-        isActive?: Record<string, IPaginationEqual>,
-        type?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        isActive: Record<string, IPaginationEqual> | undefined,
+        type: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<IResponsePaginationReturn<IApiKeyList>> {
         return this.paginationService.offset<
             IApiKeyList,
@@ -62,7 +62,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
             ...params,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...isActive,
@@ -97,11 +97,11 @@ export class ApiKeyRepository implements IApiKeyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneById(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.databaseService.client.apiKey.findFirst({
             where: {
-                AND: [additionalWhere ?? {}, { id }],
+                AND: [additionalWhere, { id }],
             },
         });
     }
@@ -110,7 +110,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
     async updateStatus(
         id: string,
         { isActive }: ApiKeyUpdateStatusRequestDto,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.updateScoped(id, { isActive }, additionalWhere);
     }
@@ -119,7 +119,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
     async updateName(
         id: string,
         name: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.updateScoped(id, { name }, additionalWhere);
     }
@@ -128,7 +128,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
     async updateDates(
         id: string,
         { startAt, endAt }: ApiKeyUpdateDateRequestDto,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.updateScoped(id, { startAt, endAt }, additionalWhere);
     }
@@ -137,7 +137,7 @@ export class ApiKeyRepository implements IApiKeyRepository {
     async updateHash(
         id: string,
         hash: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.updateScoped(id, { hash }, additionalWhere);
     }
@@ -145,11 +145,11 @@ export class ApiKeyRepository implements IApiKeyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async delete(
         id: string,
-        additionalWhere?: Prisma.ApiKeyWhereInput
+        additionalWhere: Prisma.ApiKeyWhereInput
     ): Promise<ApiKey | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.ApiKeyWhereInput = {
-                AND: [additionalWhere ?? {}, { id }],
+                AND: [additionalWhere, { id }],
             };
             const existing = await tx.apiKey.findFirst({ where });
             if (!existing) {

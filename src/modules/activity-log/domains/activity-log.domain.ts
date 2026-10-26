@@ -277,7 +277,7 @@ export class ActivityLogDomain {
     async getListOffset(
         scope: IActivityLogScope,
         pagination: IPaginationQueryOffsetParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         return this.activityLogRepository.findWithPaginationOffset(
             scope,
@@ -290,7 +290,7 @@ export class ActivityLogDomain {
     async getListCursor(
         scope: IActivityLogScope,
         pagination: IPaginationQueryCursorParams<Prisma.ActivityLogWhereInput>,
-        additionalWhere?: Prisma.ActivityLogWhereInput
+        additionalWhere: Prisma.ActivityLogWhereInput
     ): Promise<IResponsePaginationReturn<IActivityLog>> {
         return this.activityLogRepository.findWithPaginationCursor(
             scope,

@@ -95,9 +95,9 @@ export class TermPolicyDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.TermPolicyWhereInput>,
-        type?: Record<string, IPaginationIn>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        type: Record<string, IPaginationIn> | undefined,
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<IResponsePaginationReturn<TermPolicy>> {
         return this.termPolicyRepository.find(
             pagination,
@@ -182,7 +182,7 @@ export class TermPolicyDomain {
      */
     async getOne(
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<ITermPolicy> {
         const termPolicy = await this.termPolicyRepository.findOneById(
             termPolicyId,
@@ -198,7 +198,7 @@ export class TermPolicyDomain {
     /** Extra caller-supplied constraint, AND-composed first. */
     async deleteByAdmin(
         termPolicyId: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<TermPolicy> {
         const termPolicy = await this.termPolicyRepository.findOneById(
             termPolicyId,
@@ -248,7 +248,7 @@ export class TermPolicyDomain {
     async publishByAdmin(
         termPolicyId: string,
         updatedBy: string,
-        additionalWhere?: Prisma.TermPolicyWhereInput
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<void> {
         const termPolicy = await this.termPolicyRepository.findOneById(
             termPolicyId,

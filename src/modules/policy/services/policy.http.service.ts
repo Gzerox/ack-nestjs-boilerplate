@@ -55,7 +55,7 @@ export class PolicyHttpService {
     async listBySystem(
         roleId: string
     ): Promise<IResponseReturn<PolicyListResponseDto>> {
-        const policies = await this.policyDomain.findManyByRole(roleId);
+        const policies = await this.policyDomain.findManyByRole(roleId, {});
 
         return {
             data: { policies },

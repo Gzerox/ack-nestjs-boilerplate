@@ -114,7 +114,7 @@ describe('ProjectDomain', () => {
         ).rejects.toBeInstanceOf(ProjectNotFoundException);
         expect(
             projectRepository.findActiveByIdAndWorkspace
-        ).toHaveBeenCalledWith('project-id', 'workspace-id');
+        ).toHaveBeenCalledWith('project-id', 'workspace-id', {});
     });
 
     describe('getListForMember', () => {
@@ -167,12 +167,12 @@ describe('ProjectDomain', () => {
                 page
             );
 
-            await expect(domain.getListForAdmin(pagination)).resolves.toBe(
-                page
-            );
+            await expect(
+                domain.getListForAdmin(pagination, undefined, {})
+            ).resolves.toBe(page);
             expect(
                 projectRepository.findWithPaginationOffsetForAdmin
-            ).toHaveBeenCalledWith(pagination, undefined, undefined);
+            ).toHaveBeenCalledWith(pagination, undefined, {});
         });
     });
 
@@ -305,17 +305,21 @@ describe('ProjectDomain', () => {
             ).toHaveBeenCalledWith('project-id', 'workspace-id', where);
         });
 
-        it('without additionalWhere calls findActiveByIdAndWorkspace with undefined and returns the same result', async () => {
+        it('calls findActiveByIdAndWorkspace with an empty where and returns the same result', async () => {
             projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
                 project
             );
 
             await expect(
-                domain.getActiveByIdAndWorkspace('project-id', 'workspace-id')
+                domain.getActiveByIdAndWorkspace(
+                    'project-id',
+                    'workspace-id',
+                    {}
+                )
             ).resolves.toBe(project);
             expect(
                 projectRepository.findActiveByIdAndWorkspace
-            ).toHaveBeenCalledWith('project-id', 'workspace-id', undefined);
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', {});
         });
     });
 
@@ -335,20 +339,20 @@ describe('ProjectDomain', () => {
             ).toHaveBeenCalledWith('project-id', 'workspace-id', where);
         });
 
-        it('without additionalWhere calls findActiveByIdAndWorkspace with undefined and returns the same result', async () => {
+        it('calls findActiveByIdAndWorkspace with an empty where and returns the same result', async () => {
             projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
                 project
             );
 
             await expect(
-                domain.getCurrentProject('project-id', 'workspace-id')
+                domain.getCurrentProject('project-id', 'workspace-id', {})
             ).resolves.toBe(project);
             expect(
                 projectRepository.findActiveByIdAndWorkspace
-            ).toHaveBeenCalledWith('project-id', 'workspace-id', undefined);
+            ).toHaveBeenCalledWith('project-id', 'workspace-id', {});
         });
 
-        it.each([[where], [undefined]])(
+        it.each([[where], [{}]])(
             'throws ProjectNotFoundException when findActiveByIdAndWorkspace returns null (additionalWhere %j)',
             async additionalWhere => {
                 projectRepository.findActiveByIdAndWorkspace.mockResolvedValue(
@@ -381,19 +385,19 @@ describe('ProjectDomain', () => {
             );
         });
 
-        it('without additionalWhere calls findByIdForAdmin with undefined and returns the same result', async () => {
+        it('calls findByIdForAdmin with an empty where and returns the same result', async () => {
             projectRepository.findByIdForAdmin.mockResolvedValue(project);
 
-            await expect(domain.getByIdForAdmin('project-id')).resolves.toBe(
-                project
-            );
+            await expect(
+                domain.getByIdForAdmin('project-id', {})
+            ).resolves.toBe(project);
             expect(projectRepository.findByIdForAdmin).toHaveBeenCalledWith(
                 'project-id',
-                undefined
+                {}
             );
         });
 
-        it.each([[where], [undefined]])(
+        it.each([[where], [{}]])(
             'throws ProjectNotFoundException when findByIdForAdmin returns null (additionalWhere %j)',
             async additionalWhere => {
                 projectRepository.findByIdForAdmin.mockResolvedValue(null);
@@ -423,20 +427,20 @@ describe('ProjectDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it('without additionalWhere calls updateDetails with undefined and returns the same result', async () => {
+        it('calls updateDetails with an empty where and returns the same result', async () => {
             projectRepository.updateDetails.mockResolvedValue(project);
 
             await expect(
-                domain.updateProject(project, 'actor-id', update)
+                domain.updateProject(project, 'actor-id', update, {})
             ).resolves.toBe(project);
             expect(projectRepository.updateDetails).toHaveBeenCalledWith(
                 'project-id',
                 update,
-                undefined
+                {}
             );
         });
 
-        it.each([[where], [undefined]])(
+        it.each([[where], [{}]])(
             'throws ProjectNotFoundException when updateDetails returns null and stages no activity (additionalWhere %j)',
             async additionalWhere => {
                 projectRepository.updateDetails.mockResolvedValue(null);
@@ -480,20 +484,20 @@ describe('ProjectDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it('without additionalWhere calls updateSlug with undefined and returns the same result', async () => {
+        it('calls updateSlug with an empty where and returns the same result', async () => {
             projectRepository.updateSlug.mockResolvedValue(project);
 
             await expect(
-                domain.updateProjectSlug(project, 'actor-id', 'valid-slug')
+                domain.updateProjectSlug(project, 'actor-id', 'valid-slug', {})
             ).resolves.toBe(project);
             expect(projectRepository.updateSlug).toHaveBeenCalledWith(
                 'project-id',
                 'valid-slug',
-                undefined
+                {}
             );
         });
 
-        it.each([[where], [undefined]])(
+        it.each([[where], [{}]])(
             'throws ProjectNotFoundException when updateSlug returns null and stages no activity (additionalWhere %j)',
             async additionalWhere => {
                 projectRepository.updateSlug.mockResolvedValue(null);
@@ -534,7 +538,7 @@ describe('ProjectDomain', () => {
             projectRepository.updateSlug.mockRejectedValue(failure);
 
             await expect(
-                domain.updateProjectSlug(project, 'actor-id', 'valid-slug')
+                domain.updateProjectSlug(project, 'actor-id', 'valid-slug', {})
             ).rejects.toBe(failure);
         });
     });
@@ -561,21 +565,21 @@ describe('ProjectDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it('without additionalWhere calls softDelete with undefined and stages activity', async () => {
+        it('calls softDelete with an empty where and stages activity', async () => {
             projectRepository.softDelete.mockResolvedValue(project);
 
-            await domain.softDeleteProject(project, 'actor-id');
+            await domain.softDeleteProject(project, 'actor-id', {});
 
             expect(projectRepository.softDelete).toHaveBeenCalledWith(
                 'project-id',
                 deletedAt,
                 'actor-id',
-                undefined
+                {}
             );
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it.each([[where], [undefined]])(
+        it.each([[where], [{}]])(
             'throws ProjectNotFoundException when softDelete returns null and stages no activity (additionalWhere %j)',
             async additionalWhere => {
                 projectRepository.softDelete.mockResolvedValue(null);
@@ -614,7 +618,7 @@ describe('ProjectDomain', () => {
         'rejects invalid project slug %s',
         async slug => {
             await expect(
-                domain.updateProjectSlug(project, 'actor-id', slug)
+                domain.updateProjectSlug(project, 'actor-id', slug, {})
             ).rejects.toBeInstanceOf(ProjectSlugInvalidException);
             expect(
                 projectRepository.existsBySlugInWorkspace
@@ -625,7 +629,7 @@ describe('ProjectDomain', () => {
     it('rejects an existing project slug in the workspace', async () => {
         projectRepository.existsBySlugInWorkspace.mockResolvedValue(true);
         await expect(
-            domain.updateProjectSlug(project, 'actor-id', 'valid-slug')
+            domain.updateProjectSlug(project, 'actor-id', 'valid-slug', {})
         ).rejects.toBeInstanceOf(ProjectSlugAlreadyExistsException);
     });
 });

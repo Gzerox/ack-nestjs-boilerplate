@@ -90,14 +90,11 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
     async findByIdAndWorkspace(
         workspaceInviteId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite | null> {
         return this.databaseService.client.workspaceInvite.findFirst({
             where: {
-                AND: [
-                    additionalWhere ?? {},
-                    { id: workspaceInviteId, workspaceId },
-                ],
+                AND: [additionalWhere, { id: workspaceInviteId, workspaceId }],
             },
         });
     }
@@ -124,8 +121,8 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.WorkspaceInviteWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IPaginationCursorReturn<IWorkspaceInviteList>> {
         return this.paginationService.cursor<
             IWorkspaceInviteList,
@@ -134,7 +131,7 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
             ...others,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...(status ?? {}),
@@ -181,12 +178,12 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
         hashedToken: string,
         reference: string,
         expiredAt: Date,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IWorkspaceInviteWithRole | null> {
         const { count } =
             await this.databaseService.client.workspaceInvite.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id: workspaceInviteId }],
+                    AND: [additionalWhere, { id: workspaceInviteId }],
                 },
                 data: {
                     token: hashedToken,
@@ -207,12 +204,12 @@ export class WorkspaceInviteRepository implements IWorkspaceInviteRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async revoke(
         workspaceInviteId: string,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<WorkspaceInvite | null> {
         const { count } =
             await this.databaseService.client.workspaceInvite.updateMany({
                 where: {
-                    AND: [additionalWhere ?? {}, { id: workspaceInviteId }],
+                    AND: [additionalWhere, { id: workspaceInviteId }],
                 },
                 data: {
                     status: EnumWorkspaceInviteStatus.revoked,

@@ -146,10 +146,15 @@ describe('DeviceDomain', () => {
             deviceOwnershipRepository.findWithPaginationOffsetByAdmin
         ).toHaveBeenCalledWith('user-id', pagination, isRevoked, scopeWhere);
 
-        await service.getListOffsetByAdmin('user-id', pagination);
+        await service.getListOffsetByAdmin(
+            'user-id',
+            pagination,
+            undefined,
+            {}
+        );
         expect(
             deviceOwnershipRepository.findWithPaginationOffsetByAdmin
-        ).toHaveBeenLastCalledWith('user-id', pagination, undefined, undefined);
+        ).toHaveBeenLastCalledWith('user-id', pagination, undefined, {});
     });
 
     it('delegates the active ownership list with the current session excluded', async () => {
@@ -236,7 +241,8 @@ describe('DeviceDomain', () => {
             'user-id',
             ownership.id,
             'user-id',
-            expect.any(Date)
+            expect.any(Date),
+            {}
         );
     });
 
@@ -267,7 +273,7 @@ describe('DeviceDomain', () => {
         deviceUtil.mapActivityLogActorMetadata.mockReturnValue(metadata);
         deviceUtil.mapActivityLogTargetMetadata.mockReturnValue(targetMetadata);
 
-        await service.removeByAdmin('user-id', ownership.id, 'admin-id');
+        await service.removeByAdmin('user-id', ownership.id, 'admin-id', {});
 
         expect(sessionDomain.revokeByDeviceOwnershipInTx).toHaveBeenCalledWith(
             expect.any(Object),
@@ -284,7 +290,7 @@ describe('DeviceDomain', () => {
             ownership.id,
             'admin-id',
             expect.any(Date),
-            undefined
+            {}
         );
         expect(activityLogDomain.prepare).toHaveBeenNthCalledWith(1, {
             action: EnumActivityLogAction.adminDeviceRemove,
@@ -551,11 +557,11 @@ describe('DeviceDomain', () => {
             );
 
             await expect(
-                service.getOneActive('user-id', ownership.id)
+                service.getOneActive('user-id', ownership.id, {})
             ).resolves.toEqual(ownership);
             expect(
                 deviceOwnershipRepository.findOneActive
-            ).toHaveBeenCalledWith('user-id', ownership.id, undefined);
+            ).toHaveBeenCalledWith('user-id', ownership.id, {});
         });
 
         it('forwards additionalWhere to findOneActive', async () => {
@@ -575,7 +581,7 @@ describe('DeviceDomain', () => {
             ).toHaveBeenCalledWith('user-id', ownership.id, additionalWhere);
         });
 
-        it.each([{ userId: 'user-id' }, undefined])(
+        it.each([{ userId: 'user-id' }, {}])(
             'throws DeviceNotFoundException when the ownership is not active for the user (additionalWhere %j)',
             async additionalWhere => {
                 deviceOwnershipRepository.findOneActive.mockResolvedValue(null);
@@ -596,7 +602,7 @@ describe('DeviceDomain', () => {
             deviceOwnershipRepository.existsActive.mockResolvedValue(false);
 
             await expect(
-                service.removeByAdmin('user-id', ownership.id, 'admin-id')
+                service.removeByAdmin('user-id', ownership.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(DeviceNotFoundException);
             expect(
                 sessionDomain.revokeByDeviceOwnershipInTx
@@ -610,7 +616,7 @@ describe('DeviceDomain', () => {
             );
 
             await expect(
-                service.removeByAdmin('user-id', ownership.id, 'admin-id')
+                service.removeByAdmin('user-id', ownership.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(DeviceNotFoundException);
             expect(sessionDomain.purgeRevokedLogins).not.toHaveBeenCalled();
         });
@@ -622,7 +628,7 @@ describe('DeviceDomain', () => {
             );
 
             await expect(
-                service.removeByAdmin('user-id', ownership.id, 'admin-id')
+                service.removeByAdmin('user-id', ownership.id, 'admin-id', {})
             ).rejects.toBeInstanceOf(AppUnknownException);
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
@@ -659,19 +665,24 @@ describe('DeviceDomain', () => {
             );
         });
 
-        it('without additionalWhere reads the active ownership with undefined', async () => {
+        it('reads the active ownership with an empty where', async () => {
             deviceOwnershipRepository.existsActive.mockResolvedValue(true);
             sessionDomain.revokeByDeviceOwnershipInTx.mockResolvedValue([]);
             deviceOwnershipRepository.removeOwnershipInTx.mockResolvedValue(
                 ownership
             );
 
-            await service.removeByAdmin('user-id', ownership.id, 'admin-id');
+            await service.removeByAdmin(
+                'user-id',
+                ownership.id,
+                'admin-id',
+                {}
+            );
 
             expect(deviceOwnershipRepository.existsActive).toHaveBeenCalledWith(
                 'user-id',
                 ownership.id,
-                undefined
+                {}
             );
         });
 
@@ -733,7 +744,7 @@ describe('DeviceDomain', () => {
                 ownership
             );
 
-            await service.removeByAdmin('user-id', ownership.id, 'user-id');
+            await service.removeByAdmin('user-id', ownership.id, 'user-id', {});
 
             expect(activityLogDomain.prepare).toHaveBeenCalledOnce();
             expect(activityLogDomain.prepare).toHaveBeenCalledWith(

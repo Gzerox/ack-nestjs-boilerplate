@@ -212,12 +212,12 @@ export class UserTwoFactorRepository implements IUserTwoFactorRepository {
     async resetTwoFactorByAdminInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
-        additionalWhere?: Prisma.UserWhereInput
+        additionalWhere: Prisma.UserWhereInput
     ): Promise<IUserTwoFactor | null> {
         const now = this.helperDateService.create();
         const { count } = await tx.twoFactor.updateMany({
             where: {
-                AND: [{ user: additionalWhere ?? {} }, { userId }],
+                AND: [{ user: additionalWhere }, { userId }],
             },
             data: {
                 requiredSetup: true,

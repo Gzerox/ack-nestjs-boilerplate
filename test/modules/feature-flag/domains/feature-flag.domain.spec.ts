@@ -266,16 +266,16 @@ describe('FeatureFlagDomain', () => {
             ).toHaveBeenCalledWith(pagination, scopeWhere);
         });
 
-        it('passes undefined to the repository when no where is given', async () => {
+        it('forwards an empty where to the repository', async () => {
             featureFlagRepository.findWithPaginationOffsetByAdmin.mockResolvedValue(
                 page
             );
 
-            await service.getListByAdmin(pagination);
+            await service.getListByAdmin(pagination, {});
 
             expect(
                 featureFlagRepository.findWithPaginationOffsetByAdmin
-            ).toHaveBeenLastCalledWith(pagination, undefined);
+            ).toHaveBeenLastCalledWith(pagination, {});
         });
     });
 
@@ -321,19 +321,19 @@ describe('FeatureFlagDomain', () => {
             );
         });
 
-        it('without additionalWhere calls findOneById with undefined and returns the same flag', async () => {
+        it('calls findOneById with an empty where and returns the same flag', async () => {
             featureFlagRepository.findOneById.mockResolvedValue(featureFlag);
 
-            await expect(service.getOne(featureFlag.id)).resolves.toEqual(
+            await expect(service.getOne(featureFlag.id, {})).resolves.toEqual(
                 featureFlag
             );
             expect(featureFlagRepository.findOneById).toHaveBeenCalledWith(
                 featureFlag.id,
-                undefined
+                {}
             );
         });
 
-        it.each([{ isEnable: true }, undefined])(
+        it.each([{ isEnable: true }, {}])(
             'throws FeatureFlagNotFoundException when findOneById returns null (additionalWhere %j)',
             async additionalWhere => {
                 featureFlagRepository.findOneById.mockResolvedValue(null);
@@ -370,25 +370,25 @@ describe('FeatureFlagDomain', () => {
             );
         });
 
-        it('without additionalWhere calls the pre-read and the write with undefined and returns the same result', async () => {
+        it('calls the pre-read and the write with an empty where and returns the same result', async () => {
             featureFlagRepository.findOneById.mockResolvedValue(featureFlag);
             featureFlagRepository.updateStatus.mockResolvedValue(featureFlag);
 
             await expect(
-                service.updateStatusByAdmin('flag-id', data)
+                service.updateStatusByAdmin('flag-id', data, {})
             ).resolves.toBe(featureFlag);
             expect(featureFlagRepository.findOneById).toHaveBeenCalledWith(
                 'flag-id',
-                undefined
+                {}
             );
             expect(featureFlagRepository.updateStatus).toHaveBeenCalledWith(
                 'flag-id',
                 data,
-                undefined
+                {}
             );
         });
 
-        it.each([{ isEnable: true }, undefined])(
+        it.each([{ isEnable: true }, {}])(
             'throws FeatureFlagNotFoundException when the pre-read returns null (additionalWhere %j)',
             async extra => {
                 featureFlagRepository.findOneById.mockResolvedValue(null);
@@ -442,27 +442,31 @@ describe('FeatureFlagDomain', () => {
             );
         });
 
-        it('without additionalWhere calls the pre-read and the write with undefined', async () => {
+        it('calls the pre-read and the write with an empty where', async () => {
             featureFlagRepository.findOneById.mockResolvedValue(featureFlag);
             featureFlagUtil.checkMetadataKey.mockReturnValue(true);
             featureFlagRepository.updateMetadata.mockResolvedValue(featureFlag);
 
-            await service.updateMetadataByAdmin('flag-id', {
-                metadata: { color: 'red' },
-            });
+            await service.updateMetadataByAdmin(
+                'flag-id',
+                {
+                    metadata: { color: 'red' },
+                },
+                {}
+            );
 
             expect(featureFlagRepository.findOneById).toHaveBeenCalledWith(
                 'flag-id',
-                undefined
+                {}
             );
             expect(featureFlagRepository.updateMetadata).toHaveBeenCalledWith(
                 'flag-id',
                 { metadata: { color: 'red' } },
-                undefined
+                {}
             );
         });
 
-        it.each([{ isEnable: true }, undefined])(
+        it.each([{ isEnable: true }, {}])(
             'throws FeatureFlagNotFoundException when the pre-read returns null (additionalWhere %j)',
             async extra => {
                 featureFlagRepository.findOneById.mockResolvedValue(null);
@@ -485,9 +489,13 @@ describe('FeatureFlagDomain', () => {
             featureFlagUtil.checkMetadataKey.mockReturnValue(false);
 
             await expect(
-                service.updateMetadataByAdmin('flag-id', {
-                    metadata: { other: true },
-                })
+                service.updateMetadataByAdmin(
+                    'flag-id',
+                    {
+                        metadata: { other: true },
+                    },
+                    {}
+                )
             ).rejects.toBeInstanceOf(FeatureFlagInvalidMetadataException);
             expect(featureFlagUtil.checkMetadataKey).toHaveBeenCalledWith(
                 featureFlag.metadata,

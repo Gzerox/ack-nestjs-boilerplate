@@ -41,8 +41,8 @@ export class RoleRepository implements IRoleRepository {
             where,
             ...params
         }: IPaginationQueryOffsetParams<Prisma.RoleWhereInput>,
-        scope?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.RoleWhereInput
+        scope: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IResponsePaginationReturn<IRoleWithPolicyCount>> {
         return this.paginationService.offset<
             IRoleWithPolicyCount,
@@ -51,7 +51,7 @@ export class RoleRepository implements IRoleRepository {
             ...params,
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     {
                         ...where,
                         ...scope,
@@ -105,10 +105,10 @@ export class RoleRepository implements IRoleRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneWithPoliciesById(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null> {
         return this.databaseService.client.role.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id }] },
+            where: { AND: [additionalWhere, { id }] },
             include: RolePoliciesInclude,
         });
     }
@@ -116,10 +116,10 @@ export class RoleRepository implements IRoleRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findOneById(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRole | null> {
         return this.databaseService.client.role.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id }] },
+            where: { AND: [additionalWhere, { id }] },
             select: RoleSelect,
         });
     }
@@ -195,11 +195,11 @@ export class RoleRepository implements IRoleRepository {
     async update(
         id: string,
         data: IRoleUpdate,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<IRoleWithPolicies | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.role.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id }] },
+                where: { AND: [additionalWhere, { id }] },
                 data,
             });
             if (count === 0) {
@@ -228,11 +228,11 @@ export class RoleRepository implements IRoleRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async delete(
         id: string,
-        additionalWhere?: Prisma.RoleWhereInput
+        additionalWhere: Prisma.RoleWhereInput
     ): Promise<Role | null> {
         return this.databaseService.withTransaction(async tx => {
             const where: Prisma.RoleWhereInput = {
-                AND: [additionalWhere ?? {}, { id }],
+                AND: [additionalWhere, { id }],
             };
             const existing = await tx.role.findFirst({ where });
             if (!existing) {

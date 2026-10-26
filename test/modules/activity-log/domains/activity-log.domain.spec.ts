@@ -296,15 +296,15 @@ describe('ActivityLogDomain', () => {
         const userScope = { userId: 'user-id' };
         const workspaceScope = { workspaceId: 'workspace-id' };
 
-        await domain.getListOffset(userScope, offsetPagination);
-        await domain.getListCursor(workspaceScope, cursorPagination);
+        await domain.getListOffset(userScope, offsetPagination, {});
+        await domain.getListCursor(workspaceScope, cursorPagination, {});
 
         expect(
             activityLogRepository.findWithPaginationOffset
-        ).toHaveBeenCalledWith(userScope, offsetPagination, undefined);
+        ).toHaveBeenCalledWith(userScope, offsetPagination, {});
         expect(
             activityLogRepository.findWithPaginationCursor
-        ).toHaveBeenCalledWith(workspaceScope, cursorPagination, undefined);
+        ).toHaveBeenCalledWith(workspaceScope, cursorPagination, {});
     });
 
     it('forwards the accessible where as the trailing repository argument', async () => {

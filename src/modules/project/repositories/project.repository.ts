@@ -25,12 +25,12 @@ export class ProjectRepository implements IProjectRepository {
     async findActiveByIdAndWorkspace(
         projectId: string,
         workspaceId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.client.project.findFirst({
             where: {
                 AND: [
-                    additionalWhere ?? {},
+                    additionalWhere,
                     { id: projectId },
                     { workspaceId },
                     ProjectActiveFilter,
@@ -42,10 +42,10 @@ export class ProjectRepository implements IProjectRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findByIdForAdmin(
         projectId: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.client.project.findFirst({
-            where: { AND: [additionalWhere ?? {}, { id: projectId }] },
+            where: { AND: [additionalWhere, { id: projectId }] },
         });
     }
 
@@ -73,7 +73,7 @@ export class ProjectRepository implements IProjectRepository {
             where: filters,
             ...others
         }: IPaginationQueryCursorParams<Prisma.ProjectWhereInput>,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.paginationService.cursor<Project, Prisma.ProjectWhereInput>(
             this.databaseService.client.project,
@@ -81,7 +81,7 @@ export class ProjectRepository implements IProjectRepository {
                 ...others,
                 where: {
                     AND: [
-                        additionalWhere ?? {},
+                        additionalWhere,
                         filters ?? {},
                         { workspaceId },
                         ProjectActiveFilter,
@@ -97,8 +97,8 @@ export class ProjectRepository implements IProjectRepository {
             where: filters,
             ...others
         }: IPaginationQueryOffsetParams<Prisma.ProjectWhereInput>,
-        workspaceId?: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        workspaceId: string | undefined,
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<IResponsePaginationReturn<Project>> {
         return this.paginationService.offset<Project, Prisma.ProjectWhereInput>(
             this.databaseService.client.project,
@@ -106,7 +106,7 @@ export class ProjectRepository implements IProjectRepository {
                 ...others,
                 where: {
                     AND: [
-                        additionalWhere ?? {},
+                        additionalWhere,
                         filters ?? {},
                         ...(workspaceId ? [{ workspaceId }] : []),
                     ],
@@ -136,11 +136,11 @@ export class ProjectRepository implements IProjectRepository {
     async updateDetails(
         projectId: string,
         { name, description }: ProjectUpdateRequestDto,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id: projectId }] },
+                where: { AND: [additionalWhere, { id: projectId }] },
                 data: {
                     name,
                     description,
@@ -160,11 +160,11 @@ export class ProjectRepository implements IProjectRepository {
     async updateSlug(
         projectId: string,
         slug: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
-                where: { AND: [additionalWhere ?? {}, { id: projectId }] },
+                where: { AND: [additionalWhere, { id: projectId }] },
                 data: {
                     slug,
                 },
@@ -184,13 +184,13 @@ export class ProjectRepository implements IProjectRepository {
         projectId: string,
         deletedAt: Date,
         deletedBy: string,
-        additionalWhere?: Prisma.ProjectWhereInput
+        additionalWhere: Prisma.ProjectWhereInput
     ): Promise<Project | null> {
         return this.databaseService.withTransaction(async tx => {
             const { count } = await tx.project.updateMany({
                 where: {
                     AND: [
-                        additionalWhere ?? {},
+                        additionalWhere,
                         { id: projectId },
                         ProjectActiveFilter,
                     ],

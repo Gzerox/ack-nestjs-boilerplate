@@ -15,11 +15,11 @@ export class PolicyRepository implements IPolicyRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     async findManyByRoleId(
         roleId: string,
-        additionalWhere?: Prisma.PolicyWhereInput
+        additionalWhere: Prisma.PolicyWhereInput
     ): Promise<Policy[]> {
         return this.databaseService.client.policy.findMany({
             where: {
-                AND: [additionalWhere ?? {}, { roleId }],
+                AND: [additionalWhere, { roleId }],
             },
         });
     }

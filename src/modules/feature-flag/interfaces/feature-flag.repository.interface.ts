@@ -13,7 +13,7 @@ export interface IFeatureFlagRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findWithPaginationOffsetByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.FeatureFlagWhereInput>,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<IResponsePaginationReturn<FeatureFlag>>;
     findWithPaginationCursor(
         pagination: IPaginationQueryCursorParams<Prisma.FeatureFlagWhereInput>
@@ -22,18 +22,18 @@ export interface IFeatureFlagRepository {
     /** Extra caller-supplied constraint, AND-composed first. */
     findOneById(
         id: string,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateStatus(
         id: string,
         { isEnable, rolloutPercent }: FeatureFlagUpdateStatusRequestDto,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     updateMetadata(
         id: string,
         { metadata }: FeatureFlagUpdateMetadataRequestDto,
-        additionalWhere?: Prisma.FeatureFlagWhereInput
+        additionalWhere: Prisma.FeatureFlagWhereInput
     ): Promise<FeatureFlag | null>;
 }

@@ -9,7 +9,7 @@ import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.doma
 import { PolicyDomain } from '@modules/policy/domains/policy.domain';
 import { PolicyAbilityFactory } from '@modules/policy/factories/policy.factory';
 import type {
-    IPolicyRoleReference,
+    IPolicyRoleRevision,
     PolicyAbility,
     PolicyPlaceholderValues,
 } from '@modules/policy/interfaces/policy.interface';
@@ -60,7 +60,7 @@ export class PolicyAbilityGuard implements CanActivate {
                 ProjectMemberStoreKey
             );
 
-        const references: IPolicyRoleReference[] = [
+        const roleRevisions: IPolicyRoleRevision[] = [
             user.role,
             workspaceMember?.role,
             projectMember?.role,
@@ -77,7 +77,7 @@ export class PolicyAbilityGuard implements CanActivate {
         };
 
         const policies =
-            await this.policyDomain.findManyByRoleReferences(references);
+            await this.policyDomain.findManyByRoleRevisions(roleRevisions);
         const ability = this.policyAbilityFactory.build(policies, placeholders);
 
         this.requestStoreService.set(PolicyAbilityStoreKey, ability);

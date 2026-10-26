@@ -22,7 +22,7 @@ export interface IProjectMemberRepository {
     findByIdAndProject(
         projectMemberId: string,
         projectId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IProjectMemberWithRole | null>;
     countAdmins(projectId: string): Promise<number>;
     /** Extra caller-supplied constraint, AND-composed first. */
@@ -32,7 +32,7 @@ export interface IProjectMemberRepository {
             where,
             ...others
         }: IPaginationQueryCursorParams<Prisma.ProjectMemberWhereInput>,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<IResponsePaginationReturn<IProjectMember>>;
     create(
         projectId: string,
@@ -51,11 +51,11 @@ export interface IProjectMemberRepository {
     updateRole(
         targetMemberId: string,
         roleId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<ProjectMember | null>;
     /** Extra caller-supplied constraint, AND-composed first. */
     removeMember(
         targetMemberId: string,
-        additionalWhere?: Prisma.ProjectMemberWhereInput
+        additionalWhere: Prisma.ProjectMemberWhereInput
     ): Promise<ProjectMember | null>;
 }

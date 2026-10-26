@@ -296,8 +296,8 @@ export class WorkspaceInviteDomain {
     async getInvitesList(
         workspaceId: string,
         pagination: IPaginationQueryCursorParams<Prisma.WorkspaceInviteWhereInput>,
-        status?: Record<string, IPaginationIn>,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IResponsePaginationReturn<IWorkspaceInviteList>> {
         await this.assertInvitationAllowed();
 
@@ -336,7 +336,8 @@ export class WorkspaceInviteDomain {
         if (create.projectId) {
             projectLookup = this.projectDomain.getActiveByIdAndWorkspace(
                 create.projectId,
-                workspace.id
+                workspace.id,
+                {}
             );
         } else {
             projectLookup = null;
@@ -418,8 +419,8 @@ export class WorkspaceInviteDomain {
         workspace: Workspace,
         actorId: string,
         workspaceInviteId: string,
-        expiryDuration?: EnumWorkspaceInviteExpiry,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        expiryDuration: EnumWorkspaceInviteExpiry | undefined,
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<IWorkspaceInviteWithRole> {
         await this.assertInvitationAllowed();
 
@@ -467,7 +468,7 @@ export class WorkspaceInviteDomain {
         workspaceId: string,
         actorId: string,
         workspaceInviteId: string,
-        additionalWhere?: Prisma.WorkspaceInviteWhereInput
+        additionalWhere: Prisma.WorkspaceInviteWhereInput
     ): Promise<void> {
         await this.assertInvitationAllowed();
 
@@ -655,7 +656,7 @@ export class WorkspaceInviteDomain {
         const invite = await this.validateInviteToken(inviteToken);
 
         const [workspace, inviter] = await Promise.all([
-            this.workspaceRepository.findActiveById(invite.workspaceId),
+            this.workspaceRepository.findActiveById(invite.workspaceId, {}),
             invite.invitedByUserId
                 ? this.userDomain.getNameById(invite.invitedByUserId)
                 : null,

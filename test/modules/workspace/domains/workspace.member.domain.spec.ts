@@ -204,18 +204,18 @@ describe('WorkspaceMemberDomain', () => {
             memberRepository.findByIdAndWorkspace.mockResolvedValue(member);
 
             await expect(
-                domain.getOneByIdAndWorkspace('workspace-id', member.id)
+                domain.getOneByIdAndWorkspace('workspace-id', member.id, {})
             ).resolves.toBe(member);
             expect(memberRepository.findByIdAndWorkspace).toHaveBeenCalledWith(
                 member.id,
                 'workspace-id',
-                undefined
+                {}
             );
         });
 
         it.each([
             ['a where', where],
-            ['no where', undefined],
+            ['no where', {}],
         ])(
             'throws WorkspaceMemberNotFoundException when the read returns no row with %s',
             async (_name, scoped) => {
@@ -290,7 +290,12 @@ describe('WorkspaceMemberDomain', () => {
 
         it('rejects a non-owner actor before any repository read', async () => {
             await expect(
-                domain.transferOwnership('workspace-id', admin, member.userId)
+                domain.transferOwnership(
+                    'workspace-id',
+                    admin,
+                    member.userId,
+                    {}
+                )
             ).rejects.toBeInstanceOf(WorkspaceMemberPeerForbiddenException);
             expect(
                 memberRepository.findOneByWorkspaceAndUser
@@ -299,7 +304,12 @@ describe('WorkspaceMemberDomain', () => {
 
         it('rejects transferring ownership to oneself', async () => {
             await expect(
-                domain.transferOwnership('workspace-id', owner, owner.userId)
+                domain.transferOwnership(
+                    'workspace-id',
+                    owner,
+                    owner.userId,
+                    {}
+                )
             ).rejects.toBeInstanceOf(WorkspaceSelfTransferException);
             expect(
                 memberRepository.findOneByWorkspaceAndUser
@@ -310,7 +320,7 @@ describe('WorkspaceMemberDomain', () => {
             memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(null);
 
             await expect(
-                domain.transferOwnership('workspace-id', owner, 'missing')
+                domain.transferOwnership('workspace-id', owner, 'missing', {})
             ).rejects.toBeInstanceOf(WorkspaceMemberNotFoundException);
             expect(roleDomain.getByScopeAndKey).not.toHaveBeenCalled();
         });
@@ -340,7 +350,8 @@ describe('WorkspaceMemberDomain', () => {
                     domain.transferOwnership(
                         'workspace-id',
                         owner,
-                        member.userId
+                        member.userId,
+                        {}
                     )
                 ).rejects.toBeInstanceOf(RoleNotFoundException);
                 expect(
@@ -362,7 +373,8 @@ describe('WorkspaceMemberDomain', () => {
             await domain.transferOwnership(
                 'workspace-id',
                 owner,
-                member.userId
+                member.userId,
+                {}
             );
 
             expect(roleDomain.getByScopeAndKey).toHaveBeenCalledWith(
@@ -378,7 +390,7 @@ describe('WorkspaceMemberDomain', () => {
                 member.id,
                 ownerRole.id,
                 adminRole.id,
-                undefined
+                {}
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceOwnershipTransferred,
@@ -423,7 +435,7 @@ describe('WorkspaceMemberDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
         });
 
-        it.each([{ isPublic: true }, undefined])(
+        it.each([{ isPublic: true }, {}])(
             'throws WorkspaceNotFoundException and stages nothing when the repository transfer returns null (additionalWhere: %j)',
             async scoped => {
                 memberRepository.findOneByWorkspaceAndUser.mockResolvedValue(
@@ -449,7 +461,7 @@ describe('WorkspaceMemberDomain', () => {
             }
         );
 
-        it.each([{ isPublic: true }, undefined])(
+        it.each([{ isPublic: true }, {}])(
             'still rejects a non-owner actor and a self-transfer before any write (additionalWhere: %j)',
             async scoped => {
                 await expect(
@@ -489,7 +501,8 @@ describe('WorkspaceMemberDomain', () => {
             await domain.transferOwnership(
                 'workspace-id',
                 owner,
-                member.userId
+                member.userId,
+                {}
             );
 
             expect(activityLogDomain.prepare).toHaveBeenCalledOnce();
@@ -518,7 +531,8 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id'
             );
             expect(memberRepository.removeMember).toHaveBeenCalledWith(
-                owner.id
+                owner.id,
+                {}
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceMemberLeft,
@@ -538,7 +552,8 @@ describe('WorkspaceMemberDomain', () => {
 
                 expect(memberRepository.countOwners).not.toHaveBeenCalled();
                 expect(memberRepository.removeMember).toHaveBeenCalledWith(
-                    leaving.id
+                    leaving.id,
+                    {}
                 );
             }
         );
@@ -588,16 +603,16 @@ describe('WorkspaceMemberDomain', () => {
                 data: [],
             });
 
-            await domain.getMembersList('workspace-id', pagination);
-
-            expect(
-                memberRepository.findWithPaginationCursor
-            ).toHaveBeenCalledWith(
+            await domain.getMembersList(
                 'workspace-id',
                 pagination,
                 undefined,
-                undefined
+                {}
             );
+
+            expect(
+                memberRepository.findWithPaginationCursor
+            ).toHaveBeenCalledWith('workspace-id', pagination, undefined, {});
         });
     });
 
@@ -617,7 +632,8 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 owner,
                 member,
-                adminRole.id
+                adminRole.id,
+                {}
             );
 
             expect(
@@ -636,7 +652,8 @@ describe('WorkspaceMemberDomain', () => {
                         'workspace-id',
                         actor,
                         target,
-                        memberRole.id
+                        memberRole.id,
+                        {}
                     )
                 ).rejects.toBeInstanceOf(WorkspaceMemberPeerForbiddenException);
                 expect(roleDomain.resolve).not.toHaveBeenCalled();
@@ -652,7 +669,8 @@ describe('WorkspaceMemberDomain', () => {
                     'workspace-id',
                     admin,
                     member,
-                    'missing-role-id'
+                    'missing-role-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(RoleNotFoundException);
             expect(roleDomain.resolve).toHaveBeenCalledWith(
@@ -672,7 +690,8 @@ describe('WorkspaceMemberDomain', () => {
                     'workspace-id',
                     admin,
                     member,
-                    'project-role-id'
+                    'project-role-id',
+                    {}
                 )
             ).rejects.toBeInstanceOf(RoleScopeMismatchException);
             expect(memberRepository.updateRole).not.toHaveBeenCalled();
@@ -685,7 +704,8 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 owner,
                 member,
-                ownerRole.id
+                ownerRole.id,
+                {}
             );
 
             await expect(promise).rejects.toBeInstanceOf(
@@ -711,7 +731,8 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 owner,
                 member,
-                adminRole.id
+                adminRole.id,
+                {}
             );
 
             expect(roleDomain.resolve).toHaveBeenCalledWith(
@@ -721,7 +742,7 @@ describe('WorkspaceMemberDomain', () => {
             expect(memberRepository.updateRole).toHaveBeenCalledWith(
                 member.id,
                 adminRole.id,
-                undefined
+                {}
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceMemberRoleUpdated,
@@ -747,13 +768,14 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 owner,
                 otherAdmin,
-                memberRole.id
+                memberRole.id,
+                {}
             );
 
             expect(memberRepository.updateRole).toHaveBeenCalledWith(
                 otherAdmin.id,
                 memberRole.id,
-                undefined
+                {}
             );
         });
 
@@ -780,7 +802,7 @@ describe('WorkspaceMemberDomain', () => {
                 'a where',
                 { role: { key: EnumRoleWorkspaceKey.member } } as const,
             ],
-            ['no where', undefined],
+            ['no where', {}],
         ])(
             'throws WorkspaceMemberNotFoundException and stages nothing when the role write returns null with %s',
             async (_name, scoped) => {
@@ -807,7 +829,8 @@ describe('WorkspaceMemberDomain', () => {
                 'workspace-id',
                 admin,
                 { ...member, userId: admin.userId },
-                memberRole.id
+                memberRole.id,
+                {}
             );
 
             expect(activityLogDomain.prepare).toHaveBeenCalledOnce();
@@ -824,7 +847,7 @@ describe('WorkspaceMemberDomain', () => {
         });
 
         it('never re-reads the target the guard already authorized', async () => {
-            await domain.removeMember('workspace-id', admin, member);
+            await domain.removeMember('workspace-id', admin, member, {});
 
             expect(
                 memberRepository.findByIdAndWorkspace
@@ -833,7 +856,7 @@ describe('WorkspaceMemberDomain', () => {
 
         it('prevents a member from removing itself', async () => {
             await expect(
-                domain.removeMember('workspace-id', member, member)
+                domain.removeMember('workspace-id', member, member, {})
             ).rejects.toBeInstanceOf(WorkspaceMemberPeerForbiddenException);
         });
 
@@ -842,17 +865,17 @@ describe('WorkspaceMemberDomain', () => {
             ['another admin', otherAdmin],
         ])('prevents an admin from removing %s', async (_name, target) => {
             await expect(
-                domain.removeMember('workspace-id', admin, target)
+                domain.removeMember('workspace-id', admin, target, {})
             ).rejects.toBeInstanceOf(WorkspaceMemberPeerForbiddenException);
             expect(memberRepository.removeMember).not.toHaveBeenCalled();
         });
 
         it('removes a member and stages the activity rows', async () => {
-            await domain.removeMember('workspace-id', admin, member);
+            await domain.removeMember('workspace-id', admin, member, {});
 
             expect(memberRepository.removeMember).toHaveBeenCalledWith(
                 member.id,
-                undefined
+                {}
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.workspaceMemberRemoved,
@@ -872,11 +895,11 @@ describe('WorkspaceMemberDomain', () => {
         });
 
         it('lets an owner remove an admin', async () => {
-            await domain.removeMember('workspace-id', owner, otherAdmin);
+            await domain.removeMember('workspace-id', owner, otherAdmin, {});
 
             expect(memberRepository.removeMember).toHaveBeenCalledWith(
                 otherAdmin.id,
-                undefined
+                {}
             );
         });
 
@@ -899,7 +922,7 @@ describe('WorkspaceMemberDomain', () => {
                 'a where',
                 { role: { key: EnumRoleWorkspaceKey.member } } as const,
             ],
-            ['no where', undefined],
+            ['no where', {}],
         ])(
             'throws WorkspaceMemberNotFoundException and stages nothing when the delete returns null with %s',
             async (_name, scoped) => {
@@ -932,11 +955,11 @@ describe('WorkspaceMemberDomain', () => {
             );
 
             await expect(
-                domain.getMembersListForAdmin('workspace-id', pagination)
+                domain.getMembersListForAdmin('workspace-id', pagination, {})
             ).resolves.toBe(paginated);
             expect(
                 memberRepository.findWithPaginationOffset
-            ).toHaveBeenCalledWith('workspace-id', pagination, undefined);
+            ).toHaveBeenCalledWith('workspace-id', pagination, {});
         });
 
         it('forwards the accessible where as the trailing repository argument', async () => {

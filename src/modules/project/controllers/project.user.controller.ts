@@ -105,7 +105,10 @@ export class ProjectUserController {
         schema: ProjectResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
-    @PolicyAbility()
+    @PolicyProtected({
+        subject: EnumPolicySubject.Project,
+        action: [EnumPolicyAction.read],
+    })
     @WorkspaceMemberProtected()
     @WorkspaceProtected()
     @UserProtected()

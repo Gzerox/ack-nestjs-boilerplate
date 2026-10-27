@@ -10,7 +10,7 @@ import {
     EnumTermPolicyType,
     EnumUserLoginFrom,
     EnumUserLoginWith,
-    EnumRoleType,
+    EnumRoleScope,
     EnumUserGender,
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
@@ -29,7 +29,9 @@ import { DeviceDomain } from '@modules/device/domains/device.domain';
 import { NotificationQueue } from '@modules/notification/queues/notification.queue';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { RoleDomain } from '@modules/role/domains/role.domain';
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { RoleNotFoundException } from '@modules/role/exceptions/role.not-found.exception';
+import { RoleScopeMismatchException } from '@modules/role/exceptions/role.scope-mismatch.exception';
 import { UserBlockedForbiddenException } from '@modules/user/exceptions/user.blocked-forbidden.exception';
 import { UserEmailNotVerifiedException } from '@modules/user/exceptions/user.email-not-verified.exception';
 import { UserInactiveForbiddenException } from '@modules/user/exceptions/user.inactive-forbidden.exception';
@@ -38,6 +40,7 @@ import { UserNotFoundForbiddenException } from '@modules/user/exceptions/user.no
 import { UserPasswordExpiredException } from '@modules/user/exceptions/user.password-expired.exception';
 import { UserBlockedInvalidException } from '@modules/user/exceptions/user.blocked-invalid.exception';
 import { UserEmailExistException } from '@modules/user/exceptions/user.email-exist.exception';
+import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
 import { UserNotSelfException } from '@modules/user/exceptions/user.not-self.exception';
 import { UserUsernameContainBadWordException } from '@modules/user/exceptions/user.username-contain-bad-word.exception';
@@ -135,12 +138,13 @@ describe('UserDomain', () => {
             id: 'role-id',
             name: 'User',
             description: null,
-            type: EnumRoleType.user,
+            policyRevision: 0,
+            scope: EnumRoleScope.platform,
+            key: EnumRolePlatformKey.user,
             createdAt: now,
             createdBy: null,
             updatedAt: now,
             updatedBy: null,
-            policies: [],
         },
         twoFactor: null,
     } satisfies IUser;
@@ -148,7 +152,7 @@ describe('UserDomain', () => {
         ...activeUser.role,
         id: 'admin-role-id',
         name: 'Admin',
-        type: EnumRoleType.admin,
+        key: EnumRolePlatformKey.admin,
     };
     const workspaceContext = mock<IUserSignUpWorkspacePersonal>();
     const password = {
@@ -167,7 +171,7 @@ describe('UserDomain', () => {
         );
         helperDateService.create.mockReturnValue(now);
         userRepository.findOneById.mockResolvedValue(userRow);
-        roleDomain.getById.mockResolvedValue(activeUser.role);
+        roleDomain.resolve.mockResolvedValue(activeUser.role);
         countryDomain.existsById.mockResolvedValue(true);
         userRepository.existsByEmail.mockResolvedValue(false);
         userRepository.existsByUsername.mockResolvedValue(false);
@@ -271,11 +275,26 @@ describe('UserDomain', () => {
         ).rejects.toBeInstanceOf(UserEmailNotVerifiedException);
     });
 
-    it('returns an active verified user', async () => {
+    it('returns an active verified user after checking its role is platform-scoped', async () => {
         userRepository.findOneWithRoleById.mockResolvedValue(activeUser);
         await expect(service.validateUserGuard('user-id', true)).resolves.toBe(
             activeUser
         );
+        expect(roleDomain.assertScope).toHaveBeenCalledWith(
+            activeUser.role,
+            EnumRoleScope.platform
+        );
+    });
+
+    it('rejects a user whose role is not platform-scoped', async () => {
+        userRepository.findOneWithRoleById.mockResolvedValue(activeUser);
+        roleDomain.assertScope.mockImplementation(() => {
+            throw new RoleScopeMismatchException();
+        });
+
+        await expect(
+            service.validateUserGuard('user-id', false)
+        ).rejects.toThrow(RoleScopeMismatchException);
     });
 
     it('returns an active user without requiring verification', async () => {
@@ -285,6 +304,47 @@ describe('UserDomain', () => {
         await expect(
             service.validateUserGuard(userRow.id, false)
         ).resolves.toBe(unverified);
+    });
+
+    it('forwards the accessible where as the trailing repository argument of the administrator list', async () => {
+        const page = mock<IResponsePaginationReturn<never>>();
+        const pagination = { limit: 20, page: 1, skip: 0 };
+        const scopeWhere = { id: userRow.id };
+        userRepository.findWithPaginationOffset.mockResolvedValue(page);
+
+        await expect(
+            service.getListOffsetByAdmin(
+                pagination,
+                undefined,
+                undefined,
+                undefined,
+                scopeWhere
+            )
+        ).resolves.toBe(page);
+        expect(userRepository.findWithPaginationOffset).toHaveBeenCalledWith(
+            pagination,
+            undefined,
+            undefined,
+            undefined,
+            scopeWhere
+        );
+
+        await service.getListOffsetByAdmin(
+            pagination,
+            undefined,
+            undefined,
+            undefined,
+            {}
+        );
+        expect(
+            userRepository.findWithPaginationOffset
+        ).toHaveBeenLastCalledWith(
+            pagination,
+            undefined,
+            undefined,
+            undefined,
+            {}
+        );
     });
 
     it('forwards read and simple write operations to the repository', async () => {
@@ -306,7 +366,13 @@ describe('UserDomain', () => {
         userRepository.resetPasswordAttempt.mockResolvedValue(userRow);
 
         await expect(
-            service.getListOffsetByAdmin(pagination, status, roleId, countryId)
+            service.getListOffsetByAdmin(
+                pagination,
+                status,
+                roleId,
+                countryId,
+                {}
+            )
         ).resolves.toBe(page);
         await expect(service.getOneActive(userRow.id)).resolves.toBe(userRow);
         await expect(service.getOneActiveByEmail(userRow.email)).resolves.toBe(
@@ -369,6 +435,36 @@ describe('UserDomain', () => {
         );
     });
 
+    describe('getOne', () => {
+        it('calls the profile read', async () => {
+            const profile = mock<IUserProfile>();
+            userRepository.findOneProfileById.mockResolvedValue(profile);
+
+            await expect(service.getOne('user-1')).resolves.toBe(profile);
+            expect(userRepository.findOneProfileById).toHaveBeenCalledWith(
+                'user-1'
+            );
+        });
+
+        it('reads by id only', async () => {
+            const profile = mock<IUserProfile>();
+            userRepository.findOneProfileById.mockResolvedValue(profile);
+
+            await expect(service.getOne('user-1')).resolves.toBe(profile);
+            expect(userRepository.findOneProfileById).toHaveBeenCalledWith(
+                'user-1'
+            );
+        });
+
+        it('throws UserNotFoundException when the read returns null', async () => {
+            userRepository.findOneProfileById.mockResolvedValue(null);
+
+            await expect(service.getOne('user-1')).rejects.toBeInstanceOf(
+                UserNotFoundException
+            );
+        });
+    });
+
     describe('prepareCreateByAdmin', () => {
         const input = {
             username: 'new-user',
@@ -399,7 +495,7 @@ describe('UserDomain', () => {
         });
 
         it('prepares a verified administrator and hashes its used verification', async () => {
-            roleDomain.getById.mockResolvedValue(adminRole);
+            roleDomain.resolve.mockResolvedValue(adminRole);
 
             const result = await service.prepareCreateByAdmin(
                 { ...input, name: undefined, roleId: adminRole.id },
@@ -420,26 +516,32 @@ describe('UserDomain', () => {
             });
         });
 
+        it('resolves the role against the platform scope', async () => {
+            await service.prepareCreateByAdmin(input, 'admin-id');
+
+            expect(roleDomain.resolve).toHaveBeenCalledWith(
+                input.roleId,
+                EnumRoleScope.platform
+            );
+        });
+
         it.each([
-            ['missing role', null, true, false, RoleNotFoundException],
-            [
-                'missing country',
-                activeUser.role,
-                false,
-                false,
-                CountryNotFoundException,
-            ],
-            [
-                'duplicate email',
-                activeUser.role,
-                true,
-                true,
-                UserEmailExistException,
-            ],
+            ['missing role', new RoleNotFoundException()],
+            ['a non-platform role', new RoleScopeMismatchException()],
+        ])('propagates the role rejection for %s', async (_case, error) => {
+            roleDomain.resolve.mockRejectedValue(error);
+
+            await expect(
+                service.prepareCreateByAdmin(input, 'admin-id')
+            ).rejects.toBe(error);
+        });
+
+        it.each([
+            ['missing country', false, false, CountryNotFoundException],
+            ['duplicate email', true, true, UserEmailExistException],
         ])(
             'rejects creation for a %s',
-            async (_case, role, countryExists, emailExists, ExceptionClass) => {
-                roleDomain.getById.mockResolvedValue(role);
+            async (_case, countryExists, emailExists, ExceptionClass) => {
                 countryDomain.existsById.mockResolvedValue(countryExists);
                 userRepository.existsByEmail.mockResolvedValue(emailExists);
 
@@ -540,6 +642,68 @@ describe('UserDomain', () => {
             }
         );
 
+        it('calls the preliminary read and the scoped status write', async () => {
+            await service.updateStatusByAdmin(
+                userRow.id,
+                EnumUserStatus.active,
+                'admin-id'
+            );
+
+            expect(userRepository.findOneById).toHaveBeenCalledWith(userRow.id);
+            expect(userRepository.updateStatusByAdminInTx).toHaveBeenCalledWith(
+                expect.any(Object),
+                userRow.id,
+                { status: EnumUserStatus.active }
+            );
+        });
+
+        it('calls the read and the write', async () => {
+            await service.updateStatusByAdmin(
+                userRow.id,
+                EnumUserStatus.active,
+                'admin-id'
+            );
+
+            expect(userRepository.findOneById).toHaveBeenCalledWith(userRow.id);
+            expect(userRepository.updateStatusByAdminInTx).toHaveBeenCalledWith(
+                expect.any(Object),
+                userRow.id,
+                { status: EnumUserStatus.active }
+            );
+        });
+
+        it('throws UserNotFoundException when the preliminary read is missing', async () => {
+            userRepository.findOneById.mockResolvedValue(null);
+
+            await expect(
+                service.updateStatusByAdmin(
+                    userRow.id,
+                    EnumUserStatus.inactive,
+                    'admin-id'
+                )
+            ).rejects.toMatchObject({
+                statusCode: EnumUserStatusCodeError.notFound,
+            });
+            expect(
+                userRepository.updateStatusByAdminInTx
+            ).not.toHaveBeenCalled();
+        });
+
+        it('scoped status write returning null throws UserNotFoundException inside the transaction and no session revoke runs', async () => {
+            userRepository.updateStatusByAdminInTx.mockResolvedValue(null);
+
+            await expect(
+                service.updateStatusByAdmin(
+                    userRow.id,
+                    EnumUserStatus.blocked,
+                    'admin-id'
+                )
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
+            expect(sessionDomain.finalizeRevokeAll).not.toHaveBeenCalled();
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
         it('rejects an administrator updating their own status', async () => {
             await expect(
                 service.updateStatusByAdmin(
@@ -603,6 +767,57 @@ describe('UserDomain', () => {
                     'admin-id'
                 )
             ).rejects.toBeInstanceOf(AppUnknownException);
+        });
+    });
+
+    describe('updatePasswordInTx', () => {
+        it('calls the password write', async () => {
+            await expect(
+                service.updatePasswordInTx(
+                    transactionClient,
+                    userRow.id,
+                    password,
+                    'admin-id'
+                )
+            ).resolves.toBe(userRow);
+            expect(userRepository.updatePasswordInTx).toHaveBeenCalledWith(
+                transactionClient,
+                userRow.id,
+                password,
+                'admin-id'
+            );
+        });
+
+        it('calls the write and returns the same row', async () => {
+            await expect(
+                service.updatePasswordInTx(
+                    transactionClient,
+                    userRow.id,
+                    password,
+                    'admin-id'
+                )
+            ).resolves.toBe(userRow);
+            expect(userRepository.updatePasswordInTx).toHaveBeenCalledWith(
+                transactionClient,
+                userRow.id,
+                password,
+                'admin-id'
+            );
+        });
+
+        it('throws UserNotFoundException when the write returns null', async () => {
+            userRepository.updatePasswordInTx.mockResolvedValue(null);
+
+            await expect(
+                service.updatePasswordInTx(
+                    transactionClient,
+                    userRow.id,
+                    password,
+                    'admin-id'
+                )
+            ).rejects.toMatchObject({
+                statusCode: EnumUserStatusCodeError.notFound,
+            });
         });
     });
 

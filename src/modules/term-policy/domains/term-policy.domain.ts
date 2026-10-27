@@ -23,6 +23,7 @@ import { TermPolicyLanguageDuplicateException } from '@modules/term-policy/excep
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
 import type {
+    ITermPolicy,
     ITermPolicyContentCreate,
     ITermPolicyContentUpload,
     ITermPolicyCreate,
@@ -91,12 +92,19 @@ export class TermPolicyDomain {
         });
     }
 
+    /** Extra caller-supplied constraint, AND-composed first. */
     async getListByAdmin(
         pagination: IPaginationQueryOffsetParams<Prisma.TermPolicyWhereInput>,
-        type?: Record<string, IPaginationIn>,
-        status?: Record<string, IPaginationIn>
+        type: Record<string, IPaginationIn> | undefined,
+        status: Record<string, IPaginationIn> | undefined,
+        additionalWhere: Prisma.TermPolicyWhereInput
     ): Promise<IResponsePaginationReturn<TermPolicy>> {
-        return this.termPolicyRepository.find(pagination, type, status);
+        return this.termPolicyRepository.find(
+            pagination,
+            type,
+            status,
+            additionalWhere
+        );
     }
 
     async getListPublished(
@@ -168,6 +176,17 @@ export class TermPolicyDomain {
         }
     }
 
+    /** Returns the stored policy with its contents; callers judge it, this method does not. */
+    async getOne(termPolicyId: string): Promise<ITermPolicy> {
+        const termPolicy =
+            await this.termPolicyRepository.findOneById(termPolicyId);
+        if (!termPolicy) {
+            throw new TermPolicyNotFoundException();
+        }
+
+        return termPolicy;
+    }
+
     async deleteByAdmin(termPolicyId: string): Promise<TermPolicy> {
         const termPolicy =
             await this.termPolicyRepository.findOneById(termPolicyId);
@@ -187,12 +206,15 @@ export class TermPolicyDomain {
                     timestamp
                 ),
             ];
-            const [deleted] = await Promise.all([
-                this.termPolicyRepository.delete(termPolicyId),
-                this.awsS3Service.deleteDir(contentPath, {
-                    access: EnumAwsS3Accessibility.private,
-                }),
-            ]);
+            const deleted =
+                await this.termPolicyRepository.delete(termPolicyId);
+            if (!deleted) {
+                throw new TermPolicyNotFoundException();
+            }
+
+            await this.awsS3Service.deleteDir(contentPath, {
+                access: EnumAwsS3Accessibility.private,
+            });
 
             this.activityLogDomain.stagePrepared(events);
 
@@ -245,6 +267,10 @@ export class TermPolicyDomain {
                         termPolicyId,
                         newContents
                     );
+                    if (!row) {
+                        throw new TermPolicyNotFoundException();
+                    }
+
                     await this.userDomain.resetTermPolicyForActiveUsersInTx(
                         tx,
                         termPolicy.type

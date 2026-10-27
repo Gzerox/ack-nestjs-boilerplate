@@ -1,10 +1,15 @@
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 
 import {
-    EnumRoleType,
+    EnumPolicyAction,
+    EnumPolicySubject,
+    EnumRoleScope,
     EnumUserGender,
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
@@ -19,18 +24,26 @@ import type { UserTwoFactorEnableRequestDto } from '@modules/user/dtos/request/u
 import type { UserTwoFactorRegenerateBackupCodeRequestDto } from '@modules/user/dtos/request/user.two-factor-regenerate-backup-code.request.dto';
 import type { UserTwoFactorSetupRequestDto } from '@modules/user/dtos/request/user.two-factor-setup.request.dto';
 import type {
-    IUser,
+    IUserProfile,
     IUserTwoFactor,
     IUserTwoFactorSetup,
     IUserTwoFactorStatus,
 } from '@modules/user/interfaces/user.interface';
 import { UserTwoFactorDomain } from '@modules/user/domains/user.two-factor.domain';
+import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { UserTwoFactorHttpService } from '@modules/user/services/user.two-factor.http.service';
 import { UserUtil } from '@modules/user/utils/user.util';
 
 describe('UserTwoFactorHttpService', () => {
     const userTwoFactorDomain: MockProxy<UserTwoFactorDomain> =
         mock<UserTwoFactorDomain>();
+    const userDomain: MockProxy<UserDomain> = mock<UserDomain>();
+    const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
+        mock<PolicyAbilityDomain>();
     const userUtil: MockProxy<UserUtil> = mock<UserUtil>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const user = {
@@ -71,18 +84,35 @@ describe('UserTwoFactorHttpService', () => {
             id: 'role-id',
             name: 'User',
             description: null,
-            type: EnumRoleType.user,
+            policyRevision: 0,
+            scope: EnumRoleScope.platform,
+            key: EnumRolePlatformKey.user,
             createdAt: now,
             createdBy: null,
             updatedAt: now,
             updatedBy: null,
-            policies: [],
         },
         twoFactor: null,
-    } satisfies IUser;
+        mobileNumbers: [],
+        country: {
+            id: 'country-id',
+            name: 'Country',
+            alpha2Code: 'CC',
+            alpha3Code: 'CCC',
+            continent: 'Continent',
+            timezone: 'UTC',
+            phoneCodes: ['+1'],
+            createdAt: now,
+            createdBy: null,
+            updatedAt: now,
+            updatedBy: null,
+        },
+        photo: null,
+    } satisfies IUserProfile;
     const tokens = {
         tokenType: 'Bearer',
-        roleType: EnumRoleType.user,
+        roleKey: EnumRolePlatformKey.user,
+        roleScope: EnumRoleScope.platform,
         expiresIn: 3600,
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
@@ -119,6 +149,7 @@ describe('UserTwoFactorHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        userDomain.getOne.mockResolvedValue(user);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -126,6 +157,11 @@ describe('UserTwoFactorHttpService', () => {
                 {
                     provide: UserTwoFactorDomain,
                     useValue: userTwoFactorDomain,
+                },
+                { provide: UserDomain, useValue: userDomain },
+                {
+                    provide: PolicyAbilityDomain,
+                    useValue: policyAbilityDomain,
                 },
                 { provide: UserUtil, useValue: userUtil },
             ],
@@ -289,16 +325,66 @@ describe('UserTwoFactorHttpService', () => {
     });
 
     describe('resetTwoFactorByAdmin', () => {
-        it('delegates to the domain', async () => {
+        it('loads the user by identity, authorizes update, and writes', async () => {
             userTwoFactorDomain.resetTwoFactorByAdmin.mockResolvedValue(
                 undefined
             );
 
             await service.resetTwoFactorByAdmin('user-id', 'admin-id');
 
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.User, user)
+            );
             expect(
                 userTwoFactorDomain.resetTwoFactorByAdmin
             ).toHaveBeenCalledWith('user-id', 'admin-id');
+        });
+
+        it('propagates UserNotFoundException from the identity load and does not authorize or write', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(
+                service.resetTwoFactorByAdmin('user-id', 'admin-id')
+            ).rejects.toThrow(UserNotFoundException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(
+                userTwoFactorDomain.resetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(
+                service.resetTwoFactorByAdmin('user-id', 'admin-id')
+            ).rejects.toThrow(PolicyForbiddenException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.User, user)
+            );
+            expect(
+                userTwoFactorDomain.resetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
+        });
+
+        it('throws RequestContextMissingException from authorize after the identity load and writes nothing', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new RequestContextMissingException(PolicyAbilityStoreKey);
+            });
+
+            await expect(
+                service.resetTwoFactorByAdmin('user-id', 'admin-id')
+            ).rejects.toThrow(RequestContextMissingException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(
+                userTwoFactorDomain.resetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
         });
     });
 });

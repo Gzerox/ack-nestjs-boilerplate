@@ -1,101 +1,172 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Test } from '@nestjs/testing';
-import type { TestingModule } from '@nestjs/testing';
+import { createPrismaAbility } from '@casl/prisma/runtime';
+import type { RawRuleOf } from '@casl/ability';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-
-import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    type Policy,
-} from '@generated/prisma-client';
+} from '@generated/prisma-client/client';
 import {
+    PolicyAbilityStoreKey,
     PolicyRequiredMetaKey,
-    PolicyStoreKey,
 } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
+import { PolicyPredefinedNotFoundException } from '@modules/policy/exceptions/policy.predefined-not-found.exception';
 import { PolicyGuard } from '@modules/policy/guards/policy.guard';
-import { PolicyDomain } from '@modules/policy/domains/policy.domain';
-import { UserStoreKey } from '@modules/user/constants/user.constant';
+import type {
+    IPolicyRequired,
+    PolicyAbility,
+} from '@modules/policy/interfaces/policy.interface';
 
 describe('PolicyGuard', () => {
-    const reflector: MockProxy<Reflector> = mock<Reflector>();
-    const policyDomain: MockProxy<PolicyDomain> = mock<PolicyDomain>();
-    const requestStoreService: MockProxy<RequestStoreService> =
-        mock<RequestStoreService>();
-    const requestStoreGet = vi.mocked(requestStoreService.get);
-    const now = new Date('2026-01-01T00:00:00.000Z');
-    const policies = [
-        {
-            id: 'policy-id',
-            roleId: 'role-id',
-            subject: EnumPolicySubject.user,
-            action: [EnumPolicyAction.read],
-            createdAt: now,
-            createdBy: null,
-            updatedAt: now,
-            updatedBy: null,
-        },
-    ] satisfies Policy[];
-
+    const reflector: MockProxy<Reflector> = mock();
+    const policyAbilityDomain: MockProxy<PolicyAbilityDomain> = mock();
+    const context: MockProxy<ExecutionContext> = mock();
+    const useAbility = (rules: RawRuleOf<PolicyAbility>[]): void => {
+        policyAbilityDomain.requireStored.mockReturnValue(
+            createPrismaAbility<PolicyAbility>(rules)
+        );
+    };
+    const catchForbidden = (
+        required: IPolicyRequired[]
+    ): PolicyForbiddenException => {
+        reflector.get.mockReturnValue(required);
+        try {
+            guard.canActivate(context);
+        } catch (error) {
+            return error as PolicyForbiddenException;
+        }
+        throw new Error('expected throw');
+    };
     let guard: PolicyGuard;
 
-    beforeEach(async () => {
-        const moduleRef: TestingModule = await Test.createTestingModule({
-            providers: [
-                PolicyGuard,
-                { provide: Reflector, useValue: reflector },
-                { provide: PolicyDomain, useValue: policyDomain },
-                { provide: RequestStoreService, useValue: requestStoreService },
-            ],
-        }).compile();
-        guard = moduleRef.get(PolicyGuard);
+    beforeEach(() => {
+        vi.resetAllMocks();
+        guard = new PolicyGuard(reflector, policyAbilityDomain);
+        context.getHandler.mockReturnValue(() => undefined);
     });
 
-    it('hands required metadata and request-scoped authorization state to the service', async () => {
-        const handler = () => undefined;
-        const context: MockProxy<ExecutionContext> = mock<ExecutionContext>();
-        context.getHandler.mockReturnValue(handler);
-        const required = [
-            {
-                subject: EnumPolicySubject.user,
-                action: [EnumPolicyAction.read],
-            },
-        ];
-        const storedUser = { id: 'user-id' };
-        reflector.get.mockReturnValue(required);
-        requestStoreGet
-            .mockReturnValueOnce(storedUser)
-            .mockReturnValueOnce(policies);
-        policyDomain.validatePolicyGuard.mockReturnValue(true);
+    describe('canActivate', () => {
+        it('rejects routes without policy metadata', () => {
+            reflector.get.mockReturnValue(undefined);
+            expect(() => guard.canActivate(context)).toThrow(
+                PolicyPredefinedNotFoundException
+            );
+        });
 
-        await expect(guard.canActivate(context)).resolves.toBe(true);
-        expect(reflector.get).toHaveBeenCalledWith(
-            PolicyRequiredMetaKey,
-            handler
-        );
-        expect(requestStoreGet).toHaveBeenNthCalledWith(1, UserStoreKey);
-        expect(requestStoreGet).toHaveBeenNthCalledWith(2, PolicyStoreKey);
-        expect(policyDomain.validatePolicyGuard).toHaveBeenCalledWith(
-            storedUser,
-            policies,
-            required
-        );
-    });
+        it('reads the metadata and the stored ability, then returns true when every action is granted', () => {
+            useAbility([
+                {
+                    action: [EnumPolicyAction.read, EnumPolicyAction.update],
+                    subject: 'Project',
+                },
+            ]);
+            reflector.get.mockReturnValue([
+                {
+                    subject: EnumPolicySubject.Project,
+                    action: [EnumPolicyAction.read, EnumPolicyAction.update],
+                },
+            ]);
 
-    it('uses an empty required-policy list when metadata is absent', async () => {
-        const context: MockProxy<ExecutionContext> = mock<ExecutionContext>();
-        reflector.get.mockReturnValue(undefined);
-        requestStoreGet.mockReturnValue(null);
-        policyDomain.validatePolicyGuard.mockReturnValue(true);
+            expect(guard.canActivate(context)).toBe(true);
+            expect(reflector.get).toHaveBeenCalledWith(
+                PolicyRequiredMetaKey,
+                expect.any(Function)
+            );
+            expect(policyAbilityDomain.requireStored).toHaveBeenCalledWith(
+                PolicyAbilityStoreKey
+            );
+        });
 
-        await guard.canActivate(context);
+        it('reports every missing action of a subject in one exception', () => {
+            useAbility([]);
 
-        expect(policyDomain.validatePolicyGuard).toHaveBeenCalledWith(
-            null,
-            null,
-            []
-        );
+            const error = catchForbidden([
+                {
+                    subject: EnumPolicySubject.Project,
+                    action: [EnumPolicyAction.read, EnumPolicyAction.update],
+                },
+            ]);
+
+            expect(error).toBeInstanceOf(PolicyForbiddenException);
+            expect(error.metadata).toEqual({
+                missing: [
+                    {
+                        subject: EnumPolicySubject.Project,
+                        actions: [
+                            EnumPolicyAction.read,
+                            EnumPolicyAction.update,
+                        ],
+                    },
+                ],
+            });
+        });
+
+        it('lists only the denied actions, merges and dedupes repeated subjects', () => {
+            useAbility([{ action: EnumPolicyAction.read, subject: 'Project' }]);
+
+            const error = catchForbidden([
+                {
+                    subject: EnumPolicySubject.Project,
+                    action: [EnumPolicyAction.read, EnumPolicyAction.update],
+                },
+                {
+                    subject: EnumPolicySubject.User,
+                    action: [EnumPolicyAction.read],
+                },
+                {
+                    subject: EnumPolicySubject.Project,
+                    action: [EnumPolicyAction.update, EnumPolicyAction.delete],
+                },
+            ]);
+
+            expect(error.metadata).toEqual({
+                missing: [
+                    {
+                        subject: EnumPolicySubject.Project,
+                        actions: [
+                            EnumPolicyAction.update,
+                            EnumPolicyAction.delete,
+                        ],
+                    },
+                    {
+                        subject: EnumPolicySubject.User,
+                        actions: [EnumPolicyAction.read],
+                    },
+                ],
+            });
+        });
+
+        it('carries the reason of the first denying inverted rule', () => {
+            useAbility([
+                { action: EnumPolicyAction.read, subject: 'Project' },
+                {
+                    action: EnumPolicyAction.read,
+                    subject: 'Project',
+                    inverted: true,
+                    reason: 'blocked by rule',
+                },
+            ]);
+
+            const error = catchForbidden([
+                {
+                    subject: EnumPolicySubject.Project,
+                    action: [EnumPolicyAction.read],
+                },
+            ]);
+
+            expect(error.metadata).toEqual({
+                reason: 'blocked by rule',
+                missing: [
+                    {
+                        subject: EnumPolicySubject.Project,
+                        actions: [EnumPolicyAction.read],
+                    },
+                ],
+            });
+        });
     });
 });

@@ -1,3 +1,4 @@
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock, mockDeep } from 'vitest-mock-extended';
@@ -9,7 +10,7 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { DatabaseService } from '@common/database/services/database.service';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
-    EnumRoleType,
+    EnumRoleScope,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -82,7 +83,8 @@ describe('UserTwoFactorDomain', () => {
     };
     const tokens = {
         tokenType: 'Bearer',
-        roleType: EnumRoleType.user,
+        roleKey: EnumRolePlatformKey.user,
+        roleScope: EnumRoleScope.platform,
         expiresIn: 3600,
         accessToken: 'access-token',
         refreshToken: 'refreshInTx-token',
@@ -129,12 +131,13 @@ describe('UserTwoFactorDomain', () => {
             id: 'role-id',
             name: 'User',
             description: null,
-            type: EnumRoleType.user,
+            policyRevision: 0,
+            scope: EnumRoleScope.platform,
+            key: EnumRolePlatformKey.user,
             createdAt: now,
             createdBy: null,
             updatedAt: now,
             updatedBy: null,
-            policies: [],
         },
         twoFactor: {
             id: 'two-factor-id',
@@ -185,6 +188,9 @@ describe('UserTwoFactorDomain', () => {
         helperDateService.create.mockReturnValue(now);
         authCache.getChallenge.mockResolvedValue(challenge);
         userRepository.findOneWithRoleById.mockResolvedValue(user);
+        userTwoFactorRepository.resetTwoFactorByAdminInTx.mockResolvedValue(
+            user.twoFactor
+        );
         userLoginDomain.handleTwoFactorValidation.mockResolvedValue(
             twoFactorVerified
         );
@@ -797,6 +803,50 @@ describe('UserTwoFactorDomain', () => {
             expect(
                 notificationQueue.sendResetTwoFactorByAdmin
             ).toHaveBeenCalledWith(user.id, 'admin-id');
+        });
+
+        it('calls the preliminary read and the scoped reset', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
+
+            expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
+                user.id
+            );
+            expect(
+                userTwoFactorRepository.resetTwoFactorByAdminInTx
+            ).toHaveBeenCalledWith(expect.any(Object), user.id);
+        });
+
+        it('reads', async () => {
+            await service.resetTwoFactorByAdmin(user.id, 'admin-id');
+
+            expect(userRepository.findOneWithRoleById).toHaveBeenCalledWith(
+                user.id
+            );
+        });
+
+        it('throws UserNotFoundException when the read is missing', async () => {
+            userRepository.findOneWithRoleById.mockResolvedValue(null);
+
+            await expect(
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(
+                userTwoFactorRepository.resetTwoFactorByAdminInTx
+            ).not.toHaveBeenCalled();
+        });
+
+        it('scoped reset returning null throws UserNotFoundException', async () => {
+            userTwoFactorRepository.resetTwoFactorByAdminInTx.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                service.resetTwoFactorByAdmin(user.id, 'admin-id')
+            ).rejects.toBeInstanceOf(UserNotFoundException);
+            expect(sessionDomain.revokeActiveByUserInTx).not.toHaveBeenCalled();
+            expect(
+                notificationQueue.sendResetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
         });
 
         it('throws UserNotSelfException when an admin resets their own 2FA', async () => {

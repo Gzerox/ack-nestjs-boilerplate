@@ -1,15 +1,20 @@
+import { EnumRolePlatformKey } from '@modules/role/enums/role.platform-key.enum';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { subject } from '@casl/ability';
 
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
+import { RequestContextMissingException } from '@common/request/exceptions/request.context-missing.exception';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import {
     EnumActivityLogAction,
-    EnumRoleType,
+    EnumPolicyAction,
+    EnumPolicySubject,
+    EnumRoleScope,
     EnumUserGender,
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
@@ -29,8 +34,12 @@ import type {
     IUserList,
     IUserProfile,
 } from '@modules/user/interfaces/user.interface';
+import { PolicyAbilityStoreKey } from '@modules/policy/constants/policy.constant';
+import { PolicyAbilityDomain } from '@modules/policy/domains/policy.ability.domain';
+import { PolicyForbiddenException } from '@modules/policy/exceptions/policy.forbidden.exception';
 import { UserOnboardingDomain } from '@modules/user/domains/user.onboarding.domain';
 import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
 import { UserHttpService } from '@modules/user/services/user.http.service';
 import { WorkspaceDomain } from '@modules/workspace/domains/workspace.domain';
 
@@ -43,17 +52,21 @@ describe('UserHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
+    const policyAbilityDomain: MockProxy<PolicyAbilityDomain> =
+        mock<PolicyAbilityDomain>();
+    const scopeWhere = { deletedAt: null };
     const now = new Date('2026-01-01T00:00:00.000Z');
     const role = {
         id: 'role-id',
         name: 'User',
         description: null,
-        type: EnumRoleType.user,
+        policyRevision: 0,
+        scope: EnumRoleScope.platform,
+        key: EnumRolePlatformKey.user,
         createdAt: now,
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
-        policies: [],
     };
     const userListItem = {
         id: 'user-id',
@@ -153,12 +166,13 @@ describe('UserHttpService', () => {
             id: 'role-id',
             name: 'User',
             description: null,
-            type: EnumRoleType.user,
+            policyRevision: 0,
+            scope: EnumRoleScope.platform,
+            key: EnumRolePlatformKey.user,
             createdAt: now,
             createdBy: null,
             updatedAt: now,
             updatedBy: null,
-            policies: [],
         },
         twoFactor: null,
         mobileNumbers: [],
@@ -216,6 +230,8 @@ describe('UserHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        policyAbilityDomain.scope.mockReturnValue(scopeWhere);
+        userDomain.getOne.mockResolvedValue(userProfile);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -226,6 +242,7 @@ describe('UserHttpService', () => {
                     useValue: userOnboardingDomain,
                 },
                 { provide: WorkspaceDomain, useValue: workspaceDomain },
+                { provide: PolicyAbilityDomain, useValue: policyAbilityDomain },
                 {
                     provide: PaginationQueryUtil,
                     useValue: paginationQueryUtil,
@@ -286,7 +303,12 @@ describe('UserHttpService', () => {
                 offsetParams,
                 statusWhere,
                 roleIdWhere,
-                countryIdWhere
+                countryIdWhere,
+                scopeWhere
+            );
+            expect(policyAbilityDomain.scope).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                EnumPolicySubject.User
             );
             expect(result).toEqual(offsetPage);
         });
@@ -314,19 +336,73 @@ describe('UserHttpService', () => {
                 offsetParams,
                 undefined,
                 undefined,
-                undefined
+                undefined,
+                scopeWhere
             );
+        });
+
+        it('propagates PolicyForbiddenException and skips the domain when the ability has no read rule', async () => {
+            policyAbilityDomain.scope.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(service.getListOffsetByAdmin({})).rejects.toThrow(
+                PolicyForbiddenException
+            );
+            expect(userDomain.getListOffsetByAdmin).not.toHaveBeenCalled();
         });
     });
 
     describe('getOne', () => {
-        it('delegates to the domain and wraps the profile', async () => {
-            userDomain.getOne.mockResolvedValue(userProfile);
-
+        it('loads the user by identity, authorizes read, and wraps the profile', async () => {
             const result = await service.getOne('user-id');
 
             expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, userProfile)
+            );
             expect(result).toEqual({ data: userProfile });
+        });
+
+        it('propagates UserNotFoundException from the identity load and does not authorize', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(service.getOne('user-id')).rejects.toThrow(
+                UserNotFoundException
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(service.getOne('user-id')).rejects.toThrow(
+                PolicyForbiddenException
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, userProfile)
+            );
+        });
+
+        it('throws RequestContextMissingException from authorize after the identity load', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new RequestContextMissingException(PolicyAbilityStoreKey);
+            });
+
+            await expect(service.getOne('user-id')).rejects.toThrow(
+                RequestContextMissingException
+            );
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.read,
+                subject(EnumPolicySubject.User, userProfile)
+            );
         });
     });
 
@@ -389,10 +465,23 @@ describe('UserHttpService', () => {
             expect(userDomain.notifyWelcomeByAdmin).not.toHaveBeenCalled();
             expect(result).toEqual({ data: { id: createdUser.id } });
         });
+
+        it('creates without consulting the stored ability, the controller already gates the class policy', async () => {
+            userDomain.prepareCreateByAdmin.mockResolvedValue({
+                input: preparedInputWithoutPassword,
+                passwordString: 'plain-password',
+            });
+            userOnboardingDomain.getCreateTimeoutInMs.mockReturnValue(5000);
+            workspaceDomain.commitOnboarding.mockResolvedValue([createdUser]);
+
+            await service.createByAdmin(request, 'admin-id');
+
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+        });
     });
 
     describe('updateStatusByAdmin', () => {
-        it('delegates to the domain and returns an empty response', async () => {
+        it('loads the user by identity, authorizes update, and writes', async () => {
             const request = {
                 status: EnumUserStatus.inactive,
             } satisfies UserUpdateStatusRequestDto;
@@ -404,12 +493,68 @@ describe('UserHttpService', () => {
                 'admin-id'
             );
 
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.User, userProfile)
+            );
             expect(userDomain.updateStatusByAdmin).toHaveBeenCalledWith(
                 'user-id',
                 EnumUserStatus.inactive,
                 'admin-id'
             );
             expect(result).toEqual({});
+        });
+
+        it('propagates UserNotFoundException from the identity load and does not authorize or write', async () => {
+            userDomain.getOne.mockRejectedValue(new UserNotFoundException());
+
+            await expect(
+                service.updateStatusByAdmin(
+                    'user-id',
+                    { status: EnumUserStatus.inactive },
+                    'admin-id'
+                )
+            ).rejects.toThrow(UserNotFoundException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).not.toHaveBeenCalled();
+            expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('throws PolicyForbiddenException from authorize after the identity load and never writes', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new PolicyForbiddenException();
+            });
+
+            await expect(
+                service.updateStatusByAdmin(
+                    'user-id',
+                    { status: EnumUserStatus.inactive },
+                    'admin-id'
+                )
+            ).rejects.toThrow(PolicyForbiddenException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(policyAbilityDomain.authorize).toHaveBeenCalledWith(
+                EnumPolicyAction.update,
+                subject(EnumPolicySubject.User, userProfile)
+            );
+            expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
+        });
+
+        it('throws RequestContextMissingException from authorize after the identity load and writes nothing', async () => {
+            policyAbilityDomain.authorize.mockImplementation(() => {
+                throw new RequestContextMissingException(PolicyAbilityStoreKey);
+            });
+
+            await expect(
+                service.updateStatusByAdmin(
+                    'user-id',
+                    { status: EnumUserStatus.inactive },
+                    'admin-id'
+                )
+            ).rejects.toThrow(RequestContextMissingException);
+            expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
+            expect(userDomain.updateStatusByAdmin).not.toHaveBeenCalled();
         });
     });
 

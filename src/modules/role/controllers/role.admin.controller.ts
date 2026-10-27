@@ -32,11 +32,9 @@ import { RoleCreateRequestSchema } from '@modules/role/dtos/request/role.create.
 import type { RoleCreateRequestDto } from '@modules/role/dtos/request/role.create.request.dto';
 import { RoleUpdateRequestSchema } from '@modules/role/dtos/request/role.update.request.dto';
 import type { RoleUpdateRequestDto } from '@modules/role/dtos/request/role.update.request.dto';
-import { RoleProtected } from '@modules/role/decorators/role.decorator';
 import {
     EnumPolicyAction,
     EnumPolicySubject,
-    EnumRoleType,
 } from '@generated/prisma-client/client';
 
 import { UserProtected } from '@modules/user/decorators/user.decorator';
@@ -59,10 +57,9 @@ export class RoleAdminController {
     @ResponsePagination('role.list', { schema: RoleListResponseSchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicySubject.role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -79,10 +76,9 @@ export class RoleAdminController {
     @Response('role.get', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicySubject.role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -95,34 +91,13 @@ export class RoleAdminController {
         return this.roleHttpService.getOne(roleId);
     }
 
-    @Doc({ summary: 'create a role' })
-    @Response('role.create', { schema: RoleSchema })
-    @TermPolicyAcceptanceProtected()
-    @PolicyProtected({
-        subject: EnumPolicySubject.role,
-        action: [EnumPolicyAction.read, EnumPolicyAction.create],
-    })
-    @RoleProtected(EnumRoleType.admin)
-    @UserProtected()
-    @AuthJwtAccessProtected()
-    @ApiKeyProtected()
-    @RequestThrottle({ user: true })
-    @Post('/create')
-    async create(
-        @Body({ schema: RoleCreateRequestSchema })
-        body: RoleCreateRequestDto
-    ): Promise<IResponseReturn<RoleDto>> {
-        return this.roleHttpService.createByAdmin(body);
-    }
-
     @Doc({ summary: 'update data a role' })
     @Response('role.update', { schema: RoleSchema })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicySubject.role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.update],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
@@ -137,14 +112,32 @@ export class RoleAdminController {
         return this.roleHttpService.updateByAdmin(roleId, body);
     }
 
-    @Doc({ summary: 'delete data a role' })
+    @Doc({ summary: 'create a role' })
+    @Response('role.create', { schema: RoleSchema })
+    @TermPolicyAcceptanceProtected()
+    @PolicyProtected({
+        subject: EnumPolicySubject.Role,
+        action: [EnumPolicyAction.read, EnumPolicyAction.create],
+    })
+    @UserProtected()
+    @AuthJwtAccessProtected()
+    @ApiKeyProtected()
+    @RequestThrottle({ user: true })
+    @Post('/create')
+    async create(
+        @Body({ schema: RoleCreateRequestSchema })
+        body: RoleCreateRequestDto
+    ): Promise<IResponseReturn<RoleDto>> {
+        return this.roleHttpService.createByAdmin(body);
+    }
+
+    @Doc({ summary: 'delete a role' })
     @Response('role.delete')
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
-        subject: EnumPolicySubject.role,
+        subject: EnumPolicySubject.Role,
         action: [EnumPolicyAction.read, EnumPolicyAction.delete],
     })
-    @RoleProtected(EnumRoleType.admin)
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()

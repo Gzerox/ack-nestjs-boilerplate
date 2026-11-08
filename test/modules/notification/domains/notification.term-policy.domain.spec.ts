@@ -211,7 +211,8 @@ describe('NotificationTermPolicyDomain', () => {
                         notificationId: 'notification-id',
                     },
                 ],
-                data
+                data,
+                0
             );
             expect(result).toEqual({
                 message: 'Publish term policy notification processed',
@@ -219,6 +220,111 @@ describe('NotificationTermPolicyDomain', () => {
                 filteredUserCounts: 1,
                 batches: 1,
             });
+        });
+
+        it('creates the rows before enqueueing each chunk', async () => {
+            const other = {
+                id: 'user-2',
+                email: 'omar@example.com',
+                username: 'omar',
+            };
+            const contact = {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+            };
+            userDomain.getListActive.mockResolvedValue([contact, other]);
+            const setting: NotificationUserSetting = {
+                id: 'setting-id',
+                userId: user.id,
+                channel: EnumNotificationChannel.email,
+                type: EnumNotificationType.transactional,
+                isActive: true,
+                createdAt: new Date('2024-01-01T00:00:00.000Z'),
+                createdBy: null,
+                updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+                updatedBy: null,
+            };
+            notificationUserSettingRepository.findActiveUserSettingByType.mockResolvedValue(
+                [setting, { ...setting, id: 'setting-2', userId: other.id }]
+            );
+            helperArrayService.chunk.mockReturnValue([[contact], [other]]);
+            databaseUtil.createId
+                .mockReturnValueOnce('notification-1')
+                .mockReturnValueOnce('notification-2');
+            const calls: string[] = [];
+            notificationRepository.createMany.mockImplementation(
+                async entries => {
+                    calls.push(`create-${entries[0].payload.id}`);
+
+                    return [notification];
+                }
+            );
+            notificationEmailQueue.sendPublishTermPolicy.mockImplementation(
+                async (_send, _data, chunkIndex) => {
+                    calls.push(`enqueue-${chunkIndex}`);
+                }
+            );
+
+            await domain.processPublishTermPolicy('admin-id', data);
+
+            expect(calls).toEqual([
+                'create-notification-1',
+                'enqueue-0',
+                'create-notification-2',
+                'enqueue-1',
+            ]);
+            expect(
+                notificationEmailQueue.sendPublishTermPolicy
+            ).toHaveBeenNthCalledWith(
+                2,
+                [
+                    {
+                        userId: other.id,
+                        email: other.email,
+                        username: other.username,
+                        notificationId: 'notification-2',
+                    },
+                ],
+                data,
+                1
+            );
+        });
+
+        it('does not enqueue a chunk whose rows failed to write', async () => {
+            const contact = {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+            };
+            userDomain.getListActive.mockResolvedValue([contact]);
+            notificationUserSettingRepository.findActiveUserSettingByType.mockResolvedValue(
+                [
+                    {
+                        id: 'setting-id',
+                        userId: user.id,
+                        channel: EnumNotificationChannel.email,
+                        type: EnumNotificationType.transactional,
+                        isActive: true,
+                        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+                        createdBy: null,
+                        updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+                        updatedBy: null,
+                    },
+                ]
+            );
+            helperArrayService.chunk.mockReturnValue([[contact]]);
+            databaseUtil.createId.mockReturnValue('notification-id');
+            const error = new Error('write failed');
+            notificationRepository.createMany.mockRejectedValue(error);
+
+            await expect(
+                domain.processPublishTermPolicy('admin-id', data)
+            ).rejects.toBe(error);
+
+            expect(
+                notificationEmailQueue.sendPublishTermPolicy
+            ).not.toHaveBeenCalled();
         });
     });
 

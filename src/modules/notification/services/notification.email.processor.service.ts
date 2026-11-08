@@ -34,6 +34,12 @@ export class NotificationEmailProcessorService {
         private readonly notificationEmailWorkspaceDomain: NotificationEmailWorkspaceDomain
     ) {}
 
+    private isLastAttempt(job: Job): boolean {
+        const maxAttempts = job.opts.attempts ?? 1;
+
+        return job.attemptsMade + 1 >= maxAttempts;
+    }
+
     async processWelcome(
         job: Job<
             INotificationEmailQueuePayload,
@@ -41,8 +47,11 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processWelcome(
-            job.data.send
+            job.data.send,
+            isLastAttempt
         );
     }
 
@@ -53,8 +62,11 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processWelcomeSocial(
-            job.data.send
+            job.data.send,
+            isLastAttempt
         );
     }
 
@@ -65,9 +77,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processWelcomeByAdmin(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -78,9 +93,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processTemporaryPasswordByAdmin(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -91,8 +109,11 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processChangePassword(
-            job.data.send
+            job.data.send,
+            isLastAttempt
         );
     }
 
@@ -103,8 +124,11 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processResetPassword(
-            job.data.send
+            job.data.send,
+            isLastAttempt
         );
     }
 
@@ -115,9 +139,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processVerificationEmail(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -128,9 +155,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processVerifiedEmail(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -141,9 +171,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processForgotPassword(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -154,9 +187,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailAccountDomain.processVerifiedMobileNumber(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -167,8 +203,11 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processResetTwoFactorByAdmin(
-            job.data.send
+            job.data.send,
+            isLastAttempt
         );
     }
 
@@ -179,9 +218,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailSecurityDomain.processNewDeviceLogin(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -192,8 +234,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailTermPolicyDomain.processPublishTermPolicy(
-            job.data.data!
+            job.data.send,
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -204,9 +250,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailWorkspaceDomain.processWorkspaceInvite(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -230,9 +279,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailWorkspaceDomain.processWorkspaceJoinRequest(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -243,9 +295,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailWorkspaceDomain.processWorkspaceJoinAccepted(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 
@@ -256,9 +311,12 @@ export class NotificationEmailProcessorService {
             EnumNotificationProcess
         >
     ): Promise<IQueueResponse> {
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationEmailWorkspaceDomain.processWorkspaceJoinRejected(
             job.data.send,
-            job.data.data!
+            job.data.data!,
+            isLastAttempt
         );
     }
 }

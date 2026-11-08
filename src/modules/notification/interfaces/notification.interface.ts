@@ -10,7 +10,10 @@ import {
     EnumWorkspaceMemberRole,
     Prisma,
 } from '@generated/prisma-client/client';
-import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
+import {
+    EnumNotificationKind,
+    EnumNotificationSmsProcess,
+} from '@modules/notification/enums/notification.enum';
 
 export interface INotificationKindContract {
     type: EnumNotificationType;
@@ -36,6 +39,12 @@ export interface INotificationCreate {
 export interface INotificationCreateEntry {
     kind: EnumNotificationKind;
     payload: INotificationCreate;
+}
+
+export interface INotificationContent {
+    failureTokens: string[];
+    title: string;
+    body: string;
 }
 
 export interface INotificationUserSettingUpdate {
@@ -204,6 +213,13 @@ export interface INotificationPushCleanupTokenQueuePayload {
     };
 }
 
+export interface INotificationSendSmsPayload {
+    userId: string;
+    notificationId: string;
+    kind: EnumNotificationSmsProcess;
+    phoneNumbers: string[];
+}
+
 export interface INotificationEmailSendPayload {
     userId: string;
     notificationId: string;
@@ -232,4 +248,17 @@ export interface INotificationEmailSendUnregisteredPayload {
 export interface INotificationEmailUnregisteredQueuePayload<T = unknown> {
     send: INotificationEmailSendUnregisteredPayload;
     data?: T;
+}
+
+export interface INotificationDeliveryContext {
+    userId: string;
+    notificationId: string;
+    channel: EnumNotificationChannel;
+}
+
+export interface INotificationDeliveryFailure {
+    code: string;
+    isRetryable: boolean;
+    retryAfterInMs: number | null;
+    cause: Error | null;
 }

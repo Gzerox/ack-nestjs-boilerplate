@@ -27,117 +27,147 @@ export class NotificationPushProcessorService implements OnModuleInit {
         private readonly notificationPushQueue: NotificationPushQueue
     ) {}
 
+    private isLastAttempt(job: Job): boolean {
+        const maxAttempts = job.opts.attempts ?? 1;
+
+        return job.attemptsMade + 1 >= maxAttempts;
+    }
+
     async onModuleInit(): Promise<void> {
         await this.notificationPushQueue.sendCleanupStaleTokens();
     }
 
-    async processNewDeviceLogin({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationNewDeviceLoginPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processNewDeviceLogin(
+        job: Job<
+            INotificationPushQueuePayload<INotificationNewDeviceLoginPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushSecurityDomain.processNewDeviceLogin(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 
-    async processResetTwoFactorByAdmin({
-        data: { send },
-    }: Job<
-        INotificationPushQueuePayload,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processResetTwoFactorByAdmin(
+        job: Job<
+            INotificationPushQueuePayload,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushSecurityDomain.processResetTwoFactorByAdmin(
-            send
+            send,
+            isLastAttempt
         );
     }
 
-    async processTemporaryPasswordByAdmin({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationTemporaryPasswordPushPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processTemporaryPasswordByAdmin(
+        job: Job<
+            INotificationPushQueuePayload<INotificationTemporaryPasswordPushPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushSecurityDomain.processTemporaryPasswordByAdmin(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 
-    async processResetPassword({
-        data: { send },
-    }: Job<
-        INotificationPushQueuePayload,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
-        return this.notificationPushSecurityDomain.processResetPassword(send);
+    async processResetPassword(
+        job: Job<
+            INotificationPushQueuePayload,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
+        return this.notificationPushSecurityDomain.processResetPassword(
+            send,
+            isLastAttempt
+        );
     }
 
-    async processForgotPassword({
-        data: { send },
-    }: Job<
-        INotificationPushQueuePayload,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
-        return this.notificationPushSecurityDomain.processForgotPassword(send);
-    }
+    async processWorkspaceInvite(
+        job: Job<
+            INotificationPushQueuePayload<INotificationWorkspaceInvitePushPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
 
-    async processWorkspaceInvite({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationWorkspaceInvitePushPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
         return this.notificationPushWorkspaceDomain.processWorkspaceInvite(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 
-    async processWorkspaceJoinRequest({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationWorkspaceJoinRequestPushPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processWorkspaceJoinRequest(
+        job: Job<
+            INotificationPushQueuePayload<INotificationWorkspaceJoinRequestPushPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushWorkspaceDomain.processWorkspaceJoinRequest(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 
-    async processWorkspaceJoinAccepted({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationWorkspaceJoinAcceptedPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processWorkspaceJoinAccepted(
+        job: Job<
+            INotificationPushQueuePayload<INotificationWorkspaceJoinAcceptedPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushWorkspaceDomain.processWorkspaceJoinAccepted(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 
-    async processWorkspaceJoinRejected({
-        data: { send, data },
-    }: Job<
-        INotificationPushQueuePayload<INotificationWorkspaceJoinRejectedPayload>,
-        IQueueResponse,
-        EnumNotificationPushProcess
-    >): Promise<IQueueResponse> {
+    async processWorkspaceJoinRejected(
+        job: Job<
+            INotificationPushQueuePayload<INotificationWorkspaceJoinRejectedPayload>,
+            IQueueResponse,
+            EnumNotificationPushProcess
+        >
+    ): Promise<IQueueResponse> {
+        const { send, data } = job.data;
+        const isLastAttempt = this.isLastAttempt(job);
+
         return this.notificationPushWorkspaceDomain.processWorkspaceJoinRejected(
             send,
-            data!
+            data!,
+            isLastAttempt
         );
     }
 

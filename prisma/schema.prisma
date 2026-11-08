@@ -460,12 +460,16 @@ model Notification {
 }
 
 model NotificationDelivery {
-  id             String                  @id @default(auto()) @map("_id") @db.ObjectId
-  notificationId String                  @db.ObjectId
+  id             String                         @id @default(auto()) @map("_id") @db.ObjectId
+  notificationId String                         @db.ObjectId
   channel        EnumNotificationChannel
+  status         EnumNotificationDeliveryStatus @default(pending)
+  attempts       Int                            @default(0)
+  lastError      String?
   sentAt         DateTime?
   processedAt    DateTime?
-  failureTokens  String[]                @default([])
+  failedAt       DateTime?
+  failureTokens  String[]                       @default([])
 
   notification Notification @relation("NotificationDeliveries", fields: [notificationId], references: [id])
 
@@ -943,8 +947,17 @@ enum EnumNotificationType {
 enum EnumNotificationChannel {
   push
   email
+  sms
   inApp
   silent
+}
+
+enum EnumNotificationDeliveryStatus {
+  pending
+  processing
+  sent
+  failed
+  skipped
 }
 
 enum EnumNotificationPriority {

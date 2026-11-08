@@ -6,6 +6,7 @@ import type { IResponsePaginationReturn } from '@common/response/interfaces/resp
 import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 import type {
+    INotificationContent,
     INotificationCreate,
     INotificationCreateEntry,
 } from '@modules/notification/interfaces/notification.interface';
@@ -13,6 +14,7 @@ import type { INotificationRepository } from '@modules/notification/interfaces/n
 import { Injectable } from '@nestjs/common';
 import {
     EnumNotificationChannel,
+    EnumNotificationDeliveryStatus,
     Prisma,
 } from '@generated/prisma-client/client';
 import type { Notification } from '@generated/prisma-client/client';
@@ -52,9 +54,13 @@ export class NotificationRepository implements INotificationRepository {
             deliveries: {
                 createMany: {
                     data: [
-                        ...pendingChannels.map(channel => ({ channel })),
+                        ...pendingChannels.map(channel => ({
+                            channel,
+                            status: EnumNotificationDeliveryStatus.pending,
+                        })),
                         ...deliveredChannels.map(channel => ({
                             channel,
+                            status: EnumNotificationDeliveryStatus.sent,
                             processedAt: today,
                             sentAt: today,
                         })),
@@ -162,57 +168,146 @@ export class NotificationRepository implements INotificationRepository {
         });
     }
 
-    async updateProcessAt(
+    async markProcessing(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel
-    ): Promise<{ title: string; body: string } | null> {
-        const today = this.helperDateService.create();
-        return this.databaseService.client.notification.update({
-            where: { id: notificationId, userId },
-            data: {
-                deliveries: {
-                    update: {
-                        where: {
-                            notificationId_channel: {
-                                notificationId,
-                                channel,
-                            },
-                        },
-                        data: {
-                            processedAt: today,
-                        },
+    ): Promise<INotificationContent | null> {
+        return this.databaseService.withTransaction(async tx => {
+            // Sequential by design: statements on one tx, and the read depends on the claim.
+            const { count } = await tx.notificationDelivery.updateMany({
+                where: {
+                    notificationId,
+                    channel,
+                    status: {
+                        notIn: [
+                            EnumNotificationDeliveryStatus.sent,
+                            EnumNotificationDeliveryStatus.failed,
+                            EnumNotificationDeliveryStatus.skipped,
+                        ],
                     },
+                    notification: { is: { userId } },
                 },
-            },
-            select: { title: true, body: true },
+                data: {
+                    status: EnumNotificationDeliveryStatus.processing,
+                    attempts: { increment: 1 },
+                    processedAt: null,
+                    sentAt: null,
+                    failedAt: null,
+                },
+            });
+            if (count === 0) {
+                return null;
+            }
+
+            const delivery = await tx.notificationDelivery.findUnique({
+                where: {
+                    notificationId_channel: { notificationId, channel },
+                    notification: { is: { userId } },
+                },
+                select: {
+                    failureTokens: true,
+                    notification: { select: { title: true, body: true } },
+                },
+            });
+            return delivery
+                ? {
+                      ...delivery.notification,
+                      failureTokens: delivery.failureTokens,
+                  }
+                : null;
         });
     }
 
-    async updateSentAt(
+    async markSent(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel,
         failureTokens: string[]
     ): Promise<void> {
         const today = this.helperDateService.create();
-        await this.databaseService.client.notification.update({
-            where: { id: notificationId, userId },
+        await this.databaseService.client.notificationDelivery.update({
+            where: {
+                notificationId_channel: { notificationId, channel },
+                notification: { is: { userId } },
+            },
             data: {
-                deliveries: {
-                    update: {
-                        where: {
-                            notificationId_channel: {
-                                notificationId,
-                                channel,
-                            },
-                        },
-                        data: {
-                            failureTokens,
-                            sentAt: today,
-                        },
-                    },
-                },
+                status: EnumNotificationDeliveryStatus.sent,
+                failureTokens,
+                processedAt: today,
+                sentAt: today,
+                failedAt: null,
+                lastError: null,
+            },
+        });
+    }
+
+    async markFailed(
+        userId: string,
+        notificationId: string,
+        channel: EnumNotificationChannel,
+        error: string,
+        failureTokens: string[]
+    ): Promise<void> {
+        const today = this.helperDateService.create();
+        await this.databaseService.client.notificationDelivery.update({
+            where: {
+                notificationId_channel: { notificationId, channel },
+                notification: { is: { userId } },
+            },
+            data: {
+                status: EnumNotificationDeliveryStatus.failed,
+                lastError: error,
+                failureTokens,
+                processedAt: today,
+                failedAt: today,
+                sentAt: null,
+            },
+        });
+    }
+
+    async markRetry(
+        userId: string,
+        notificationId: string,
+        channel: EnumNotificationChannel,
+        error: string,
+        failureTokens: string[]
+    ): Promise<void> {
+        await this.databaseService.client.notificationDelivery.update({
+            where: {
+                notificationId_channel: { notificationId, channel },
+                notification: { is: { userId } },
+            },
+            data: {
+                status: EnumNotificationDeliveryStatus.pending,
+                lastError: error,
+                failureTokens,
+                processedAt: null,
+                sentAt: null,
+                failedAt: null,
+            },
+        });
+    }
+
+    async markSkipped(
+        userId: string,
+        notificationId: string,
+        channel: EnumNotificationChannel,
+        failureTokens: string[]
+    ): Promise<void> {
+        const today = this.helperDateService.create();
+        await this.databaseService.client.notificationDelivery.update({
+            where: {
+                notificationId_channel: { notificationId, channel },
+                notification: { is: { userId } },
+            },
+            data: {
+                status: EnumNotificationDeliveryStatus.skipped,
+                failureTokens,
+                processedAt: today,
+                sentAt: null,
+                failedAt: null,
+                lastError: null,
             },
         });
     }

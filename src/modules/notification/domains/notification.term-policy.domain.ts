@@ -68,7 +68,7 @@ export class NotificationTermPolicyDomain {
             this.emailBatchSize
         );
 
-        for (const chunk of chunks) {
+        for (const [chunkIndex, chunk] of chunks.entries()) {
             const emailPayload: INotificationEmailSendPayload[] = chunk.map(
                 user => {
                     const notificationId = this.databaseUtil.createId();
@@ -97,13 +97,13 @@ export class NotificationTermPolicyDomain {
                 })
             );
 
-            await Promise.all([
-                this.notificationRepository.createMany(entries),
-                this.notificationEmailQueue.sendPublishTermPolicy(
-                    emailPayload,
-                    data
-                ),
-            ]);
+            // Sequential by design: a chunk job must not run before its delivery rows exist.
+            await this.notificationRepository.createMany(entries);
+            await this.notificationEmailQueue.sendPublishTermPolicy(
+                emailPayload,
+                data,
+                chunkIndex
+            );
         }
 
         return {

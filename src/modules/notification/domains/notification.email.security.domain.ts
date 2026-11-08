@@ -100,15 +100,22 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping temporary password email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping temporary password email'
-                    : 'SES not initialized, skipping temporary password email',
+                message:
+                    'Delivery already sent or missing, skipping temporary password email',
             };
         }
 
@@ -178,15 +185,21 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping change password email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping change password email'
-                    : 'SES not initialized, skipping change password email',
+                message:
+                    'Delivery already sent or missing, skipping change password email',
             };
         }
 
@@ -238,15 +251,21 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping reset password email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping reset password email'
-                    : 'SES not initialized, skipping reset password email',
+                message:
+                    'Delivery already sent or missing, skipping reset password email',
             };
         }
 
@@ -304,15 +323,21 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping forgot password email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping forgot password email'
-                    : 'SES not initialized, skipping forgot password email',
+                message:
+                    'Delivery already sent or missing, skipping forgot password email',
             };
         }
 
@@ -379,15 +404,22 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping reset two factor by admin email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping reset two factor by admin email'
-                    : 'SES not initialized, skipping reset two factor by admin email',
+                message:
+                    'Delivery already sent or missing, skipping reset two factor by admin email',
             };
         }
 
@@ -445,15 +477,21 @@ export class NotificationEmailSecurityDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping new device login email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping new device login email'
-                    : 'SES not initialized, skipping new device login email',
+                message:
+                    'Delivery already sent or missing, skipping new device login email',
             };
         }
 

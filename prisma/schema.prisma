@@ -464,11 +464,9 @@ model NotificationDelivery {
   notificationId String                         @db.ObjectId
   channel        EnumNotificationChannel
   status         EnumNotificationDeliveryStatus @default(pending)
-  attempts       Int                            @default(0)
   lastError      String?
   sentAt         DateTime?
   processedAt    DateTime?
-  failedAt       DateTime?
   failureTokens  String[]                       @default([])
 
   notification Notification @relation("NotificationDeliveries", fields: [notificationId], references: [id])
@@ -954,7 +952,6 @@ enum EnumNotificationChannel {
 
 enum EnumNotificationDeliveryStatus {
   pending
-  processing
   sent
   failed
   skipped

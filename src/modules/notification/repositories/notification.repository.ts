@@ -13,6 +13,7 @@ import type {
     INotificationDeliveryState,
 } from '@modules/notification/interfaces/notification.interface';
 import type { INotificationRepository } from '@modules/notification/interfaces/notification.repository.interface';
+import { NotificationDeliveryContentSelect } from '@modules/notification/constants/notification.constant';
 import { Injectable } from '@nestjs/common';
 import {
     EnumNotificationChannel,
@@ -200,17 +201,15 @@ export class NotificationRepository implements INotificationRepository {
         });
     }
 
-    async markProcessing(
+    async findForDelivery(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel
     ): Promise<INotificationContent | null> {
-        return this.databaseService.withTransaction(async tx => {
-            // Sequential by design: statements on one tx, and the read depends on the claim.
-            const { count } = await tx.notificationDelivery.updateMany({
+        const delivery =
+            await this.databaseService.client.notificationDelivery.findUnique({
                 where: {
-                    notificationId,
-                    channel,
+                    notificationId_channel: { notificationId, channel },
                     status: {
                         notIn: [
                             EnumNotificationDeliveryStatus.sent,
@@ -220,35 +219,14 @@ export class NotificationRepository implements INotificationRepository {
                     },
                     notification: { is: { userId } },
                 },
-                data: {
-                    status: EnumNotificationDeliveryStatus.processing,
-                    attempts: { increment: 1 },
-                    processedAt: null,
-                    sentAt: null,
-                    failedAt: null,
-                },
+                select: NotificationDeliveryContentSelect,
             });
-            if (count === 0) {
-                return null;
-            }
-
-            const delivery = await tx.notificationDelivery.findUnique({
-                where: {
-                    notificationId_channel: { notificationId, channel },
-                    notification: { is: { userId } },
-                },
-                select: {
-                    failureTokens: true,
-                    notification: { select: { title: true, body: true } },
-                },
-            });
-            return delivery
-                ? {
-                      ...delivery.notification,
-                      failureTokens: delivery.failureTokens,
-                  }
-                : null;
-        });
+        return delivery
+            ? {
+                  ...delivery.notification,
+                  failureTokens: delivery.failureTokens,
+              }
+            : null;
     }
 
     async markSent(
@@ -268,7 +246,6 @@ export class NotificationRepository implements INotificationRepository {
                 failureTokens,
                 processedAt: today,
                 sentAt: today,
-                failedAt: null,
                 lastError: null,
             },
         });
@@ -292,7 +269,6 @@ export class NotificationRepository implements INotificationRepository {
                 lastError: error,
                 failureTokens,
                 processedAt: today,
-                failedAt: today,
                 sentAt: null,
             },
         });
@@ -316,7 +292,6 @@ export class NotificationRepository implements INotificationRepository {
                 failureTokens,
                 processedAt: null,
                 sentAt: null,
-                failedAt: null,
             },
         });
     }
@@ -338,7 +313,6 @@ export class NotificationRepository implements INotificationRepository {
                 failureTokens,
                 processedAt: today,
                 sentAt: null,
-                failedAt: null,
                 lastError: null,
             },
         });

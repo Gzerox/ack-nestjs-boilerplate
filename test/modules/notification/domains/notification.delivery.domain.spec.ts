@@ -45,9 +45,9 @@ describe('NotificationDeliveryDomain', () => {
     });
 
     it('returns only eligible content, preserving invalid-token history', async () => {
-        notificationRepository.markProcessing.mockResolvedValue(content);
-        expect(await domain.begin(context, true)).toEqual(content);
-        expect(notificationRepository.markProcessing).toHaveBeenCalledWith(
+        notificationRepository.findForDelivery.mockResolvedValue(content);
+        expect(await domain.begin(context)).toEqual(content);
+        expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.push
@@ -55,20 +55,9 @@ describe('NotificationDeliveryDomain', () => {
     });
 
     it('does not mutate a terminal or missing delivery when no claim is returned', async () => {
-        notificationRepository.markProcessing.mockResolvedValue(null);
-        expect(await domain.begin(context, false)).toBeNull();
+        notificationRepository.findForDelivery.mockResolvedValue(null);
+        expect(await domain.begin(context)).toBeNull();
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-    });
-
-    it('skips a disabled provider without erasing invalid-token history', async () => {
-        notificationRepository.markProcessing.mockResolvedValue(content);
-        expect(await domain.begin(context, false)).toBeNull();
-        expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-            'user',
-            'notification',
-            EnumNotificationChannel.push,
-            ['invalid-A']
-        );
     });
 
     it.each([

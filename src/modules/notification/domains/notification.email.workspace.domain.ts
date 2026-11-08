@@ -107,15 +107,21 @@ export class NotificationEmailWorkspaceDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping workspace invite email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping workspace invite email'
-                    : 'SES not initialized, skipping workspace invite email',
+                message:
+                    'Delivery already sent or missing, skipping workspace invite email',
             };
         }
 
@@ -246,15 +252,22 @@ export class NotificationEmailWorkspaceDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join request email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping workspace join request email'
-                    : 'SES not initialized, skipping workspace join request email',
+                message:
+                    'Delivery already sent or missing, skipping workspace join request email',
             };
         }
 
@@ -318,15 +331,22 @@ export class NotificationEmailWorkspaceDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join accepted email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping workspace join accepted email'
-                    : 'SES not initialized, skipping workspace join accepted email',
+                message:
+                    'Delivery already sent or missing, skipping workspace join accepted email',
             };
         }
 
@@ -383,15 +403,22 @@ export class NotificationEmailWorkspaceDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join rejected email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping workspace join rejected email'
-                    : 'SES not initialized, skipping workspace join rejected email',
+                message:
+                    'Delivery already sent or missing, skipping workspace join rejected email',
             };
         }
 

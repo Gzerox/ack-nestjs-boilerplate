@@ -78,39 +78,30 @@ export class NotificationEmailTermPolicyDomain {
         { type, version }: INotificationPublishTermPolicyPayload,
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
-        const processingPromises = send.map(({ userId, notificationId }) =>
-            this.notificationRepository.markProcessing(
+        const isInitialized = this.awsSESService.isInitialized();
+        if (!isInitialized) {
+            await this.assertNoFailedDeliveries(send);
+
+            return {
+                message:
+                    'SES not initialized, skipping publish term policy email',
+            };
+        }
+
+        const contentPromises = send.map(({ userId, notificationId }) =>
+            this.notificationRepository.findForDelivery(
                 userId,
                 notificationId,
                 EnumNotificationChannel.email
             )
         );
-        const contents = await Promise.all(processingPromises);
+        const contents = await Promise.all(contentPromises);
         const kept = send.filter((_, index) => contents[index] !== null);
         if (kept.length === 0) {
             await this.assertNoFailedDeliveries(send);
             return {
                 message:
                     'Every delivery already sent or missing, skipping publish term policy email',
-            };
-        }
-
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            const skippedPromises = kept.map(({ userId, notificationId }) =>
-                this.notificationRepository.markSkipped(
-                    userId,
-                    notificationId,
-                    EnumNotificationChannel.email,
-                    []
-                )
-            );
-            await Promise.all(skippedPromises);
-            await this.assertNoFailedDeliveries(send);
-
-            return {
-                message:
-                    'SES not initialized, skipping publish term policy email',
             };
         }
 

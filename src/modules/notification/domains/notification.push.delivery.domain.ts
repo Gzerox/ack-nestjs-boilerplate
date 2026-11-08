@@ -50,17 +50,17 @@ export class NotificationPushDeliveryDomain {
             notificationId,
             channel: EnumNotificationChannel.push,
         };
-        const providerReady = this.firebaseService.isInitialized();
-        const content = await this.notificationDeliveryDomain.begin(
-            context,
-            providerReady
-        );
         const emptySummary: INotificationDeliverySummary = {
             acceptedCount: 0,
             failedCount: 0,
             invalidTargetCount: 0,
             errorCodes: [],
         };
+        const providerReady = this.firebaseService.isInitialized();
+        if (!providerReady) {
+            return { outcome: 'completed', summary: emptySummary };
+        }
+        const content = await this.notificationDeliveryDomain.begin(context);
         if (!content) {
             return { outcome: 'completed', summary: emptySummary };
         }

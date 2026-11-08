@@ -36,7 +36,7 @@ export interface INotificationRepository {
     findDeliveryStates(
         contexts: INotificationDeliveryContext[]
     ): Promise<INotificationDeliveryState[]>;
-    markProcessing(
+    findForDelivery(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel

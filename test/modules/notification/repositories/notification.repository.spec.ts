@@ -1,7 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { mock, mockDeep } from 'vitest-mock-extended';
 import { DatabaseService } from '@common/database/services/database.service';
-import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { PaginationService } from '@common/pagination/services/pagination.service';
 import {
@@ -12,7 +11,6 @@ import { NotificationRepository } from '@modules/notification/repositories/notif
 
 describe('NotificationRepository delivery state', () => {
     const databaseService = mockDeep<DatabaseService>();
-    const transaction = mockDeep<IDatabaseTransactionClient>();
     const helperDateService = mock<HelperDateService>();
     const paginationService = mock<PaginationService>();
     const today = new Date('2026-11-08T12:00:00Z');
@@ -20,12 +18,10 @@ describe('NotificationRepository delivery state', () => {
         id: 'delivery',
         notificationId: 'notification',
         channel: EnumNotificationChannel.push,
-        status: EnumNotificationDeliveryStatus.processing,
-        attempts: 1,
+        status: EnumNotificationDeliveryStatus.pending,
         lastError: null,
         sentAt: null,
         processedAt: null,
-        failedAt: null,
         failureTokens: ['invalid-A'],
         createdAt: today,
         updatedAt: today,
@@ -36,11 +32,6 @@ describe('NotificationRepository delivery state', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         helperDateService.create.mockReturnValue(today);
-        databaseService.withTransaction.mockImplementation(
-            async <T>(
-                callback: (tx: IDatabaseTransactionClient) => Promise<T>
-            ): Promise<T> => callback(transaction)
-        );
         const module = await Test.createTestingModule({
             providers: [
                 NotificationRepository,
@@ -112,60 +103,59 @@ describe('NotificationRepository delivery state', () => {
         ).not.toHaveBeenCalled();
     });
 
-    it('claims only non-terminal rows owned by the user and returns persisted invalid tokens', async () => {
-        transaction.notificationDelivery.updateMany.mockResolvedValue({
-            count: 1,
-        });
-        transaction.notificationDelivery.findUnique.mockResolvedValue(delivery);
-        expect(
-            await repository.markProcessing(
-                'user',
-                'notification',
-                EnumNotificationChannel.push
-            )
-        ).toEqual({
-            title: 'title',
-            body: 'body',
-            failureTokens: ['invalid-A'],
-        });
-        expect(
-            transaction.notificationDelivery.updateMany
-        ).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: {
-                    notificationId: 'notification',
-                    channel: EnumNotificationChannel.push,
-                    status: {
-                        notIn: [
-                            EnumNotificationDeliveryStatus.sent,
-                            EnumNotificationDeliveryStatus.failed,
-                            EnumNotificationDeliveryStatus.skipped,
-                        ],
+    describe('findForDelivery', () => {
+        it('returns title, body and failureTokens for a non-terminal row owned by the user', async () => {
+            databaseService.client.notificationDelivery.findUnique.mockResolvedValue(
+                delivery
+            );
+            expect(
+                await repository.findForDelivery(
+                    'user',
+                    'notification',
+                    EnumNotificationChannel.push
+                )
+            ).toEqual({
+                title: 'title',
+                body: 'body',
+                failureTokens: ['invalid-A'],
+            });
+            expect(
+                databaseService.client.notificationDelivery.findUnique
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                databaseService.client.notificationDelivery.findUnique
+            ).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        notificationId_channel: {
+                            notificationId: 'notification',
+                            channel: EnumNotificationChannel.push,
+                        },
+                        status: {
+                            notIn: [
+                                EnumNotificationDeliveryStatus.sent,
+                                EnumNotificationDeliveryStatus.failed,
+                                EnumNotificationDeliveryStatus.skipped,
+                            ],
+                        },
+                        notification: { is: { userId: 'user' } },
                     },
-                    notification: { is: { userId: 'user' } },
-                },
-                data: expect.objectContaining({
-                    status: EnumNotificationDeliveryStatus.processing,
-                    attempts: { increment: 1 },
-                }),
-            })
-        );
-    });
-
-    it('returns null without reading content when no eligible row was claimed', async () => {
-        transaction.notificationDelivery.updateMany.mockResolvedValue({
-            count: 0,
+                })
+            );
         });
-        expect(
-            await repository.markProcessing(
-                'user',
-                'notification',
-                EnumNotificationChannel.push
-            )
-        ).toBeNull();
-        expect(
-            transaction.notificationDelivery.findUnique
-        ).not.toHaveBeenCalled();
+
+        it('returns null when no eligible row exists', async () => {
+            databaseService.client.notificationDelivery.findUnique.mockResolvedValue(
+                null
+            );
+            expect(
+                await repository.findForDelivery(
+                    'user',
+                    'notification',
+                    EnumNotificationChannel.push
+                )
+            ).toBeNull();
+        });
     });
 
     it('clears stale failure state when a retry succeeds', async () => {
@@ -190,7 +180,6 @@ describe('NotificationRepository delivery state', () => {
                 failureTokens: ['invalid-A'],
                 processedAt: today,
                 sentAt: today,
-                failedAt: null,
                 lastError: null,
             },
         });
@@ -214,7 +203,6 @@ describe('NotificationRepository delivery state', () => {
                     lastError: 'transient',
                     processedAt: null,
                     sentAt: null,
-                    failedAt: null,
                 },
             })
         );
@@ -238,7 +226,6 @@ describe('NotificationRepository delivery state', () => {
                     lastError: 'exhausted',
                     processedAt: today,
                     sentAt: null,
-                    failedAt: today,
                 },
             })
         );
@@ -261,7 +248,6 @@ describe('NotificationRepository delivery state', () => {
                     lastError: null,
                     processedAt: today,
                     sentAt: null,
-                    failedAt: null,
                 },
             })
         );

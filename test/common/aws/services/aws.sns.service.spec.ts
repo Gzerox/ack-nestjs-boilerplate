@@ -21,6 +21,7 @@ describe('AwsSNSService', () => {
         'aws.sns.iam.secret': 'sns-secret',
         'aws.sns.region': 'us-east-1',
         'aws.sns.senderId': 'ACK',
+        'aws.sns.maxAttempts': 1,
     };
 
     const configGet = vi.fn<(key: string) => unknown>();
@@ -58,6 +59,29 @@ describe('AwsSNSService', () => {
         send.mockReset();
         vi.mocked(SNSClient).mockImplementation(function AwsSnsClientDouble() {
             return { send } as unknown as InstanceType<typeof SNSClient>;
+        });
+    });
+
+    describe('onModuleInit', () => {
+        it('creates the client with the configured maxAttempts', async () => {
+            await buildService();
+
+            expect(SNSClient).toHaveBeenCalledWith({
+                credentials: {
+                    accessKeyId: 'sns-key',
+                    secretAccessKey: 'sns-secret',
+                },
+                region: 'us-east-1',
+                maxAttempts: 1,
+            });
+        });
+
+        it('passes a raised maxAttempts to the client', async () => {
+            await buildService({ 'aws.sns.maxAttempts': 5 });
+
+            expect(SNSClient).toHaveBeenCalledWith(
+                expect.objectContaining({ maxAttempts: 5 })
+            );
         });
     });
 

@@ -34,28 +34,22 @@ export class NotificationSmsSecurityDomain {
             notificationId,
             channel: EnumNotificationChannel.sms,
         };
-        const providerReady = this.awsSNSService.isInitialized();
-        const content = await this.notificationDeliveryDomain.begin(
-            context,
-            providerReady
-        );
         const summary: INotificationDeliverySummary = {
             acceptedCount: 0,
             failedCount: 0,
             invalidTargetCount: 0,
             errorCodes: [],
         };
+        const providerReady = this.awsSNSService.isInitialized();
+        if (!providerReady) {
+            return { outcome: 'completed', summary };
+        }
+        const content = await this.notificationDeliveryDomain.begin(context);
         if (!content) {
             return { outcome: 'completed', summary };
         }
         const targets = [...new Set(phoneNumbers)];
         if (targets.length === 0) {
-            await this.notificationRepository.markSkipped(
-                userId,
-                notificationId,
-                context.channel,
-                []
-            );
             return { outcome: 'completed', summary };
         }
         let body: string;

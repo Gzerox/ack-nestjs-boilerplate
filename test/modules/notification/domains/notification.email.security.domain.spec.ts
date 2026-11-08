@@ -75,7 +75,7 @@ describe('NotificationEmailSecurityDomain', () => {
         helperDateService.formatToRFC2822.mockImplementation((date: Date) =>
             date.toISOString()
         );
-        notificationRepository.markProcessing.mockResolvedValue(content);
+        notificationRepository.findForDelivery.mockResolvedValue(content);
         awsSESService.isInitialized.mockReturnValue(true);
         awsSESService.send.mockResolvedValue(sesOutput);
         const module = await Test.createTestingModule({
@@ -142,7 +142,7 @@ describe('NotificationEmailSecurityDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markProcessing).toHaveBeenCalledWith(
+            expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
                 send.userId,
                 send.notificationId,
                 EnumNotificationChannel.email
@@ -182,7 +182,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processTemporaryPasswordByAdmin(
                 send,
@@ -200,7 +200,7 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processTemporaryPasswordByAdmin(
@@ -209,12 +209,10 @@ describe('NotificationEmailSecurityDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping temporary password email',
@@ -311,7 +309,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processChangePassword(send, false);
 
@@ -322,17 +320,15 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processChangePassword(send, false);
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping change password email',
             });
@@ -392,7 +388,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processResetPassword(send, false);
 
@@ -403,17 +399,15 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processResetPassword(send, false);
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping reset password email',
             });
@@ -496,7 +490,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processForgotPassword(
                 send,
@@ -514,7 +508,7 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processForgotPassword(
@@ -523,12 +517,10 @@ describe('NotificationEmailSecurityDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping forgot password email',
             });
@@ -614,7 +606,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processResetTwoFactorByAdmin(
                 send,
@@ -628,7 +620,7 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processResetTwoFactorByAdmin(
@@ -636,12 +628,10 @@ describe('NotificationEmailSecurityDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping reset two factor by admin email',
@@ -755,7 +745,7 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processNewDeviceLogin(
                 send,
@@ -770,7 +760,7 @@ describe('NotificationEmailSecurityDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processNewDeviceLogin(
@@ -779,12 +769,10 @@ describe('NotificationEmailSecurityDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping new device login email',
             });

@@ -58,7 +58,7 @@ describe('NotificationPushDeliveryDomain', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         firebaseService.isInitialized.mockReturnValue(true);
-        notificationRepository.markProcessing.mockResolvedValue(content);
+        notificationRepository.findForDelivery.mockResolvedValue(content);
         messageService.setMessage
             .mockReturnValueOnce('title')
             .mockReturnValueOnce('body');
@@ -132,7 +132,7 @@ describe('NotificationPushDeliveryDomain', () => {
         }
     );
     it('returns only transient targets after zero acceptance, retaining invalid history and the longest retry hint', async () => {
-        notificationRepository.markProcessing.mockResolvedValue({
+        notificationRepository.findForDelivery.mockResolvedValue({
             ...content,
             failureTokens: ['old-invalid'],
         });
@@ -274,7 +274,7 @@ describe('NotificationPushDeliveryDomain', () => {
     ])(
         'skips when no eligible targets remain: $notificationTokens',
         async ({ notificationTokens }) => {
-            notificationRepository.markProcessing.mockResolvedValue({
+            notificationRepository.findForDelivery.mockResolvedValue({
                 ...content,
                 failureTokens: ['old-invalid'],
             });
@@ -299,29 +299,29 @@ describe('NotificationPushDeliveryDomain', () => {
         }
     );
     it('does not send or mutate after a terminal/missing claim', async () => {
-        notificationRepository.markProcessing.mockResolvedValue(null);
+        notificationRepository.findForDelivery.mockResolvedValue(null);
         await domain.send(send, {}, false);
         expect(firebaseService.sendMulticast).not.toHaveBeenCalled();
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(messageService.setMessage).not.toHaveBeenCalled();
     });
-    it('skips a disabled provider while preserving invalid history', async () => {
-        notificationRepository.markProcessing.mockResolvedValue({
-            ...content,
-            failureTokens: ['old-invalid'],
-        });
+    it('does nothing when the provider is disabled', async () => {
         firebaseService.isInitialized.mockReturnValue(false);
-        await domain.send(send, {}, false);
-        expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-            'user',
-            'notification',
-            EnumNotificationChannel.push,
-            ['old-invalid']
-        );
+        expect(await domain.send(send, {}, false)).toEqual({
+            outcome: 'completed',
+            summary: {
+                acceptedCount: 0,
+                failedCount: 0,
+                invalidTargetCount: 0,
+                errorCodes: [],
+            },
+        });
+        expect(notificationRepository.findForDelivery).not.toHaveBeenCalled();
+        expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(firebaseService.sendMulticast).not.toHaveBeenCalled();
     });
     it('deduplicates tokens and excludes stored invalid ones before sending', async () => {
-        notificationRepository.markProcessing.mockResolvedValue({
+        notificationRepository.findForDelivery.mockResolvedValue({
             ...content,
             failureTokens: ['old-invalid'],
         });
@@ -405,7 +405,7 @@ describe('NotificationPushDeliveryDomain', () => {
         expect(firebaseService.sendMulticast).not.toHaveBeenCalled();
     });
     it('preserves invalid A through a narrowed retry of B and its eventual success', async () => {
-        notificationRepository.markProcessing
+        notificationRepository.findForDelivery
             .mockResolvedValueOnce(content)
             .mockResolvedValueOnce({
                 ...content,

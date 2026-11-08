@@ -63,5 +63,11 @@ describe('NotificationSmsQueue', () => {
                 }
             );
         });
+
+        it('does not add a job when there are no phone numbers', async () => {
+            await queue.sendSecurityAlert({ ...payload, phoneNumbers: [] });
+
+            expect(notificationSmsQueue.add).not.toHaveBeenCalled();
+        });
     });
 });

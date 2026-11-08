@@ -29,6 +29,7 @@ describe('AwsSESService', () => {
         'aws.ses.iam.key': 'ses-key',
         'aws.ses.iam.secret': 'ses-secret',
         'aws.ses.region': 'us-east-1',
+        'aws.ses.maxAttempts': 1,
     };
 
     const configGet = vi.fn<(key: string) => unknown>();
@@ -119,7 +120,18 @@ describe('AwsSESService', () => {
                     secretAccessKey: 'ses-secret',
                 },
                 region: 'us-east-1',
+                maxAttempts: 1,
             });
+        });
+
+        it('creates the client with the configured maxAttempts', async () => {
+            const service = await buildService({ 'aws.ses.maxAttempts': 5 });
+
+            service.onModuleInit();
+
+            expect(SESClient).toHaveBeenCalledWith(
+                expect.objectContaining({ maxAttempts: 5 })
+            );
         });
     });
 

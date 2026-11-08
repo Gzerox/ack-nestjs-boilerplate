@@ -33,7 +33,7 @@ describe('NotificationSmsSecurityDomain', () => {
     let domain: NotificationSmsSecurityDomain;
     beforeEach(async () => {
         vi.resetAllMocks();
-        notificationRepository.markProcessing.mockResolvedValue({
+        notificationRepository.findForDelivery.mockResolvedValue({
             title: 'title',
             body: 'body',
             failureTokens: [],
@@ -156,34 +156,38 @@ describe('NotificationSmsSecurityDomain', () => {
         });
         expect(awsSNSService.send).toHaveBeenCalledTimes(1);
     });
-    it('skips empty recipients', async () => {
+    it('returns completed without a write for empty recipients', async () => {
         await expect(
             domain.process({ ...payload, phoneNumbers: [] }, false)
-        ).resolves.toMatchObject({
+        ).resolves.toEqual({
             outcome: 'completed',
-            summary: { acceptedCount: 0, failedCount: 0 },
+            summary: {
+                acceptedCount: 0,
+                failedCount: 0,
+                invalidTargetCount: 0,
+                errorCodes: [],
+            },
         });
-        expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-            'user',
-            'notification',
-            EnumNotificationChannel.sms,
-            []
-        );
+        expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(awsSNSService.send).not.toHaveBeenCalled();
     });
     it('skips a disabled provider', async () => {
         awsSNSService.isInitialized.mockReturnValue(false);
-        await domain.process(payload, false);
-        expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-            'user',
-            'notification',
-            EnumNotificationChannel.sms,
-            []
-        );
+        expect(await domain.process(payload, false)).toEqual({
+            outcome: 'completed',
+            summary: {
+                acceptedCount: 0,
+                failedCount: 0,
+                invalidTargetCount: 0,
+                errorCodes: [],
+            },
+        });
+        expect(notificationRepository.findForDelivery).not.toHaveBeenCalled();
+        expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(awsSNSService.send).not.toHaveBeenCalled();
     });
     it('does not send after a terminal or missing claim', async () => {
-        notificationRepository.markProcessing.mockResolvedValue(null);
+        notificationRepository.findForDelivery.mockResolvedValue(null);
         await domain.process(payload, false);
         expect(awsSNSService.send).not.toHaveBeenCalled();
     });

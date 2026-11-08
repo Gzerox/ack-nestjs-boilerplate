@@ -13,27 +13,16 @@ export class NotificationDeliveryDomain {
         private readonly notificationRepository: NotificationRepository
     ) {}
 
-    async begin(
-        { userId, notificationId, channel }: INotificationDeliveryContext,
-        providerReady: boolean
-    ): Promise<INotificationContent | null> {
-        const content = await this.notificationRepository.markProcessing(
+    async begin({
+        userId,
+        notificationId,
+        channel,
+    }: INotificationDeliveryContext): Promise<INotificationContent | null> {
+        const content = await this.notificationRepository.findForDelivery(
             userId,
             notificationId,
             channel
         );
-        if (!content) {
-            return null;
-        }
-        if (!providerReady) {
-            await this.notificationRepository.markSkipped(
-                userId,
-                notificationId,
-                channel,
-                content.failureTokens
-            );
-            return null;
-        }
         return content;
     }
 

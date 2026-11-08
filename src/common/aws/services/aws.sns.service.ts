@@ -28,6 +28,7 @@ export class AwsSNSService implements OnModuleInit {
     private readonly iamSecret: string | null;
     private readonly region: string | null;
     private readonly senderId: string | null;
+    private readonly maxAttempts: number;
 
     private snsClient: SNSClient;
 
@@ -39,6 +40,9 @@ export class AwsSNSService implements OnModuleInit {
         this.region = this.configService.get<string | null>('aws.sns.region')!;
         this.senderId = this.configService.get<string | null>(
             'aws.sns.senderId'
+        )!;
+        this.maxAttempts = this.configService.get<number>(
+            'aws.sns.maxAttempts'
         )!;
     }
 
@@ -57,6 +61,7 @@ export class AwsSNSService implements OnModuleInit {
                 secretAccessKey: this.iamSecret,
             },
             region: this.region,
+            maxAttempts: this.maxAttempts,
         });
     }
 

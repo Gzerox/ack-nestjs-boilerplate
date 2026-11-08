@@ -95,15 +95,19 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return { message: 'SES not initialized, skipping welcome email' };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping welcome email'
-                    : 'SES not initialized, skipping welcome email',
+                message:
+                    'Delivery already sent or missing, skipping welcome email',
             };
         }
 
@@ -155,15 +159,21 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping welcome social email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping welcome social email'
-                    : 'SES not initialized, skipping welcome social email',
+                message:
+                    'Delivery already sent or missing, skipping welcome social email',
             };
         }
 
@@ -220,15 +230,21 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping create by admin email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping create by admin email'
-                    : 'SES not initialized, skipping create by admin email',
+                message:
+                    'Delivery already sent or missing, skipping create by admin email',
             };
         }
 
@@ -303,15 +319,21 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping verification email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping verification email'
-                    : 'SES not initialized, skipping verification email',
+                message:
+                    'Delivery already sent or missing, skipping verification email',
             };
         }
 
@@ -380,15 +402,21 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping email verified email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping email verified email'
-                    : 'SES not initialized, skipping email verified email',
+                message:
+                    'Delivery already sent or missing, skipping email verified email',
             };
         }
 
@@ -442,15 +470,22 @@ export class NotificationEmailAccountDomain {
         isLastAttempt: boolean
     ): Promise<IQueueResponse> {
         const isInitialized = this.awsSESService.isInitialized();
-        const notification = await this.notificationDeliveryDomain.begin(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            isInitialized
-        );
+        if (!isInitialized) {
+            return {
+                message:
+                    'SES not initialized, skipping mobile number verified email',
+            };
+        }
+
+        const notification = await this.notificationDeliveryDomain.begin({
+            userId,
+            notificationId,
+            channel: EnumNotificationChannel.email,
+        });
         if (!notification) {
             return {
-                message: isInitialized
-                    ? 'Delivery already sent or missing, skipping mobile number verified email'
-                    : 'SES not initialized, skipping mobile number verified email',
+                message:
+                    'Delivery already sent or missing, skipping mobile number verified email',
             };
         }
 

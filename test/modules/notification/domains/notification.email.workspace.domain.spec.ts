@@ -81,7 +81,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
         helperDateService.formatToRFC2822.mockImplementation((date: Date) =>
             date.toISOString()
         );
-        notificationRepository.markProcessing.mockResolvedValue(content);
+        notificationRepository.findForDelivery.mockResolvedValue(content);
         awsSESService.isInitialized.mockReturnValue(true);
         awsSESService.send.mockResolvedValue(sesOutput);
         const module = await Test.createTestingModule({
@@ -157,7 +157,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markProcessing).toHaveBeenCalledWith(
+            expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
                 send.userId,
                 send.notificationId,
                 EnumNotificationChannel.email
@@ -197,7 +197,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processWorkspaceInvite(
                 send,
@@ -215,7 +215,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processWorkspaceInvite(
@@ -224,12 +224,10 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping workspace invite email',
             });
@@ -406,7 +404,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 rawError: throttlingError,
             });
             expect(
-                notificationRepository.markProcessing
+                notificationRepository.findForDelivery
             ).not.toHaveBeenCalled();
             expect(notificationRepository.markRetry).not.toHaveBeenCalled();
             expect(notificationRepository.markFailed).not.toHaveBeenCalled();
@@ -466,7 +464,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processWorkspaceJoinRequest(
                 send,
@@ -484,7 +482,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processWorkspaceJoinRequest(
@@ -493,12 +491,10 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping workspace join request email',
@@ -587,7 +583,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processWorkspaceJoinAccepted(
                 send,
@@ -602,7 +598,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processWorkspaceJoinAccepted(
@@ -611,12 +607,10 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping workspace join accepted email',
@@ -689,7 +683,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
         });
 
         it('skips when the delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processWorkspaceJoinRejected(
                 send,
@@ -704,7 +698,7 @@ describe('NotificationEmailWorkspaceDomain', () => {
             expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
-        it('skips when SES is not initialized', async () => {
+        it('does nothing when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processWorkspaceJoinRejected(
@@ -713,12 +707,10 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping workspace join rejected email',

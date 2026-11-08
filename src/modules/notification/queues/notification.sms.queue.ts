@@ -28,6 +28,10 @@ export class NotificationSmsQueue {
         kind,
         phoneNumbers,
     }: INotificationSendSmsPayload): Promise<void> {
+        if (phoneNumbers.length === 0) {
+            return;
+        }
+
         const payload: INotificationSendSmsPayload = {
             userId,
             notificationId,

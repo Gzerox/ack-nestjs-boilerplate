@@ -74,7 +74,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
             retryAfterInMs: null,
             cause: null,
         });
-        notificationRepository.markProcessing.mockResolvedValue(content);
+        notificationRepository.findForDelivery.mockResolvedValue(content);
         notificationRepository.findDeliveryStates.mockResolvedValue([]);
         const module = await Test.createTestingModule({
             providers: [
@@ -106,12 +106,12 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markProcessing).toHaveBeenCalledWith(
+            expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
                 'user-1',
                 'notification-1',
                 EnumNotificationChannel.email
             );
-            expect(notificationRepository.markProcessing).toHaveBeenCalledWith(
+            expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email
@@ -140,7 +140,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
         });
 
         it('drops recipients whose delivery is already sent', async () => {
-            notificationRepository.markProcessing
+            notificationRepository.findForDelivery
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(content);
             awsSESService.sendBulk.mockResolvedValue({
@@ -170,7 +170,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
         });
 
         it('reports an already failed delivery without sending', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
             notificationRepository.findDeliveryStates.mockResolvedValue([
                 {
                     userId: 'user-1',
@@ -187,7 +187,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
         });
 
         it('returns without sending when every delivery is already sent', async () => {
-            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findForDelivery.mockResolvedValue(null);
 
             const result = await domain.processPublishTermPolicy(
                 send,
@@ -268,7 +268,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
             );
         });
 
-        it('skips every recipient when SES is not initialized', async () => {
+        it('does nothing per recipient when SES is not initialized', async () => {
             awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processPublishTermPolicy(
@@ -277,19 +277,14 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 false
             );
 
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                'user-2',
-                'notification-2',
-                EnumNotificationChannel.email,
-                []
-            );
+            expect(
+                notificationRepository.findForDelivery
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(awsSESService.sendBulk).not.toHaveBeenCalled();
+            expect(
+                notificationRepository.findDeliveryStates
+            ).toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping publish term policy email',
@@ -453,7 +448,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 []
             );
 
-            notificationRepository.markProcessing
+            notificationRepository.findForDelivery
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(content);

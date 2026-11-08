@@ -11,15 +11,14 @@ import {
     MessageRejected,
     MissingRenderingAttributeException,
     SESClient,
-    SESServiceException,
     SendBulkTemplatedEmailCommand,
     SendTemplatedEmailCommand,
     TemplateDoesNotExistException,
     UpdateTemplateCommand,
 } from '@aws-sdk/client-ses';
-import { isThrottlingError } from '@smithy/core/retry';
 import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
 import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
+import { isAwsSESDailyQuotaExceeded } from '@common/aws/utils/aws.ses.util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -47,10 +46,7 @@ import type {
     IAwsSESTemplate,
 } from '@common/aws/interfaces/aws.ses.interface';
 import { AwsSesTemplateBodyRequiredException } from '@common/aws/exceptions/aws.ses-template-body-required.exception';
-import {
-    AwsSESDailyQuotaExceededMessage,
-    AwsSESRetryableBulkStatuses,
-} from '@common/aws/constants/aws.constant';
+import { AwsSESRetryableBulkStatuses } from '@common/aws/constants/aws.constant';
 
 @Injectable()
 export class AwsSESService implements OnModuleInit {
@@ -59,6 +55,7 @@ export class AwsSESService implements OnModuleInit {
     private readonly iamKey: string | null;
     private readonly iamSecret: string | null;
     private readonly region: string | null;
+    private readonly maxAttempts: number;
 
     private sesClient: SESClient;
 
@@ -68,6 +65,9 @@ export class AwsSESService implements OnModuleInit {
             'aws.ses.iam.secret'
         )!;
         this.region = this.configService.get<string | null>('aws.ses.region')!;
+        this.maxAttempts = this.configService.get<number>(
+            'aws.ses.maxAttempts'
+        )!;
     }
 
     onModuleInit(): void {
@@ -85,6 +85,7 @@ export class AwsSESService implements OnModuleInit {
                 secretAccessKey: this.iamSecret,
             },
             region: this.region,
+            maxAttempts: this.maxAttempts,
         });
     }
 
@@ -106,12 +107,7 @@ export class AwsSESService implements OnModuleInit {
             return { ...classified, isRetryable: false };
         }
 
-        // SES exposes daily quota exhaustion only through the throttle message.
-        if (
-            error instanceof SESServiceException &&
-            isThrottlingError({ ...error, cause: undefined }) &&
-            error.message.includes(AwsSESDailyQuotaExceededMessage)
-        ) {
+        if (isAwsSESDailyQuotaExceeded(error)) {
             return { ...classified, isRetryable: false };
         }
 

@@ -6,35 +6,39 @@ import {
 } from '@smithy/core/retry';
 import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
 
-export function classifyAwsDeliveryError(error: unknown): IAwsDeliveryError {
-    const cause = error instanceof Error ? error : null;
-    let isRetryable = false;
-    let current = cause;
-    // Smithy expects Error causes; arbitrary JavaScript causes must not enter its recursion.
-    for (let depth = 0; current !== null && depth <= 10; depth++) {
-        if (current.name === 'AbortError') {
-            break;
-        }
-        const sdkError: SdkError = {
-            ...current,
-            name: current.name,
-            message: current.message,
-            cause: undefined,
-        };
-        if (
-            isThrottlingError(sdkError) ||
-            isTransientError(sdkError) ||
-            isServerError(sdkError)
-        ) {
-            isRetryable = true;
-            break;
-        }
-        current = current.cause instanceof Error ? current.cause : null;
-    }
+export function toSdkError(error: Error, depth: number = 0): SdkError {
     return {
-        code: cause?.name ?? 'unknownError',
+        ...error,
+        name: error.name,
+        message: error.message,
+        cause:
+            error.cause instanceof Error && depth < 10
+                ? toSdkError(error.cause, depth + 1)
+                : undefined,
+    };
+}
+
+export function classifyAwsDeliveryError(error: unknown): IAwsDeliveryError {
+    if (!(error instanceof Error)) {
+        return {
+            code: 'unknownError',
+            isRetryable: false,
+            retryAfterInMs: null,
+            cause: null,
+        };
+    }
+
+    const sdkError = toSdkError(error);
+    const isRetryable =
+        error.name !== 'AbortError' &&
+        (isThrottlingError(sdkError) ||
+            isTransientError(sdkError) ||
+            isServerError(sdkError));
+
+    return {
+        code: error.name,
         isRetryable,
         retryAfterInMs: null,
-        cause,
+        cause: error,
     };
 }

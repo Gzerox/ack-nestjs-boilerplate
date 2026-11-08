@@ -5,6 +5,8 @@ import type {
     INotificationContent,
     INotificationCreate,
     INotificationCreateEntry,
+    INotificationDeliveryContext,
+    INotificationDeliveryState,
 } from '@modules/notification/interfaces/notification.interface';
 import {
     EnumNotificationChannel,
@@ -31,6 +33,9 @@ export interface INotificationRepository {
     createMany(entries: INotificationCreateEntry[]): Promise<Notification[]>;
     markAsRead(userId: string, notificationId: string): Promise<Notification>;
     markAllAsRead(userId: string): Promise<Prisma.BatchPayload>;
+    findDeliveryStates(
+        contexts: INotificationDeliveryContext[]
+    ): Promise<INotificationDeliveryState[]>;
     markProcessing(
         userId: string,
         notificationId: string,

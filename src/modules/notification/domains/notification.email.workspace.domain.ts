@@ -6,6 +6,7 @@ import { MessageService } from '@common/message/services/message.service';
 import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationPayloadEncryptionPurpose } from '@modules/notification/constants/notification.constant';
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
+import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import type {
     INotificationDeliveryFailure,
     INotificationEmailSendPayload,
@@ -181,35 +182,51 @@ export class NotificationEmailWorkspaceDomain {
             expiredAt,
         }: INotificationWorkspaceInviteUnregisteredEncryptedPayload
     ): Promise<IQueueResponse> {
-        const inviteAcceptLink = this.helperEncryptionService.aes256Decrypt(
-            encryptedInviteAcceptLink,
-            this.encryptionSecretKey,
-            NotificationPayloadEncryptionPurpose,
-            reference
-        );
+        const isInitialized = this.awsSESService.isInitialized();
+        if (!isInitialized) {
+            return {
+                message: 'SES not initialized, skipping workspace invite email',
+            };
+        }
 
-        const expiredAtDate = this.helperDateService.createFromIso(expiredAt);
-        const expiredAtFormatted =
-            this.helperDateService.formatToRFC2822(expiredAtDate);
-        const result = await this.awsSESService.send({
-            templateName: EnumNotificationProcess.workspaceInvite,
-            recipients: [email],
-            sender: this.noreplyEmail,
-            templateData: {
-                ...this.defaultTemplateData,
-                workspaceName,
-                inviterName,
-                workspaceMemberRole,
-                inviteAcceptLink,
-                reference,
-                expiredAt: expiredAtFormatted,
-            },
-        });
+        try {
+            const inviteAcceptLink = this.helperEncryptionService.aes256Decrypt(
+                encryptedInviteAcceptLink,
+                this.encryptionSecretKey,
+                NotificationPayloadEncryptionPurpose,
+                reference
+            );
 
-        return {
-            message: 'Workspace invite (unregistered) email processed',
-            result: { acceptedCount: result.MessageId ? 1 : 0 },
-        };
+            const expiredAtDate =
+                this.helperDateService.createFromIso(expiredAt);
+            const expiredAtFormatted =
+                this.helperDateService.formatToRFC2822(expiredAtDate);
+            const result = await this.awsSESService.send({
+                templateName: EnumNotificationProcess.workspaceInvite,
+                recipients: [email],
+                sender: this.noreplyEmail,
+                templateData: {
+                    ...this.defaultTemplateData,
+                    workspaceName,
+                    inviterName,
+                    workspaceMemberRole,
+                    inviteAcceptLink,
+                    reference,
+                    expiredAt: expiredAtFormatted,
+                },
+            });
+
+            return {
+                message: 'Workspace invite (unregistered) email processed',
+                result: { acceptedCount: result.MessageId ? 1 : 0 },
+            };
+        } catch (error: unknown) {
+            if (error instanceof HelperDecryptFailedException) {
+                throw error;
+            }
+            const failure = this.awsSESService.classifyError(error);
+            throw new NotificationDeliveryFailedException(failure);
+        }
     }
 
     async processWorkspaceJoinRequest(

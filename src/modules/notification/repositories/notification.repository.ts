@@ -9,6 +9,8 @@ import type {
     INotificationContent,
     INotificationCreate,
     INotificationCreateEntry,
+    INotificationDeliveryContext,
+    INotificationDeliveryState,
 } from '@modules/notification/interfaces/notification.interface';
 import type { INotificationRepository } from '@modules/notification/interfaces/notification.repository.interface';
 import { Injectable } from '@nestjs/common';
@@ -68,6 +70,36 @@ export class NotificationRepository implements INotificationRepository {
                 },
             },
         };
+    }
+
+    async findDeliveryStates(
+        contexts: INotificationDeliveryContext[]
+    ): Promise<INotificationDeliveryState[]> {
+        if (contexts.length === 0) {
+            return [];
+        }
+
+        const deliveries =
+            await this.databaseService.client.notificationDelivery.findMany({
+                where: {
+                    OR: contexts.map(({ userId, notificationId, channel }) => ({
+                        notificationId,
+                        channel,
+                        notification: { is: { userId } },
+                    })),
+                },
+                select: {
+                    notificationId: true,
+                    channel: true,
+                    status: true,
+                    lastError: true,
+                    notification: { select: { userId: true } },
+                },
+            });
+        return deliveries.map(({ notification, ...delivery }) => ({
+            ...delivery,
+            userId: notification.userId,
+        }));
     }
 
     async findWithPaginationCursor(

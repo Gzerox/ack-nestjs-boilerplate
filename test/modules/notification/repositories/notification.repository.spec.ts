@@ -52,6 +52,66 @@ describe('NotificationRepository delivery state', () => {
         repository = module.get(NotificationRepository);
     });
 
+    it('reads delivery states using complete recipient tuples', async () => {
+        const contexts = [
+            {
+                userId: 'user-a',
+                notificationId: 'notification-a',
+                channel: EnumNotificationChannel.email,
+            },
+            {
+                userId: 'user-b',
+                notificationId: 'notification-b',
+                channel: EnumNotificationChannel.push,
+            },
+        ];
+        databaseService.client.notificationDelivery.findMany.mockResolvedValue([
+            {
+                notificationId: 'notification-a',
+                channel: EnumNotificationChannel.email,
+                status: EnumNotificationDeliveryStatus.failed,
+                lastError: 'failure',
+                notification: { userId: 'user-a' },
+            },
+        ] as never);
+        expect(await repository.findDeliveryStates(contexts)).toEqual([
+            {
+                userId: 'user-a',
+                notificationId: 'notification-a',
+                channel: EnumNotificationChannel.email,
+                status: EnumNotificationDeliveryStatus.failed,
+                lastError: 'failure',
+            },
+        ]);
+        expect(
+            databaseService.client.notificationDelivery.findMany
+        ).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: {
+                    OR: [
+                        {
+                            notificationId: 'notification-a',
+                            channel: EnumNotificationChannel.email,
+                            notification: { is: { userId: 'user-a' } },
+                        },
+                        {
+                            notificationId: 'notification-b',
+                            channel: EnumNotificationChannel.push,
+                            notification: { is: { userId: 'user-b' } },
+                        },
+                    ],
+                },
+            })
+        );
+    });
+
+    it('does not query all deliveries for an empty recipient list', async () => {
+        expect(await repository.findDeliveryStates([])).toEqual([]);
+        expect(
+            databaseService.client.notificationDelivery.findMany
+        ).not.toHaveBeenCalled();
+    });
+
     it('claims only non-terminal rows owned by the user and returns persisted invalid tokens', async () => {
         transaction.notificationDelivery.updateMany.mockResolvedValue({
             count: 1,

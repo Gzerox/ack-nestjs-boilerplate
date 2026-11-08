@@ -5,6 +5,7 @@ import { BulkEmailStatus } from '@aws-sdk/client-ses';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
 import {
     EnumNotificationChannel,
+    EnumNotificationDeliveryStatus,
     EnumTermPolicyType,
 } from '@generated/prisma-client/client';
 import { NotificationEmailTermPolicyDomain } from '@modules/notification/domains/notification.email.term-policy.domain';
@@ -74,6 +75,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
             cause: null,
         });
         notificationRepository.markProcessing.mockResolvedValue(content);
+        notificationRepository.findDeliveryStates.mockResolvedValue([]);
         const module = await Test.createTestingModule({
             providers: [
                 NotificationEmailTermPolicyDomain,
@@ -167,6 +169,23 @@ describe('NotificationEmailTermPolicyDomain', () => {
             );
         });
 
+        it('reports an already failed delivery without sending', async () => {
+            notificationRepository.markProcessing.mockResolvedValue(null);
+            notificationRepository.findDeliveryStates.mockResolvedValue([
+                {
+                    userId: 'user-1',
+                    notificationId: 'notification-1',
+                    channel: EnumNotificationChannel.email,
+                    status: EnumNotificationDeliveryStatus.failed,
+                    lastError: 'previous failure',
+                },
+            ]);
+            await expect(
+                domain.processPublishTermPolicy(send, data, false)
+            ).rejects.toMatchObject({ isRetryable: false });
+            expect(awsSESService.sendBulk).not.toHaveBeenCalled();
+        });
+
         it('returns without sending when every delivery is already sent', async () => {
             notificationRepository.markProcessing.mockResolvedValue(null);
 
@@ -195,11 +214,9 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 ],
             });
 
-            const result = await domain.processPublishTermPolicy(
-                send,
-                data,
-                false
-            );
+            await expect(
+                domain.processPublishTermPolicy(send, data, false)
+            ).rejects.toMatchObject({ isRetryable: false });
 
             expect(notificationRepository.markSent).toHaveBeenCalledWith(
                 'user-1',
@@ -211,15 +228,25 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                `${BulkEmailStatus.MessageRejected}: rejected`,
+                BulkEmailStatus.MessageRejected,
                 []
             );
             expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                message: 'Publish term policy email processed',
-                sent: 1,
-                failed: 1,
+        });
+
+        it('fails when every recipient is permanently rejected', async () => {
+            awsSESService.sendBulk.mockResolvedValue({
+                $metadata: {},
+                Status: [
+                    { Status: BulkEmailStatus.MessageRejected },
+                    { Status: BulkEmailStatus.MessageRejected },
+                ],
             });
+            await expect(
+                domain.processPublishTermPolicy(send, data, false)
+            ).rejects.toMatchObject({ isRetryable: false });
+            expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
+            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
         });
 
         it('treats a missing bulk status entry as a retryable failure', async () => {
@@ -295,12 +322,12 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                `${BulkEmailStatus.TransientFailure}: try later`,
+                BulkEmailStatus.TransientFailure,
                 []
             );
         });
 
-        it('marks a retryable recipient failed on the last attempt without throwing', async () => {
+        it('fails the job when the final bulk attempt has a failed recipient', async () => {
             awsSESService.sendBulk.mockResolvedValue({
                 $metadata: {},
                 Status: [
@@ -308,25 +335,10 @@ describe('NotificationEmailTermPolicyDomain', () => {
                     { Status: BulkEmailStatus.AccountThrottled },
                 ],
             });
-
-            const result = await domain.processPublishTermPolicy(
-                send,
-                data,
-                true
-            );
-
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                'user-2',
-                'notification-2',
-                EnumNotificationChannel.email,
-                BulkEmailStatus.AccountThrottled,
-                []
-            );
-            expect(result).toEqual({
-                message: 'Publish term policy email processed',
-                sent: 1,
-                failed: 1,
+            await expect(
+                domain.processPublishTermPolicy(send, data, true)
+            ).rejects.toMatchObject({
+                isRetryable: false,
             });
         });
 
@@ -336,20 +348,20 @@ describe('NotificationEmailTermPolicyDomain', () => {
 
             await expect(
                 domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toBe(error);
+            ).rejects.toMatchObject({ isRetryable: true });
 
             expect(notificationRepository.markRetry).toHaveBeenCalledWith(
                 'user-1',
                 'notification-1',
                 EnumNotificationChannel.email,
-                'Error: ses down',
+                'Error',
                 []
             );
             expect(notificationRepository.markRetry).toHaveBeenCalledWith(
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                'Error: ses down',
+                'Error',
                 []
             );
         });
@@ -360,7 +372,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
 
             await expect(
                 domain.processPublishTermPolicy(send, data, true)
-            ).rejects.toBe(error);
+            ).rejects.toMatchObject({ isRetryable: false });
 
             expect(notificationRepository.markRetry).not.toHaveBeenCalled();
             expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
@@ -368,7 +380,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-1',
                 'notification-1',
                 EnumNotificationChannel.email,
-                'Error: ses down',
+                'Error',
                 []
             );
         });
@@ -395,7 +407,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                'unknownError',
+                'Error',
                 []
             );
         });
@@ -437,7 +449,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                `${BulkEmailStatus.MessageRejected}: rejected`,
+                BulkEmailStatus.MessageRejected,
                 []
             );
 
@@ -446,11 +458,18 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(content);
 
-            const result = await domain.processPublishTermPolicy(
-                recipients,
-                data,
-                false
-            );
+            notificationRepository.findDeliveryStates.mockResolvedValue([
+                {
+                    userId: 'user-2',
+                    notificationId: 'notification-2',
+                    channel: EnumNotificationChannel.email,
+                    status: EnumNotificationDeliveryStatus.failed,
+                    lastError: 'MessageRejected',
+                },
+            ]);
+            await expect(
+                domain.processPublishTermPolicy(recipients, data, false)
+            ).rejects.toMatchObject({ isRetryable: false });
 
             expect(awsSESService.sendBulk).toHaveBeenCalledTimes(2);
             expect(awsSESService.sendBulk).toHaveBeenLastCalledWith(
@@ -467,105 +486,6 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-3',
                 'notification-3',
                 EnumNotificationChannel.email,
-                []
-            );
-            expect(result).toEqual({
-                message: 'Publish term policy email processed',
-                sent: 1,
-                failed: 0,
-            });
-        });
-    });
-
-    describe('handleBulkFailure', () => {
-        const error = new Error('ses down');
-
-        it('marks every recipient retry and rethrows a retryable error before the last attempt', async () => {
-            await expect(
-                domain['handleBulkFailure'](send, error, false)
-            ).rejects.toBe(error);
-
-            expect(awsSESService.classifyError).toHaveBeenCalledWith(error);
-            expect(notificationRepository.markRetry).toHaveBeenCalledTimes(2);
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                'Error: ses down',
-                []
-            );
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-                'user-2',
-                'notification-2',
-                EnumNotificationChannel.email,
-                'Error: ses down',
-                []
-            );
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-        });
-
-        it('marks every recipient failed and rethrows a retryable error on the last attempt', async () => {
-            await expect(
-                domain['handleBulkFailure'](send, error, true)
-            ).rejects.toBe(error);
-
-            expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                'Error: ses down',
-                []
-            );
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                'user-2',
-                'notification-2',
-                EnumNotificationChannel.email,
-                'Error: ses down',
-                []
-            );
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-        });
-
-        it('marks every recipient failed and throws NotificationDeliveryFailedException on a permanent error', async () => {
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Error',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause: null,
-            });
-
-            await expect(
-                domain['handleBulkFailure'](send, error, false)
-            ).rejects.toMatchObject({
-                module: 'notification',
-                statusCode: EnumNotificationStatusCodeError.deliveryFailed,
-                statusCodeKey: 'deliveryFailed',
-                messagePath: 'notification.error.deliveryFailed',
-                messageProperties: { cause: 'Error: ses down' },
-            });
-
-            expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                'Error: ses down',
-                []
-            );
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-        });
-
-        it('describes a thrown non-Error value as unknownError', async () => {
-            await expect(
-                domain['handleBulkFailure'](send, 'boom', false)
-            ).rejects.toBe('boom');
-
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                'unknownError',
                 []
             );
         });

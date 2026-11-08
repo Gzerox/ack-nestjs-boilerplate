@@ -1,6 +1,7 @@
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     EnumNotificationChannel,
+    EnumNotificationDeliveryStatus,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumTermPolicyType,
@@ -254,6 +255,11 @@ export interface INotificationDeliveryContext {
     userId: string;
     notificationId: string;
     channel: EnumNotificationChannel;
+}
+
+export interface INotificationDeliveryState extends INotificationDeliveryContext {
+    status: EnumNotificationDeliveryStatus;
+    lastError: string | null;
 }
 
 export interface INotificationDeliveryFailure {

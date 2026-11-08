@@ -337,18 +337,74 @@ describe('NotificationEmailWorkspaceDomain', () => {
             });
         });
 
+        it('does not send or decrypt an invitation when SES is disabled', async () => {
+            awsSESService.isInitialized.mockReturnValue(false);
+            await domain.processWorkspaceInviteUnregistered(
+                { email: 'invitee@example.com' },
+                encrypted
+            );
+            expect(awsSESService.send).not.toHaveBeenCalled();
+            expect(
+                helperEncryptionService.aes256Decrypt
+            ).not.toHaveBeenCalled();
+        });
+
+        it('keeps decryption failures permanent without sending or creating a delivery', async () => {
+            const error = new HelperDecryptFailedException();
+            helperEncryptionService.aes256Decrypt.mockImplementation(() => {
+                throw error;
+            });
+            await expect(
+                domain.processWorkspaceInviteUnregistered(
+                    { email: 'invitee@example.com' },
+                    encrypted
+                )
+            ).rejects.toBe(error);
+            expect(awsSESService.send).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
+        });
+
+        it('classifies permanent invitation failures without exposing provider details', async () => {
+            awsSESService.send.mockRejectedValue(rejectedError);
+            awsSESService.classifyError.mockReturnValue({
+                code: 'MessageRejected',
+                isRetryable: false,
+                retryAfterInMs: null,
+                cause: rejectedError,
+            });
+            await expect(
+                domain.processWorkspaceInviteUnregistered(
+                    { email: 'invitee@example.com' },
+                    encrypted
+                )
+            ).rejects.toMatchObject({
+                isRetryable: false,
+                rawError: rejectedError,
+            });
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
+        });
+
         it('workspaceInviteUnregistered writes no delivery row', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://invite.example.com'
             );
             awsSESService.send.mockRejectedValue(throttlingError);
+            awsSESService.classifyError.mockReturnValue({
+                code: 'Throttling',
+                isRetryable: true,
+                retryAfterInMs: null,
+                cause: throttlingError,
+            });
 
             await expect(
                 domain.processWorkspaceInviteUnregistered(
                     { email: 'invitee@example.com' },
                     encrypted
                 )
-            ).rejects.toBe(throttlingError);
+            ).rejects.toMatchObject({
+                isRetryable: true,
+                rawError: throttlingError,
+            });
             expect(
                 notificationRepository.markProcessing
             ).not.toHaveBeenCalled();

@@ -56,4 +56,26 @@ describe('NotificationEmailProcessor delivery errors', () => {
         await expect(attempt).rejects.toBeInstanceOf(UnrecoverableError);
         await expect(attempt).rejects.toMatchObject({ cause: failure });
     });
+    it.each([false, true])(
+        'routes an unregistered invitation failure according to retry policy (%s)',
+        async isRetryable => {
+            job.name = EnumNotificationProcess.workspaceInviteUnregistered;
+            const failure = new NotificationDeliveryFailedException({
+                code: 'providerFailure',
+                isRetryable,
+                retryAfterInMs: null,
+                cause: null,
+            });
+            notificationEmailProcessorService.processWorkspaceInviteUnregistered.mockRejectedValue(
+                failure
+            );
+            if (isRetryable)
+                await expect(processor.process(job)).rejects.toBe(failure);
+            else
+                await expect(processor.process(job)).rejects.toMatchObject({
+                    name: 'UnrecoverableError',
+                    cause: failure,
+                });
+        }
+    );
 });

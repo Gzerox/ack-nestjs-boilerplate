@@ -1,7 +1,10 @@
 import { BulkEmailStatus } from '@aws-sdk/client-ses';
 import type { SendBulkTemplatedEmailCommandOutput } from '@aws-sdk/client-ses';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
-import { EnumNotificationChannel } from '@generated/prisma-client/client';
+import {
+    EnumNotificationChannel,
+    EnumNotificationDeliveryStatus,
+} from '@generated/prisma-client/client';
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
 import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import type {
@@ -43,53 +46,31 @@ export class NotificationEmailTermPolicyDomain {
         };
     }
 
-    private async handleBulkFailure(
+    private async assertNoFailedDeliveries(
         recipients: INotificationEmailSendPayload[],
-        error: unknown,
-        isLastAttempt: boolean
-    ): Promise<never> {
-        const reason =
-            error instanceof Error
-                ? `${error.name}: ${error.message}`
-                : 'unknownError';
-        const { isRetryable } = this.awsSESService.classifyError(error);
-
-        if (isRetryable && !isLastAttempt) {
-            const retryPromises = recipients.map(({ userId, notificationId }) =>
-                this.notificationRepository.markRetry(
-                    userId,
-                    notificationId,
-                    EnumNotificationChannel.email,
-                    reason,
-                    []
-                )
-            );
-            await Promise.all(retryPromises);
-
-            throw error;
-        }
-
-        const failedPromises = recipients.map(({ userId, notificationId }) =>
-            this.notificationRepository.markFailed(
+        failed = 0,
+        cause: Error | null = null
+    ): Promise<void> {
+        const states = await this.notificationRepository.findDeliveryStates(
+            recipients.map(({ userId, notificationId }) => ({
                 userId,
                 notificationId,
-                EnumNotificationChannel.email,
-                reason,
-                []
-            )
+                channel: EnumNotificationChannel.email,
+            }))
         );
-        await Promise.all(failedPromises);
-
-        if (!isRetryable) {
+        if (
+            failed > 0 ||
+            states.some(
+                ({ status }) => status === EnumNotificationDeliveryStatus.failed
+            )
+        ) {
             throw new NotificationDeliveryFailedException({
-                code: reason,
+                code: 'bulkDeliveryFailed',
                 isRetryable: false,
                 retryAfterInMs: null,
-                cause: error instanceof Error ? error : null,
+                cause,
             });
         }
-
-        throw error;
     }
 
     async processPublishTermPolicy(
@@ -107,6 +88,7 @@ export class NotificationEmailTermPolicyDomain {
         const contents = await Promise.all(processingPromises);
         const kept = send.filter((_, index) => contents[index] !== null);
         if (kept.length === 0) {
+            await this.assertNoFailedDeliveries(send);
             return {
                 message:
                     'Every delivery already sent or missing, skipping publish term policy email',
@@ -124,6 +106,7 @@ export class NotificationEmailTermPolicyDomain {
                 )
             );
             await Promise.all(skippedPromises);
+            await this.assertNoFailedDeliveries(send);
 
             return {
                 message:
@@ -147,13 +130,38 @@ export class NotificationEmailTermPolicyDomain {
                 },
             });
         } catch (error: unknown) {
-            const failure = await this.handleBulkFailure(
-                kept,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const retry = failure.isRetryable && !isLastAttempt;
+            const writes = kept.map(({ userId, notificationId }) => {
+                if (retry) {
+                    const write = this.notificationRepository.markRetry(
+                        userId,
+                        notificationId,
+                        EnumNotificationChannel.email,
+                        failure.code,
+                        []
+                    );
+                    return write;
+                }
+                const write = this.notificationRepository.markFailed(
+                    userId,
+                    notificationId,
+                    EnumNotificationChannel.email,
+                    failure.code,
+                    []
+                );
+                return write;
+            });
+            await Promise.all(writes);
+            if (retry) {
+                throw new NotificationDeliveryFailedException(failure);
+            }
+            await this.assertNoFailedDeliveries(
+                send,
+                kept.length,
+                failure.cause
             );
-
-            return failure;
+            throw new NotificationDeliveryFailedException(failure);
         }
 
         let sent = 0;
@@ -176,7 +184,7 @@ export class NotificationEmailTermPolicyDomain {
                 continue;
             }
 
-            const reason = entry?.Error ? `${status}: ${entry.Error}` : status;
+            const reason = status;
             const isRetryable =
                 this.awsSESService.isRetryableBulkStatus(status);
             if (isRetryable && !isLastAttempt) {
@@ -210,6 +218,8 @@ export class NotificationEmailTermPolicyDomain {
                 `${retried} publish term policy recipients need a retry`
             );
         }
+
+        await this.assertNoFailedDeliveries(send, failed);
 
         return {
             message: 'Publish term policy email processed',

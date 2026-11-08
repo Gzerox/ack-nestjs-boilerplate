@@ -1,8 +1,17 @@
+import type { Messaging } from 'firebase-admin/messaging';
 import {
-    FirebaseInvalidTokenCodes,
+    AppErrorCode,
+    FirebaseAppError,
+    FirebaseError,
+} from 'firebase-admin/app';
+import { HelperDateService } from '@common/helper/services/helper.date.service';
+import {
     FirebaseMaxSendPushBatchSize,
+    FirebaseThrottleRetryDelayInMs,
 } from '@common/firebase/constants/firebase.constant';
 import type {
+    IFirebaseDeliveryError,
+    IFirebasePushFailure,
     IFirebasePushPayload,
     IFirebasePushResult,
 } from '@common/firebase/interfaces/firebase.interface';
@@ -14,7 +23,11 @@ import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as firebaseAdmin from 'firebase-admin';
 import type { App as FirebaseApp } from 'firebase-admin/app';
-import { Messaging, getMessaging } from 'firebase-admin/messaging';
+import {
+    FirebaseMessagingError,
+    MessagingErrorCode,
+    getMessaging,
+} from 'firebase-admin/messaging';
 
 @Injectable()
 export class FirebaseService implements OnModuleInit {
@@ -30,7 +43,8 @@ export class FirebaseService implements OnModuleInit {
     constructor(
         private readonly configService: ConfigService,
         private readonly helperArrayService: HelperArrayService,
-        private readonly firebaseUtil: FirebaseUtil
+        private readonly firebaseUtil: FirebaseUtil,
+        private readonly helperDateService: HelperDateService
     ) {
         this.projectId = this.configService.get<string | null>(
             'firebase.projectId'
@@ -45,8 +59,75 @@ export class FirebaseService implements OnModuleInit {
         this.privateKey = this.firebaseUtil.normalizePrivateKey(privateKey);
     }
 
-    private isInvalidTokenError(error: { code?: string } | null): boolean {
-        return FirebaseInvalidTokenCodes.includes(error?.code ?? '');
+    private readRetryAfter(header: unknown): number | null {
+        if (typeof header !== 'string' || !header.trim()) {
+            return null;
+        }
+        const value = header.trim();
+        const parts = value.split('.');
+        const isDeltaSeconds =
+            parts.length <= 2 && parts.every(part => /^[0-9]+$/.test(part));
+        if (isDeltaSeconds) {
+            const delay = Number(value) * 1000;
+            return Number.isFinite(delay) ? delay : null;
+        }
+        // A numeric-looking invalid value must not be interpreted as a date.
+        if (!/^[A-Za-z]{3},/.test(value)) {
+            return null;
+        }
+        const timestamp = Date.parse(value);
+        const now = this.helperDateService.create();
+        const delay = timestamp - now.getTime();
+        return Number.isFinite(delay) && delay >= 0 ? delay : null;
+    }
+
+    classifyError(error: unknown): IFirebaseDeliveryError {
+        let isRetryable = false;
+        let isInvalidToken = false;
+        let isThrottled = false;
+        if (error instanceof FirebaseMessagingError) {
+            isInvalidToken =
+                error.hasCode(MessagingErrorCode.INVALID_REGISTRATION_TOKEN) ||
+                error.hasCode(
+                    MessagingErrorCode.REGISTRATION_TOKEN_NOT_REGISTERED
+                );
+            isThrottled =
+                error.hasCode(MessagingErrorCode.MESSAGE_RATE_EXCEEDED) ||
+                error.hasCode(MessagingErrorCode.DEVICE_MESSAGE_RATE_EXCEEDED);
+            isRetryable =
+                isThrottled ||
+                error.hasCode(MessagingErrorCode.SERVER_UNAVAILABLE) ||
+                error.hasCode(MessagingErrorCode.INTERNAL_ERROR) ||
+                error.hasCode(MessagingErrorCode.UNKNOWN_ERROR);
+        } else if (error instanceof FirebaseAppError) {
+            isRetryable =
+                error.hasCode(AppErrorCode.NETWORK_ERROR) ||
+                error.hasCode(AppErrorCode.NETWORK_TIMEOUT);
+        }
+
+        const code =
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            typeof error.code === 'string'
+                ? error.code
+                : 'unknownError';
+        let retryAfterInMs: number | null = null;
+        if (error instanceof FirebaseError && isRetryable) {
+            const header: unknown = error.httpResponse?.headers['retry-after'];
+            const parsedRetryAfterInMs = this.readRetryAfter(header);
+            retryAfterInMs = parsedRetryAfterInMs;
+        }
+
+        return {
+            code,
+            isRetryable,
+            isInvalidToken,
+            retryAfterInMs:
+                retryAfterInMs ??
+                (isThrottled ? FirebaseThrottleRetryDelayInMs : null),
+            cause: error instanceof Error ? error : null,
+        };
     }
 
     async onModuleInit(): Promise<void> {
@@ -103,12 +184,7 @@ export class FirebaseService implements OnModuleInit {
 
             return true;
         } catch (error: unknown) {
-            let isInvalidToken = false;
-            if (typeof error === 'object' && error !== null) {
-                isInvalidToken = this.isInvalidTokenError(
-                    error as { code?: string }
-                );
-            }
+            const { isInvalidToken } = this.classifyError(error);
 
             if (isInvalidToken) {
                 this.logger.warn(error, 'Invalid FCM token detected');
@@ -125,31 +201,39 @@ export class FirebaseService implements OnModuleInit {
         payload: IFirebasePushPayload,
         chunkSize: number = FirebaseMaxSendPushBatchSize
     ): Promise<IFirebasePushResult> {
+        if (
+            !Number.isInteger(chunkSize) ||
+            chunkSize < 1 ||
+            chunkSize > FirebaseMaxSendPushBatchSize
+        ) {
+            throw new FirebaseChunkSizeInvalidException();
+        }
+        const uniqueTokens = [...new Set(tokens)];
         const isInitialized = this.isInitialized();
         if (!isInitialized) {
             this.logger.warn('Firebase not initialized, skipping multicast');
-
+            const error = this.classifyError(
+                new Error('Firebase not initialized')
+            );
             return {
-                failureTokens: [],
                 successCount: 0,
-                failureCount: tokens.length,
+                failureCount: uniqueTokens.length,
+                failureTokens: [],
+                failures: uniqueTokens.map(token => ({ token, error })),
             };
         }
-
-        if (tokens.length === 0) {
+        if (uniqueTokens.length === 0) {
             return {
-                failureTokens: [],
                 successCount: 0,
                 failureCount: 0,
+                failureTokens: [],
+                failures: [],
             };
         }
-
-        if (chunkSize < 1 || chunkSize > FirebaseMaxSendPushBatchSize) {
-            throw new FirebaseChunkSizeInvalidException();
-        }
-
-        const chunkedTokens = this.helperArrayService.chunk(tokens, chunkSize);
-
+        const chunkedTokens = this.helperArrayService.chunk(
+            uniqueTokens,
+            chunkSize
+        );
         const promises = chunkedTokens.map(chunk =>
             this.messaging!.sendEachForMulticast({
                 tokens: chunk,
@@ -161,39 +245,35 @@ export class FirebaseService implements OnModuleInit {
                 data: payload.data,
             })
         );
-
         const responses = await Promise.allSettled(promises);
-
         let successCount = 0;
-        let failureCount = 0;
-        const failureTokens: string[] = [];
-
-        for (let chunkIndex = 0; chunkIndex < responses.length; chunkIndex++) {
-            const response = responses[chunkIndex];
+        const failures: IFirebasePushFailure[] = [];
+        for (const [chunkIndex, response] of responses.entries()) {
             const chunk = chunkedTokens[chunkIndex];
-
-            if (response.status === 'fulfilled') {
-                successCount += response.value.successCount;
-                failureCount += response.value.failureCount;
-
-                for (const [
-                    tokenIndex,
-                    resp,
-                ] of response.value.responses.entries()) {
-                    if (!resp.success && resp.error) {
-                        const isInvalidToken = this.isInvalidTokenError(
-                            resp.error as { code?: string }
-                        );
-                        if (isInvalidToken) {
-                            failureTokens.push(chunk[tokenIndex]);
-                        }
-                    }
+            if (response.status === 'rejected') {
+                const error = this.classifyError(response.reason);
+                failures.push(...chunk.map(token => ({ token, error })));
+                continue;
+            }
+            for (const [
+                tokenIndex,
+                result,
+            ] of response.value.responses.entries()) {
+                if (result.success) {
+                    successCount++;
+                } else {
+                    const error = this.classifyError(result.error);
+                    failures.push({ token: chunk[tokenIndex], error });
                 }
-            } else {
-                failureCount += chunk.length;
             }
         }
-
-        return { successCount, failureCount, failureTokens };
+        return {
+            successCount,
+            failureCount: failures.length,
+            failureTokens: failures
+                .filter(failure => failure.error.isInvalidToken)
+                .map(failure => failure.token),
+            failures,
+        };
     }
 }

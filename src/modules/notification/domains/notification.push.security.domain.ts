@@ -90,7 +90,11 @@ export class NotificationPushSecurityDomain {
 
         return {
             message: 'New login notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -148,7 +152,11 @@ export class NotificationPushSecurityDomain {
 
         return {
             message: 'Reset two-factor notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -216,7 +224,11 @@ export class NotificationPushSecurityDomain {
 
         return {
             message: 'Temporary password notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -274,7 +286,11 @@ export class NotificationPushSecurityDomain {
 
         return {
             message: 'Reset password notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -332,7 +348,11 @@ export class NotificationPushSecurityDomain {
 
         return {
             message: 'Forgot password notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 }

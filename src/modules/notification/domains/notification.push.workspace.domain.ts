@@ -84,7 +84,11 @@ export class NotificationPushWorkspaceDomain {
 
         return {
             message: 'Workspace invite notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -149,7 +153,11 @@ export class NotificationPushWorkspaceDomain {
 
         return {
             message: 'Workspace join request notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -213,7 +221,11 @@ export class NotificationPushWorkspaceDomain {
 
         return {
             message: 'Workspace join accepted notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 
@@ -282,7 +294,11 @@ export class NotificationPushWorkspaceDomain {
 
         return {
             message: 'Workspace join rejected notification processed',
-            result,
+            result: {
+                successCount: result.successCount,
+                failureCount: result.failureCount,
+                errorCodes: [...new Set(result.failures.map(({ error }) => error.code))],
+            },
         };
     }
 }

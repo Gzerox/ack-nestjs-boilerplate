@@ -1,3 +1,4 @@
+import type { IFirebasePushResult } from '@common/firebase/interfaces/firebase.interface';
 import { Test } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import { FirebaseService } from '@common/firebase/services/firebase.service';
@@ -34,7 +35,8 @@ describe('NotificationPushSecurityDomain', () => {
         notificationTokens: ['token-1', 'token-2'],
         username: 'nadia',
     };
-    const pushResult = {
+    const pushResult: IFirebasePushResult = {
+        failures: [{ token: "token-2", error: { code: "messaging/registration-token-not-registered", isRetryable: false, isInvalidToken: true, retryAfterInMs: null, cause: null } }],
         failureTokens: ['token-2'],
         successCount: 1,
         failureCount: 1,
@@ -178,7 +180,7 @@ describe('NotificationPushSecurityDomain', () => {
             );
             expect(result).toEqual({
                 message: 'New login notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -238,7 +240,7 @@ describe('NotificationPushSecurityDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Reset two-factor notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -312,7 +314,7 @@ describe('NotificationPushSecurityDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Temporary password notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -356,7 +358,7 @@ describe('NotificationPushSecurityDomain', () => {
 
             expect(result).toEqual({
                 message: 'Reset password notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -400,7 +402,7 @@ describe('NotificationPushSecurityDomain', () => {
 
             expect(result).toEqual({
                 message: 'Forgot password notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });

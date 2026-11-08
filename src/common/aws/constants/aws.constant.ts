@@ -1,3 +1,5 @@
+import { BulkEmailStatus } from '@aws-sdk/client-ses';
+
 /**
  * Highest part number one S3 multipart upload may request, capped below the S3 hard limit of 10k parts.
  * @public
@@ -30,3 +32,19 @@ export const AwsSESRateLimitDurationInMs = 1000;
  */
 export const AwsS3ObjectKeyRegex =
     /^(?!\/)(?!.*\/\/)(?!.*\.\.)[A-Za-z0-9._/-]+$/;
+
+/**
+ * Message fragment SES sets on a throttling error once the daily sending quota is spent.
+ * @public
+ */
+export const AwsSESDailyQuotaExceededMessage = 'Daily message quota exceeded';
+
+/**
+ * SES bulk destination statuses a later attempt can turn into `Success`.
+ * @public
+ */
+export const AwsSESRetryableBulkStatuses: BulkEmailStatus[] = [
+    BulkEmailStatus.TransientFailure,
+    BulkEmailStatus.AccountThrottled,
+    BulkEmailStatus.Failed,
+];

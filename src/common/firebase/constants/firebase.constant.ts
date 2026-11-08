@@ -1,12 +1,8 @@
 /**
- * FCM error codes marking a token as invalid/unregistered; such tokens should be purged.
+ * Delay used when FCM throttles without a usable Retry-After header.
  * @public
  */
-export const FirebaseInvalidTokenCodes = [
-    'messaging/invalid-registration-token',
-    'messaging/registration-token-not-registered',
-    'messaging/invalid-argument',
-];
+export const FirebaseThrottleRetryDelayInMs = 60000;
 
 /**
  * FCM hard limit of tokens per `sendEachForMulticast` call.

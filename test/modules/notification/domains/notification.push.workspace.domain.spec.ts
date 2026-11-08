@@ -1,3 +1,4 @@
+import type { IFirebasePushResult } from '@common/firebase/interfaces/firebase.interface';
 import { Test } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import { FirebaseService } from '@common/firebase/services/firebase.service';
@@ -31,7 +32,8 @@ describe('NotificationPushWorkspaceDomain', () => {
         notificationTokens: ['token-1', 'token-2'],
         username: 'nadia',
     };
-    const pushResult = {
+    const pushResult: IFirebasePushResult = {
+        failures: [{ token: "token-2", error: { code: "messaging/registration-token-not-registered", isRetryable: false, isInvalidToken: true, retryAfterInMs: null, cause: null } }],
         failureTokens: ['token-2'],
         successCount: 1,
         failureCount: 1,
@@ -129,7 +131,7 @@ describe('NotificationPushWorkspaceDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Workspace invite notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -190,7 +192,7 @@ describe('NotificationPushWorkspaceDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Workspace join request notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -258,7 +260,7 @@ describe('NotificationPushWorkspaceDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Workspace join accepted notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });
@@ -333,7 +335,7 @@ describe('NotificationPushWorkspaceDomain', () => {
             );
             expect(result).toEqual({
                 message: 'Workspace join rejected notification processed',
-                result: pushResult,
+                result: { successCount: 1, failureCount: 1, errorCodes: ['messaging/registration-token-not-registered'] },
             });
         });
     });

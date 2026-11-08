@@ -153,6 +153,12 @@ EMAIL_NO_REPLY=noreply@mail.com
 EMAIL_SUPPORT=support@mail.com
 EMAIL_ADMIN=admin@mail.com
 
+# AWS SNS (Optional; SMS is not enabled by existing notification kinds)
+AWS_SNS_IAM_CREDENTIAL_KEY=
+AWS_SNS_IAM_CREDENTIAL_SECRET=
+AWS_SNS_REGION=
+AWS_SNS_SENDER_ID=
+
 # Firebase (Optional)
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
@@ -601,6 +607,10 @@ Admin email address for internal notifications.
 ```bash
 EMAIL_ADMIN=admin@mail.com
 ```
+
+#### SNS (SMS Service)
+
+`AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` initialize the optional SNS client. `AWS_SNS_SENDER_ID` is optional. The existing notification kinds do not enqueue SMS, even when these values are configured.
 
 ### Firebase Settings
 

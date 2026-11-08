@@ -805,6 +805,10 @@ keyPattern: string              // Cache key pattern for API response data ('Api
 filenameExportPattern: string   // e.g. 'export-{timestamp}.{extension}'
 ```
 
+### SNS Configuration
+
+`aws.sns` in `src/configs/aws.config.ts` contains `iam.key`, `iam.secret`, `region`, and optional `senderId`. The first three must be set to initialize SNS. Existing notification kinds do not enqueue SMS; credentials alone do not enable it.
+
 ### Firebase Configuration
 
 **File**: `src/configs/firebase.config.ts`  
@@ -847,11 +851,16 @@ job: {
   removeOnCompleteAgeInSeconds: number; // How long a completed job is kept (`ms('7d') / 1000`)
   removeOnFailAgeInSeconds: number;    // How long a failed job is kept (`ms('14d') / 1000`)
   emailBackoffDelayInMs: number;       // Email queue exponential backoff delay (ms('10s'))
-  pushBackoffDelayInMs: number;        // Push queue exponential backoff delay (ms('5s'))
+  pushBackoffDelayInMs: number;        // Push retry base and minimum (ms('10s'))
+  pushMaxBackoffDelayInMs: number;     // Push exponential base cap (ms('1m'))
+  pushBackoffJitterRatio: number;      // Additive jitter ratio (0.2)
+  smsBackoffDelayInMs: number;         // SMS queue exponential backoff delay (ms('10s'))
   notificationBackoffDelayInMs: number; // Notification queue exponential backoff delay (ms('3s'))
   workspaceBackoffDelayInMs: number;   // Workspace queue exponential backoff delay (ms('10s'))
 }
 ```
+
+Push provider retry hints can exceed the base cap. A throttling response without a usable retry hint uses a 60-second minimum before jitter.
 
 ### Health Configuration
 

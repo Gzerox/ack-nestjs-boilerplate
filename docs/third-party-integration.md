@@ -24,6 +24,7 @@ Third-party clients are configured through environment variables. Each section b
   - [S3 Storage](#s3-storage)
     - [Bucket setup](#bucket-setup)
   - [SES Email](#ses-email)
+  - [SNS SMS](#sns-sms)
   - [Error Codes](#error-codes)
 - [Firebase](#firebase)
 - [Sentry](#sentry)
@@ -141,6 +142,10 @@ AWS service errors use `EnumAwsStatusCodeError` located at `src/common/aws/enums
 | `EnumAwsStatusCodeError.sesTemplateBodyRequired` | `51406` | `aws.error.sesTemplateBodyRequired` | An SES template create or update has neither an HTML nor a plain-text body |
 
 Every code except `51400` (503) and `51403` (409) answers HTTP 500.
+
+### SNS SMS
+
+`AwsSNSService` and the SMS queue/processor are available for future use, but current notification kinds do not enqueue SMS. Set `AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` to initialize SNS; `AWS_SNS_SENDER_ID` is optional. Without the required values the SNS client is disabled. Enabling credentials alone does not add SMS to existing notification channels.
 
 ## Firebase
 

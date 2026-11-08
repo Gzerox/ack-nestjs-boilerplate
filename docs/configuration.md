@@ -334,6 +334,7 @@ ses: {
     arn: string | null;           // AWS IAM Role ARN for SES operations
   };
   region: string | null;          // AWS region for SES
+  maxAttempts: number;            // SES SDK attempts per send (default: 1; BullMQ owns retries)
 }
 ```
 
@@ -807,7 +808,7 @@ filenameExportPattern: string   // e.g. 'export-{timestamp}.{extension}'
 
 ### SNS Configuration
 
-`aws.sns` in `src/configs/aws.config.ts` contains `iam.key`, `iam.secret`, `region`, and optional `senderId`. The first three must be set to initialize SNS. Existing notification kinds do not enqueue SMS; credentials alone do not enable it.
+`aws.sns` in `src/configs/aws.config.ts` contains `iam.key`, `iam.secret`, `region`, optional `senderId`, and `maxAttempts` (SNS SDK attempts per send, default `1`). The first three must be set to initialize SNS. Existing notification kinds do not enqueue SMS; credentials alone do not enable it.
 
 ### Firebase Configuration
 

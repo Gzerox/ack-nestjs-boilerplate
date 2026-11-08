@@ -217,7 +217,7 @@ A job payload sits in Redis until a worker consumes it, so the queue classes sea
 | `encryptedInviteAcceptLink` | `inviteAcceptLink` | `workspaceInviteUnregistered` (email queue only) | invite `reference` |
 | `encryptedJoinRequestReviewLink` | `joinRequestReviewLink` | `workspaceJoinRequest` | reviewer `userId` |
 
-An invitation for an unregistered recipient has no user or delivery row. Its outcome and bounded retry history exist only in the email queue; transient SES failures use the queue retry budget, while permanent failures stop immediately. If SES is disabled, the job is skipped.
+An invitation for an unregistered recipient has no user or delivery row. Its outcome and bounded retry history exist only in the email queue; transient SES failures use the queue retry budget, while permanent failures stop immediately. If SES is disabled, the job is skipped. `aws.ses.maxAttempts` defaults to `1`, so the SES client makes one request per BullMQ attempt and BullMQ owns every retry; raising it adds SDK-level retries inside each BullMQ attempt.
 
 `NotificationQueue` seals the fields of the orchestration jobs; the orchestration domains pass the sealed value through to the email job unopened. `NotificationEmailQueue` seals the invite link of `workspaceInviteUnregistered`, which skips the orchestration queue. Push jobs carry no secret: `NotificationPushQueue` builds each push payload from an explicit field list (`INotification*PushPayload`) that leaves out passwords and links.
 
@@ -238,7 +238,7 @@ One user can own multiple active devices, each with its own registration token; 
 | At least one token accepted, even with other failures | Mark sent and do not retry this notification. Return only counts and error codes. |
 | No acceptance, with transient failures and attempts remaining | Mark pending and retry only transiently failed tokens. |
 | No acceptance, permanent failures or exhausted retries | Mark failed and report the terminal failure. |
-| Every target invalid, no eligible tokens, or Firebase disabled | Mark skipped; invalid tokens are scheduled for cleanup. |
+| Every target invalid or no eligible tokens | Mark skipped; invalid tokens are scheduled for cleanup. |
 
 The any-acceptance threshold is an application choice to avoid resending to devices that already accepted the notification. FCM does not require this policy. `failureTokens` contains invalid tokens only, not transient or generic payload failures.
 
@@ -298,25 +298,28 @@ Each `Notification` has one `NotificationDelivery` row per channel. Immediate `s
 
 | Field | Meaning |
 |---|---|
-| `status` | `pending`, `processing`, `sent`, `failed`, or `skipped` |
-| `attempts` | Number of claims for processing |
+| `status` | `pending`, `sent`, `failed`, or `skipped` |
 | `processedAt` | Time of a terminal sent, failed, or skipped outcome; cleared for a retry |
 | `sentAt` | Time the provider accepted the send; null on retry, failure, or skip |
-| `failedAt` | Time of a terminal failure; cleared on success or retry |
 | `lastError` | Safe failure code for retry or failure; cleared on success or skip |
 | `failureTokens` | Cumulative invalid push tokens only |
 
 ```mermaid
 flowchart TD
-    A[Pending delivery] --> B[Claim processing]
-    B --> C{Provider outcome}
+    A[Pending delivery] --> P{Provider ready?}
+    P -->|No| G[Stop, row stays pending]
+    P -->|Yes| B[Read delivery row]
+    B -->|Sent, failed, skipped, or missing| G2[Stop without sending]
+    B -->|Pending| H{Eligible push tokens?}
+    H -->|None| F[Skipped]
+    H -->|Yes, or email| C{Provider outcome}
     C -->|Accepted| D[Sent]
-    C -->|Transient and attempts remain| A
-    C -->|Permanent or attempts exhausted| E[Failed]
-    C -->|Disabled or no eligible target| F[Skipped]
+    C -->|Every push target invalid| F
+    C -->|Transient, queue retries remain| A
+    C -->|Permanent or queue retries exhausted| E[Failed]
 ```
 
-Terminal rows and missing rows are not sent again. Email and push failures are classified before retrying; permanent failures and exhausted retries produce a final failure reported to Sentry. A successful retry clears stale error state. For bulk policy emails, recipients are tracked independently: transient recipients can retry even if another recipient has permanently failed; after retries finish, any failed recipient makes the overall job fail. Already sent and failed recipients are not resent.
+A job checks its provider first. When the provider is not ready (SES, SNS, or Firebase disabled), the job ends without reading or writing the delivery row, so the row stays `pending`. `skipped` marks recipient-side cases only: no eligible push tokens, every push target invalid, or a declared channel with no supported process. A ready provider is followed by a read of the row through `NotificationRepository.findForDelivery()`, which returns only a pending row; a terminal or missing row ends the job without a send. Email and push failures are classified before retrying; permanent failures and exhausted retries produce a final failure reported to Sentry. A successful retry clears stale error state. For bulk policy emails, recipients are tracked independently: transient recipients can retry even if another recipient has permanently failed; after retries finish, any failed recipient makes the overall job fail. Already sent and failed recipients are not resent.
 
 
 ## User Notification Settings

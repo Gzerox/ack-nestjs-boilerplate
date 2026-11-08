@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import type { Scope } from '@sentry/nestjs';
 import { Job, UnrecoverableError } from 'bullmq';
 import { mock } from 'vitest-mock-extended';
 import { SentryService } from '@common/sentry/services/sentry.service';
@@ -78,4 +79,33 @@ describe('NotificationEmailProcessor delivery errors', () => {
                 });
         }
     );
+    it('reports a final bulk failure once', async () => {
+        const scope = mock<Scope>();
+        sentryService.withScope.mockImplementation(callback => callback(scope));
+        const bulkJob = mock<Job<unknown, null, EnumNotificationProcess>>();
+        bulkJob.name = EnumNotificationProcess.publishTermPolicy;
+        bulkJob.opts = { attempts: 3 };
+        bulkJob.attemptsMade = 1;
+        const failure = new NotificationDeliveryFailedException({
+            code: 'bulkDeliveryFailed',
+            isRetryable: false,
+            retryAfterInMs: null,
+            cause: null,
+        });
+        notificationEmailProcessorService.processPublishTermPolicy.mockRejectedValue(
+            failure
+        );
+        const error: unknown = await processor
+            .process(bulkJob)
+            .catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(UnrecoverableError);
+        if (!(error instanceof Error)) {
+            throw error;
+        }
+        expect(sentryService.captureException).not.toHaveBeenCalled();
+        processor.onFailed(bulkJob, error);
+        expect(sentryService.captureException).toHaveBeenCalledExactlyOnceWith(
+            error
+        );
+    });
 });

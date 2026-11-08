@@ -1,3 +1,5 @@
+import type { OnApplicationBootstrap } from '@nestjs/common';
+import { NotificationRetryUtil } from '@modules/notification/utils/notification.retry.util';
 import {
     FirebaseMaxRateLimitPerDuration,
     FirebaseRateLimitDurationInMs,
@@ -26,14 +28,19 @@ import type { IQueueResponse } from '@queues/interfaces/queue.interface';
  * Consumes the push queue (FCM); rate-limited to stay under Firebase send quota.
  */
 @QueueProcessor(EnumQueue.notificationPush, {
+    autorun: false,
     limiter: {
         max: FirebaseMaxRateLimitPerDuration,
         duration: FirebaseRateLimitDurationInMs,
     },
 })
-export class NotificationPushProcessor extends QueueProcessorBase {
+export class NotificationPushProcessor
+    extends QueueProcessorBase
+    implements OnApplicationBootstrap
+{
     constructor(
         private readonly notificationPushProcessorService: NotificationPushProcessorService,
+        private readonly notificationRetryUtil: NotificationRetryUtil,
         sentryService: SentryService
     ) {
         super(sentryService);
@@ -136,5 +143,23 @@ export class NotificationPushProcessor extends QueueProcessorBase {
 
             throw error;
         }
+    }
+    onApplicationBootstrap(): void {
+        const worker = this.worker;
+        worker.opts.settings = {
+            ...worker.opts.settings,
+            backoffStrategy: (attemptsMade, _type, error) => {
+                const failure =
+                    error instanceof NotificationDeliveryFailedException
+                        ? error
+                        : null;
+                const delay = this.notificationRetryUtil.delay(
+                    attemptsMade,
+                    failure
+                );
+                return delay;
+            },
+        };
+        void worker.run().catch(error => worker.emit('error', error));
     }
 }

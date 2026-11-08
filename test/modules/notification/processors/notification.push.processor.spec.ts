@@ -1,3 +1,5 @@
+import { Worker } from 'bullmq';
+import { NotificationRetryUtil } from '@modules/notification/utils/notification.retry.util';
 import type { Scope } from '@sentry/nestjs';
 import { Test } from '@nestjs/testing';
 import { Job, UnrecoverableError } from 'bullmq';
@@ -13,6 +15,7 @@ describe('NotificationPushProcessor delivery errors', () => {
     const notificationPushProcessorService =
         mock<NotificationPushProcessorService>();
     const sentryService = mock<SentryService>();
+    const retryUtil = mock<NotificationRetryUtil>();
     const job =
         mock<Job<unknown, IQueueResponse, EnumNotificationPushProcess>>();
     let processor: NotificationPushProcessor;
@@ -23,6 +26,7 @@ describe('NotificationPushProcessor delivery errors', () => {
         const module = await Test.createTestingModule({
             providers: [
                 NotificationPushProcessor,
+                { provide: NotificationRetryUtil, useValue: retryUtil },
                 {
                     provide: NotificationPushProcessorService,
                     useValue: notificationPushProcessorService,
@@ -31,6 +35,66 @@ describe('NotificationPushProcessor delivery errors', () => {
             ],
         }).compile();
         processor = module.get(NotificationPushProcessor);
+    });
+    it('installs the backoff strategy before starting the worker', () => {
+        const worker = mock<Worker>();
+        Object.defineProperty(worker, 'opts', {
+            value: {
+                connection: { host: 'localhost', port: 6379 },
+                settings: {},
+            },
+            configurable: true,
+        });
+        worker.run.mockResolvedValue(undefined);
+        retryUtil.delay.mockReturnValue(12345);
+        Object.defineProperty(processor, '_worker', {
+            value: worker,
+            configurable: true,
+        });
+        worker.run.mockImplementation(async () => {
+            expect(worker.opts.settings?.backoffStrategy).toBeTypeOf(
+                'function'
+            );
+        });
+        processor.onApplicationBootstrap();
+        expect(worker.run).toHaveBeenCalledOnce();
+        expect(
+            worker.opts.settings?.backoffStrategy?.(
+                1,
+                'notificationPush',
+                new Error('local')
+            )
+        ).toBe(12345);
+        expect(retryUtil.delay).toHaveBeenCalledWith(1, null);
+        expect(
+            Reflect.getMetadata(
+                'bullmq:worker_metadata',
+                NotificationPushProcessor
+            )
+        ).toMatchObject({
+            autorun: false,
+            limiter: { max: 500000, duration: 60000 },
+        });
+    });
+    it('forwards a rejected worker run to the worker error event', async () => {
+        const worker = mock<Worker>();
+        Object.defineProperty(worker, 'opts', {
+            value: {
+                connection: { host: 'localhost', port: 6379 },
+                settings: {},
+            },
+            configurable: true,
+        });
+        const error = new Error('worker failed');
+        worker.run.mockRejectedValue(error);
+        Object.defineProperty(processor, '_worker', {
+            value: worker,
+            configurable: true,
+        });
+        processor.onApplicationBootstrap();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(worker.emit).toHaveBeenCalledWith('error', error);
     });
     it('allows a typed transient error to use the remaining queue budget', async () => {
         const failure = new NotificationDeliveryFailedException({

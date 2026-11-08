@@ -1,3 +1,4 @@
+import type { Scope } from '@sentry/nestjs';
 import { Test } from '@nestjs/testing';
 import { Job, UnrecoverableError } from 'bullmq';
 import { mock } from 'vitest-mock-extended';
@@ -56,5 +57,43 @@ describe('NotificationPushProcessor delivery errors', () => {
         const attempt = processor.process(job);
         await expect(attempt).rejects.toBeInstanceOf(UnrecoverableError);
         await expect(attempt).rejects.toMatchObject({ cause: failure });
+    });
+    it('reports a final permanent failure once and keeps provider details out of the job log', async () => {
+        expect.assertions(4);
+        const scope = mock<Scope>();
+        sentryService.withScope.mockImplementation(callback => callback(scope));
+        const failedJob =
+            mock<Job<unknown, null, EnumNotificationPushProcess>>();
+        const logs: string[] = [];
+        failedJob.log.mockImplementation(async message => {
+            logs.push(message);
+            return 1;
+        });
+        failedJob.name = EnumNotificationPushProcess.resetPassword;
+        failedJob.opts = { attempts: 3 };
+        failedJob.attemptsMade = 1;
+        const failure = new NotificationDeliveryFailedException({
+            code: 'messaging/invalid-argument',
+            isRetryable: false,
+            retryAfterInMs: null,
+            cause: new Error('private provider details'),
+        });
+        notificationPushProcessorService.processResetPassword.mockRejectedValue(
+            failure
+        );
+        try {
+            await processor.process(failedJob);
+        } catch (error: unknown) {
+            expect(error).toBeInstanceOf(UnrecoverableError);
+            if (!(error instanceof Error)) {
+                throw error;
+            }
+            expect(sentryService.captureException).not.toHaveBeenCalled();
+            processor.onFailed(failedJob, error);
+            expect(sentryService.captureException).toHaveBeenCalledTimes(1);
+            expect(JSON.stringify(logs)).not.toContain(
+                'private provider details'
+            );
+        }
     });
 });

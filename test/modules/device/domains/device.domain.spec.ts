@@ -209,7 +209,8 @@ describe('DeviceDomain', () => {
             ).toHaveBeenCalledWith('user-1', ['token-1']);
             expect(deviceRepository.clearTokens).toHaveBeenCalledWith(
                 ['device-1', 'device-2'],
-                'user-1'
+                'user-1',
+                ['token-1']
             );
         });
     });

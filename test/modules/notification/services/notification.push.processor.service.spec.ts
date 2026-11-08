@@ -1,5 +1,6 @@
+import type { INotificationDeliveryAttempt } from '@modules/notification/interfaces/notification.interface';
 import { Test } from '@nestjs/testing';
-import type { Job } from 'bullmq';
+import { Job } from 'bullmq';
 import { mock } from 'vitest-mock-extended';
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
@@ -34,6 +35,15 @@ describe('NotificationPushProcessorService', () => {
     const notificationPushQueue = mock<NotificationPushQueue>();
     let service: NotificationPushProcessorService;
 
+    const completedAttempt: INotificationDeliveryAttempt = {
+        outcome: 'completed',
+        summary: {
+            acceptedCount: 1,
+            failedCount: 0,
+            invalidTargetCount: 0,
+            errorCodes: [],
+        },
+    };
     const response: IQueueResponse = { message: 'processed' };
     const send: INotificationSendPushPayload = {
         userId: 'user-id',
@@ -68,6 +78,115 @@ describe('NotificationPushProcessorService', () => {
             ],
         }).compile();
         service = module.get(NotificationPushProcessorService);
+    });
+
+    it('persists only transient targets while preserving the rest of the job before throwing a safe retry', async () => {
+        const retryJob =
+            mock<
+                Job<
+                    INotificationPushQueuePayload,
+                    IQueueResponse,
+                    EnumNotificationPushProcess
+                >
+            >();
+        retryJob.opts = { attempts: 3 };
+        retryJob.attemptsMade = 0;
+        retryJob.data = {
+            send: {
+                ...send,
+                notificationTokens: ['permanent', 'transient', 'invalid'],
+            },
+            data: { event: 'kept' },
+        };
+        notificationPushSecurityDomain.processResetPassword.mockResolvedValue({
+            outcome: 'retry',
+            summary: {
+                acceptedCount: 0,
+                failedCount: 2,
+                invalidTargetCount: 1,
+                errorCodes: ['messaging/server-unavailable'],
+            },
+            retryTargets: ['transient'],
+            failure: {
+                code: 'messaging/server-unavailable',
+                isRetryable: true,
+                retryAfterInMs: 90000,
+                cause: new Error('secret'),
+            },
+        });
+        await expect(
+            service.processResetPassword(retryJob)
+        ).rejects.toMatchObject({
+            isRetryable: true,
+            retryAfterInMs: 90000,
+            messageProperties: { cause: 'messaging/server-unavailable' },
+        });
+        expect(retryJob.updateData).toHaveBeenCalledWith({
+            send: { ...send, notificationTokens: ['transient'] },
+            data: { event: 'kept' },
+        });
+    });
+
+    it('propagates updateData failure without falsely completing the retry', async () => {
+        const retryJob =
+            mock<
+                Job<
+                    INotificationPushQueuePayload,
+                    IQueueResponse,
+                    EnumNotificationPushProcess
+                >
+            >();
+        retryJob.opts = { attempts: 3 };
+        retryJob.data = { send };
+        const error = new Error('redis write failed');
+        retryJob.updateData.mockRejectedValue(error);
+        notificationPushSecurityDomain.processResetPassword.mockResolvedValue({
+            outcome: 'retry',
+            summary: {
+                acceptedCount: 0,
+                failedCount: 1,
+                invalidTargetCount: 0,
+                errorCodes: ['transient'],
+            },
+            retryTargets: ['transient'],
+            failure: {
+                code: 'transient',
+                isRetryable: true,
+                retryAfterInMs: null,
+                cause: null,
+            },
+        });
+        await expect(service.processResetPassword(retryJob)).rejects.toBe(
+            error
+        );
+    });
+
+    it('returns only the completed summary without updating an accepted partial send', async () => {
+        const job =
+            mock<
+                Job<
+                    INotificationPushQueuePayload,
+                    IQueueResponse,
+                    EnumNotificationPushProcess
+                >
+            >();
+        job.opts = { attempts: 3 };
+        job.data = { send };
+        const summary = {
+            acceptedCount: 1,
+            failedCount: 1,
+            invalidTargetCount: 0,
+            errorCodes: ['messaging/server-unavailable'],
+        };
+        notificationPushSecurityDomain.processResetPassword.mockResolvedValue({
+            outcome: 'completed',
+            summary,
+        });
+        expect(await service.processResetPassword(job)).toEqual({
+            message: 'Push delivery attempt completed',
+            result: summary,
+        });
+        expect(job.updateData).not.toHaveBeenCalled();
     });
 
     describe('onModuleInit', () => {
@@ -105,7 +224,7 @@ describe('NotificationPushProcessorService', () => {
                 requestLog,
             };
             notificationPushSecurityDomain.processNewDeviceLogin.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -124,14 +243,17 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushSecurityDomain.processNewDeviceLogin
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
     describe('processResetTwoFactorByAdmin', () => {
         it('forwards send to the security domain', async () => {
             notificationPushSecurityDomain.processResetTwoFactorByAdmin.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = { ...jobState, data: { send } } as Job<
                 INotificationPushQueuePayload,
@@ -144,7 +266,10 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushSecurityDomain.processResetTwoFactorByAdmin
             ).toHaveBeenCalledWith(send, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
@@ -155,7 +280,7 @@ describe('NotificationPushProcessorService', () => {
                 passwordCreatedAt: '2024-01-01T00:00:00.000Z',
             };
             notificationPushSecurityDomain.processTemporaryPasswordByAdmin.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -174,14 +299,17 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushSecurityDomain.processTemporaryPasswordByAdmin
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
     describe('processResetPassword', () => {
         it('forwards send to the security domain', async () => {
             notificationPushSecurityDomain.processResetPassword.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = { ...jobState, data: { send } } as Job<
                 INotificationPushQueuePayload,
@@ -194,12 +322,15 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushSecurityDomain.processResetPassword
             ).toHaveBeenCalledWith(send, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
 
         it('processor service passes isLastAttempt true on the final attempt', async () => {
             notificationPushSecurityDomain.processResetPassword.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 attemptsMade: 2,
@@ -230,7 +361,7 @@ describe('NotificationPushProcessorService', () => {
                 expiredAt: '2024-02-01T00:00:00.000Z',
             };
             notificationPushWorkspaceDomain.processWorkspaceInvite.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -249,7 +380,10 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceInvite
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
@@ -261,7 +395,7 @@ describe('NotificationPushProcessorService', () => {
                 requesterName: 'Omar',
             };
             notificationPushWorkspaceDomain.processWorkspaceJoinRequest.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -280,7 +414,10 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinRequest
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
@@ -288,7 +425,7 @@ describe('NotificationPushProcessorService', () => {
         it('forwards send and data to the workspace domain', async () => {
             const data = { workspaceId: 'workspace-id', workspaceName: 'Acme' };
             notificationPushWorkspaceDomain.processWorkspaceJoinAccepted.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -307,7 +444,10 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinAccepted
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 
@@ -320,7 +460,7 @@ describe('NotificationPushProcessorService', () => {
                     EnumWorkspaceJoinRejectReason.memberLimitReached,
             };
             notificationPushWorkspaceDomain.processWorkspaceJoinRejected.mockResolvedValue(
-                response
+                completedAttempt
             );
             const job = {
                 ...jobState,
@@ -339,7 +479,10 @@ describe('NotificationPushProcessorService', () => {
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinRejected
             ).toHaveBeenCalledWith(send, data, false);
-            expect(result).toBe(response);
+            expect(result).toEqual({
+                message: 'Push delivery attempt completed',
+                result: completedAttempt.summary,
+            });
         });
     });
 

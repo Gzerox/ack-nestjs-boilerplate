@@ -37,7 +37,6 @@ describe('NotificationPushQueue', () => {
             const values: Record<string, unknown> = {
                 'app.timezone': 'UTC',
                 'notification.dedupTtlInMs': 60_000,
-                'notification.push.cleanupDedupTtlInMs': 30_000,
                 'notification.push.cleanupStaleTokensCron': '0 3 * * *',
             };
 
@@ -262,11 +261,32 @@ describe('NotificationPushQueue', () => {
                 },
                 {
                     priority: EnumQueuePriority.low,
-                    deduplication: {
-                        id: `${EnumNotificationPushProcess.cleanupTokens}-user-id`,
-                        ttl: 30_000,
-                    },
                 }
+            );
+        });
+
+        it('does not suppress a later cleanup batch containing newly invalid tokens', async () => {
+            await queue.sendCleanupTokens('user-id', ['invalid-A']);
+            await queue.sendCleanupTokens('user-id', [
+                'invalid-A',
+                'invalid-B',
+            ]);
+            expect(notificationPushQueue.add).toHaveBeenNthCalledWith(
+                1,
+                EnumNotificationPushProcess.cleanupTokens,
+                { data: { userId: 'user-id', failureTokens: ['invalid-A'] } },
+                { priority: EnumQueuePriority.low }
+            );
+            expect(notificationPushQueue.add).toHaveBeenNthCalledWith(
+                2,
+                EnumNotificationPushProcess.cleanupTokens,
+                {
+                    data: {
+                        userId: 'user-id',
+                        failureTokens: ['invalid-A', 'invalid-B'],
+                    },
+                },
+                { priority: EnumQueuePriority.low }
             );
         });
 

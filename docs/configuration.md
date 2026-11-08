@@ -902,7 +902,6 @@ dedupTtlInMs: number            // BullMQ deduplication TTL for a notification j
 **`push`** - Push cleanup settings
 ```typescript
 push: {
-  cleanupDedupTtlInMs: number;       // Deduplication TTL for the cleanup job (ms('1h'))
   cleanupStaleTokensCron: string;    // Cron pattern for the stale-token cleanup (default: '0 0 * * *')
   staleTokenThresholdInMs: number;   // Device inactivity after which its push token is cleared (ms('30d'))
 }

@@ -262,3 +262,19 @@ export interface INotificationDeliveryFailure {
     retryAfterInMs: number | null;
     cause: Error | null;
 }
+
+export interface INotificationDeliverySummary {
+    acceptedCount: number;
+    failedCount: number;
+    invalidTargetCount: number;
+    errorCodes: string[];
+}
+
+export type INotificationDeliveryAttempt =
+    | { outcome: 'completed'; summary: INotificationDeliverySummary }
+    | {
+          outcome: 'retry';
+          summary: INotificationDeliverySummary;
+          retryTargets: string[];
+          failure: INotificationDeliveryFailure;
+      };

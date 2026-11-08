@@ -229,10 +229,12 @@ For push token registration, revocation, and session-linking details, see the [D
 
 ### Token Cleanup Strategy
 
-After each multicast send, `FirebaseService.sendMulticast()` returns `failureTokens`; tokens that FCM identified as invalid (codes in `FirebaseInvalidTokenCodes`). These are:
+After each multicast attempt, `FirebaseService.sendMulticast()` returns `failureTokens` for unambiguous invalid-registration or unregistered-token errors. A generic `invalid-argument` payload error does not identify a token for deletion. Invalid tokens are:
 
-1. Stored on the delivery record via `NotificationRepository.updateSentAt()` (`failureTokens` field)
-2. Queued as a `cleanupTokens` job in `EnumQueue.notificationPush` through `NotificationPushQueue.sendCleanupTokens()`, deduplicated per user for `notification.push.cleanupDedupTtlInMs` (1 hour), and handled by `NotificationPushMaintenanceDomain.processCleanupTokens()`. It calls `DeviceDomain.cleanupNotificationTokens()`, which resolves the user's devices holding those tokens through `DeviceOwnershipRepository.findDeviceIdsByUserAndTokens()` and clears `notificationToken` and `notificationProvider` on them through `DeviceRepository.clearTokens()`
+1. Retained cumulatively in the delivery's `failureTokens`, across retries and terminal outcomes.
+2. Queued through `NotificationPushQueue.sendCleanupTokens()` without deduplication, so a later batch containing newly invalid tokens cannot be suppressed. `NotificationPushMaintenanceDomain.processCleanupTokens()` calls `DeviceDomain.cleanupNotificationTokens()`, which resolves the user's devices through `DeviceOwnershipRepository.findDeviceIdsByUserAndTokens()`. `DeviceRepository.clearTokens()` clears `notificationToken` and `notificationProvider` only while the current token remains in the rejected set; a replacement token is preserved if the device rotates it before cleanup.
+
+Cleanup follows the delivery-state write. Cleanup failure cannot turn a provider-accepted send into a resend.
 
 Stale tokens, those whose device has no `lastActiveAt` activity within `notification.push.staleTokenThresholdInMs` (30 days), are pruned daily by the recurring `cleanupStaleTokens` job registered at startup. `NotificationPushMaintenanceDomain` reads that config value and passes it to `DeviceDomain.cleanupStaleNotificationTokens(thresholdInMs)`, which calls `DeviceRepository.clearStaleTokens(thresholdInMs)`. That write clears `notificationToken` and `notificationProvider` on every device past the threshold.
 

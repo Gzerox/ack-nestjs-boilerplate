@@ -1,3 +1,4 @@
+import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { mock } from 'vitest-mock-extended';
@@ -291,6 +292,48 @@ describe('NotificationTermPolicyDomain', () => {
             );
         });
 
+        it('does not enqueue email when the publication contract excludes it', async () => {
+            const contact = {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+            };
+            const setting: NotificationUserSetting = {
+                id: 'setting-id',
+                userId: user.id,
+                channel: EnumNotificationChannel.email,
+                type: EnumNotificationType.transactional,
+                isActive: true,
+                createdAt: new Date('2024-01-01T00:00:00.000Z'),
+                createdBy: null,
+                updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+                updatedBy: null,
+            };
+            userDomain.getListActive.mockResolvedValue([contact]);
+            notificationUserSettingRepository.findActiveUserSettingByType.mockResolvedValue(
+                [setting]
+            );
+            helperArrayService.chunk.mockReturnValue([[contact]]);
+            databaseUtil.createId.mockReturnValue('notification-id');
+            const contract =
+                NotificationKindContract[
+                    EnumNotificationKind.publishTermPolicy
+                ];
+            const original = contract.pendingChannels;
+            try {
+                contract.pendingChannels = [];
+                await domain.processPublishTermPolicy('admin-id', data);
+                expect(
+                    notificationRepository.createMany
+                ).toHaveBeenCalledOnce();
+                expect(
+                    notificationEmailQueue.sendPublishTermPolicy
+                ).not.toHaveBeenCalled();
+            } finally {
+                contract.pendingChannels = original;
+            }
+        });
+
         it('does not enqueue a chunk whose rows failed to write', async () => {
             const contact = {
                 id: user.id,
@@ -344,6 +387,30 @@ describe('NotificationTermPolicyDomain', () => {
                     'User not found, skipping user accept term policy notification',
             });
             expect(notificationRepository.create).not.toHaveBeenCalled();
+        });
+
+        it('marks the declared unsupported push delivery skipped after creating it', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            databaseUtil.createId.mockReturnValue('notification-id');
+            notificationRepository.create.mockResolvedValue(notification);
+            await domain.processUserAcceptTermPolicy('user-id', acceptData);
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
+        });
+
+        it('does not mark a delivery skipped if notification creation fails', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+            await expect(
+                domain.processUserAcceptTermPolicy('user-id', acceptData)
+            ).rejects.toThrow('write failed');
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         });
 
         it('writes the notification for an active user', async () => {

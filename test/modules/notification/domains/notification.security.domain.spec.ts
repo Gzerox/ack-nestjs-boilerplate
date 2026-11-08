@@ -8,6 +8,7 @@ import type { Notification, User } from '@generated/prisma-client/client';
 import {
     EnumDeviceNotificationProvider,
     EnumDevicePlatform,
+    EnumNotificationChannel,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumUserGender,
@@ -18,14 +19,17 @@ import {
     EnumUserStatus,
 } from '@generated/prisma-client/client';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
+import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import type { IDeviceOwnershipWithDevice } from '@modules/device/interfaces/device.interface';
 import { NotificationSecurityDomain } from '@modules/notification/domains/notification.security.domain';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 import type { INotificationNewDeviceLoginPayload } from '@modules/notification/interfaces/notification.interface';
 import { NotificationEmailQueue } from '@modules/notification/queues/notification.email.queue';
 import { NotificationPushQueue } from '@modules/notification/queues/notification.push.queue';
+import { NotificationSmsQueue } from '@modules/notification/queues/notification.sms.queue';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { UserDomain } from '@modules/user/domains/user.domain';
+import { UserMobileNumberDomain } from '@modules/user/domains/user.mobile-number.domain';
 
 describe('NotificationSecurityDomain', () => {
     const notificationRepository = mock<NotificationRepository>();
@@ -36,6 +40,10 @@ describe('NotificationSecurityDomain', () => {
     const databaseUtil = mock<DatabaseUtil>();
     const notificationEmailQueue = mock<NotificationEmailQueue>();
     const notificationPushQueue = mock<NotificationPushQueue>();
+    const userMobileNumberDomain = {
+        getVerifiedByUserId: vi.fn().mockResolvedValue([]),
+    };
+    const notificationSmsQueue = mock<NotificationSmsQueue>();
     let domain: NotificationSecurityDomain;
 
     const user: User = {
@@ -124,9 +132,23 @@ describe('NotificationSecurityDomain', () => {
         updatedBy: null,
     };
 
+    const mobileNumber = {
+        phoneCode: '62',
+        number: '8123456789',
+    };
+
+    it('does not query mobile numbers for the original email/push channel lists', async () => {
+        await domain.processChangePassword(user.id);
+        expect(
+            userMobileNumberDomain.getVerifiedByUserId
+        ).not.toHaveBeenCalled();
+        expect(notificationSmsQueue.sendSecurityAlert).not.toHaveBeenCalled();
+    });
+
     beforeEach(async () => {
         vi.resetAllMocks();
         databaseUtil.createId.mockReturnValue('notification-id');
+        userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([]);
         const module = await Test.createTestingModule({
             providers: [
                 NotificationSecurityDomain,
@@ -149,6 +171,14 @@ describe('NotificationSecurityDomain', () => {
                 {
                     provide: NotificationPushQueue,
                     useValue: notificationPushQueue,
+                },
+                {
+                    provide: UserMobileNumberDomain,
+                    useValue: userMobileNumberDomain,
+                },
+                {
+                    provide: NotificationSmsQueue,
+                    useValue: notificationSmsQueue,
                 },
             ],
         }).compile();
@@ -182,7 +212,34 @@ describe('NotificationSecurityDomain', () => {
             expect(notificationRepository.create).not.toHaveBeenCalled();
         });
 
-        it('does not enqueue a push when there is no device with a token', async () => {
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
+                deviceOwnership,
+            ]);
+            helperDateService.createFromIso.mockImplementation(
+                (iso: string) => new Date(iso)
+            );
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processTemporaryPasswordByAdmin(
+                    'user-id',
+                    'admin-id',
+                    data
+                )
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendTemporaryPasswordByAdmin
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationPushQueue.sendTemporaryPasswordByAdmin
+            ).not.toHaveBeenCalled();
+        });
+
+        it('marks push skipped when the user has no device tokens', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -204,6 +261,12 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendTemporaryPasswordByAdmin
             ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
         });
 
         it('writes the notification and enqueues email and push when a device has a token', async () => {
@@ -261,9 +324,72 @@ describe('NotificationSecurityDomain', () => {
                     passwordExpiredAt: data.passwordExpiredAt,
                 }
             );
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push
+            );
             expect(result).toMatchObject({
                 message: 'Temporary password by admin notification processed',
             });
+        });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            helperDateService.createFromIso.mockImplementation(
+                (iso: string) => new Date(iso)
+            );
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processTemporaryPasswordByAdmin(
+                'user-id',
+                'admin-id',
+                data
+            );
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            helperDateService.createFromIso.mockImplementation(
+                (iso: string) => new Date(iso)
+            );
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processTemporaryPasswordByAdmin(
+                'user-id',
+                'admin-id',
+                data
+            );
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
         });
     });
 
@@ -277,6 +403,20 @@ describe('NotificationSecurityDomain', () => {
                 message:
                     'User not found, skipping change password notification',
             });
+        });
+
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processChangePassword('user-id')
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendChangePassword
+            ).not.toHaveBeenCalled();
         });
 
         it('writes the notification and enqueues the email', async () => {
@@ -309,6 +449,44 @@ describe('NotificationSecurityDomain', () => {
                 message: 'Change password notification processed',
             });
         });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processChangePassword('user-id');
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processChangePassword('user-id');
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
     });
 
     describe('processForgotPassword', () => {
@@ -329,6 +507,44 @@ describe('NotificationSecurityDomain', () => {
                 message:
                     'User not found, skipping forgot password notification',
             });
+        });
+
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processForgotPassword('user-id', data)
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendForgotPassword
+            ).not.toHaveBeenCalled();
+        });
+
+        it('keeps the original forgot-password channels and skips push without a handler', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockResolvedValue(notification);
+            notificationEmailQueue.sendForgotPassword.mockResolvedValue(
+                undefined
+            );
+
+            await domain.processForgotPassword('user-id', data);
+
+            expect(
+                NotificationKindContract[EnumNotificationKind.forgotPassword]
+                    .pendingChannels
+            ).toEqual([
+                EnumNotificationChannel.email,
+                EnumNotificationChannel.push,
+            ]);
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
         });
 
         it('writes the notification and enqueues the email', async () => {
@@ -364,6 +580,44 @@ describe('NotificationSecurityDomain', () => {
                 message: 'Forgot password notification processed',
             });
         });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processForgotPassword('user-id', data);
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processForgotPassword('user-id', data);
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
     });
 
     describe('processResetPassword', () => {
@@ -380,7 +634,27 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('does not enqueue a push when there is no device with a token', async () => {
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
+                deviceOwnership,
+            ]);
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processResetPassword('user-id')
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendResetPassword
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationPushQueue.sendResetPassword
+            ).not.toHaveBeenCalled();
+        });
+
+        it('marks push skipped when the user has no device tokens', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -395,9 +669,15 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendResetPassword
             ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
         });
 
-        it('enqueues email and push when a device has a token', async () => {
+        it('enqueues exactly the channels in pendingChannels', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -420,9 +700,58 @@ describe('NotificationSecurityDomain', () => {
                 notificationTokens: ['push-token'],
                 username: user.username,
             });
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push
+            );
             expect(result).toMatchObject({
                 message: 'Reset password notification processed',
             });
+        });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processResetPassword('user-id');
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processResetPassword('user-id');
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
         });
     });
 
@@ -444,7 +773,27 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('does not enqueue a push when there is no device with a token', async () => {
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
+                deviceOwnership,
+            ]);
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processResetTwoFactorByAdmin('user-id', 'admin-id')
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendResetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationPushQueue.sendResetTwoFactorByAdmin
+            ).not.toHaveBeenCalled();
+        });
+
+        it('marks push skipped when the user has no device tokens', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -459,9 +808,15 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendResetTwoFactorByAdmin
             ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
         });
 
-        it('enqueues email and push when a device has a token', async () => {
+        it('enqueues exactly the channels in pendingChannels', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -496,9 +851,58 @@ describe('NotificationSecurityDomain', () => {
                 notificationTokens: ['push-token'],
                 username: user.username,
             });
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push
+            );
             expect(result).toMatchObject({
                 message: 'Reset two factor by admin notification processed',
             });
+        });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processResetTwoFactorByAdmin('user-id', 'admin-id');
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processResetTwoFactorByAdmin('user-id', 'admin-id');
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
         });
     });
 
@@ -545,7 +949,30 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('does not enqueue a push when there is no device with a token', async () => {
+        it('creates the notification before enqueueing any channel', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
+                deviceOwnership,
+            ]);
+            requestContextService.resolveDevice.mockReturnValue('Chrome');
+            requestContextService.resolveCity.mockReturnValue('SF');
+            helperDateService.createFromIso.mockReturnValue(new Date());
+            notificationRepository.create.mockRejectedValue(
+                new Error('write failed')
+            );
+
+            await expect(
+                domain.processNewDeviceLogin('user-id', data)
+            ).rejects.toThrow('write failed');
+            expect(
+                notificationEmailQueue.sendNewDeviceLogin
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationPushQueue.sendNewDeviceLogin
+            ).not.toHaveBeenCalled();
+        });
+
+        it('marks push skipped when the user has no device tokens', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -563,6 +990,12 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendNewDeviceLogin
             ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push,
+                []
+            );
         });
 
         it('resolves device and city, writes the notification, and enqueues email and push', async () => {
@@ -631,9 +1064,64 @@ describe('NotificationSecurityDomain', () => {
                 },
                 data
             );
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.push
+            );
             expect(result).toMatchObject({
                 message: 'New device login notification processed',
             });
+        });
+
+        it('does not enqueue sms when verified numbers exist', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            requestContextService.resolveDevice.mockReturnValue('Chrome');
+            requestContextService.resolveCity.mockReturnValue('SF');
+            helperDateService.createFromIso.mockReturnValue(new Date());
+            userMobileNumberDomain.getVerifiedByUserId.mockResolvedValue([
+                mobileNumber,
+            ]);
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processNewDeviceLogin('user-id', data);
+
+            expect(
+                userMobileNumberDomain.getVerifiedByUserId
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
+        });
+
+        it('does not create an sms delivery when the user has no verified number', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
+                []
+            );
+            requestContextService.resolveDevice.mockReturnValue('Chrome');
+            requestContextService.resolveCity.mockReturnValue('SF');
+            helperDateService.createFromIso.mockReturnValue(new Date());
+            notificationRepository.create.mockResolvedValue(notification);
+
+            await domain.processNewDeviceLogin('user-id', data);
+
+            expect(
+                notificationSmsQueue.sendSecurityAlert
+            ).not.toHaveBeenCalled();
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
+                user.id,
+                'notification-id',
+                EnumNotificationChannel.sms
+            );
         });
     });
 });

@@ -1,5 +1,7 @@
 import { DatabaseUtil } from '@common/database/utils/database.util';
+import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
+import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 import type {
     INotificationEmailSendPayload,
@@ -33,9 +35,12 @@ export class NotificationWorkspaceDomain {
         proceedBy: string,
         data: INotificationWorkspaceInviteEncryptedPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -53,49 +58,71 @@ export class NotificationWorkspaceDomain {
             notificationId,
         };
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.workspaceInvite,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        workspaceId: data.workspaceId,
-                        workspaceName: data.workspaceName,
-                        inviterName: data.inviterName,
-                    },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendWorkspaceInvite(emailPayload, data),
-        ];
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
-
-            const pushSent = this.notificationPushQueue.sendWorkspaceInvite(
-                pushPayload,
-                {
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.workspaceInvite,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
                     workspaceId: data.workspaceId,
                     workspaceName: data.workspaceName,
                     inviterName: data.inviterName,
-                    workspaceMemberRole: data.workspaceMemberRole,
-                    reference: data.reference,
-                    expiredAt: data.expiredAt,
-                }
-            );
-            promises.push(pushSent);
-        }
+                },
+                createdBy: proceedBy,
+            }
+        );
 
-        const results = await Promise.allSettled(promises);
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.workspaceInvite]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendWorkspaceInvite(
+                    emailPayload,
+                    data
+                );
+            promises.push(emailPromise);
+        }
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendWorkspaceInvite(
+                        pushPayload,
+                        {
+                            workspaceId: data.workspaceId,
+                            workspaceName: data.workspaceName,
+                            inviterName: data.inviterName,
+                            workspaceMemberRole: data.workspaceMemberRole,
+                            reference: data.reference,
+                            expiredAt: data.expiredAt,
+                        }
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return { message: 'Workspace invite notification processed', results };
     }
@@ -105,9 +132,12 @@ export class NotificationWorkspaceDomain {
         proceedBy: string,
         data: INotificationWorkspaceJoinRequestEncryptedPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -125,50 +155,68 @@ export class NotificationWorkspaceDomain {
             notificationId,
         };
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.workspaceJoinRequest,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        workspaceId: data.workspaceId,
-                        workspaceName: data.workspaceName,
-                        requesterName: data.requesterName,
-                    },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendWorkspaceJoinRequest(
-                emailPayload,
-                data
-            ),
-        ];
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.workspaceJoinRequest,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
+                    workspaceId: data.workspaceId,
+                    workspaceName: data.workspaceName,
+                    requesterName: data.requesterName,
+                },
+                createdBy: proceedBy,
+            }
+        );
 
-            const pushSent =
-                this.notificationPushQueue.sendWorkspaceJoinRequest(
-                    pushPayload,
-                    {
-                        workspaceId: data.workspaceId,
-                        workspaceName: data.workspaceName,
-                        requesterName: data.requesterName,
-                    }
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.workspaceJoinRequest]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendWorkspaceJoinRequest(
+                    emailPayload,
+                    data
                 );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendWorkspaceJoinRequest(
+                        pushPayload,
+                        {
+                            workspaceId: data.workspaceId,
+                            workspaceName: data.workspaceName,
+                            requesterName: data.requesterName,
+                        }
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return {
             message: 'Workspace join request notification processed',
@@ -181,9 +229,12 @@ export class NotificationWorkspaceDomain {
         proceedBy: string,
         data: INotificationWorkspaceJoinAcceptedPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -201,45 +252,63 @@ export class NotificationWorkspaceDomain {
             notificationId,
         };
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.workspaceJoinAccepted,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        workspaceId: data.workspaceId,
-                        workspaceName: data.workspaceName,
-                    },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendWorkspaceJoinAccepted(
-                emailPayload,
-                data
-            ),
-        ];
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.workspaceJoinAccepted,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
+                    workspaceId: data.workspaceId,
+                    workspaceName: data.workspaceName,
+                },
+                createdBy: proceedBy,
+            }
+        );
 
-            const pushSent =
-                this.notificationPushQueue.sendWorkspaceJoinAccepted(
-                    pushPayload,
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.workspaceJoinAccepted]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendWorkspaceJoinAccepted(
+                    emailPayload,
                     data
                 );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendWorkspaceJoinAccepted(
+                        pushPayload,
+                        data
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return {
             message: 'Workspace join accepted notification processed',
@@ -252,9 +321,12 @@ export class NotificationWorkspaceDomain {
         proceedBy: string,
         data: INotificationWorkspaceJoinRejectedPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -272,46 +344,64 @@ export class NotificationWorkspaceDomain {
             notificationId,
         };
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.workspaceJoinRejected,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        workspaceId: data.workspaceId,
-                        workspaceName: data.workspaceName,
-                        rejectReasonCode: data.rejectReasonCode,
-                    },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendWorkspaceJoinRejected(
-                emailPayload,
-                data
-            ),
-        ];
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.workspaceJoinRejected,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
+                    workspaceId: data.workspaceId,
+                    workspaceName: data.workspaceName,
+                    rejectReasonCode: data.rejectReasonCode,
+                },
+                createdBy: proceedBy,
+            }
+        );
 
-            const pushSent =
-                this.notificationPushQueue.sendWorkspaceJoinRejected(
-                    pushPayload,
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.workspaceJoinRejected]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendWorkspaceJoinRejected(
+                    emailPayload,
                     data
                 );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendWorkspaceJoinRejected(
+                        pushPayload,
+                        data
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return {
             message: 'Workspace join rejected notification processed',

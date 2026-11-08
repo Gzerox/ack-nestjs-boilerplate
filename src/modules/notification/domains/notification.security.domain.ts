@@ -1,7 +1,9 @@
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { RequestContextService } from '@common/request/services/request.context.service';
+import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
+import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 import type {
     INotificationEmailSendPayload,
@@ -36,9 +38,12 @@ export class NotificationSecurityDomain {
         proceedBy: string,
         data: INotificationTemporaryPasswordEncryptedPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -55,52 +60,70 @@ export class NotificationSecurityDomain {
             username: user.username,
             notificationId,
         };
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
         const passwordExpiredAt = this.helperDateService.createFromIso(
             data.passwordExpiredAt
         );
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.temporaryPasswordByAdmin,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        passwordExpiredAt,
-                    },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendTemporaryPasswordByAdmin(
-                emailPayload,
-                data
-            ),
-        ];
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.temporaryPasswordByAdmin,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
+                    passwordExpiredAt,
+                },
+                createdBy: proceedBy,
+            }
+        );
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
-
-            const pushSent =
-                this.notificationPushQueue.sendTemporaryPasswordByAdmin(
-                    pushPayload,
-                    {
-                        passwordCreatedAt: data.passwordCreatedAt,
-                        passwordExpiredAt: data.passwordExpiredAt,
-                    }
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[
+                EnumNotificationKind.temporaryPasswordByAdmin
+            ].pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendTemporaryPasswordByAdmin(
+                    emailPayload,
+                    data
                 );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendTemporaryPasswordByAdmin(
+                        pushPayload,
+                        {
+                            passwordCreatedAt: data.passwordCreatedAt,
+                            passwordExpiredAt: data.passwordExpiredAt,
+                        }
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return {
             message: 'Temporary password by admin notification processed',
@@ -126,18 +149,28 @@ export class NotificationSecurityDomain {
             notificationId,
         };
 
-        const results = await Promise.allSettled([
-            this.notificationRepository.create(
-                EnumNotificationKind.changePassword,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: { username: user.username },
-                    createdBy: user.id,
-                }
-            ),
-            this.notificationEmailQueue.sendChangePassword(emailPayload),
-        ]);
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.changePassword,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: { username: user.username },
+                createdBy: user.id,
+            }
+        );
+
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.changePassword]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendChangePassword(emailPayload);
+            promises.push(emailPromise);
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return { message: 'Change password notification processed', results };
     }
@@ -163,26 +196,50 @@ export class NotificationSecurityDomain {
             notificationId,
         };
 
-        const results = await Promise.allSettled([
-            this.notificationRepository.create(
-                EnumNotificationKind.forgotPassword,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: { username: user.username },
-                    createdBy: user.id,
-                }
-            ),
-            this.notificationEmailQueue.sendForgotPassword(emailPayload, data),
-        ]);
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.forgotPassword,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: { username: user.username },
+                createdBy: user.id,
+            }
+        );
+
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.forgotPassword]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise = this.notificationEmailQueue.sendForgotPassword(
+                emailPayload,
+                data
+            );
+            promises.push(emailPromise);
+        }
+        if (channels.includes(EnumNotificationChannel.push)) {
+            const skipped = this.notificationRepository.markSkipped(
+                user.id,
+                notificationId,
+                EnumNotificationChannel.push,
+                []
+            );
+            promises.push(skipped);
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return { message: 'Forgot password notification processed', results };
     }
 
     async processResetPassword(userId: string): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -198,36 +255,53 @@ export class NotificationSecurityDomain {
             username: user.username,
             notificationId,
         };
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.resetPassword,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: { username: user.username },
-                    createdBy: user.id,
-                }
-            ),
-            this.notificationEmailQueue.sendResetPassword(emailPayload),
-        ];
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.resetPassword,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: { username: user.username },
+                createdBy: user.id,
+            }
+        );
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
-
-            const pushSent =
-                this.notificationPushQueue.sendResetPassword(pushPayload);
-            promises.push(pushSent);
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.resetPassword]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendResetPassword(emailPayload);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendResetPassword(pushPayload);
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return { message: 'Reset password notification processed', results };
     }
@@ -236,9 +310,12 @@ export class NotificationSecurityDomain {
         userId: string,
         proceedBy: string
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -255,38 +332,57 @@ export class NotificationSecurityDomain {
             username: user.username,
             notificationId,
         };
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.resetTwoFactorByAdmin,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: { username: user.username },
-                    createdBy: proceedBy,
-                }
-            ),
-            this.notificationEmailQueue.sendResetTwoFactorByAdmin(emailPayload),
-        ];
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.resetTwoFactorByAdmin,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: { username: user.username },
+                createdBy: proceedBy,
+            }
+        );
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
-
-            const pushSent =
-                this.notificationPushQueue.sendResetTwoFactorByAdmin(
-                    pushPayload
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.resetTwoFactorByAdmin]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise =
+                this.notificationEmailQueue.sendResetTwoFactorByAdmin(
+                    emailPayload
                 );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendResetTwoFactorByAdmin(
+                        pushPayload
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return {
             message: 'Reset two factor by admin notification processed',
@@ -298,9 +394,12 @@ export class NotificationSecurityDomain {
         userId: string,
         data: INotificationNewDeviceLoginPayload
     ): Promise<IQueueResponse> {
+        const userPromise = this.userDomain.getOneActive(userId);
+        const devicesPromise =
+            this.deviceDomain.getOwnershipsWithNotificationToken(userId);
         const [user, devices] = await Promise.all([
-            this.userDomain.getOneActive(userId),
-            this.deviceDomain.getOwnershipsWithNotificationToken(userId),
+            userPromise,
+            devicesPromise,
         ]);
 
         if (!user) {
@@ -317,6 +416,9 @@ export class NotificationSecurityDomain {
             username: user.username,
             notificationId,
         };
+        const notificationTokens = devices
+            .map(d => d.device.notificationToken)
+            .filter((t): t is string => t !== null);
         const device = this.requestContextService.resolveDevice(
             data.requestLog.userAgent
         );
@@ -326,44 +428,61 @@ export class NotificationSecurityDomain {
 
         const loginAt = this.helperDateService.createFromIso(data.loginAt);
 
-        const promises = [
-            this.notificationRepository.create(
-                EnumNotificationKind.newDeviceLogin,
-                {
-                    id: notificationId,
-                    userId: user.id,
-                    metadata: {
-                        username: user.username,
-                        loginFrom: data.loginFrom,
-                        loginWith: data.loginWith,
-                        device,
-                        city,
-                        loginAt,
-                    },
-                    createdBy: user.id,
-                }
-            ),
-            this.notificationEmailQueue.sendNewDeviceLogin(emailPayload, data),
-        ];
+        // Sequential by design: a channel job needs its delivery row to exist.
+        await this.notificationRepository.create(
+            EnumNotificationKind.newDeviceLogin,
+            {
+                id: notificationId,
+                userId: user.id,
+                metadata: {
+                    username: user.username,
+                    loginFrom: data.loginFrom,
+                    loginWith: data.loginWith,
+                    device,
+                    city,
+                    loginAt,
+                },
+                createdBy: user.id,
+            }
+        );
 
-        if (devices.length > 0) {
-            const pushPayload: INotificationSendPushPayload = {
-                userId,
-                notificationId,
-                notificationTokens: devices
-                    .map(d => d.device.notificationToken)
-                    .filter((t): t is string => t !== null),
-                username: user.username,
-            };
-
-            const pushSent = this.notificationPushQueue.sendNewDeviceLogin(
-                pushPayload,
+        const promises: Promise<void>[] = [];
+        const channels =
+            NotificationKindContract[EnumNotificationKind.newDeviceLogin]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.email)) {
+            const emailPromise = this.notificationEmailQueue.sendNewDeviceLogin(
+                emailPayload,
                 data
             );
-            promises.push(pushSent);
+            promises.push(emailPromise);
         }
-
-        const results = await Promise.allSettled(promises);
+        if (channels.includes(EnumNotificationChannel.push)) {
+            if (notificationTokens.length > 0) {
+                const pushPayload: INotificationSendPushPayload = {
+                    userId,
+                    notificationId,
+                    notificationTokens,
+                    username: user.username,
+                };
+                const pushPromise =
+                    this.notificationPushQueue.sendNewDeviceLogin(
+                        pushPayload,
+                        data
+                    );
+                promises.push(pushPromise);
+            } else {
+                const skipped = this.notificationRepository.markSkipped(
+                    user.id,
+                    notificationId,
+                    EnumNotificationChannel.push,
+                    []
+                );
+                promises.push(skipped);
+            }
+        }
+        const outcomes = await Promise.allSettled(promises);
+        const results = outcomes.map(({ status }) => ({ status }));
 
         return { message: 'New device login notification processed', results };
     }

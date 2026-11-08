@@ -1,3 +1,4 @@
+import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperArrayService } from '@common/helper/services/helper.array.service';
 import {
@@ -68,6 +69,10 @@ export class NotificationTermPolicyDomain {
             this.emailBatchSize
         );
 
+        const channels =
+            NotificationKindContract[EnumNotificationKind.publishTermPolicy]
+                .pendingChannels;
+
         for (const [chunkIndex, chunk] of chunks.entries()) {
             const emailPayload: INotificationEmailSendPayload[] = chunk.map(
                 user => {
@@ -99,11 +104,13 @@ export class NotificationTermPolicyDomain {
 
             // Sequential by design: a chunk job must not run before its delivery rows exist.
             await this.notificationRepository.createMany(entries);
-            await this.notificationEmailQueue.sendPublishTermPolicy(
-                emailPayload,
-                data,
-                chunkIndex
-            );
+            if (channels.includes(EnumNotificationChannel.email)) {
+                await this.notificationEmailQueue.sendPublishTermPolicy(
+                    emailPayload,
+                    data,
+                    chunkIndex
+                );
+            }
         }
 
         return {
@@ -142,6 +149,18 @@ export class NotificationTermPolicyDomain {
                 createdBy: user.id,
             }
         );
+
+        const channels =
+            NotificationKindContract[EnumNotificationKind.userAcceptTermPolicy]
+                .pendingChannels;
+        if (channels.includes(EnumNotificationChannel.push)) {
+            await this.notificationRepository.markSkipped(
+                user.id,
+                notificationId,
+                EnumNotificationChannel.push,
+                []
+            );
+        }
 
         return {
             message: 'User accept term policy notification processed',

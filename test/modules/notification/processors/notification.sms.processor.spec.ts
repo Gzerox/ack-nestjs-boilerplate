@@ -5,7 +5,6 @@ import { mock } from 'vitest-mock-extended';
 import { SentryService } from '@common/sentry/services/sentry.service';
 import { NotificationSmsProcessor } from '@modules/notification/processors/notification.sms.processor';
 import { NotificationSmsProcessorService } from '@modules/notification/services/notification.sms.processor.service';
-import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 import { EnumNotificationSmsProcess } from '@modules/notification/enums/notification.enum';
 
 describe('NotificationSmsProcessor delivery errors', () => {
@@ -31,12 +30,12 @@ describe('NotificationSmsProcessor delivery errors', () => {
         processor = module.get(NotificationSmsProcessor);
     });
     it('rethrows a delivery failure as is so BullMQ retries it', async () => {
-        const failure = new AppUnknownException(new Error('provider'));
+        const failure = new Error('provider');
         service.processSecurityAlert.mockRejectedValue(failure);
         await expect(processor.process(job)).rejects.toBe(failure);
     });
     it('does not report to Sentry while attempts remain', async () => {
-        const failure = new AppUnknownException(null);
+        const failure = new Error('provider');
         service.processSecurityAlert.mockRejectedValue(failure);
         const error: unknown = await processor
             .process(job)
@@ -47,7 +46,7 @@ describe('NotificationSmsProcessor delivery errors', () => {
         processor.onFailed(job, error);
         expect(sentryService.captureException).not.toHaveBeenCalled();
     });
-    it('reports the final failure once and keeps provider details out of the job log', async () => {
+    it('reports the final failure once and logs the provider error', async () => {
         const scope = mock<Scope>();
         sentryService.withScope.mockImplementation(callback => callback(scope));
         const logs: string[] = [];
@@ -56,9 +55,7 @@ describe('NotificationSmsProcessor delivery errors', () => {
             return 1;
         });
         job.attemptsMade = 3;
-        const failure = new AppUnknownException(
-            new Error('private provider details')
-        );
+        const failure = new Error('provider failure');
         service.processSecurityAlert.mockRejectedValue(failure);
         const error: unknown = await processor
             .process(job)
@@ -70,6 +67,6 @@ describe('NotificationSmsProcessor delivery errors', () => {
         expect(sentryService.captureException).toHaveBeenCalledExactlyOnceWith(
             failure
         );
-        expect(JSON.stringify(logs)).not.toContain('private provider details');
+        expect(logs).toContain('Job failed provider failure');
     });
 });

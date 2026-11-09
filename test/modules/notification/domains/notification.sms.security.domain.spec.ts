@@ -12,7 +12,7 @@ describe('NotificationSmsSecurityDomain', () => {
         userId: 'user',
         notificationId: 'id',
         kind: EnumNotificationSmsProcess.newDeviceLogin,
-        phoneNumbers: ['+111', '+222'],
+        phoneNumber: '+111',
     };
     let domain: NotificationSmsSecurityDomain;
     beforeEach(async () => {
@@ -29,8 +29,8 @@ describe('NotificationSmsSecurityDomain', () => {
         }).compile();
         domain = module.get(NotificationSmsSecurityDomain);
     });
-    it('sends once per unique number without a delivery record', async () => {
-        await domain.process({ ...payload, phoneNumbers: ['+111', '+111'] });
+    it('sends the alert to the specified number', async () => {
+        await domain.process(payload);
         expect(sns.sendSms).toHaveBeenCalledTimes(1);
         expect(sns.sendSms).toHaveBeenCalledWith({
             phoneNumber: '+111',
@@ -38,16 +38,15 @@ describe('NotificationSmsSecurityDomain', () => {
         });
     });
     it('propagates provider failures so BullMQ can retry', async () => {
-        sns.sendSms.mockRejectedValue(new Error('unavailable'));
-        await expect(domain.process(payload)).rejects.toMatchObject({
-            rawError: expect.objectContaining({ message: 'unavailable' }),
-        });
+        const error = new Error('unavailable');
+        sns.sendSms.mockRejectedValue(error);
+        await expect(domain.process(payload)).rejects.toBe(error);
     });
-    it('skips when SNS is disabled or no numbers are provided', async () => {
+    it('skips when SNS is disabled or no number is provided', async () => {
         sns.isInitialized.mockReturnValue(false);
         await domain.process(payload);
         sns.isInitialized.mockReturnValue(true);
-        await domain.process({ ...payload, phoneNumbers: [] });
+        await domain.process({ ...payload, phoneNumber: '' });
         expect(sns.sendSms).not.toHaveBeenCalled();
     });
 });

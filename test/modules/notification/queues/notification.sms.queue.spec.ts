@@ -1,3 +1,4 @@
+import { HelperHashService } from '@common/helper/services/helper.hash.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
@@ -11,13 +12,14 @@ import { EnumQueue, EnumQueuePriority } from '@queues/enums/queue.enum';
 describe('NotificationSmsQueue', () => {
     const notificationSmsQueue = mock<Queue>();
     const configService = mock<ConfigService>();
+    const helperHashService = mock<HelperHashService>();
     let queue: NotificationSmsQueue;
 
     const payload: INotificationSendSmsPayload = {
         userId: 'user-id',
         notificationId: 'notification-id',
         kind: EnumNotificationSmsProcess.changePassword,
-        phoneNumbers: ['+628123456789', '+628987654321'],
+        phoneNumber: '+628123456789',
     };
 
     beforeEach(async () => {
@@ -29,6 +31,7 @@ describe('NotificationSmsQueue', () => {
 
             return values[key];
         });
+        helperHashService.sha256Hash.mockReturnValue('hashed-number');
         const module = await Test.createTestingModule({
             providers: [
                 NotificationSmsQueue,
@@ -37,6 +40,7 @@ describe('NotificationSmsQueue', () => {
                     useValue: notificationSmsQueue,
                 },
                 { provide: ConfigService, useValue: configService },
+                { provide: HelperHashService, useValue: helperHashService },
             ],
         }).compile();
         queue = module.get(NotificationSmsQueue);
@@ -46,28 +50,65 @@ describe('NotificationSmsQueue', () => {
         it('queue adds a job with no secret fields', async () => {
             await queue.sendSecurityAlert(payload);
 
+            expect(helperHashService.sha256Hash).toHaveBeenCalledWith(
+                payload.phoneNumber
+            );
             expect(notificationSmsQueue.add).toHaveBeenCalledWith(
                 EnumNotificationSmsProcess.changePassword,
                 {
                     userId: 'user-id',
                     notificationId: 'notification-id',
                     kind: EnumNotificationSmsProcess.changePassword,
-                    phoneNumbers: ['+628123456789', '+628987654321'],
+                    phoneNumber: '+628123456789',
                 },
                 {
                     priority: EnumQueuePriority.high,
                     deduplication: {
-                        id: `${EnumNotificationSmsProcess.changePassword}-${payload.userId}`,
+                        id: `${EnumNotificationSmsProcess.changePassword}-${payload.userId}-hashed-number`,
                         ttl: 60_000,
                     },
                 }
             );
         });
 
-        it('does not add a job when there are no phone numbers', async () => {
-            await queue.sendSecurityAlert({ ...payload, phoneNumbers: [] });
+        it('does not add a job when there are no phone number', async () => {
+            await queue.sendSecurityAlert({ ...payload, phoneNumber: '' });
 
             expect(notificationSmsQueue.add).not.toHaveBeenCalled();
+        });
+
+        it('uses a distinct deduplication key for each recipient', async () => {
+            helperHashService.sha256Hash
+                .mockReturnValueOnce('first')
+                .mockReturnValueOnce('second');
+            await queue.sendSecurityAlert(payload);
+            await queue.sendSecurityAlert({
+                ...payload,
+                phoneNumber: '+628987654321',
+            });
+
+            expect(notificationSmsQueue.add).toHaveBeenNthCalledWith(
+                1,
+                payload.kind,
+                payload,
+                expect.objectContaining({
+                    deduplication: {
+                        id: `${payload.kind}-${payload.userId}-first`,
+                        ttl: 60_000,
+                    },
+                })
+            );
+            expect(notificationSmsQueue.add).toHaveBeenNthCalledWith(
+                2,
+                payload.kind,
+                { ...payload, phoneNumber: '+628987654321' },
+                expect.objectContaining({
+                    deduplication: {
+                        id: `${payload.kind}-${payload.userId}-second`,
+                        ttl: 60_000,
+                    },
+                })
+            );
         });
     });
 });

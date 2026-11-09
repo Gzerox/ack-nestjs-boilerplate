@@ -114,7 +114,6 @@ export class AwsSNSService implements OnModuleInit {
             PublishCommandInput,
             PublishCommandOutput
         >(command);
-
         return published;
     }
 }

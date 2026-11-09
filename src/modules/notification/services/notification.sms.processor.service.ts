@@ -18,13 +18,10 @@ export class NotificationSmsProcessorService {
             EnumNotificationSmsProcess
         >
     ): Promise<IQueueResponse> {
-        const summary = await this.notificationSmsSecurityDomain.process(
+        const result = await this.notificationSmsSecurityDomain.process(
             job.data
         );
 
-        return {
-            message: 'SMS delivery completed',
-            result: summary,
-        };
+        return result;
     }
 }

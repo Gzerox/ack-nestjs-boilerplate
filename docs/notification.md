@@ -366,4 +366,4 @@ Special thanks to [ak2g][ref-contributor-ak2g] for contributing to the Notificat
 
 ## SMS security alerts
 
-The SMS queue sends security alert messages through AWS SNS. The SNS provider uses the configured credentials, region, and optional sender ID. The queue accepts security alert jobs, but no notification kind currently enqueues them. An unconfigured provider or an empty recipient list results in no send. Provider errors propagate to BullMQ for retries. A retry can repeat sends that succeeded before another recipient failed.
+The SMS queue sends security alert messages through AWS SNS, with one recipient per job. The SNS provider uses the configured credentials, region, and optional sender ID. The queue accepts security alert jobs, but no notification kind currently enqueues them. An unconfigured provider or a missing recipient results in no send. Provider errors propagate to BullMQ for retries. If SNS accepts a message and the job fails before completing, a retry can send it again.

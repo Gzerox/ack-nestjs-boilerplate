@@ -239,12 +239,5 @@ export interface INotificationSendSmsPayload {
     userId: string;
     notificationId: string;
     kind: EnumNotificationSmsProcess;
-    phoneNumbers: string[];
-}
-
-export interface INotificationDeliverySummary {
-    acceptedCount: number;
-    failedCount: number;
-    invalidTargetCount: number;
-    errorCodes: string[];
+    phoneNumber: string;
 }

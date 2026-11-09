@@ -111,6 +111,15 @@ describe('AwsSNSService', () => {
     });
 
     describe('sendSms', () => {
+        it('propagates provider errors unchanged', async () => {
+            const error = new Error('private number +15550100');
+            send.mockRejectedValue(error);
+            const service = await buildService();
+
+            await expect(
+                service.sendSms({ phoneNumber: '+15550100', message: 'hello' })
+            ).rejects.toBe(error);
+        });
         it('is a no-op when credentials are missing', async () => {
             const service = await buildService({ 'aws.sns.iam.key': null });
 

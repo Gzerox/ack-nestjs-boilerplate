@@ -259,13 +259,10 @@ export interface INotificationDeliveryContext {
 
 export interface INotificationDeliveryState extends INotificationDeliveryContext {
     status: EnumNotificationDeliveryStatus;
-    lastError: string | null;
 }
 
 export interface INotificationDeliveryFailure {
     code: string;
-    isRetryable: boolean;
-    retryAfterInMs: number | null;
     cause: Error | null;
 }
 
@@ -275,12 +272,3 @@ export interface INotificationDeliverySummary {
     invalidTargetCount: number;
     errorCodes: string[];
 }
-
-export type INotificationDeliveryAttempt =
-    | { outcome: 'completed'; summary: INotificationDeliverySummary }
-    | {
-          outcome: 'retry';
-          summary: INotificationDeliverySummary;
-          retryTargets: string[];
-          failure: INotificationDeliveryFailure;
-      };

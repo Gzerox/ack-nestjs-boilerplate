@@ -9,7 +9,6 @@ import type { FirebaseUtil } from '@common/firebase/utils/firebase.util';
 import type { HelperArrayService } from '@common/helper/services/helper.array.service';
 import { FirebaseMaxSendPushBatchSize } from '@common/firebase/constants/firebase.constant';
 import type { IFirebasePushPayload } from '@common/firebase/interfaces/firebase.interface';
-import { HelperDateService } from '@common/helper/services/helper.date.service';
 
 vi.mock('firebase-admin', () => ({
     initializeApp: vi.fn(),
@@ -65,12 +64,6 @@ describe('FirebaseService', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 FirebaseService,
-                {
-                    provide: HelperDateService,
-                    useValue: {
-                        create: () => new Date('2026-11-08T12:00:00Z'),
-                    },
-                },
                 { provide: ConfigService, useValue: configService },
                 { provide: FirebaseUtilClass, useValue: firebaseUtil },
                 {
@@ -277,184 +270,69 @@ describe('FirebaseService', () => {
     });
 
     describe('classifyError', () => {
-        it('uses separate messaging and app error types, with safe unknown fallbacks', async () => {
+        it('flags only definitive invalid-token errors and keeps the provider code', async () => {
             const { FirebaseMessagingError, MessagingErrorCode: M } =
                 await import('firebase-admin/messaging');
-            const {
-                FirebaseAppError,
-                AppErrorCode: A,
-                FirebaseError,
-            } = await import('firebase-admin/app');
-            const cases: [unknown, string, boolean, boolean][] = [
-                ...[
-                    M.SERVER_UNAVAILABLE,
-                    M.INTERNAL_ERROR,
-                    M.UNKNOWN_ERROR,
-                    M.MESSAGE_RATE_EXCEEDED,
-                    M.DEVICE_MESSAGE_RATE_EXCEEDED,
-                ].map(
-                    code =>
-                        [
-                            new FirebaseMessagingError({
-                                code,
-                                message: 'provider',
-                            }),
-                            `messaging/${code}`,
-                            true,
-                            false,
-                        ] as [unknown, string, boolean, boolean]
-                ),
-                ...[
-                    M.INVALID_REGISTRATION_TOKEN,
-                    M.REGISTRATION_TOKEN_NOT_REGISTERED,
-                ].map(
-                    code =>
-                        [
-                            new FirebaseMessagingError({
-                                code,
-                                message: 'invalid',
-                            }),
-                            `messaging/${code}`,
-                            false,
-                            true,
-                        ] as [unknown, string, boolean, boolean]
-                ),
-                ...[
-                    M.INVALID_ARGUMENT,
-                    M.INVALID_PAYLOAD,
-                    M.MISMATCHED_CREDENTIAL,
-                    M.THIRD_PARTY_AUTH_ERROR,
-                ].map(
-                    code =>
-                        [
-                            new FirebaseMessagingError({
-                                code,
-                                message: 'request',
-                            }),
-                            `messaging/${code}`,
-                            false,
-                            false,
-                        ] as [unknown, string, boolean, boolean]
-                ),
-                ...[A.NETWORK_ERROR, A.NETWORK_TIMEOUT].map(
-                    code =>
-                        [
-                            new FirebaseAppError({ code, message: 'network' }),
-                            `app/${code}`,
-                            true,
-                            false,
-                        ] as [unknown, string, boolean, boolean]
-                ),
+            const { FirebaseAppError, AppErrorCode: A } =
+                await import('firebase-admin/app');
+            const cases: [unknown, string, boolean][] = [
                 [
-                    new FirebaseAppError({
-                        code: A.INTERNAL_ERROR,
-                        message: 'local app',
+                    new FirebaseMessagingError({
+                        code: M.INVALID_REGISTRATION_TOKEN,
+                        message: 'bad',
                     }),
-                    'app/internal-error',
-                    false,
-                    false,
+                    'messaging/invalid-registration-token',
+                    true,
                 ],
                 [
-                    new FirebaseAppError({
-                        code: A.INVALID_ARGUMENT,
-                        message: 'local app',
+                    new FirebaseMessagingError({
+                        code: M.REGISTRATION_TOKEN_NOT_REGISTERED,
+                        message: 'gone',
                     }),
-                    'app/invalid-argument',
-                    false,
+                    'messaging/registration-token-not-registered',
+                    true,
+                ],
+                [
+                    new FirebaseMessagingError({
+                        code: M.INVALID_ARGUMENT,
+                        message: 'payload',
+                    }),
+                    'messaging/invalid-argument',
                     false,
                 ],
                 [
                     new FirebaseMessagingError({
-                        code: A.NETWORK_ERROR,
-                        message: 'wrong namespace',
+                        code: M.SERVER_UNAVAILABLE,
+                        message: 'down',
                     }),
-                    'messaging/network-error',
-                    false,
+                    'messaging/server-unavailable',
                     false,
                 ],
                 [
-                    new FirebaseError({
-                        code: 'messaging/new-provider-code',
-                        message: 'new',
+                    new FirebaseAppError({
+                        code: A.NETWORK_TIMEOUT,
+                        message: 'timeout',
                     }),
-                    'messaging/new-provider-code',
-                    false,
+                    'app/network-timeout',
                     false,
                 ],
-                [new Error('local'), 'unknownError', false, false],
+                [new Error('local'), 'unknownError', false],
                 [
                     { code: 'messaging/server-unavailable' },
                     'messaging/server-unavailable',
                     false,
-                    false,
                 ],
-                [{ code: 42 }, 'unknownError', false, false],
-                ['failure', 'unknownError', false, false],
-                [null, 'unknownError', false, false],
+                [{ code: 42 }, 'unknownError', false],
+                ['failure', 'unknownError', false],
+                [null, 'unknownError', false],
             ];
-            for (const [error, code, isRetryable, isInvalidToken] of cases) {
-                expect(service.classifyError(error)).toMatchObject({
+            for (const [error, code, isInvalidToken] of cases) {
+                expect(service.classifyError(error)).toEqual({
                     code,
-                    isRetryable,
                     isInvalidToken,
                     cause: error instanceof Error ? error : null,
                 });
             }
-        });
-
-        it.each([
-            ['120', 120000],
-            ['0', 0],
-            ['1.5', 1500],
-            ['Sun, 08 Nov 2026 12:02:00 GMT', 120000],
-            ['Sun, 08 Nov 2026 11:59:00 GMT', 60000],
-            ['-1', 60000],
-            ['Infinity', 60000],
-            ['NaN', 60000],
-            ['', 60000],
-            ['bad', 60000],
-            [42, 60000],
-            [undefined, 60000],
-        ])(
-            'normalizes throttle Retry-After %s to %s ms',
-            async (header, retryAfterInMs) => {
-                const { FirebaseMessagingError, MessagingErrorCode: M } =
-                    await import('firebase-admin/messaging');
-                const error = new FirebaseMessagingError({
-                    code: M.MESSAGE_RATE_EXCEEDED,
-                    message: 'quota',
-                    httpResponse: {
-                        status: 429,
-                        headers: { 'retry-after': header },
-                    },
-                });
-                expect(service.classifyError(error)).toMatchObject({
-                    isRetryable: true,
-                    retryAfterInMs,
-                });
-            }
-        );
-
-        it('retains a server retry hint and ignores an invalid non-throttle hint', async () => {
-            const { FirebaseMessagingError, MessagingErrorCode: M } =
-                await import('firebase-admin/messaging');
-            const unavailable = new FirebaseMessagingError({
-                code: M.SERVER_UNAVAILABLE,
-                message: 'down',
-                httpResponse: { status: 503, headers: { 'retry-after': '90' } },
-            });
-            expect(service.classifyError(unavailable).retryAfterInMs).toBe(
-                90000
-            );
-            const invalid = new FirebaseMessagingError({
-                code: M.INTERNAL_ERROR,
-                message: 'down',
-                httpResponse: {
-                    status: 500,
-                    headers: { 'retry-after': 'bad' },
-                },
-            });
-            expect(service.classifyError(invalid).retryAfterInMs).toBeNull();
         });
     });
 
@@ -483,11 +361,11 @@ describe('FirebaseService', () => {
                 failures: [
                     {
                         token: 'a',
-                        error: { isRetryable: false, isInvalidToken: false },
+                        error: { isInvalidToken: false },
                     },
                     {
                         token: 'b',
-                        error: { isRetryable: false, isInvalidToken: false },
+                        error: { isInvalidToken: false },
                     },
                 ],
             });
@@ -549,9 +427,7 @@ describe('FirebaseService', () => {
                         token: 'b',
                         error: {
                             code: 'messaging/registration-token-not-registered',
-                            isRetryable: false,
                             isInvalidToken: true,
-                            retryAfterInMs: null,
                             cause: invalid,
                         },
                     },
@@ -559,9 +435,7 @@ describe('FirebaseService', () => {
                         token: 'c',
                         error: {
                             code: 'messaging/server-unavailable',
-                            isRetryable: true,
                             isInvalidToken: false,
-                            retryAfterInMs: null,
                             cause: transient,
                         },
                     },
@@ -569,9 +443,7 @@ describe('FirebaseService', () => {
                         token: 'd',
                         error: {
                             code: 'messaging/invalid-argument',
-                            isRetryable: false,
                             isInvalidToken: false,
-                            retryAfterInMs: null,
                             cause: payloadError,
                         },
                     },
@@ -610,7 +482,6 @@ describe('FirebaseService', () => {
                         token: 'b',
                         error: {
                             code: 'app/network-timeout',
-                            isRetryable: true,
                             cause: network,
                         },
                     },
@@ -618,7 +489,6 @@ describe('FirebaseService', () => {
                         token: 'c',
                         error: {
                             code: 'app/network-timeout',
-                            isRetryable: true,
                             cause: network,
                         },
                     },
@@ -626,7 +496,7 @@ describe('FirebaseService', () => {
             });
         });
 
-        it('does not retry an untyped chunk rejection or invent an invalid token', async () => {
+        it('does not invent an invalid token for an untyped chunk rejection', async () => {
             const messaging = mock<Messaging>();
             const initialized = await initialize(messaging);
             helperArrayService.chunk.mockReturnValue([['a']]);
@@ -642,7 +512,6 @@ describe('FirebaseService', () => {
                         token: 'a',
                         error: {
                             code: 'unknownError',
-                            isRetryable: false,
                             isInvalidToken: false,
                             cause: null,
                         },

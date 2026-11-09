@@ -51,14 +51,6 @@ export interface INotificationRepository {
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel,
-        error: string,
-        failureTokens: string[]
-    ): Promise<void>;
-    markRetry(
-        userId: string,
-        notificationId: string,
-        channel: EnumNotificationChannel,
-        error: string,
         failureTokens: string[]
     ): Promise<void>;
     markSkipped(

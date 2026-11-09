@@ -7,12 +7,6 @@ import type { Prisma } from '@generated/prisma-client/client';
 export const NotificationPayloadEncryptionPurpose = 'notification.payload';
 
 /**
- * BullMQ backoff strategy for push delivery.
- * @public
- */
-export const NotificationPushBackoffType = 'notificationPush';
-
-/**
  * Prisma select for the content a delivery attempt needs.
  * @public
  */

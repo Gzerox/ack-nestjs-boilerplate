@@ -4,7 +4,7 @@ import { AppBaseException } from '@app/exceptions/app.base.exception';
 import { EnumNotificationStatusCodeError } from '@modules/notification/enums/notification.status-code.enum';
 
 /**
- * Raised when delivery fails, retaining retry policy and the original diagnostic cause.
+ * Raised when delivery fails, retaining the failure code and the original diagnostic cause.
  * @public
  */
 export class NotificationDeliveryFailedException extends AppBaseException {
@@ -13,15 +13,10 @@ export class NotificationDeliveryFailedException extends AppBaseException {
     readonly statusCodeKey = EnumNotificationStatusCodeError[this.statusCode];
     readonly httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
 
-    readonly isRetryable: boolean;
-    readonly retryAfterInMs: number | null;
-
     constructor(failure: INotificationDeliveryFailure) {
         super('notification.error.deliveryFailed', {
             messageProperties: { cause: failure.code },
             rawError: failure.cause,
         });
-        this.isRetryable = failure.isRetryable;
-        this.retryAfterInMs = failure.retryAfterInMs;
     }
 }

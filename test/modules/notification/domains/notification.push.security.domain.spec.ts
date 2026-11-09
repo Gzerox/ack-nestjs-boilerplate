@@ -9,7 +9,7 @@ import {
 import { NotificationPushSecurityDomain } from '@modules/notification/domains/notification.push.security.domain';
 import { NotificationPushDeliveryDomain } from '@modules/notification/domains/notification.push.delivery.domain';
 import type {
-    INotificationDeliveryAttempt,
+    INotificationDeliverySummary,
     INotificationNewDeviceLoginPayload,
 } from '@modules/notification/interfaces/notification.interface';
 
@@ -24,14 +24,11 @@ describe('NotificationPushSecurityDomain', () => {
         username: 'name',
         notificationTokens: ['token'],
     };
-    const completed: INotificationDeliveryAttempt = {
-        outcome: 'completed',
-        summary: {
-            acceptedCount: 1,
-            failedCount: 0,
-            invalidTargetCount: 0,
-            errorCodes: [],
-        },
+    const completed: INotificationDeliverySummary = {
+        acceptedCount: 1,
+        failedCount: 0,
+        invalidTargetCount: 0,
+        errorCodes: [],
     };
     const date = new Date('2026-11-08T12:00:00Z');
     let domain: NotificationPushSecurityDomain;
@@ -76,19 +73,13 @@ describe('NotificationPushSecurityDomain', () => {
         };
         requestContextService.resolveDevice.mockReturnValue('browser');
         requestContextService.resolveCity.mockReturnValue('city');
-        expect(await domain.processNewDeviceLogin(send, data, true)).toBe(
-            completed
-        );
-        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(
-            send,
-            {
-                username: 'name',
-                device: 'browser',
-                city: 'city',
-                loginAt: 'formatted date',
-            },
-            true
-        );
+        expect(await domain.processNewDeviceLogin(send, data)).toBe(completed);
+        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(send, {
+            username: 'name',
+            device: 'browser',
+            city: 'city',
+            loginAt: 'formatted date',
+        });
         expect(helperDateService.createFromIso).toHaveBeenCalledWith(
             data.loginAt
         );
@@ -98,30 +89,25 @@ describe('NotificationPushSecurityDomain', () => {
             passwordCreatedAt: date.toISOString(),
             passwordExpiredAt: date.toISOString(),
         };
-        await domain.processTemporaryPasswordByAdmin(send, data, false);
-        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(
-            send,
-            { username: 'name', passwordExpiredAt: 'formatted date' },
-            false
-        );
+        await domain.processTemporaryPasswordByAdmin(send, data);
+        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(send, {
+            username: 'name',
+            passwordExpiredAt: 'formatted date',
+        });
         expect(helperDateService.createFromIso).toHaveBeenCalledWith(
             data.passwordExpiredAt
         );
     });
-    it('delegates two-factor reset with username and final-attempt context', async () => {
-        await domain.processResetTwoFactorByAdmin(send, true);
-        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(
-            send,
-            { username: 'name' },
-            true
-        );
+    it('delegates two-factor reset with username and username', async () => {
+        await domain.processResetTwoFactorByAdmin(send);
+        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(send, {
+            username: 'name',
+        });
     });
-    it('delegates password reset with username and final-attempt context', async () => {
-        await domain.processResetPassword(send, false);
-        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(
-            send,
-            { username: 'name' },
-            false
-        );
+    it('delegates password reset with username and username', async () => {
+        await domain.processResetPassword(send);
+        expect(notificationPushDeliveryDomain.send).toHaveBeenCalledWith(send, {
+            username: 'name',
+        });
     });
 });

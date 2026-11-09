@@ -72,7 +72,7 @@ SES credentials and no-op mode: [Third Party Integration; SES][ref-doc-third-par
 
 `NotificationEmailProcessorService` routes each job to an email channel domain (`NotificationEmailAccountDomain`, `NotificationEmailSecurityDomain`, `NotificationEmailTermPolicyDomain`, `NotificationEmailWorkspaceDomain`). That domain calls `AwsSESService.send()` or `sendBulk()` with the named SES template and merges `defaultTemplateData` (`homeName`, `supportEmail`, `homeUrl`).
 
-Email delivery rows record provider acceptance, retry, skip, or terminal failure. For policy-publication batches, each recipient is tracked separately; once no retries remain, any failed recipient fails the job. An unregistered workspace invitation has no user or delivery row, so its outcome exists only in the email queue. Provider acceptance is not proof that a message reached an inbox or was read.
+Email delivery rows record provider acceptance or failure. A send that returns no `MessageId` (SES not initialized) leaves the row `pending`. For policy-publication batches, each recipient is tracked separately; any failed recipient fails the job and BullMQ retries it. An unregistered workspace invitation has no user or delivery row, so its outcome exists only in the email queue. Provider acceptance is not proof that a message reached an inbox or was read.
 
 Queue names, rate limits, dedup, and payload encryption: [Notification Documentation][ref-doc-notification].
 

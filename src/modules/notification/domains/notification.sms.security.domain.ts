@@ -3,10 +3,8 @@ import { AwsSNSService } from '@common/aws/services/aws.sns.service';
 import { MessageService } from '@common/message/services/message.service';
 import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
-import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import type {
-    INotificationDeliveryAttempt,
     INotificationDeliveryFailure,
     INotificationDeliverySummary,
     INotificationSendSmsPayload,
@@ -20,15 +18,13 @@ export class NotificationSmsSecurityDomain {
         private readonly notificationRepository: NotificationRepository,
         private readonly messageService: MessageService
     ) {}
-    async process(
-        {
-            userId,
-            notificationId,
-            kind,
-            phoneNumbers,
-        }: INotificationSendSmsPayload,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
+
+    async process({
+        userId,
+        notificationId,
+        kind,
+        phoneNumbers,
+    }: INotificationSendSmsPayload): Promise<INotificationDeliverySummary> {
         const context = {
             userId,
             notificationId,
@@ -42,15 +38,15 @@ export class NotificationSmsSecurityDomain {
         };
         const providerReady = this.awsSNSService.isInitialized();
         if (!providerReady) {
-            return { outcome: 'completed', summary };
+            return summary;
         }
         const content = await this.notificationDeliveryDomain.begin(context);
         if (!content) {
-            return { outcome: 'completed', summary };
+            return summary;
         }
         const targets = [...new Set(phoneNumbers)];
         if (targets.length === 0) {
-            return { outcome: 'completed', summary };
+            return summary;
         }
         let body: string;
         try {
@@ -63,11 +59,8 @@ export class NotificationSmsSecurityDomain {
                 context,
                 {
                     code: 'renderFailed',
-                    isRetryable: false,
-                    retryAfterInMs: null,
                     cause: error instanceof Error ? error : null,
                 },
-                isLastAttempt,
                 []
             );
             return failed;
@@ -78,29 +71,16 @@ export class NotificationSmsSecurityDomain {
         });
         const results = await Promise.allSettled(sends);
         const failures: INotificationDeliveryFailure[] = [];
-        const retryTargets: string[] = [];
-        for (const [index, result] of results.entries()) {
+        for (const result of results) {
             if (result.status === 'fulfilled' && result.value.messageId) {
                 summary.acceptedCount++;
                 continue;
             }
-            let failure: INotificationDeliveryFailure;
             if (result.status === 'rejected') {
-                const classified = this.awsSNSService.classifyError(
-                    result.reason
-                );
-                failure = classified;
+                const failure = this.awsSNSService.classifyError(result.reason);
+                failures.push(failure);
             } else {
-                failure = {
-                    code: 'snsMessageIdMissing',
-                    isRetryable: false,
-                    retryAfterInMs: null,
-                    cause: null,
-                };
-            }
-            failures.push(failure);
-            if (failure.isRetryable) {
-                retryTargets.push(targets[index]);
+                failures.push({ code: 'snsMessageIdMissing', cause: null });
             }
         }
         summary.failedCount = failures.length;
@@ -112,27 +92,13 @@ export class NotificationSmsSecurityDomain {
                 context.channel,
                 []
             );
-            return { outcome: 'completed', summary };
+            return summary;
         }
-        const failure =
-            failures.find(error => error.isRetryable) ?? failures[0];
-        try {
-            const failed = await this.notificationDeliveryDomain.fail(
-                context,
-                failure,
-                isLastAttempt,
-                []
-            );
-            return failed;
-        } catch (error: unknown) {
-            if (
-                error instanceof NotificationDeliveryFailedException &&
-                error.isRetryable &&
-                !isLastAttempt
-            ) {
-                return { outcome: 'retry', summary, retryTargets, failure };
-            }
-            throw error;
-        }
+        const failed = await this.notificationDeliveryDomain.fail(
+            context,
+            failures[0],
+            []
+        );
+        return failed;
     }
 }

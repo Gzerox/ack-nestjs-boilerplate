@@ -93,7 +93,6 @@ export class NotificationRepository implements INotificationRepository {
                     notificationId: true,
                     channel: true,
                     status: true,
-                    lastError: true,
                     notification: { select: { userId: true } },
                 },
             });
@@ -213,7 +212,6 @@ export class NotificationRepository implements INotificationRepository {
                     status: {
                         notIn: [
                             EnumNotificationDeliveryStatus.sent,
-                            EnumNotificationDeliveryStatus.failed,
                             EnumNotificationDeliveryStatus.skipped,
                         ],
                     },
@@ -246,7 +244,6 @@ export class NotificationRepository implements INotificationRepository {
                 failureTokens,
                 processedAt: today,
                 sentAt: today,
-                lastError: null,
             },
         });
     }
@@ -255,7 +252,6 @@ export class NotificationRepository implements INotificationRepository {
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel,
-        error: string,
         failureTokens: string[]
     ): Promise<void> {
         const today = this.helperDateService.create();
@@ -266,31 +262,8 @@ export class NotificationRepository implements INotificationRepository {
             },
             data: {
                 status: EnumNotificationDeliveryStatus.failed,
-                lastError: error,
                 failureTokens,
                 processedAt: today,
-                sentAt: null,
-            },
-        });
-    }
-
-    async markRetry(
-        userId: string,
-        notificationId: string,
-        channel: EnumNotificationChannel,
-        error: string,
-        failureTokens: string[]
-    ): Promise<void> {
-        await this.databaseService.client.notificationDelivery.update({
-            where: {
-                notificationId_channel: { notificationId, channel },
-                notification: { is: { userId } },
-            },
-            data: {
-                status: EnumNotificationDeliveryStatus.pending,
-                lastError: error,
-                failureTokens,
-                processedAt: null,
                 sentAt: null,
             },
         });
@@ -313,7 +286,6 @@ export class NotificationRepository implements INotificationRepository {
                 failureTokens,
                 processedAt: today,
                 sentAt: null,
-                lastError: null,
             },
         });
     }

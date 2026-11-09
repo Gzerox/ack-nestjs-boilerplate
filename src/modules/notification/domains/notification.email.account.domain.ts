@@ -1,19 +1,16 @@
 import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
-import { HelperDecryptFailedException } from '@common/helper/exceptions/helper.decrypt-failed.exception';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationPayloadEncryptionPurpose } from '@modules/notification/constants/notification.constant';
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
 import type {
-    INotificationDeliveryFailure,
     INotificationEmailSendPayload,
     INotificationVerificationEmailEncryptedPayload,
     INotificationVerifiedEmailPayload,
     INotificationVerifiedMobileNumberPayload,
     INotificationWelcomeByAdminEncryptedPayload,
 } from '@modules/notification/interfaces/notification.interface';
-import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -37,7 +34,6 @@ export class NotificationEmailAccountDomain {
         private readonly configService: ConfigService,
         private readonly helperDateService: HelperDateService,
         private readonly helperEncryptionService: HelperEncryptionService,
-        private readonly notificationRepository: NotificationRepository,
         private readonly notificationDeliveryDomain: NotificationDeliveryDomain
     ) {
         this.noreplyEmail = this.configService.get<string>('email.noreply')!;
@@ -56,63 +52,17 @@ export class NotificationEmailAccountDomain {
         };
     }
 
-    private async handleSendFailure(
-        userId: string,
-        notificationId: string,
-        error: unknown,
-        isLastAttempt: boolean
-    ): Promise<never> {
-        let failure: INotificationDeliveryFailure;
-        if (error instanceof HelperDecryptFailedException) {
-            failure = {
-                code: 'decryptFailed',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause: error,
-            };
-        } else {
-            const classified = this.awsSESService.classifyError(error);
-            failure = classified;
-        }
-        const failed = await this.notificationDeliveryDomain.fail(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            failure,
-            isLastAttempt,
-            []
-        );
-        return failed;
-    }
-
-    async processWelcome(
-        {
-            email,
-            username,
-            bcc,
-            cc,
-            userId,
-            notificationId,
-        }: INotificationEmailSendPayload,
-        isLastAttempt: boolean
-    ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return { message: 'SES not initialized, skipping welcome email' };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping welcome email',
-            };
-        }
-
+    async processWelcome({
+        email,
+        username,
+        bcc,
+        cc,
+        userId,
+        notificationId,
+    }: INotificationEmailSendPayload): Promise<IQueueResponse> {
+        let messageId: string | null;
         try {
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.welcome,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -123,23 +73,30 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return { message: 'SES not initialized, skipping welcome email' };
+        }
 
         return {
             message: 'Welcome email processed',
@@ -147,38 +104,17 @@ export class NotificationEmailAccountDomain {
         };
     }
 
-    async processWelcomeSocial(
-        {
-            email,
-            username,
-            bcc,
-            cc,
-            userId,
-            notificationId,
-        }: INotificationEmailSendPayload,
-        isLastAttempt: boolean
-    ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping welcome social email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping welcome social email',
-            };
-        }
-
+    async processWelcomeSocial({
+        email,
+        username,
+        bcc,
+        cc,
+        userId,
+        notificationId,
+    }: INotificationEmailSendPayload): Promise<IQueueResponse> {
+        let messageId: string | null;
         try {
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.welcomeSocial,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -189,23 +125,32 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message: 'SES not initialized, skipping welcome social email',
+            };
+        }
 
         return {
             message: 'Welcome social email processed',
@@ -226,28 +171,9 @@ export class NotificationEmailAccountDomain {
             encryptedPassword,
             passwordExpiredAt,
             passwordCreatedAt,
-        }: INotificationWelcomeByAdminEncryptedPayload,
-        isLastAttempt: boolean
+        }: INotificationWelcomeByAdminEncryptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping create by admin email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping create by admin email',
-            };
-        }
-
+        let messageId: string | null;
         try {
             const password = this.helperEncryptionService.aes256Decrypt(
                 encryptedPassword,
@@ -263,7 +189,7 @@ export class NotificationEmailAccountDomain {
                 this.helperDateService.createFromIso(passwordCreatedAt);
             const passwordCreatedAtFormatted =
                 this.helperDateService.formatToRFC2822(passwordCreatedAtDate);
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.welcomeByAdmin,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -277,23 +203,32 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message: 'SES not initialized, skipping create by admin email',
+            };
+        }
 
         return {
             message: 'Create by admin email processed',
@@ -315,28 +250,9 @@ export class NotificationEmailAccountDomain {
             reference,
             encryptedLink,
             expiredInMinutes,
-        }: INotificationVerificationEmailEncryptedPayload,
-        isLastAttempt: boolean
+        }: INotificationVerificationEmailEncryptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping verification email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping verification email',
-            };
-        }
-
+        let messageId: string | null;
         try {
             const link = this.helperEncryptionService.aes256Decrypt(
                 encryptedLink,
@@ -350,7 +266,7 @@ export class NotificationEmailAccountDomain {
                 this.helperDateService.formatToRFC2822(expiredAtDate);
             const expiredInMinutesFormatted = String(expiredInMinutes);
 
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.verificationEmail,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -365,23 +281,32 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message: 'SES not initialized, skipping verification email',
+            };
+        }
 
         return {
             message: 'Verification email processed',
@@ -398,30 +323,11 @@ export class NotificationEmailAccountDomain {
             userId,
             notificationId,
         }: INotificationEmailSendPayload,
-        { reference }: INotificationVerifiedEmailPayload,
-        isLastAttempt: boolean
+        { reference }: INotificationVerifiedEmailPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping email verified email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping email verified email',
-            };
-        }
-
+        let messageId: string | null;
         try {
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.verifiedEmail,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -433,23 +339,32 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message: 'SES not initialized, skipping email verified email',
+            };
+        }
 
         return {
             message: 'Email verified email processed',
@@ -466,31 +381,11 @@ export class NotificationEmailAccountDomain {
             userId,
             notificationId,
         }: INotificationEmailSendPayload,
-        { reference, mobileNumber }: INotificationVerifiedMobileNumberPayload,
-        isLastAttempt: boolean
+        { reference, mobileNumber }: INotificationVerifiedMobileNumberPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message:
-                    'SES not initialized, skipping mobile number verified email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping mobile number verified email',
-            };
-        }
-
+        let messageId: string | null;
         try {
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.verifiedMobileNumber,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -503,23 +398,33 @@ export class NotificationEmailAccountDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message:
+                    'SES not initialized, skipping mobile number verified email',
+            };
+        }
 
         return {
             message: 'Mobile number verified email processed',

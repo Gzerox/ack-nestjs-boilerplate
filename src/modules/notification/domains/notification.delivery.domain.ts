@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import type {
@@ -26,29 +27,36 @@ export class NotificationDeliveryDomain {
         return content;
     }
 
+    async completeEmail(
+        userId: string,
+        notificationId: string,
+        messageId: string | null
+    ): Promise<boolean> {
+        if (!messageId) {
+            return false;
+        }
+
+        await this.notificationRepository.markSent(
+            userId,
+            notificationId,
+            EnumNotificationChannel.email,
+            []
+        );
+
+        return true;
+    }
+
     async fail(
         { userId, notificationId, channel }: INotificationDeliveryContext,
         failure: INotificationDeliveryFailure,
-        isLastAttempt: boolean,
         failureTokens: string[]
     ): Promise<never> {
-        if (failure.isRetryable && !isLastAttempt) {
-            await this.notificationRepository.markRetry(
-                userId,
-                notificationId,
-                channel,
-                failure.code,
-                failureTokens
-            );
-        } else {
-            await this.notificationRepository.markFailed(
-                userId,
-                notificationId,
-                channel,
-                failure.code,
-                failureTokens
-            );
-        }
+        await this.notificationRepository.markFailed(
+            userId,
+            notificationId,
+            channel,
+            failureTokens
+        );
         throw new NotificationDeliveryFailedException(failure);
     }
 }

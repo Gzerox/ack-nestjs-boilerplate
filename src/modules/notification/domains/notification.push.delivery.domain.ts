@@ -5,12 +5,9 @@ import { MessageService } from '@common/message/services/message.service';
 import type { IMessageProperties } from '@common/message/interfaces/message.interface';
 import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
-import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { NotificationPushQueue } from '@modules/notification/queues/notification.push.queue';
 import type {
-    INotificationDeliveryAttempt,
-    INotificationDeliveryFailure,
     INotificationDeliverySummary,
     INotificationSendPushPayload,
 } from '@modules/notification/interfaces/notification.interface';
@@ -41,9 +38,8 @@ export class NotificationPushDeliveryDomain {
 
     async send(
         send: INotificationSendPushPayload,
-        properties: IMessageProperties,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
+        properties: IMessageProperties
+    ): Promise<INotificationDeliverySummary> {
         const { userId, notificationId } = send;
         const context = {
             userId,
@@ -58,11 +54,11 @@ export class NotificationPushDeliveryDomain {
         };
         const providerReady = this.firebaseService.isInitialized();
         if (!providerReady) {
-            return { outcome: 'completed', summary: emptySummary };
+            return emptySummary;
         }
         const content = await this.notificationDeliveryDomain.begin(context);
         if (!content) {
-            return { outcome: 'completed', summary: emptySummary };
+            return emptySummary;
         }
         const knownInvalid = new Set(content.failureTokens);
         const tokens = [...new Set(send.notificationTokens)].filter(
@@ -76,7 +72,7 @@ export class NotificationPushDeliveryDomain {
                 content.failureTokens
             );
             await this.cleanup(userId, content.failureTokens);
-            return { outcome: 'completed', summary: emptySummary };
+            return emptySummary;
         }
         let title: string;
         let body: string;
@@ -92,11 +88,8 @@ export class NotificationPushDeliveryDomain {
                 context,
                 {
                     code: 'renderFailed',
-                    isRetryable: false,
-                    retryAfterInMs: null,
                     cause: error instanceof Error ? error : null,
                 },
-                isLastAttempt,
                 content.failureTokens
             );
             return failed;
@@ -109,13 +102,13 @@ export class NotificationPushDeliveryDomain {
             });
             result = sent;
         } catch (error: unknown) {
-            const classified = this.firebaseService.classifyError(error);
-            result = {
-                successCount: 0,
-                failureCount: tokens.length,
-                failureTokens: classified.isInvalidToken ? tokens : [],
-                failures: tokens.map(token => ({ token, error: classified })),
-            };
+            const failure = this.firebaseService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                context,
+                failure,
+                content.failureTokens
+            );
+            return failed;
         }
         const failureTokens = [
             ...new Set([...content.failureTokens, ...result.failureTokens]),
@@ -136,12 +129,12 @@ export class NotificationPushDeliveryDomain {
                 failureTokens
             );
             await this.cleanup(userId, failureTokens);
-            return { outcome: 'completed', summary };
+            return summary;
         }
-        if (
-            result.failures.length > 0 &&
-            result.failures.every(({ error }) => error.isInvalidToken)
-        ) {
+        const failing = result.failures.find(
+            ({ error }) => !error.isInvalidToken
+        );
+        if (!failing) {
             await this.notificationRepository.markSkipped(
                 userId,
                 notificationId,
@@ -149,52 +142,14 @@ export class NotificationPushDeliveryDomain {
                 failureTokens
             );
             await this.cleanup(userId, failureTokens);
-            return { outcome: 'completed', summary };
+            return summary;
         }
-        const transient = result.failures.filter(
-            ({ error }) => error.isRetryable && !error.isInvalidToken
+        await this.cleanup(userId, failureTokens);
+        const failed = await this.notificationDeliveryDomain.fail(
+            context,
+            { code: failing.error.code, cause: failing.error.cause },
+            failureTokens
         );
-        let selected: INotificationDeliveryFailure = transient[0]?.error ??
-            result.failures.find(({ error }) => !error.isInvalidToken)
-                ?.error ?? {
-                code: 'unknownError',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause: null,
-            };
-        for (const { error } of transient) {
-            if ((error.retryAfterInMs ?? 0) > (selected.retryAfterInMs ?? 0)) {
-                selected = error;
-            }
-        }
-        const failure: INotificationDeliveryFailure = {
-            code: selected.code,
-            isRetryable: selected.isRetryable,
-            retryAfterInMs: selected.retryAfterInMs,
-            cause: selected.cause,
-        };
-        try {
-            const failed = await this.notificationDeliveryDomain.fail(
-                context,
-                failure,
-                isLastAttempt,
-                failureTokens
-            );
-            return failed;
-        } catch (error: unknown) {
-            if (!(error instanceof NotificationDeliveryFailedException)) {
-                throw error;
-            }
-            await this.cleanup(userId, failureTokens);
-            if (error.isRetryable && !isLastAttempt) {
-                return {
-                    outcome: 'retry',
-                    summary,
-                    retryTargets: transient.map(({ token }) => token),
-                    failure,
-                };
-            }
-            throw error;
-        }
+        return failed;
     }
 }

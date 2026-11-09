@@ -92,7 +92,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processWelcome
-            ).toHaveBeenCalledWith(send, false);
+            ).toHaveBeenCalledWith(send);
             expect(result).toBe(response);
         });
     });
@@ -115,7 +115,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processWelcomeSocial
-            ).toHaveBeenCalledWith(send, false);
+            ).toHaveBeenCalledWith(send);
             expect(result).toBe(response);
         });
     });
@@ -143,7 +143,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processWelcomeByAdmin
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -171,7 +171,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processTemporaryPasswordByAdmin
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -194,7 +194,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processChangePassword
-            ).toHaveBeenCalledWith(send, false);
+            ).toHaveBeenCalledWith(send);
             expect(result).toBe(response);
         });
     });
@@ -217,29 +217,8 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processResetPassword
-            ).toHaveBeenCalledWith(send, false);
+            ).toHaveBeenCalledWith(send);
             expect(result).toBe(response);
-        });
-
-        it('passes isLastAttempt true on the final attempt', async () => {
-            notificationEmailSecurityDomain.processResetPassword.mockResolvedValue(
-                response
-            );
-            const job = {
-                attemptsMade: 2,
-                opts: { attempts: 3 },
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
-
-            await service.processResetPassword(job);
-
-            expect(
-                notificationEmailSecurityDomain.processResetPassword
-            ).toHaveBeenCalledWith(send, true);
         });
     });
 
@@ -267,7 +246,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processVerificationEmail
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -291,7 +270,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processVerifiedEmail
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -321,7 +300,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processForgotPassword
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -349,7 +328,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailAccountDomain.processVerifiedMobileNumber
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -372,7 +351,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processResetTwoFactorByAdmin
-            ).toHaveBeenCalledWith(send, false);
+            ).toHaveBeenCalledWith(send);
             expect(result).toBe(response);
         });
     });
@@ -413,7 +392,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailSecurityDomain.processNewDeviceLogin
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -424,7 +403,7 @@ describe('NotificationEmailProcessorService', () => {
             version: 2,
         };
 
-        it('forwards send, data and isLastAttempt false to the term-policy domain', async () => {
+        it('forwards send and data to the term-policy domain', async () => {
             notificationEmailTermPolicyDomain.processPublishTermPolicy.mockResolvedValue(
                 response
             );
@@ -441,29 +420,8 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailTermPolicyDomain.processPublishTermPolicy
-            ).toHaveBeenCalledWith([send], data, false);
+            ).toHaveBeenCalledWith([send], data);
             expect(result).toBe(response);
-        });
-
-        it('passes isLastAttempt true on the final attempt', async () => {
-            notificationEmailTermPolicyDomain.processPublishTermPolicy.mockResolvedValue(
-                response
-            );
-            const job = {
-                attemptsMade: 2,
-                opts: { attempts: 3 },
-                data: { send: [send], data },
-            } as Job<
-                INotificationEmailBulkQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
-
-            await service.processPublishTermPolicy(job);
-
-            expect(
-                notificationEmailTermPolicyDomain.processPublishTermPolicy
-            ).toHaveBeenCalledWith([send], data, true);
         });
     });
 
@@ -494,7 +452,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailWorkspaceDomain.processWorkspaceInvite
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -558,7 +516,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailWorkspaceDomain.processWorkspaceJoinRequest
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -582,7 +540,7 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailWorkspaceDomain.processWorkspaceJoinAccepted
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
         });
     });
@@ -611,28 +569,8 @@ describe('NotificationEmailProcessorService', () => {
 
             expect(
                 notificationEmailWorkspaceDomain.processWorkspaceJoinRejected
-            ).toHaveBeenCalledWith(send, data, false);
+            ).toHaveBeenCalledWith(send, data);
             expect(result).toBe(response);
-        });
-    });
-
-    describe('isLastAttempt', () => {
-        it('is false while attempts remain', () => {
-            const job = { attemptsMade: 1, opts: { attempts: 3 } } as Job;
-
-            expect(service['isLastAttempt'](job)).toBe(false);
-        });
-
-        it('is true on the final configured attempt', () => {
-            const job = { attemptsMade: 2, opts: { attempts: 3 } } as Job;
-
-            expect(service['isLastAttempt'](job)).toBe(true);
-        });
-
-        it('treats a job without configured attempts as a single attempt', () => {
-            const job = { attemptsMade: 0, opts: {} } as Job;
-
-            expect(service['isLastAttempt'](job)).toBe(true);
         });
     });
 });

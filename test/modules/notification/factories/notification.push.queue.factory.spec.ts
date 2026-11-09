@@ -39,7 +39,7 @@ describe('NotificationPushQueueFactory', () => {
                     attempts: 5,
                     keepLogs: 100,
                     backoff: {
-                        type: 'notificationPush',
+                        type: 'exponential',
                         delay: 1500,
                     },
                     removeOnComplete: {

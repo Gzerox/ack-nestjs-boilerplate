@@ -14,9 +14,7 @@ export interface IFirebasePushResult {
 
 export interface IFirebaseDeliveryError {
     code: string;
-    isRetryable: boolean;
     isInvalidToken: boolean;
-    retryAfterInMs: number | null;
     cause: Error | null;
 }
 

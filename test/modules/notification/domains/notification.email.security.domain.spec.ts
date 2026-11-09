@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { mock } from 'vitest-mock-extended';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
+import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
 import { HelperDecryptFailedException } from '@common/helper/exceptions/helper.decrypt-failed.exception';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
@@ -17,7 +18,6 @@ import { NotificationEmailSecurityDomain } from '@modules/notification/domains/n
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
 import { EnumNotificationStatusCodeError } from '@modules/notification/enums/notification.status-code.enum';
 import type {
-    INotificationContent,
     INotificationEmailSendPayload,
     INotificationNewDeviceLoginPayload,
 } from '@modules/notification/interfaces/notification.interface';
@@ -41,11 +41,6 @@ describe('NotificationEmailSecurityDomain', () => {
         ...send,
         cc: ['cc@example.com'],
         bcc: ['bcc@example.com'],
-    };
-    const content: INotificationContent = {
-        title: 'title',
-        body: 'body',
-        failureTokens: [],
     };
     const sesOutput = { $metadata: {}, MessageId: 'message-1' };
     const throttlingError = Object.assign(new Error('Rate exceeded'), {
@@ -75,8 +70,6 @@ describe('NotificationEmailSecurityDomain', () => {
         helperDateService.formatToRFC2822.mockImplementation((date: Date) =>
             date.toISOString()
         );
-        notificationRepository.findForDelivery.mockResolvedValue(content);
-        awsSESService.isInitialized.mockReturnValue(true);
         awsSESService.send.mockResolvedValue(sesOutput);
         const module = await Test.createTestingModule({
             providers: [
@@ -102,15 +95,10 @@ describe('NotificationEmailSecurityDomain', () => {
         awsSESService.send.mockRejectedValue(rejectedError);
         awsSESService.classifyError.mockReturnValue({
             code: 'MessageRejected',
-            isRetryable: false,
-            retryAfterInMs: null,
             cause: rejectedError,
         });
-        await expect(
-            domain.processResetPassword(send, false)
-        ).rejects.toMatchObject({
+        await expect(domain.processResetPassword(send)).rejects.toMatchObject({
             statusCode: EnumNotificationStatusCodeError.deliveryFailed,
-            isRetryable: false,
             rawError: rejectedError,
             messageProperties: { cause: 'MessageRejected' },
         });
@@ -118,10 +106,8 @@ describe('NotificationEmailSecurityDomain', () => {
             send.userId,
             send.notificationId,
             EnumNotificationChannel.email,
-            'MessageRejected',
             []
         );
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
     });
 
     describe('processTemporaryPasswordByAdmin', () => {
@@ -138,15 +124,9 @@ describe('NotificationEmailSecurityDomain', () => {
 
             const result = await domain.processTemporaryPasswordByAdmin(
                 sendWithCcBcc,
-                encrypted,
-                false
+                encrypted
             );
 
-            expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email
-            );
             expect(helperEncryptionService.aes256Decrypt).toHaveBeenCalledWith(
                 encrypted.encryptedPassword,
                 'secret-key',
@@ -181,43 +161,24 @@ describe('NotificationEmailSecurityDomain', () => {
             });
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processTemporaryPasswordByAdmin(
-                send,
-                encrypted,
-                false
-            );
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping temporary password email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(
-                helperEncryptionService.aes256Decrypt
-            ).not.toHaveBeenCalled();
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
-
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
 
             const result = await domain.processTemporaryPasswordByAdmin(
                 send,
-                encrypted,
-                false
+                encrypted
             );
 
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping temporary password email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('marks failed when a sealed field fails to decrypt', async () => {
@@ -226,50 +187,48 @@ describe('NotificationEmailSecurityDomain', () => {
                 throw error;
             });
 
+            awsSESService.classifyError.mockImplementation(
+                classifyAwsDeliveryError
+            );
+
             await expect(
-                domain.processTemporaryPasswordByAdmin(send, encrypted, false)
+                domain.processTemporaryPasswordByAdmin(send, encrypted)
             ).rejects.toMatchObject({
-                isRetryable: false,
                 rawError: error,
-                messageProperties: { cause: 'decryptFailed' },
+                messageProperties: { cause: 'Error' },
             });
             expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 send.userId,
                 send.notificationId,
                 EnumNotificationChannel.email,
-                'decryptFailed',
                 []
             );
             expect(awsSESService.send).not.toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
 
-        it('marks retry on a throttling error before the last attempt, with no cc or bcc present', async () => {
+        it('marks failed on a throttling error, with no cc or bcc present', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'plain-password'
             );
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processTemporaryPasswordByAdmin(send, encrypted, false)
+                domain.processTemporaryPasswordByAdmin(send, encrypted)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
             expect(awsSESService.send).toHaveBeenCalledWith(
                 expect.not.objectContaining({ cc: expect.anything() })
             );
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
+            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 send.userId,
                 send.notificationId,
                 EnumNotificationChannel.email,
-                'Throttling',
                 []
             );
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
@@ -278,10 +237,7 @@ describe('NotificationEmailSecurityDomain', () => {
 
     describe('processChangePassword', () => {
         it('marks sent after SES accepts', async () => {
-            const result = await domain.processChangePassword(
-                sendWithCcBcc,
-                false
-            );
+            const result = await domain.processChangePassword(sendWithCcBcc);
 
             expect(awsSESService.send).toHaveBeenCalledWith({
                 templateName: EnumNotificationProcess.changePassword,
@@ -308,59 +264,42 @@ describe('NotificationEmailSecurityDomain', () => {
             });
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processChangePassword(send, false);
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping change password email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
 
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+            const result = await domain.processChangePassword(send);
 
-            const result = await domain.processChangePassword(send, false);
-
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping change password email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processChangePassword(send, false)
+                domain.processChangePassword(send)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
-            expect(notificationRepository.markRetry).toHaveBeenCalled();
+            expect(notificationRepository.markFailed).toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });
 
     describe('processResetPassword', () => {
         it('marks sent after SES accepts', async () => {
-            const result = await domain.processResetPassword(
-                sendWithCcBcc,
-                false
-            );
+            const result = await domain.processResetPassword(sendWithCcBcc);
 
             expect(awsSESService.send).toHaveBeenCalledWith({
                 templateName: EnumNotificationProcess.resetPassword,
@@ -387,49 +326,35 @@ describe('NotificationEmailSecurityDomain', () => {
             });
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processResetPassword(send, false);
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping reset password email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
 
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+            const result = await domain.processResetPassword(send);
 
-            const result = await domain.processResetPassword(send, false);
-
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping reset password email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processResetPassword(send, false)
+                domain.processResetPassword(send)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
-            expect(notificationRepository.markRetry).toHaveBeenCalled();
+            expect(notificationRepository.markFailed).toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });
@@ -450,8 +375,7 @@ describe('NotificationEmailSecurityDomain', () => {
 
             const result = await domain.processForgotPassword(
                 sendWithCcBcc,
-                encrypted,
-                false
+                encrypted
             );
 
             expect(helperEncryptionService.aes256Decrypt).toHaveBeenCalledWith(
@@ -489,42 +413,20 @@ describe('NotificationEmailSecurityDomain', () => {
             });
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processForgotPassword(
-                send,
-                encrypted,
-                false
-            );
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping forgot password email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(
-                helperEncryptionService.aes256Decrypt
-            ).not.toHaveBeenCalled();
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
 
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+            const result = await domain.processForgotPassword(send, encrypted);
 
-            const result = await domain.processForgotPassword(
-                send,
-                encrypted,
-                false
-            );
-
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping forgot password email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('marks failed when a sealed field fails to decrypt', async () => {
@@ -533,18 +435,20 @@ describe('NotificationEmailSecurityDomain', () => {
                 throw error;
             });
 
+            awsSESService.classifyError.mockImplementation(
+                classifyAwsDeliveryError
+            );
+
             await expect(
-                domain.processForgotPassword(send, encrypted, false)
+                domain.processForgotPassword(send, encrypted)
             ).rejects.toMatchObject({
-                isRetryable: false,
                 rawError: error,
-                messageProperties: { cause: 'decryptFailed' },
+                messageProperties: { cause: 'Error' },
             });
             expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 send.userId,
                 send.notificationId,
                 EnumNotificationChannel.email,
-                'decryptFailed',
                 []
             );
             expect(awsSESService.send).not.toHaveBeenCalled();
@@ -557,28 +461,23 @@ describe('NotificationEmailSecurityDomain', () => {
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processForgotPassword(send, encrypted, false)
+                domain.processForgotPassword(send, encrypted)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
-            expect(notificationRepository.markRetry).toHaveBeenCalled();
+            expect(notificationRepository.markFailed).toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });
 
     describe('processResetTwoFactorByAdmin', () => {
         it('marks sent after SES accepts', async () => {
-            const result = await domain.processResetTwoFactorByAdmin(
-                sendWithCcBcc,
-                false
-            );
+            const result =
+                await domain.processResetTwoFactorByAdmin(sendWithCcBcc);
 
             expect(awsSESService.send).toHaveBeenCalledWith({
                 templateName: EnumNotificationProcess.resetTwoFactorByAdmin,
@@ -605,56 +504,36 @@ describe('NotificationEmailSecurityDomain', () => {
             });
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processResetTwoFactorByAdmin(
-                send,
-                false
-            );
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping reset two factor by admin email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
 
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+            const result = await domain.processResetTwoFactorByAdmin(send);
 
-            const result = await domain.processResetTwoFactorByAdmin(
-                send,
-                false
-            );
-
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping reset two factor by admin email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processResetTwoFactorByAdmin(send, false)
+                domain.processResetTwoFactorByAdmin(send)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
-            expect(notificationRepository.markRetry).toHaveBeenCalled();
+            expect(notificationRepository.markFailed).toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });
@@ -693,8 +572,7 @@ describe('NotificationEmailSecurityDomain', () => {
         it('marks sent after SES accepts', async () => {
             const result = await domain.processNewDeviceLogin(
                 sendWithCcBcc,
-                data,
-                false
+                data
             );
 
             expect(awsSESService.send).toHaveBeenCalledWith({
@@ -728,14 +606,10 @@ describe('NotificationEmailSecurityDomain', () => {
         });
 
         it('defaults ipAddress to an empty string when null', async () => {
-            await domain.processNewDeviceLogin(
-                send,
-                {
-                    ...data,
-                    requestLog: { ...data.requestLog, ipAddress: null },
-                },
-                false
-            );
+            await domain.processNewDeviceLogin(send, {
+                ...data,
+                requestLog: { ...data.requestLog, ipAddress: null },
+            });
 
             expect(awsSESService.send).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -744,57 +618,35 @@ describe('NotificationEmailSecurityDomain', () => {
             );
         });
 
-        it('skips when the delivery is already sent', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-
-            const result = await domain.processNewDeviceLogin(
-                send,
-                data,
-                false
-            );
-
-            expect(result).toEqual({
-                message:
-                    'Delivery already sent or missing, skipping new device login email',
+        it('leaves the delivery pending when SES returns no message id', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: undefined,
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
 
-        it('does nothing when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+            const result = await domain.processNewDeviceLogin(send, data);
 
-            const result = await domain.processNewDeviceLogin(
-                send,
-                data,
-                false
-            );
-
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message: 'SES not initialized, skipping new device login email',
             });
-            expect(awsSESService.send).not.toHaveBeenCalled();
         });
 
         it('hands an SES rejection to the failure handler', async () => {
             awsSESService.send.mockRejectedValue(throttlingError);
             awsSESService.classifyError.mockReturnValue({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: null,
                 cause: throttlingError,
             });
 
             await expect(
-                domain.processNewDeviceLogin(send, data, false)
+                domain.processNewDeviceLogin(send, data)
             ).rejects.toMatchObject({
-                isRetryable: true,
                 rawError: throttlingError,
             });
-            expect(notificationRepository.markRetry).toHaveBeenCalled();
+            expect(notificationRepository.markFailed).toHaveBeenCalled();
             expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });

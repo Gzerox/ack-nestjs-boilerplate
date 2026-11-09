@@ -3,7 +3,7 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { RequestContextService } from '@common/request/services/request.context.service';
 import { NotificationPushDeliveryDomain } from '@modules/notification/domains/notification.push.delivery.domain';
 import type {
-    INotificationDeliveryAttempt,
+    INotificationDeliverySummary,
     INotificationNewDeviceLoginPayload,
     INotificationSendPushPayload,
     INotificationTemporaryPasswordPushPayload,
@@ -18,9 +18,8 @@ export class NotificationPushSecurityDomain {
     ) {}
     async processNewDeviceLogin(
         send: INotificationSendPushPayload,
-        data: INotificationNewDeviceLoginPayload,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
+        data: INotificationNewDeviceLoginPayload
+    ): Promise<INotificationDeliverySummary> {
         const device = this.requestContextService.resolveDevice(
             data.requestLog.userAgent
         );
@@ -29,50 +28,43 @@ export class NotificationPushSecurityDomain {
         );
         const loginAtDate = this.helperDateService.createFromIso(data.loginAt);
         const loginAt = this.helperDateService.formatToRFC2822(loginAtDate);
-        const attempt = await this.notificationPushDeliveryDomain.send(
-            send,
-            { device, city, username: send.username, loginAt },
-            isLastAttempt
-        );
-        return attempt;
+        const summary = await this.notificationPushDeliveryDomain.send(send, {
+            device,
+            city,
+            username: send.username,
+            loginAt,
+        });
+        return summary;
     }
     async processResetTwoFactorByAdmin(
-        send: INotificationSendPushPayload,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
-        const attempt = await this.notificationPushDeliveryDomain.send(
-            send,
-            { username: send.username },
-            isLastAttempt
-        );
-        return attempt;
+        send: INotificationSendPushPayload
+    ): Promise<INotificationDeliverySummary> {
+        const summary = await this.notificationPushDeliveryDomain.send(send, {
+            username: send.username,
+        });
+        return summary;
     }
     async processTemporaryPasswordByAdmin(
         send: INotificationSendPushPayload,
-        data: INotificationTemporaryPasswordPushPayload,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
+        data: INotificationTemporaryPasswordPushPayload
+    ): Promise<INotificationDeliverySummary> {
         const expiredAt = this.helperDateService.createFromIso(
             data.passwordExpiredAt
         );
         const passwordExpiredAt =
             this.helperDateService.formatToRFC2822(expiredAt);
-        const attempt = await this.notificationPushDeliveryDomain.send(
-            send,
-            { username: send.username, passwordExpiredAt },
-            isLastAttempt
-        );
-        return attempt;
+        const summary = await this.notificationPushDeliveryDomain.send(send, {
+            username: send.username,
+            passwordExpiredAt,
+        });
+        return summary;
     }
     async processResetPassword(
-        send: INotificationSendPushPayload,
-        isLastAttempt: boolean
-    ): Promise<INotificationDeliveryAttempt> {
-        const attempt = await this.notificationPushDeliveryDomain.send(
-            send,
-            { username: send.username },
-            isLastAttempt
-        );
-        return attempt;
+        send: INotificationSendPushPayload
+    ): Promise<INotificationDeliverySummary> {
+        const summary = await this.notificationPushDeliveryDomain.send(send, {
+            username: send.username,
+        });
+        return summary;
     }
 }

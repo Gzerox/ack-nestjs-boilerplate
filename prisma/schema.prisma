@@ -464,7 +464,6 @@ model NotificationDelivery {
   notificationId String                         @db.ObjectId
   channel        EnumNotificationChannel
   status         EnumNotificationDeliveryStatus @default(pending)
-  lastError      String?
   sentAt         DateTime?
   processedAt    DateTime?
   failureTokens  String[]                       @default([])

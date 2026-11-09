@@ -44,14 +44,10 @@ describe('NotificationSmsSecurityDomain', () => {
             error === transient
                 ? {
                       code: 'ThrottledException',
-                      isRetryable: true,
-                      retryAfterInMs: null,
                       cause: transient,
                   }
                 : {
                       code: 'InvalidParameterException',
-                      isRetryable: false,
-                      retryAfterInMs: null,
                       cause: permanent,
                   }
         );
@@ -75,14 +71,11 @@ describe('NotificationSmsSecurityDomain', () => {
             .mockResolvedValueOnce({ messageId: 'accepted' })
             .mockRejectedValueOnce(permanent)
             .mockRejectedValueOnce(transient);
-        expect(await domain.process(payload, false)).toEqual({
-            outcome: 'completed',
-            summary: {
-                acceptedCount: 1,
-                failedCount: 2,
-                invalidTargetCount: 0,
-                errorCodes: ['InvalidParameterException', 'ThrottledException'],
-            },
+        expect(await domain.process(payload)).toEqual({
+            acceptedCount: 1,
+            failedCount: 2,
+            invalidTargetCount: 0,
+            errorCodes: ['InvalidParameterException', 'ThrottledException'],
         });
         expect(notificationRepository.markSent).toHaveBeenCalledWith(
             'user',
@@ -90,97 +83,75 @@ describe('NotificationSmsSecurityDomain', () => {
             EnumNotificationChannel.sms,
             []
         );
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
     });
-    it('returns only transient numbers when none were accepted', async () => {
+    it('marks failed and throws with the first failure when none were accepted', async () => {
         awsSNSService.send
-            .mockRejectedValueOnce(permanent)
-            .mockRejectedValueOnce(transient);
+            .mockRejectedValueOnce(transient)
+            .mockRejectedValueOnce(permanent);
         await expect(
-            domain.process(
-                { ...payload, phoneNumbers: ['+222', '+333'] },
-                false
-            )
-        ).resolves.toMatchObject({
-            outcome: 'retry',
-            retryTargets: ['+333'],
-            failure: { code: 'ThrottledException', cause: transient },
-        });
-        expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-            'user',
-            'notification',
-            EnumNotificationChannel.sms,
-            'ThrottledException',
-            []
-        );
-    });
-    it('persists final transient failure and retains the original SDK cause', async () => {
-        awsSNSService.send.mockRejectedValue(transient);
-        await expect(domain.process(payload, true)).rejects.toMatchObject({
-            isRetryable: true,
+            domain.process({ ...payload, phoneNumbers: ['+333', '+222'] })
+        ).rejects.toMatchObject({
             rawError: transient,
+            messageProperties: { cause: 'ThrottledException' },
         });
         expect(notificationRepository.markFailed).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.sms,
-            'ThrottledException',
             []
         );
+        expect(notificationRepository.markSent).not.toHaveBeenCalled();
     });
-    it('fails permanently when every number has a permanent rejection', async () => {
+    it('marks failed and throws when the provider rejects every number', async () => {
         awsSNSService.send.mockRejectedValue(permanent);
-        await expect(domain.process(payload, false)).rejects.toMatchObject({
-            isRetryable: false,
+        await expect(domain.process(payload)).rejects.toMatchObject({
             rawError: permanent,
         });
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
     });
     it('does not claim acceptance for a fulfilled publish without a message ID', async () => {
         awsSNSService.send.mockResolvedValue({ messageId: null });
-        await expect(domain.process(payload, false)).rejects.toMatchObject({
-            isRetryable: false,
+        await expect(domain.process(payload)).rejects.toMatchObject({
             messageProperties: { cause: 'snsMessageIdMissing' },
         });
         expect(notificationRepository.markSent).not.toHaveBeenCalled();
     });
+    it('marks failed and throws on a local rendering error without sending', async () => {
+        const error = new Error('render private detail');
+        messageService.setMessage.mockReset().mockImplementation(() => {
+            throw error;
+        });
+        await expect(domain.process(payload)).rejects.toMatchObject({
+            rawError: error,
+            messageProperties: { cause: 'renderFailed' },
+        });
+        expect(notificationRepository.markFailed).toHaveBeenCalled();
+        expect(awsSNSService.send).not.toHaveBeenCalled();
+    });
     it('deduplicates phone numbers before sending', async () => {
         await expect(
-            domain.process(
-                { ...payload, phoneNumbers: ['+111', '+111'] },
-                false
-            )
-        ).resolves.toMatchObject({
-            outcome: 'completed',
-            summary: { acceptedCount: 1 },
-        });
+            domain.process({ ...payload, phoneNumbers: ['+111', '+111'] })
+        ).resolves.toMatchObject({ acceptedCount: 1 });
         expect(awsSNSService.send).toHaveBeenCalledTimes(1);
     });
     it('returns completed without a write for empty recipients', async () => {
         await expect(
-            domain.process({ ...payload, phoneNumbers: [] }, false)
+            domain.process({ ...payload, phoneNumbers: [] })
         ).resolves.toEqual({
-            outcome: 'completed',
-            summary: {
-                acceptedCount: 0,
-                failedCount: 0,
-                invalidTargetCount: 0,
-                errorCodes: [],
-            },
+            acceptedCount: 0,
+            failedCount: 0,
+            invalidTargetCount: 0,
+            errorCodes: [],
         });
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(awsSNSService.send).not.toHaveBeenCalled();
     });
     it('skips a disabled provider', async () => {
         awsSNSService.isInitialized.mockReturnValue(false);
-        expect(await domain.process(payload, false)).toEqual({
-            outcome: 'completed',
-            summary: {
-                acceptedCount: 0,
-                failedCount: 0,
-                invalidTargetCount: 0,
-                errorCodes: [],
-            },
+        expect(await domain.process(payload)).toEqual({
+            acceptedCount: 0,
+            failedCount: 0,
+            invalidTargetCount: 0,
+            errorCodes: [],
         });
         expect(notificationRepository.findForDelivery).not.toHaveBeenCalled();
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
@@ -188,7 +159,7 @@ describe('NotificationSmsSecurityDomain', () => {
     });
     it('does not send after a terminal or missing claim', async () => {
         notificationRepository.findForDelivery.mockResolvedValue(null);
-        await domain.process(payload, false);
+        await domain.process(payload);
         expect(awsSNSService.send).not.toHaveBeenCalled();
     });
 });

@@ -22,10 +22,8 @@ describe('NotificationDeliveryDomain', () => {
         failureTokens: ['invalid-A'],
     };
     const cause = new Error('provider detail containing a secret');
-    const transient: INotificationDeliveryFailure = {
+    const failureReport: INotificationDeliveryFailure = {
         code: 'messaging/server-unavailable',
-        isRetryable: true,
-        retryAfterInMs: 90000,
         cause,
     };
     let domain: NotificationDeliveryDomain;
@@ -60,66 +58,51 @@ describe('NotificationDeliveryDomain', () => {
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
     });
 
-    it.each([
-        {
-            isRetryable: true,
-            isLastAttempt: false,
-            expectedWrite: 'markRetry' as const,
-        },
-        {
-            isRetryable: true,
-            isLastAttempt: true,
-            expectedWrite: 'markFailed' as const,
-        },
-        {
-            isRetryable: false,
-            isLastAttempt: false,
-            expectedWrite: 'markFailed' as const,
-        },
-        {
-            isRetryable: false,
-            isLastAttempt: true,
-            expectedWrite: 'markFailed' as const,
-        },
-    ])(
-        'persists $expectedWrite for retryable=$isRetryable, final=$isLastAttempt before throwing a safe typed failure',
-        async ({ isRetryable, isLastAttempt, expectedWrite }) => {
-            const failure = { ...transient, isRetryable };
-            const attempt = domain.fail(context, failure, isLastAttempt, [
-                'invalid-A',
-            ]);
-            await expect(attempt).rejects.toBeInstanceOf(
-                NotificationDeliveryFailedException
-            );
-            await expect(attempt).rejects.toMatchObject({
-                isRetryable,
-                retryAfterInMs: 90000,
-                rawError: cause,
-                messageProperties: { cause: 'messaging/server-unavailable' },
-            });
-            expect(notificationRepository[expectedWrite]).toHaveBeenCalledWith(
-                'user',
-                'notification',
-                EnumNotificationChannel.push,
-                'messaging/server-unavailable',
-                ['invalid-A']
-            );
-            expect(
-                notificationRepository[
-                    expectedWrite === 'markRetry' ? 'markFailed' : 'markRetry'
-                ]
-            ).not.toHaveBeenCalled();
-            await expect(attempt).rejects.not.toHaveProperty(
-                'message',
-                cause.message
-            );
-        }
-    );
+    it('persists markFailed before throwing a safe typed failure', async () => {
+        const attempt = domain.fail(context, failureReport, ['invalid-A']);
+        await expect(attempt).rejects.toBeInstanceOf(
+            NotificationDeliveryFailedException
+        );
+        await expect(attempt).rejects.toMatchObject({
+            rawError: cause,
+            messageProperties: { cause: 'messaging/server-unavailable' },
+        });
+        expect(notificationRepository.markFailed).toHaveBeenCalledWith(
+            context.userId,
+            context.notificationId,
+            context.channel,
+            ['invalid-A']
+        );
+        await expect(attempt).rejects.not.toHaveProperty(
+            'message',
+            cause.message
+        );
+    });
 
-    it('does not hide a failed retry-state write behind the provider exception', async () => {
+    it('marks an email delivery sent when the provider returned a message id', async () => {
+        const isSent = await domain.completeEmail('user', 'notification', 'id');
+        expect(isSent).toBe(true);
+        expect(notificationRepository.markSent).toHaveBeenCalledWith(
+            'user',
+            'notification',
+            EnumNotificationChannel.email,
+            []
+        );
+        expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+    });
+
+    it('leaves an email delivery pending when the provider returned no message id', async () => {
+        const isSent = await domain.completeEmail('user', 'notification', null);
+        expect(isSent).toBe(false);
+        expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+        expect(notificationRepository.markSent).not.toHaveBeenCalled();
+        expect(notificationRepository.markFailed).not.toHaveBeenCalled();
+    });
+
+    it('does not hide a failed state write behind the provider exception', async () => {
         const databaseError = new Error('state write failed');
-        notificationRepository.markRetry.mockRejectedValue(databaseError);
-        await expect(domain.fail(context, transient, false, [])).rejects.toBe(
+        notificationRepository.markFailed.mockRejectedValue(databaseError);
+        await expect(domain.fail(context, failureReport, [])).rejects.toBe(
             databaseError
         );
     });

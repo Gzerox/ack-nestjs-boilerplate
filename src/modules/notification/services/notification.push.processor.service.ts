@@ -1,7 +1,6 @@
-import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import { EnumNotificationPushProcess } from '@modules/notification/enums/notification.enum';
 import type {
-    INotificationDeliveryAttempt,
+    INotificationDeliverySummary,
     INotificationNewDeviceLoginPayload,
     INotificationPushCleanupTokenQueuePayload,
     INotificationPushQueuePayload,
@@ -29,29 +28,10 @@ export class NotificationPushProcessorService implements OnModuleInit {
         private readonly notificationPushQueue: NotificationPushQueue
     ) {}
 
-    private isLastAttempt(job: Job): boolean {
-        const maxAttempts = job.opts.attempts ?? 1;
-
-        return job.attemptsMade + 1 >= maxAttempts;
-    }
-
-    private async finishAttempt<T>(
-        job: Job<INotificationPushQueuePayload<T>>,
-        attempt: INotificationDeliveryAttempt
-    ): Promise<IQueueResponse> {
-        if (attempt.outcome === 'retry') {
-            await job.updateData({
-                ...job.data,
-                send: {
-                    ...job.data.send,
-                    notificationTokens: attempt.retryTargets,
-                },
-            });
-            throw new NotificationDeliveryFailedException(attempt.failure);
-        }
+    private finish(summary: INotificationDeliverySummary): IQueueResponse {
         return {
-            message: 'Push delivery attempt completed',
-            result: attempt.summary,
+            message: 'Push delivery completed',
+            result: summary,
         };
     }
 
@@ -67,15 +47,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushSecurityDomain.processNewDeviceLogin(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -87,14 +65,12 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushSecurityDomain.processResetTwoFactorByAdmin(
-                send,
-                isLastAttempt
+                send
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -106,15 +82,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushSecurityDomain.processTemporaryPasswordByAdmin(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -126,14 +100,12 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushSecurityDomain.processResetPassword(
-                send,
-                isLastAttempt
+                send
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -145,15 +117,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushWorkspaceDomain.processWorkspaceInvite(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -165,15 +135,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushWorkspaceDomain.processWorkspaceJoinRequest(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -185,15 +153,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushWorkspaceDomain.processWorkspaceJoinAccepted(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 
@@ -205,15 +171,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         >
     ): Promise<IQueueResponse> {
         const { send, data } = job.data;
-        const isLastAttempt = this.isLastAttempt(job);
 
-        const attempt =
+        const summary =
             await this.notificationPushWorkspaceDomain.processWorkspaceJoinRejected(
                 send,
-                data!,
-                isLastAttempt
+                data!
             );
-        const response = await this.finishAttempt(job, attempt);
+        const response = this.finish(summary);
         return response;
     }
 

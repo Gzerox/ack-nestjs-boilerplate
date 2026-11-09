@@ -9,23 +9,17 @@ describe('NotificationDeliveryFailedException', () => {
             const cause = new Error('sensitive provider detail');
             const exception = new NotificationDeliveryFailedException({
                 code: 'Throttling',
-                isRetryable: true,
-                retryAfterInMs: 90000,
                 cause,
             });
             expect(exception).toMatchObject({
-                isRetryable: true,
-                retryAfterInMs: 90000,
                 rawError: cause,
                 messageProperties: { cause: 'Throttling' },
             });
             expect(exception.message).not.toContain(cause.message);
         });
-        it('exposes its five fields and the cause as a message property', () => {
+        it('exposes its fields and the cause as a message property', () => {
             const exception = new NotificationDeliveryFailedException({
                 code: 'MessageRejected',
-                isRetryable: false,
-                retryAfterInMs: null,
                 cause: null,
             });
 
@@ -40,8 +34,6 @@ describe('NotificationDeliveryFailedException', () => {
                 httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
                 messagePath: 'notification.error.deliveryFailed',
                 messageProperties: { cause: 'MessageRejected' },
-                isRetryable: false,
-                retryAfterInMs: null,
             });
         });
     });

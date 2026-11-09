@@ -5,7 +5,6 @@ import { BulkEmailStatus } from '@aws-sdk/client-ses';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
 import {
     EnumNotificationChannel,
-    EnumNotificationDeliveryStatus,
     EnumTermPolicyType,
 } from '@generated/prisma-client/client';
 import { NotificationEmailTermPolicyDomain } from '@modules/notification/domains/notification.email.term-policy.domain';
@@ -13,7 +12,6 @@ import { EnumNotificationProcess } from '@modules/notification/enums/notificatio
 import { EnumNotificationStatusCodeError } from '@modules/notification/enums/notification.status-code.enum';
 import type { INotificationEmailSendPayload } from '@modules/notification/interfaces/notification.interface';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
-import { QueueException } from '@queues/exceptions/queue.exception';
 
 describe('NotificationEmailTermPolicyDomain', () => {
     const awsSESService = mock<AwsSESService>();
@@ -61,17 +59,8 @@ describe('NotificationEmailTermPolicyDomain', () => {
 
             return values[key];
         });
-        awsSESService.isInitialized.mockReturnValue(true);
-        awsSESService.isRetryableBulkStatus.mockImplementation(
-            (status: string) =>
-                status === BulkEmailStatus.TransientFailure ||
-                status === BulkEmailStatus.AccountThrottled ||
-                status === BulkEmailStatus.Failed
-        );
         awsSESService.classifyError.mockReturnValue({
             code: 'Error',
-            isRetryable: true,
-            retryAfterInMs: null,
             cause: null,
         });
         notificationRepository.findForDelivery.mockResolvedValue(content);
@@ -100,11 +89,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 ],
             });
 
-            const result = await domain.processPublishTermPolicy(
-                send,
-                data,
-                false
-            );
+            const result = await domain.processPublishTermPolicy(send, data);
 
             expect(notificationRepository.findForDelivery).toHaveBeenCalledWith(
                 'user-1',
@@ -148,7 +133,7 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 Status: [{ Status: BulkEmailStatus.Success }],
             });
 
-            await domain.processPublishTermPolicy(send, data, false);
+            await domain.processPublishTermPolicy(send, data);
 
             expect(awsSESService.sendBulk).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -169,31 +154,10 @@ describe('NotificationEmailTermPolicyDomain', () => {
             );
         });
 
-        it('reports an already failed delivery without sending', async () => {
-            notificationRepository.findForDelivery.mockResolvedValue(null);
-            notificationRepository.findDeliveryStates.mockResolvedValue([
-                {
-                    userId: 'user-1',
-                    notificationId: 'notification-1',
-                    channel: EnumNotificationChannel.email,
-                    status: EnumNotificationDeliveryStatus.failed,
-                    lastError: 'previous failure',
-                },
-            ]);
-            await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toMatchObject({ isRetryable: false });
-            expect(awsSESService.sendBulk).not.toHaveBeenCalled();
-        });
-
         it('returns without sending when every delivery is already sent', async () => {
             notificationRepository.findForDelivery.mockResolvedValue(null);
 
-            const result = await domain.processPublishTermPolicy(
-                send,
-                data,
-                false
-            );
+            const result = await domain.processPublishTermPolicy(send, data);
 
             expect(awsSESService.sendBulk).not.toHaveBeenCalled();
             expect(result).toEqual({
@@ -215,8 +179,10 @@ describe('NotificationEmailTermPolicyDomain', () => {
             });
 
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toMatchObject({ isRetryable: false });
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({
+                messageProperties: { cause: 'bulkDeliveryFailed' },
+            });
 
             expect(notificationRepository.markSent).toHaveBeenCalledWith(
                 'user-1',
@@ -228,10 +194,8 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                BulkEmailStatus.MessageRejected,
                 []
             );
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
         });
 
         it('fails when every recipient is permanently rejected', async () => {
@@ -243,55 +207,67 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 ],
             });
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toMatchObject({ isRetryable: false });
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({
+                messageProperties: { cause: 'bulkDeliveryFailed' },
+            });
             expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
         });
 
-        it('treats a missing bulk status entry as a retryable failure', async () => {
+        it('treats a missing bulk status entry as a failure', async () => {
             awsSESService.sendBulk.mockResolvedValue({
                 $metadata: {},
                 Status: [{ Status: BulkEmailStatus.Success }],
             });
 
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toBeInstanceOf(QueueException);
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({
+                messageProperties: { cause: 'bulkDeliveryFailed' },
+            });
 
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
+            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                BulkEmailStatus.Failed,
                 []
             );
         });
 
-        it('does nothing per recipient when SES is not initialized', async () => {
-            awsSESService.isInitialized.mockReturnValue(false);
+        it('leaves every kept recipient pending when SES returns no bulk status', async () => {
+            awsSESService.sendBulk.mockResolvedValue({
+                $metadata: {},
+                Status: [],
+            });
 
-            const result = await domain.processPublishTermPolicy(
-                send,
-                data,
-                false
-            );
+            const result = await domain.processPublishTermPolicy(send, data);
 
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
             expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-            expect(awsSESService.sendBulk).not.toHaveBeenCalled();
-            expect(
-                notificationRepository.findDeliveryStates
-            ).toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
             expect(result).toEqual({
                 message:
                     'SES not initialized, skipping publish term policy email',
             });
         });
 
-        it('throws after marking when a recipient is retryable', async () => {
+        it('writes nothing for the kept recipients when SES returns a missing bulk status', async () => {
+            notificationRepository.findForDelivery
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(content);
+            awsSESService.sendBulk.mockResolvedValue({
+                $metadata: {},
+                Status: undefined,
+            });
+
+            await domain.processPublishTermPolicy(send, data);
+
+            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
+            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
+        });
+
+        it('marks a transient bulk status failed and throws', async () => {
             awsSESService.sendBulk.mockResolvedValue({
                 $metadata: {},
                 Status: [
@@ -304,8 +280,10 @@ describe('NotificationEmailTermPolicyDomain', () => {
             });
 
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toBeInstanceOf(QueueException);
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({
+                messageProperties: { cause: 'bulkDeliveryFailed' },
+            });
 
             expect(notificationRepository.markSent).toHaveBeenCalledWith(
                 'user-1',
@@ -313,84 +291,42 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 EnumNotificationChannel.email,
                 []
             );
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
+            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                BulkEmailStatus.TransientFailure,
                 []
             );
         });
 
-        it('fails the job when the final bulk attempt has a failed recipient', async () => {
-            awsSESService.sendBulk.mockResolvedValue({
-                $metadata: {},
-                Status: [
-                    { Status: BulkEmailStatus.Success },
-                    { Status: BulkEmailStatus.AccountThrottled },
-                ],
-            });
-            await expect(
-                domain.processPublishTermPolicy(send, data, true)
-            ).rejects.toMatchObject({
-                isRetryable: false,
-            });
-        });
-
-        it('marks every kept recipient retry and rethrows when sendBulk throws a retryable error', async () => {
+        it('marks every kept recipient failed and throws when sendBulk throws', async () => {
             const error = new Error('ses down');
             awsSESService.sendBulk.mockRejectedValue(error);
 
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
-            ).rejects.toMatchObject({ isRetryable: true });
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({ messageProperties: { cause: 'Error' } });
 
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-                'user-1',
-                'notification-1',
-                EnumNotificationChannel.email,
-                'Error',
-                []
-            );
-            expect(notificationRepository.markRetry).toHaveBeenCalledWith(
-                'user-2',
-                'notification-2',
-                EnumNotificationChannel.email,
-                'Error',
-                []
-            );
-        });
-
-        it('marks every kept recipient failed and rethrows when sendBulk throws a retryable error on the last attempt', async () => {
-            const error = new Error('ses down');
-            awsSESService.sendBulk.mockRejectedValue(error);
-
-            await expect(
-                domain.processPublishTermPolicy(send, data, true)
-            ).rejects.toMatchObject({ isRetryable: false });
-
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
             expect(notificationRepository.markFailed).toHaveBeenCalledTimes(2);
             expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 'user-1',
                 'notification-1',
                 EnumNotificationChannel.email,
-                'Error',
+                []
+            );
+            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
+                'user-2',
+                'notification-2',
+                EnumNotificationChannel.email,
                 []
             );
         });
 
-        it('marks every kept recipient failed and throws NotificationDeliveryFailedException when sendBulk throws a permanent error', async () => {
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Error',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause: null,
-            });
+        it('marks every kept recipient failed and throws NotificationDeliveryFailedException when sendBulk rejects with a non-Error', async () => {
             awsSESService.sendBulk.mockRejectedValue('rejected');
 
             await expect(
-                domain.processPublishTermPolicy(send, data, false)
+                domain.processPublishTermPolicy(send, data)
             ).rejects.toMatchObject({
                 module: 'notification',
                 statusCode: EnumNotificationStatusCodeError.deliveryFailed,
@@ -402,30 +338,16 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                'Error',
                 []
             );
         });
 
-        it('does not re-send a permanently failed recipient on the retry after a mixed result', async () => {
-            const recipients: INotificationEmailSendPayload[] = [
-                ...send,
-                {
-                    userId: 'user-3',
-                    notificationId: 'notification-3',
-                    email: 'lina@example.com',
-                    username: 'lina',
-                },
-            ];
+        it('re-sends a failed recipient on the retry and flips it to sent', async () => {
             awsSESService.sendBulk
                 .mockResolvedValueOnce({
                     $metadata: {},
                     Status: [
                         { Status: BulkEmailStatus.Success },
-                        {
-                            Status: BulkEmailStatus.MessageRejected,
-                            Error: 'rejected',
-                        },
                         {
                             Status: BulkEmailStatus.TransientFailure,
                             Error: 'try later',
@@ -434,55 +356,38 @@ describe('NotificationEmailTermPolicyDomain', () => {
                 })
                 .mockResolvedValueOnce({
                     $metadata: {},
-                    Status: [{ Status: BulkEmailStatus.Success }],
+                    Status: [
+                        { Status: BulkEmailStatus.Success },
+                        { Status: BulkEmailStatus.Success },
+                    ],
                 });
 
             await expect(
-                domain.processPublishTermPolicy(recipients, data, false)
-            ).rejects.toBeInstanceOf(QueueException);
+                domain.processPublishTermPolicy(send, data)
+            ).rejects.toMatchObject({
+                messageProperties: { cause: 'bulkDeliveryFailed' },
+            });
             expect(notificationRepository.markFailed).toHaveBeenCalledWith(
                 'user-2',
                 'notification-2',
                 EnumNotificationChannel.email,
-                BulkEmailStatus.MessageRejected,
                 []
             );
 
-            notificationRepository.findForDelivery
-                .mockResolvedValueOnce(null)
-                .mockResolvedValueOnce(null)
-                .mockResolvedValueOnce(content);
-
-            notificationRepository.findDeliveryStates.mockResolvedValue([
-                {
-                    userId: 'user-2',
-                    notificationId: 'notification-2',
-                    channel: EnumNotificationChannel.email,
-                    status: EnumNotificationDeliveryStatus.failed,
-                    lastError: 'MessageRejected',
-                },
-            ]);
-            await expect(
-                domain.processPublishTermPolicy(recipients, data, false)
-            ).rejects.toMatchObject({ isRetryable: false });
+            const result = await domain.processPublishTermPolicy(send, data);
 
             expect(awsSESService.sendBulk).toHaveBeenCalledTimes(2);
-            expect(awsSESService.sendBulk).toHaveBeenLastCalledWith(
-                expect.objectContaining({
-                    recipients: [
-                        {
-                            recipient: 'lina@example.com',
-                            templateData: { username: 'lina' },
-                        },
-                    ],
-                })
-            );
             expect(notificationRepository.markSent).toHaveBeenLastCalledWith(
-                'user-3',
-                'notification-3',
+                'user-2',
+                'notification-2',
                 EnumNotificationChannel.email,
                 []
             );
+            expect(result).toEqual({
+                message: 'Publish term policy email processed',
+                sent: 2,
+                failed: 0,
+            });
         });
     });
 });

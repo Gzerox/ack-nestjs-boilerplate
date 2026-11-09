@@ -30,23 +30,17 @@ describe('NotificationPushDeliveryDomain', () => {
     const cause = new Error('private provider detail');
     const transient: IFirebaseDeliveryError = {
         code: 'messaging/server-unavailable',
-        isRetryable: true,
         isInvalidToken: false,
-        retryAfterInMs: null,
         cause,
     };
     const invalid: IFirebaseDeliveryError = {
         code: 'messaging/registration-token-not-registered',
-        isRetryable: false,
         isInvalidToken: true,
-        retryAfterInMs: null,
         cause,
     };
     const permanent: IFirebaseDeliveryError = {
         code: 'messaging/invalid-argument',
-        isRetryable: false,
         isInvalidToken: false,
-        retryAfterInMs: null,
         cause,
     };
     const failures = [
@@ -80,100 +74,70 @@ describe('NotificationPushDeliveryDomain', () => {
         }).compile();
         domain = module.get(NotificationPushDeliveryDomain);
     });
-    it.each([false, true])(
-        'completes after partial acceptance without retry, final=%s',
-        async isLastAttempt => {
-            const writes: string[] = [];
-            notificationRepository.markSent.mockImplementation(async () => {
-                writes.push('sent');
-            });
-            notificationPushQueue.sendCleanupTokens.mockImplementation(
-                async () => {
-                    writes.push('cleanup');
-                }
-            );
-            firebaseService.sendMulticast.mockResolvedValue({
-                successCount: 1,
-                failureCount: 3,
-                failureTokens: ['invalid'],
-                failures,
-            });
-            expect(
-                await domain.send(send, { username: 'name' }, isLastAttempt)
-            ).toEqual({
-                outcome: 'completed',
-                summary: {
-                    acceptedCount: 1,
-                    failedCount: 3,
-                    invalidTargetCount: 1,
-                    errorCodes: [
-                        'messaging/server-unavailable',
-                        'messaging/registration-token-not-registered',
-                        'messaging/invalid-argument',
-                    ],
-                },
-            });
-            expect(notificationRepository.markSent).toHaveBeenCalledWith(
-                'user',
-                'notification',
-                EnumNotificationChannel.push,
-                ['invalid']
-            );
-            expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendCleanupTokens
-            ).toHaveBeenCalledWith('user', ['invalid']);
-            expect(writes).toEqual(['sent', 'cleanup']);
-            expect(messageService.setMessage).toHaveBeenNthCalledWith(
-                2,
-                'body.key',
-                { properties: { username: 'name' } }
-            );
-        }
-    );
-    it('returns only transient targets after zero acceptance, retaining invalid history and the longest retry hint', async () => {
+    it('completes after partial acceptance, cleaning invalid tokens after the state write', async () => {
+        const writes: string[] = [];
+        notificationRepository.markSent.mockImplementation(async () => {
+            writes.push('sent');
+        });
+        notificationPushQueue.sendCleanupTokens.mockImplementation(async () => {
+            writes.push('cleanup');
+        });
+        firebaseService.sendMulticast.mockResolvedValue({
+            successCount: 1,
+            failureCount: 3,
+            failureTokens: ['invalid'],
+            failures,
+        });
+        expect(await domain.send(send, { username: 'name' })).toEqual({
+            acceptedCount: 1,
+            failedCount: 3,
+            invalidTargetCount: 1,
+            errorCodes: [
+                'messaging/server-unavailable',
+                'messaging/registration-token-not-registered',
+                'messaging/invalid-argument',
+            ],
+        });
+        expect(notificationRepository.markSent).toHaveBeenCalledWith(
+            'user',
+            'notification',
+            EnumNotificationChannel.push,
+            ['invalid']
+        );
+        expect(notificationPushQueue.sendCleanupTokens).toHaveBeenCalledWith(
+            'user',
+            ['invalid']
+        );
+        expect(writes).toEqual(['sent', 'cleanup']);
+        expect(messageService.setMessage).toHaveBeenNthCalledWith(
+            2,
+            'body.key',
+            { properties: { username: 'name' } }
+        );
+    });
+    it('marks failed and throws after zero acceptance, retaining invalid history', async () => {
         notificationRepository.findForDelivery.mockResolvedValue({
             ...content,
             failureTokens: ['old-invalid'],
         });
-        const throttled = {
-            ...transient,
-            code: 'messaging/message-rate-exceeded',
-            retryAfterInMs: 90000,
-        };
         firebaseService.sendMulticast.mockResolvedValue({
             successCount: 0,
-            failureCount: 4,
+            failureCount: 3,
             failureTokens: ['invalid'],
-            failures: [...failures, { token: 'throttled', error: throttled }],
+            failures,
         });
-        const result = await domain.send(
-            {
-                ...send,
-                notificationTokens: [
-                    'transient',
-                    'invalid',
-                    'permanent',
-                    'throttled',
-                ],
-            },
-            {},
-            false
+        const result = domain.send(send, {});
+        await expect(result).rejects.toBeInstanceOf(
+            NotificationDeliveryFailedException
         );
-        expect(result).toMatchObject({
-            outcome: 'retry',
-            retryTargets: ['transient', 'throttled'],
-            failure: {
-                code: 'messaging/message-rate-exceeded',
-                retryAfterInMs: 90000,
-                cause,
-            },
+        await expect(result).rejects.toMatchObject({
+            rawError: cause,
+            messageProperties: { cause: 'messaging/server-unavailable' },
         });
-        expect(notificationRepository.markRetry).toHaveBeenCalledWith(
+        expect(notificationRepository.markFailed).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.push,
-            'messaging/message-rate-exceeded',
             ['old-invalid', 'invalid']
         );
         expect(notificationPushQueue.sendCleanupTokens).toHaveBeenCalledWith(
@@ -182,62 +146,27 @@ describe('NotificationPushDeliveryDomain', () => {
         );
         expect(notificationRepository.markSent).not.toHaveBeenCalled();
     });
-    it.each([false, true])(
-        'permanent-only failure keeps otherwise valid tokens, final=%s',
-        async isLastAttempt => {
-            firebaseService.sendMulticast.mockResolvedValue({
-                successCount: 0,
-                failureCount: 1,
-                failureTokens: [],
-                failures: [{ token: 'valid', error: permanent }],
-            });
-            const result = domain.send(
-                { ...send, notificationTokens: ['valid'] },
-                {},
-                isLastAttempt
-            );
-            await expect(result).rejects.toBeInstanceOf(
-                NotificationDeliveryFailedException
-            );
-            await expect(result).rejects.toMatchObject({
-                isRetryable: false,
-                rawError: cause,
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                'user',
-                'notification',
-                EnumNotificationChannel.push,
-                'messaging/invalid-argument',
-                []
-            );
-            expect(
-                notificationPushQueue.sendCleanupTokens
-            ).not.toHaveBeenCalled();
-        }
-    );
-    it('persists final transient exhaustion before cleaning only invalid tokens and throwing', async () => {
+    it('a permanent-only failure keeps otherwise valid tokens and creates no cleanup', async () => {
         firebaseService.sendMulticast.mockResolvedValue({
             successCount: 0,
-            failureCount: 3,
-            failureTokens: ['invalid'],
-            failures,
+            failureCount: 1,
+            failureTokens: [],
+            failures: [{ token: 'valid', error: permanent }],
         });
-        await expect(domain.send(send, {}, true)).rejects.toMatchObject({
-            isRetryable: true,
-            rawError: cause,
-        });
+        const result = domain.send(
+            { ...send, notificationTokens: ['valid'] },
+            {}
+        );
+        await expect(result).rejects.toBeInstanceOf(
+            NotificationDeliveryFailedException
+        );
         expect(notificationRepository.markFailed).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.push,
-            'messaging/server-unavailable',
-            ['invalid']
+            []
         );
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
-        expect(notificationPushQueue.sendCleanupTokens).toHaveBeenCalledWith(
-            'user',
-            ['invalid']
-        );
+        expect(notificationPushQueue.sendCleanupTokens).not.toHaveBeenCalled();
     });
     it('skips all-invalid targets without raising a provider incident', async () => {
         firebaseService.sendMulticast.mockResolvedValue({
@@ -247,18 +176,11 @@ describe('NotificationPushDeliveryDomain', () => {
             failures: [{ token: 'invalid', error: invalid }],
         });
         expect(
-            await domain.send(
-                { ...send, notificationTokens: ['invalid'] },
-                {},
-                false
-            )
+            await domain.send({ ...send, notificationTokens: ['invalid'] }, {})
         ).toMatchObject({
-            outcome: 'completed',
-            summary: {
-                acceptedCount: 0,
-                failedCount: 1,
-                invalidTargetCount: 1,
-            },
+            acceptedCount: 0,
+            failedCount: 1,
+            invalidTargetCount: 1,
         });
         expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
             'user',
@@ -279,15 +201,12 @@ describe('NotificationPushDeliveryDomain', () => {
                 failureTokens: ['old-invalid'],
             });
             expect(
-                await domain.send({ ...send, notificationTokens }, {}, false)
+                await domain.send({ ...send, notificationTokens }, {})
             ).toEqual({
-                outcome: 'completed',
-                summary: {
-                    acceptedCount: 0,
-                    failedCount: 0,
-                    invalidTargetCount: 0,
-                    errorCodes: [],
-                },
+                acceptedCount: 0,
+                failedCount: 0,
+                invalidTargetCount: 0,
+                errorCodes: [],
             });
             expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
                 'user',
@@ -300,21 +219,18 @@ describe('NotificationPushDeliveryDomain', () => {
     );
     it('does not send or mutate after a terminal/missing claim', async () => {
         notificationRepository.findForDelivery.mockResolvedValue(null);
-        await domain.send(send, {}, false);
+        await domain.send(send, {});
         expect(firebaseService.sendMulticast).not.toHaveBeenCalled();
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
         expect(messageService.setMessage).not.toHaveBeenCalled();
     });
     it('does nothing when the provider is disabled', async () => {
         firebaseService.isInitialized.mockReturnValue(false);
-        expect(await domain.send(send, {}, false)).toEqual({
-            outcome: 'completed',
-            summary: {
-                acceptedCount: 0,
-                failedCount: 0,
-                invalidTargetCount: 0,
-                errorCodes: [],
-            },
+        expect(await domain.send(send, {})).toEqual({
+            acceptedCount: 0,
+            failedCount: 0,
+            invalidTargetCount: 0,
+            errorCodes: [],
         });
         expect(notificationRepository.findForDelivery).not.toHaveBeenCalled();
         expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
@@ -333,8 +249,7 @@ describe('NotificationPushDeliveryDomain', () => {
         });
         await domain.send(
             { ...send, notificationTokens: ['old-invalid', 'good', 'good'] },
-            {},
-            false
+            {}
         );
         expect(firebaseService.sendMulticast).toHaveBeenCalledWith(['good'], {
             title: 'title',
@@ -347,7 +262,7 @@ describe('NotificationPushDeliveryDomain', () => {
             ['old-invalid']
         );
     });
-    it('does not retry accepted sends when cleanup rejects', async () => {
+    it('does not fail an accepted send when cleanup rejects', async () => {
         firebaseService.sendMulticast.mockResolvedValue({
             successCount: 1,
             failureCount: 1,
@@ -357,11 +272,9 @@ describe('NotificationPushDeliveryDomain', () => {
         notificationPushQueue.sendCleanupTokens.mockRejectedValue(
             new Error('cleanup unavailable')
         );
-        await expect(domain.send(send, {}, false)).resolves.toMatchObject({
-            outcome: 'completed',
-            summary: { acceptedCount: 1 },
+        await expect(domain.send(send, {})).resolves.toMatchObject({
+            acceptedCount: 1,
         });
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
     });
     it('does not hide a failed state write or enqueue cleanup before it', async () => {
         const writeError = new Error('database unavailable');
@@ -372,39 +285,45 @@ describe('NotificationPushDeliveryDomain', () => {
             failures: [{ token: 'invalid', error: invalid }],
         });
         notificationRepository.markSent.mockRejectedValue(writeError);
-        await expect(domain.send(send, {}, false)).rejects.toBe(writeError);
+        await expect(domain.send(send, {})).rejects.toBe(writeError);
         expect(notificationPushQueue.sendCleanupTokens).not.toHaveBeenCalled();
     });
-    it('classifies a whole-call provider rejection for every eligible target', async () => {
+    it('marks failed and throws when the whole provider call rejects', async () => {
         const error = new FirebaseAppError({
             code: AppErrorCode.NETWORK_TIMEOUT,
             message: 'timeout',
         });
         firebaseService.sendMulticast.mockRejectedValue(error);
         firebaseService.classifyError.mockReturnValue({
-            ...transient,
             code: 'app/network-timeout',
+            isInvalidToken: false,
             cause: error,
         });
-        await expect(domain.send(send, {}, false)).resolves.toMatchObject({
-            outcome: 'retry',
-            retryTargets: send.notificationTokens,
-            failure: { cause: error },
+        const result = domain.send(send, {});
+        await expect(result).rejects.toMatchObject({
+            rawError: error,
+            messageProperties: { cause: 'app/network-timeout' },
         });
+        expect(notificationRepository.markFailed).toHaveBeenCalledWith(
+            'user',
+            'notification',
+            EnumNotificationChannel.push,
+            []
+        );
     });
-    it('treats local rendering errors as permanent without sending', async () => {
+    it('marks failed and throws on a local rendering error without sending', async () => {
         const error = new Error('render private detail');
         messageService.setMessage.mockReset().mockImplementation(() => {
             throw error;
         });
-        await expect(domain.send(send, {}, false)).rejects.toMatchObject({
-            isRetryable: false,
+        await expect(domain.send(send, {})).rejects.toMatchObject({
             rawError: error,
             messageProperties: { cause: 'renderFailed' },
         });
+        expect(notificationRepository.markFailed).toHaveBeenCalled();
         expect(firebaseService.sendMulticast).not.toHaveBeenCalled();
     });
-    it('preserves invalid A through a narrowed retry of B and its eventual success', async () => {
+    it('keeps invalid A across a failed attempt and the retried success', async () => {
         notificationRepository.findForDelivery
             .mockResolvedValueOnce(content)
             .mockResolvedValueOnce({
@@ -428,69 +347,29 @@ describe('NotificationPushDeliveryDomain', () => {
                 failureTokens: [],
                 failures: [],
             });
-        const first = await domain.send(
-            { ...send, notificationTokens: ['invalid-A', 'B'] },
-            {},
-            false
+        const retried = { ...send, notificationTokens: ['invalid-A', 'B'] };
+        await expect(domain.send(retried, {})).rejects.toBeInstanceOf(
+            NotificationDeliveryFailedException
         );
-        expect(first).toMatchObject({ outcome: 'retry', retryTargets: ['B'] });
-        expect(notificationRepository.markRetry).toHaveBeenCalledWith(
+        expect(notificationRepository.markFailed).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.push,
-            'messaging/server-unavailable',
             ['invalid-A']
         );
-        const retryTargets =
-            first.outcome === 'retry' ? first.retryTargets : [];
-        await expect(
-            domain.send(
-                { ...send, notificationTokens: retryTargets },
-                {},
-                false
-            )
-        ).resolves.toMatchObject({
-            outcome: 'completed',
-            summary: { acceptedCount: 1 },
+        await expect(domain.send(retried, {})).resolves.toMatchObject({
+            acceptedCount: 1,
         });
+        expect(firebaseService.sendMulticast).toHaveBeenNthCalledWith(
+            2,
+            ['B'],
+            { title: 'translated', body: 'translated' }
+        );
         expect(notificationRepository.markSent).toHaveBeenCalledWith(
             'user',
             'notification',
             EnumNotificationChannel.push,
             ['invalid-A']
         );
-        expect(notificationPushQueue.sendCleanupTokens).toHaveBeenNthCalledWith(
-            1,
-            'user',
-            ['invalid-A']
-        );
-        expect(notificationPushQueue.sendCleanupTokens).toHaveBeenNthCalledWith(
-            2,
-            'user',
-            ['invalid-A']
-        );
-    });
-    it('cleans only invalid tokens when the remaining failures are permanent', async () => {
-        firebaseService.sendMulticast.mockResolvedValue({
-            successCount: 0,
-            failureCount: 2,
-            failureTokens: ['invalid'],
-            failures: [
-                { token: 'invalid', error: invalid },
-                { token: 'permanent', error: permanent },
-            ],
-        });
-        await expect(
-            domain.send(
-                { ...send, notificationTokens: ['invalid', 'permanent'] },
-                {},
-                false
-            )
-        ).rejects.toMatchObject({ isRetryable: false });
-        expect(notificationPushQueue.sendCleanupTokens).toHaveBeenCalledWith(
-            'user',
-            ['invalid']
-        );
-        expect(notificationRepository.markRetry).not.toHaveBeenCalled();
     });
 });

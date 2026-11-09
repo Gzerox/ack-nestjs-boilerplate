@@ -217,11 +217,11 @@ A job payload sits in Redis until a worker consumes it, so the queue classes sea
 | `encryptedInviteAcceptLink` | `inviteAcceptLink` | `workspaceInviteUnregistered` (email queue only) | invite `reference` |
 | `encryptedJoinRequestReviewLink` | `joinRequestReviewLink` | `workspaceJoinRequest` | reviewer `userId` |
 
-An invitation for an unregistered recipient has no user or delivery row. Its outcome and bounded retry history exist only in the email queue; transient SES failures use the queue retry budget, while permanent failures stop immediately. If SES is disabled, the job is skipped. `aws.ses.maxAttempts` defaults to `1`, so the SES client makes one request per BullMQ attempt and BullMQ owns every retry; raising it adds SDK-level retries inside each BullMQ attempt.
+An invitation for an unregistered recipient has no user or delivery row. Its outcome and attempt history exist only in the email queue; every SES send error fails the job and BullMQ retries it within the queue attempts. If SES is disabled, `AwsSESService.send()` returns no `MessageId` and the job ends with a skip message. `aws.ses.maxAttempts` defaults to `1`, so the SES client makes one request per BullMQ attempt and BullMQ owns every retry; raising it adds SDK-level retries inside each BullMQ attempt.
 
 `NotificationQueue` seals the fields of the orchestration jobs; the orchestration domains pass the sealed value through to the email job unopened. `NotificationEmailQueue` seals the invite link of `workspaceInviteUnregistered`, which skips the orchestration queue. Push jobs carry no secret: `NotificationPushQueue` builds each push payload from an explicit field list (`INotification*PushPayload`) that leaves out passwords and links.
 
-A payload that fails to open (a rotated key, a tampered value, the wrong recipient) raises `HelperDecryptFailedException` (`52200`). Inside `handle`, `NotificationEmailProcessor` maps that to a BullMQ `UnrecoverableError`, so the job fails at once without retries, and `QueueProcessorBase.onFailed` reports it to Sentry. Permanent delivery failures also stop immediately; retryable failures use the remaining queue retry budget.
+A payload that fails to open (a rotated key, a tampered value, the wrong recipient) raises `HelperDecryptFailedException` (`52200`). Inside `handle`, `NotificationEmailProcessor` maps that to a BullMQ `UnrecoverableError`, so the job fails at once without retries, and `QueueProcessorBase.onFailed` reports it to Sentry. Every other delivery failure rethrows as is and uses the remaining queue attempts.
 
 ## Push Notifications
 
@@ -236,8 +236,7 @@ One user can own multiple active devices, each with its own registration token; 
 | Attempt outcome | Delivery behavior |
 |---|---|
 | At least one token accepted, even with other failures | Mark sent and do not retry this notification. Return only counts and error codes. |
-| No acceptance, with transient failures and attempts remaining | Mark pending and retry only transiently failed tokens. |
-| No acceptance, permanent failures or exhausted retries | Mark failed and report the terminal failure. |
+| No acceptance, with at least one non-invalid failure | Mark failed and throw; BullMQ retries the job, which re-sends to the same tokens minus known-invalid ones. A later success marks the row sent. |
 | Every target invalid or no eligible tokens | Mark skipped; invalid tokens are scheduled for cleanup. |
 
 The any-acceptance threshold is an application choice to avoid resending to devices that already accepted the notification. FCM does not require this policy. `failureTokens` contains invalid tokens only, not transient or generic payload failures.
@@ -248,7 +247,7 @@ For push token registration, revocation, and session-linking details, see the [D
 
 After each multicast attempt, `FirebaseService.sendMulticast()` returns `failureTokens` for unambiguous invalid-registration or unregistered-token errors. A generic `invalid-argument` payload error does not identify a token for deletion. Invalid tokens are:
 
-1. Retained cumulatively in the delivery's `failureTokens`, across retries and terminal outcomes.
+1. Retained cumulatively in the delivery's `failureTokens`, across attempts and outcomes.
 2. Queued through `NotificationPushQueue.sendCleanupTokens()` without deduplication, so a later batch containing newly invalid tokens cannot be suppressed. `NotificationPushMaintenanceDomain.processCleanupTokens()` calls `DeviceDomain.cleanupNotificationTokens()`, which resolves the user's devices through `DeviceOwnershipRepository.findDeviceIdsByUserAndTokens()`. `DeviceRepository.clearTokens()` clears `notificationToken` and `notificationProvider` only while the current token remains in the rejected set; a replacement token is preserved if the device rotates it before cleanup.
 
 Cleanup follows the delivery-state write. Cleanup failure cannot turn a provider-accepted send into a resend.
@@ -282,7 +281,7 @@ The push processor is configured with a BullMQ rate limiter:
 
 `FirebaseService.sendMulticast()` also enforces a per-call chunk size of at most `FirebaseMaxSendPushBatchSize` (500) tokens per FCM `sendEachForMulticast` call, with chunks processed via `Promise.allSettled`. A chunk size outside 1 to 500 raises `FirebaseChunkSizeInvalidException` (500, `52300`).
 
-Push retries start at 10 seconds and grow exponentially, with a 60-second cap on the base interval and up to 20% additive jitter. A valid provider `Retry-After` is a lower bound even above that cap; throttling without a usable header uses a 60-second lower bound. The queue allows three attempts.
+Push retries use BullMQ exponential backoff from `queue.job.pushBackoffDelayInMs`. The queue allows three attempts.
 
 For Firebase configuration and no-op mode (disabled when credentials are missing), see [Third-Party Integration; Firebase][ref-doc-third-party].
 
@@ -298,10 +297,9 @@ Each `Notification` has one `NotificationDelivery` row per channel. Immediate `s
 
 | Field | Meaning |
 |---|---|
-| `status` | `pending`, `sent`, `failed`, or `skipped` |
-| `processedAt` | Time of a terminal sent, failed, or skipped outcome; cleared for a retry |
-| `sentAt` | Time the provider accepted the send; null on retry, failure, or skip |
-| `lastError` | Safe failure code for retry or failure; cleared on success or skip |
+| `status` | `pending` (including a send not performed because the provider is not configured), `sent`, `failed`, or `skipped` (a push case with no usable target) |
+| `processedAt` | Time of the latest sent, failed, or skipped outcome |
+| `sentAt` | Time the provider accepted the send; null on failure or skip |
 | `failureTokens` | Cumulative invalid push tokens only |
 
 ```mermaid
@@ -309,17 +307,19 @@ flowchart TD
     A[Pending delivery] --> P{Provider ready?}
     P -->|No| G[Stop, row stays pending]
     P -->|Yes| B[Read delivery row]
-    B -->|Sent, failed, skipped, or missing| G2[Stop without sending]
-    B -->|Pending| H{Eligible push tokens?}
+    B -->|Sent, skipped, or missing| G2[Stop without sending]
+    B -->|Pending or failed| H{Eligible push tokens?}
     H -->|None| F[Skipped]
     H -->|Yes, or email| C{Provider outcome}
     C -->|Accepted| D[Sent]
     C -->|Every push target invalid| F
-    C -->|Transient, queue retries remain| A
-    C -->|Permanent or queue retries exhausted| E[Failed]
+    C -->|Send error| E[Failed]
+    E -->|Queue attempts remain| A
 ```
 
-A job checks its provider first. When the provider is not ready (SES, SNS, or Firebase disabled), the job ends without reading or writing the delivery row, so the row stays `pending`. `skipped` marks recipient-side cases only: no eligible push tokens, every push target invalid, or a declared channel with no supported process. A ready provider is followed by a read of the row through `NotificationRepository.findForDelivery()`, which returns only a pending row; a terminal or missing row ends the job without a send. Email and push failures are classified before retrying; permanent failures and exhausted retries produce a final failure reported to Sentry. A successful retry clears stale error state. For bulk policy emails, recipients are tracked independently: transient recipients can retry even if another recipient has permanently failed; after retries finish, any failed recipient makes the overall job fail. Already sent and failed recipients are not resent.
+A push or SMS job checks its provider first. When the provider is not ready (SNS or Firebase disabled), the job ends without reading or writing the delivery row, so the row stays `pending`. A ready provider is followed by a read of the row through `NotificationRepository.findForDelivery()`, which returns a row that is not sent or skipped, so a failed row is read again by a queue retry; a sent, skipped, or missing row ends the job without a send. `skipped` marks recipient-side cases: no eligible push tokens, every push target invalid, or a declared channel with no supported process.
+
+An email job does not read the row first. `AwsSESService.send()` returns no `MessageId` when SES is disabled; `NotificationDeliveryDomain.completeEmail()` then writes nothing, the row stays `pending`, and the job ends with a skip message; a returned `MessageId` marks the row `sent`. Every send error marks the row failed through `NotificationDeliveryDomain.fail()` and throws `NotificationDeliveryFailedException`; BullMQ retries the job until the queue attempts are spent, and the final failure is reported to Sentry. A retry that succeeds marks the row sent. For bulk policy emails, recipients already sent are filtered out through `findForDelivery()`; each remaining recipient is marked from its own bulk status and any non-success status marks it failed. A failed recipient makes the job fail, and the next attempt re-sends only rows not yet sent. A bulk send that returns no `Status` entries (SES not initialized) writes nothing, so the remaining recipients stay `pending`.
 
 
 ## User Notification Settings

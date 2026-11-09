@@ -1,60 +1,82 @@
 import { Test } from '@nestjs/testing';
-import { Job, UnrecoverableError } from 'bullmq';
+import type { Scope } from '@sentry/nestjs';
+import { Job } from 'bullmq';
 import { mock } from 'vitest-mock-extended';
 import { SentryService } from '@common/sentry/services/sentry.service';
 import { NotificationSmsProcessor } from '@modules/notification/processors/notification.sms.processor';
 import { NotificationSmsProcessorService } from '@modules/notification/services/notification.sms.processor.service';
 import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import { EnumNotificationSmsProcess } from '@modules/notification/enums/notification.enum';
-import type { IQueueResponse } from '@queues/interfaces/queue.interface';
 
 describe('NotificationSmsProcessor delivery errors', () => {
-    const notificationSmsProcessorService =
-        mock<NotificationSmsProcessorService>();
+    const service = mock<NotificationSmsProcessorService>();
     const sentryService = mock<SentryService>();
-    const job =
-        mock<Job<unknown, IQueueResponse, EnumNotificationSmsProcess>>();
+    const job = mock<Job<unknown, null, EnumNotificationSmsProcess>>();
     let processor: NotificationSmsProcessor;
     beforeEach(async () => {
         vi.resetAllMocks();
         job.name = EnumNotificationSmsProcess.resetPassword;
         job.opts = { attempts: 3 };
+        job.attemptsMade = 1;
         const module = await Test.createTestingModule({
             providers: [
                 NotificationSmsProcessor,
                 {
                     provide: NotificationSmsProcessorService,
-                    useValue: notificationSmsProcessorService,
+                    useValue: service,
                 },
                 { provide: SentryService, useValue: sentryService },
             ],
         }).compile();
         processor = module.get(NotificationSmsProcessor);
     });
-    it('allows a typed transient error to use the remaining queue budget', async () => {
+    it('rethrows a delivery failure as is so BullMQ retries it', async () => {
         const failure = new NotificationDeliveryFailedException({
             code: 'Throttling',
-            isRetryable: true,
-            retryAfterInMs: null,
             cause: new Error('provider'),
         });
-        notificationSmsProcessorService.processSecurityAlert.mockRejectedValue(
-            failure
-        );
+        service.processSecurityAlert.mockRejectedValue(failure);
         await expect(processor.process(job)).rejects.toBe(failure);
     });
-    it('preserves the original typed error as the cause of an unrecoverable failure', async () => {
+    it('does not report to Sentry while attempts remain', async () => {
         const failure = new NotificationDeliveryFailedException({
-            code: 'MessageRejected',
-            isRetryable: false,
-            retryAfterInMs: null,
-            cause: new Error('provider'),
+            code: 'Throttling',
+            cause: null,
         });
-        notificationSmsProcessorService.processSecurityAlert.mockRejectedValue(
+        service.processSecurityAlert.mockRejectedValue(failure);
+        const error: unknown = await processor
+            .process(job)
+            .catch((caught: unknown) => caught);
+        if (!(error instanceof Error)) {
+            throw error;
+        }
+        processor.onFailed(job, error);
+        expect(sentryService.captureException).not.toHaveBeenCalled();
+    });
+    it('reports the final failure once and keeps provider details out of the job log', async () => {
+        const scope = mock<Scope>();
+        sentryService.withScope.mockImplementation(callback => callback(scope));
+        const logs: string[] = [];
+        job.log.mockImplementation(async message => {
+            logs.push(message);
+            return 1;
+        });
+        job.attemptsMade = 3;
+        const failure = new NotificationDeliveryFailedException({
+            code: 'messaging/invalid-argument',
+            cause: new Error('private provider details'),
+        });
+        service.processSecurityAlert.mockRejectedValue(failure);
+        const error: unknown = await processor
+            .process(job)
+            .catch((caught: unknown) => caught);
+        if (!(error instanceof Error)) {
+            throw error;
+        }
+        processor.onFailed(job, error);
+        expect(sentryService.captureException).toHaveBeenCalledExactlyOnceWith(
             failure
         );
-        const attempt = processor.process(job);
-        await expect(attempt).rejects.toBeInstanceOf(UnrecoverableError);
-        await expect(attempt).rejects.toMatchObject({ cause: failure });
+        expect(JSON.stringify(logs)).not.toContain('private provider details');
     });
 });

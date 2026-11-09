@@ -8,7 +8,6 @@ import { NotificationPayloadEncryptionPurpose } from '@modules/notification/cons
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
 import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
 import type {
-    INotificationDeliveryFailure,
     INotificationEmailSendPayload,
     INotificationEmailSendUnregisteredPayload,
     INotificationWorkspaceInviteEncryptedPayload,
@@ -17,7 +16,6 @@ import type {
     INotificationWorkspaceJoinRejectedPayload,
     INotificationWorkspaceJoinRequestEncryptedPayload,
 } from '@modules/notification/interfaces/notification.interface';
-import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -42,7 +40,6 @@ export class NotificationEmailWorkspaceDomain {
         private readonly helperDateService: HelperDateService,
         private readonly messageService: MessageService,
         private readonly helperEncryptionService: HelperEncryptionService,
-        private readonly notificationRepository: NotificationRepository,
         private readonly notificationDeliveryDomain: NotificationDeliveryDomain
     ) {
         this.noreplyEmail = this.configService.get<string>('email.noreply')!;
@@ -61,33 +58,6 @@ export class NotificationEmailWorkspaceDomain {
         };
     }
 
-    private async handleSendFailure(
-        userId: string,
-        notificationId: string,
-        error: unknown,
-        isLastAttempt: boolean
-    ): Promise<never> {
-        let failure: INotificationDeliveryFailure;
-        if (error instanceof HelperDecryptFailedException) {
-            failure = {
-                code: 'decryptFailed',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause: error,
-            };
-        } else {
-            const classified = this.awsSESService.classifyError(error);
-            failure = classified;
-        }
-        const failed = await this.notificationDeliveryDomain.fail(
-            { userId, notificationId, channel: EnumNotificationChannel.email },
-            failure,
-            isLastAttempt,
-            []
-        );
-        return failed;
-    }
-
     async processWorkspaceInvite(
         {
             email,
@@ -103,28 +73,9 @@ export class NotificationEmailWorkspaceDomain {
             encryptedInviteAcceptLink,
             reference,
             expiredAt,
-        }: INotificationWorkspaceInviteEncryptedPayload,
-        isLastAttempt: boolean
+        }: INotificationWorkspaceInviteEncryptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping workspace invite email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping workspace invite email',
-            };
-        }
-
+        let messageId: string | null;
         try {
             const inviteAcceptLink = this.helperEncryptionService.aes256Decrypt(
                 encryptedInviteAcceptLink,
@@ -137,7 +88,7 @@ export class NotificationEmailWorkspaceDomain {
                 this.helperDateService.createFromIso(expiredAt);
             const expiredAtFormatted =
                 this.helperDateService.formatToRFC2822(expiredAtDate);
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.workspaceInvite,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -153,23 +104,32 @@ export class NotificationEmailWorkspaceDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message: 'SES not initialized, skipping workspace invite email',
+            };
+        }
 
         return {
             message: 'Workspace invite email processed',
@@ -188,13 +148,6 @@ export class NotificationEmailWorkspaceDomain {
             expiredAt,
         }: INotificationWorkspaceInviteUnregisteredEncryptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message: 'SES not initialized, skipping workspace invite email',
-            };
-        }
-
         try {
             const inviteAcceptLink = this.helperEncryptionService.aes256Decrypt(
                 encryptedInviteAcceptLink,
@@ -222,9 +175,16 @@ export class NotificationEmailWorkspaceDomain {
                 },
             });
 
+            if (!result.MessageId) {
+                return {
+                    message:
+                        'SES not initialized, skipping workspace invite email',
+                };
+            }
+
             return {
                 message: 'Workspace invite (unregistered) email processed',
-                result: { acceptedCount: result.MessageId ? 1 : 0 },
+                result: { acceptedCount: 1 },
             };
         } catch (error: unknown) {
             if (error instanceof HelperDecryptFailedException) {
@@ -248,29 +208,9 @@ export class NotificationEmailWorkspaceDomain {
             workspaceName,
             requesterName,
             encryptedJoinRequestReviewLink,
-        }: INotificationWorkspaceJoinRequestEncryptedPayload,
-        isLastAttempt: boolean
+        }: INotificationWorkspaceJoinRequestEncryptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message:
-                    'SES not initialized, skipping workspace join request email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping workspace join request email',
-            };
-        }
-
+        let messageId: string | null;
         try {
             const joinRequestReviewLink =
                 this.helperEncryptionService.aes256Decrypt(
@@ -280,7 +220,7 @@ export class NotificationEmailWorkspaceDomain {
                     userId
                 );
 
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.workspaceJoinRequest,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -294,23 +234,33 @@ export class NotificationEmailWorkspaceDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join request email',
+            };
+        }
 
         return {
             message: 'Workspace join request email processed',
@@ -327,31 +277,11 @@ export class NotificationEmailWorkspaceDomain {
             userId,
             notificationId,
         }: INotificationEmailSendPayload,
-        { workspaceName }: INotificationWorkspaceJoinAcceptedPayload,
-        isLastAttempt: boolean
+        { workspaceName }: INotificationWorkspaceJoinAcceptedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message:
-                    'SES not initialized, skipping workspace join accepted email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping workspace join accepted email',
-            };
-        }
-
+        let messageId: string | null;
         try {
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.workspaceJoinAccepted,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -363,23 +293,33 @@ export class NotificationEmailWorkspaceDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join accepted email',
+            };
+        }
 
         return {
             message: 'Workspace join accepted email processed',
@@ -399,35 +339,15 @@ export class NotificationEmailWorkspaceDomain {
         {
             workspaceName,
             rejectReasonCode,
-        }: INotificationWorkspaceJoinRejectedPayload,
-        isLastAttempt: boolean
+        }: INotificationWorkspaceJoinRejectedPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            return {
-                message:
-                    'SES not initialized, skipping workspace join rejected email',
-            };
-        }
-
-        const notification = await this.notificationDeliveryDomain.begin({
-            userId,
-            notificationId,
-            channel: EnumNotificationChannel.email,
-        });
-        if (!notification) {
-            return {
-                message:
-                    'Delivery already sent or missing, skipping workspace join rejected email',
-            };
-        }
-
+        let messageId: string | null;
         try {
             const rejectReasonLabel = this.messageService.setMessage(
                 `notification.rejectReason.${rejectReasonCode}`
             );
 
-            await this.awsSESService.send({
+            const sent = await this.awsSESService.send({
                 templateName: EnumNotificationProcess.workspaceJoinRejected,
                 recipients: [email],
                 sender: this.noreplyEmail,
@@ -440,23 +360,33 @@ export class NotificationEmailWorkspaceDomain {
                 ...(cc?.length && { cc }),
                 ...(bcc?.length && { bcc }),
             });
+            messageId = sent.MessageId ?? null;
         } catch (error: unknown) {
-            const failure = await this.handleSendFailure(
-                userId,
-                notificationId,
-                error,
-                isLastAttempt
+            const failure = this.awsSESService.classifyError(error);
+            const failed = await this.notificationDeliveryDomain.fail(
+                {
+                    userId,
+                    notificationId,
+                    channel: EnumNotificationChannel.email,
+                },
+                failure,
+                []
             );
 
-            return failure;
+            return failed;
         }
 
-        await this.notificationRepository.markSent(
+        const isSent = await this.notificationDeliveryDomain.completeEmail(
             userId,
             notificationId,
-            EnumNotificationChannel.email,
-            []
+            messageId
         );
+        if (!isSent) {
+            return {
+                message:
+                    'SES not initialized, skipping workspace join rejected email',
+            };
+        }
 
         return {
             message: 'Workspace join rejected email processed',

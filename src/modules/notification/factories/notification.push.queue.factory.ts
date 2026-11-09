@@ -1,4 +1,3 @@
-import { NotificationPushBackoffType } from '@modules/notification/constants/notification.constant';
 import type {
     RegisterQueueOptions,
     RegisterQueueOptionsFactory,
@@ -28,7 +27,7 @@ export class NotificationPushQueueFactory implements RegisterQueueOptionsFactory
                 attempts,
                 keepLogs,
                 backoff: {
-                    type: NotificationPushBackoffType,
+                    type: 'exponential',
                     delay: backoffDelayInMs,
                 },
                 removeOnComplete: {

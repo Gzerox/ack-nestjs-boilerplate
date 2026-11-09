@@ -165,7 +165,7 @@ Default job options come from `queue.config.ts` (interface `IConfigQueue`). Conn
 | Queue | config key | backoff delay |
 |-------|------------|---------------|
 | `EnumQueue.notificationEmail` | `emailBackoffDelayInMs` | `10000` |
-| `EnumQueue.notificationPush` | `pushBackoffDelayInMs` | `10000` (custom provider-aware strategy) |
+| `EnumQueue.notificationPush` | `pushBackoffDelayInMs` | `5000` |
 | `EnumQueue.notificationSms` | `smsBackoffDelayInMs` | `10000` |
 | `EnumQueue.notification` | `notificationBackoffDelayInMs` | `3000` |
 | `EnumQueue.workspace` | `workspaceBackoffDelayInMs` | `10000` |
@@ -185,7 +185,7 @@ For example, the `notificationEmail` queue:
 }
 ```
 
-Push uses a custom exponential strategy with up to 20% additive jitter, a 60-second base cap and provider retry hints as lower bounds. Other listed delays use exponential backoff. The push worker installs the strategy before starting.
+Every listed delay uses BullMQ exponential backoff.
 
 A single `add()` call overrides any of these options for that job. `keepLogs` retains the BullMQ `job.log` lines the base writes for that retention window.
 

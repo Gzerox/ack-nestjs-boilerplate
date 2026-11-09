@@ -1,14 +1,4 @@
-import {
-    AuthorizationErrorException,
-    EndpointDisabledException,
-    InvalidParameterException,
-    InvalidParameterValueException,
-    InvalidSecurityException,
-    NotFoundException,
-    PublishCommand,
-    SNSClient,
-    ValidationException,
-} from '@aws-sdk/client-sns';
+import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
 import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
 import { Injectable, Logger } from '@nestjs/common';
@@ -71,17 +61,6 @@ export class AwsSNSService implements OnModuleInit {
 
     classifyError(error: unknown): IAwsDeliveryError {
         const classified = classifyAwsDeliveryError(error);
-        if (
-            error instanceof AuthorizationErrorException ||
-            error instanceof InvalidParameterException ||
-            error instanceof InvalidParameterValueException ||
-            error instanceof InvalidSecurityException ||
-            error instanceof NotFoundException ||
-            error instanceof ValidationException ||
-            error instanceof EndpointDisabledException
-        ) {
-            return { ...classified, isRetryable: false };
-        }
 
         return classified;
     }

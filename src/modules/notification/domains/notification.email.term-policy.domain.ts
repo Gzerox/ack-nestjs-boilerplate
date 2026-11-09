@@ -14,7 +14,6 @@ import type {
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { QueueException } from '@queues/exceptions/queue.exception';
 import type { IQueueResponse } from '@queues/interfaces/queue.interface';
 
 /** Renders and sends one chunk of the term-policy publication email and records each delivery. */
@@ -48,8 +47,7 @@ export class NotificationEmailTermPolicyDomain {
 
     private async assertNoFailedDeliveries(
         recipients: INotificationEmailSendPayload[],
-        failed = 0,
-        cause: Error | null = null
+        failed = 0
     ): Promise<void> {
         const states = await this.notificationRepository.findDeliveryStates(
             recipients.map(({ userId, notificationId }) => ({
@@ -66,28 +64,15 @@ export class NotificationEmailTermPolicyDomain {
         ) {
             throw new NotificationDeliveryFailedException({
                 code: 'bulkDeliveryFailed',
-                isRetryable: false,
-                retryAfterInMs: null,
-                cause,
+                cause: null,
             });
         }
     }
 
     async processPublishTermPolicy(
         send: INotificationEmailSendPayload[],
-        { type, version }: INotificationPublishTermPolicyPayload,
-        isLastAttempt: boolean
+        { type, version }: INotificationPublishTermPolicyPayload
     ): Promise<IQueueResponse> {
-        const isInitialized = this.awsSESService.isInitialized();
-        if (!isInitialized) {
-            await this.assertNoFailedDeliveries(send);
-
-            return {
-                message:
-                    'SES not initialized, skipping publish term policy email',
-            };
-        }
-
         const contentPromises = send.map(({ userId, notificationId }) =>
             this.notificationRepository.findForDelivery(
                 userId,
@@ -98,7 +83,6 @@ export class NotificationEmailTermPolicyDomain {
         const contents = await Promise.all(contentPromises);
         const kept = send.filter((_, index) => contents[index] !== null);
         if (kept.length === 0) {
-            await this.assertNoFailedDeliveries(send);
             return {
                 message:
                     'Every delivery already sent or missing, skipping publish term policy email',
@@ -122,41 +106,28 @@ export class NotificationEmailTermPolicyDomain {
             });
         } catch (error: unknown) {
             const failure = this.awsSESService.classifyError(error);
-            const retry = failure.isRetryable && !isLastAttempt;
             const writes = kept.map(({ userId, notificationId }) => {
-                if (retry) {
-                    const write = this.notificationRepository.markRetry(
-                        userId,
-                        notificationId,
-                        EnumNotificationChannel.email,
-                        failure.code,
-                        []
-                    );
-                    return write;
-                }
                 const write = this.notificationRepository.markFailed(
                     userId,
                     notificationId,
                     EnumNotificationChannel.email,
-                    failure.code,
                     []
                 );
                 return write;
             });
             await Promise.all(writes);
-            if (retry) {
-                throw new NotificationDeliveryFailedException(failure);
-            }
-            await this.assertNoFailedDeliveries(
-                send,
-                kept.length,
-                failure.cause
-            );
+
             throw new NotificationDeliveryFailedException(failure);
         }
 
+        if (!result.Status?.length) {
+            return {
+                message:
+                    'SES not initialized, skipping publish term policy email',
+            };
+        }
+
         let sent = 0;
-        let retried = 0;
         let failed = 0;
         const markPromises: Promise<void>[] = [];
         for (const [index, { userId, notificationId }] of kept.entries()) {
@@ -175,40 +146,16 @@ export class NotificationEmailTermPolicyDomain {
                 continue;
             }
 
-            const reason = status;
-            const isRetryable =
-                this.awsSESService.isRetryableBulkStatus(status);
-            if (isRetryable && !isLastAttempt) {
-                retried++;
-                const retryPromise = this.notificationRepository.markRetry(
-                    userId,
-                    notificationId,
-                    EnumNotificationChannel.email,
-                    reason,
-                    []
-                );
-                markPromises.push(retryPromise);
-
-                continue;
-            }
-
             failed++;
             const failedPromise = this.notificationRepository.markFailed(
                 userId,
                 notificationId,
                 EnumNotificationChannel.email,
-                reason,
                 []
             );
             markPromises.push(failedPromise);
         }
         await Promise.all(markPromises);
-
-        if (retried > 0) {
-            throw new QueueException(
-                `${retried} publish term policy recipients need a retry`
-            );
-        }
 
         await this.assertNoFailedDeliveries(send, failed);
 

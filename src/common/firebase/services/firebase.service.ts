@@ -1,14 +1,5 @@
 import type { Messaging } from 'firebase-admin/messaging';
-import {
-    AppErrorCode,
-    FirebaseAppError,
-    FirebaseError,
-} from 'firebase-admin/app';
-import { HelperDateService } from '@common/helper/services/helper.date.service';
-import {
-    FirebaseMaxSendPushBatchSize,
-    FirebaseThrottleRetryDelayInMs,
-} from '@common/firebase/constants/firebase.constant';
+import { FirebaseMaxSendPushBatchSize } from '@common/firebase/constants/firebase.constant';
 import type {
     IFirebaseDeliveryError,
     IFirebasePushFailure,
@@ -43,8 +34,7 @@ export class FirebaseService implements OnModuleInit {
     constructor(
         private readonly configService: ConfigService,
         private readonly helperArrayService: HelperArrayService,
-        private readonly firebaseUtil: FirebaseUtil,
-        private readonly helperDateService: HelperDateService
+        private readonly firebaseUtil: FirebaseUtil
     ) {
         this.projectId = this.configService.get<string | null>(
             'firebase.projectId'
@@ -59,52 +49,13 @@ export class FirebaseService implements OnModuleInit {
         this.privateKey = this.firebaseUtil.normalizePrivateKey(privateKey);
     }
 
-    private readRetryAfter(header: unknown): number | null {
-        if (typeof header !== 'string' || !header.trim()) {
-            return null;
-        }
-        const value = header.trim();
-        const parts = value.split('.');
-        const isDeltaSeconds =
-            parts.length <= 2 && parts.every(part => /^[0-9]+$/.test(part));
-        if (isDeltaSeconds) {
-            const delay = Number(value) * 1000;
-            return Number.isFinite(delay) ? delay : null;
-        }
-        // A numeric-looking invalid value must not be interpreted as a date.
-        if (!/^[A-Za-z]{3},/.test(value)) {
-            return null;
-        }
-        const timestamp = Date.parse(value);
-        const now = this.helperDateService.create();
-        const delay = timestamp - now.getTime();
-        return Number.isFinite(delay) && delay >= 0 ? delay : null;
-    }
-
     classifyError(error: unknown): IFirebaseDeliveryError {
-        let isRetryable = false;
-        let isInvalidToken = false;
-        let isThrottled = false;
-        if (error instanceof FirebaseMessagingError) {
-            isInvalidToken =
-                error.hasCode(MessagingErrorCode.INVALID_REGISTRATION_TOKEN) ||
+        const isInvalidToken =
+            error instanceof FirebaseMessagingError &&
+            (error.hasCode(MessagingErrorCode.INVALID_REGISTRATION_TOKEN) ||
                 error.hasCode(
                     MessagingErrorCode.REGISTRATION_TOKEN_NOT_REGISTERED
-                );
-            isThrottled =
-                error.hasCode(MessagingErrorCode.MESSAGE_RATE_EXCEEDED) ||
-                error.hasCode(MessagingErrorCode.DEVICE_MESSAGE_RATE_EXCEEDED);
-            isRetryable =
-                isThrottled ||
-                error.hasCode(MessagingErrorCode.SERVER_UNAVAILABLE) ||
-                error.hasCode(MessagingErrorCode.INTERNAL_ERROR) ||
-                error.hasCode(MessagingErrorCode.UNKNOWN_ERROR);
-        } else if (error instanceof FirebaseAppError) {
-            isRetryable =
-                error.hasCode(AppErrorCode.NETWORK_ERROR) ||
-                error.hasCode(AppErrorCode.NETWORK_TIMEOUT);
-        }
-
+                ));
         const code =
             typeof error === 'object' &&
             error !== null &&
@@ -112,20 +63,10 @@ export class FirebaseService implements OnModuleInit {
             typeof error.code === 'string'
                 ? error.code
                 : 'unknownError';
-        let retryAfterInMs: number | null = null;
-        if (error instanceof FirebaseError && isRetryable) {
-            const header: unknown = error.httpResponse?.headers['retry-after'];
-            const parsedRetryAfterInMs = this.readRetryAfter(header);
-            retryAfterInMs = parsedRetryAfterInMs;
-        }
 
         return {
             code,
-            isRetryable,
             isInvalidToken,
-            retryAfterInMs:
-                retryAfterInMs ??
-                (isThrottled ? FirebaseThrottleRetryDelayInMs : null),
             cause: error instanceof Error ? error : null,
         };
     }

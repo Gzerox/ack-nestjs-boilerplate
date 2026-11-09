@@ -1,4 +1,3 @@
-import { NotificationRetryUtil } from '@modules/notification/utils/notification.retry.util';
 import { NotificationPushDeliveryDomain } from '@modules/notification/domains/notification.push.delivery.domain';
 import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
 import { AwsModule } from '@common/aws/aws.module';
@@ -41,7 +40,6 @@ import { EnumQueue } from '@queues/enums/queue.enum';
     providers: [
         NotificationDomain,
         NotificationDeliveryDomain,
-        NotificationRetryUtil,
         NotificationPushDeliveryDomain,
         NotificationTemplateAccountDomain,
         NotificationTemplateSecurityDomain,
@@ -68,7 +66,6 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         BullModule,
         NotificationDomain,
         NotificationDeliveryDomain,
-        NotificationRetryUtil,
         NotificationPushDeliveryDomain,
         NotificationTemplateAccountDomain,
         NotificationTemplateSecurityDomain,

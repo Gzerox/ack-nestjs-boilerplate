@@ -19,7 +19,6 @@ describe('NotificationRepository delivery state', () => {
         notificationId: 'notification',
         channel: EnumNotificationChannel.push,
         status: EnumNotificationDeliveryStatus.pending,
-        lastError: null,
         sentAt: null,
         processedAt: null,
         failureTokens: ['invalid-A'],
@@ -61,7 +60,6 @@ describe('NotificationRepository delivery state', () => {
                 notificationId: 'notification-a',
                 channel: EnumNotificationChannel.email,
                 status: EnumNotificationDeliveryStatus.failed,
-                lastError: 'failure',
                 notification: { userId: 'user-a' },
             },
         ] as never);
@@ -71,7 +69,6 @@ describe('NotificationRepository delivery state', () => {
                 notificationId: 'notification-a',
                 channel: EnumNotificationChannel.email,
                 status: EnumNotificationDeliveryStatus.failed,
-                lastError: 'failure',
             },
         ]);
         expect(
@@ -104,7 +101,7 @@ describe('NotificationRepository delivery state', () => {
     });
 
     describe('findForDelivery', () => {
-        it('returns title, body and failureTokens for a non-terminal row owned by the user', async () => {
+        it('returns title, body and failureTokens for a row not sent or skipped owned by the user', async () => {
             databaseService.client.notificationDelivery.findUnique.mockResolvedValue(
                 delivery
             );
@@ -134,7 +131,6 @@ describe('NotificationRepository delivery state', () => {
                         status: {
                             notIn: [
                                 EnumNotificationDeliveryStatus.sent,
-                                EnumNotificationDeliveryStatus.failed,
                                 EnumNotificationDeliveryStatus.skipped,
                             ],
                         },
@@ -158,7 +154,7 @@ describe('NotificationRepository delivery state', () => {
         });
     });
 
-    it('clears stale failure state when a retry succeeds', async () => {
+    it('flips a failed row to sent when a retry succeeds', async () => {
         await repository.markSent(
             'user',
             'notification',
@@ -180,32 +176,8 @@ describe('NotificationRepository delivery state', () => {
                 failureTokens: ['invalid-A'],
                 processedAt: today,
                 sentAt: today,
-                lastError: null,
             },
         });
-    });
-
-    it('retains invalid tokens and reserves processedAt for terminal outcomes during retry', async () => {
-        await repository.markRetry(
-            'user',
-            'notification',
-            EnumNotificationChannel.push,
-            'transient',
-            ['invalid-A']
-        );
-        expect(
-            databaseService.client.notificationDelivery.update
-        ).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: {
-                    status: EnumNotificationDeliveryStatus.pending,
-                    failureTokens: ['invalid-A'],
-                    lastError: 'transient',
-                    processedAt: null,
-                    sentAt: null,
-                },
-            })
-        );
     });
 
     it('marks exhausted delivery failed with no sent timestamp', async () => {
@@ -213,7 +185,6 @@ describe('NotificationRepository delivery state', () => {
             'user',
             'notification',
             EnumNotificationChannel.push,
-            'exhausted',
             ['invalid-A']
         );
         expect(
@@ -223,7 +194,6 @@ describe('NotificationRepository delivery state', () => {
                 data: {
                     status: EnumNotificationDeliveryStatus.failed,
                     failureTokens: ['invalid-A'],
-                    lastError: 'exhausted',
                     processedAt: today,
                     sentAt: null,
                 },
@@ -245,7 +215,6 @@ describe('NotificationRepository delivery state', () => {
                 data: {
                     status: EnumNotificationDeliveryStatus.skipped,
                     failureTokens: ['invalid-A'],
-                    lastError: null,
                     processedAt: today,
                     sentAt: null,
                 },

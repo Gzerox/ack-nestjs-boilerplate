@@ -1,4 +1,3 @@
-import type { BulkEmailStatus } from '@aws-sdk/client-ses';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { HttpStatus } from '@nestjs/common';
@@ -438,213 +437,27 @@ describe('AwsSESService', () => {
     });
 
     describe('classifyError', () => {
-        it('classifies modeled permanent exceptions before retry metadata', async () => {
+        it('returns the error name as code and the error as cause', async () => {
             const sdk = await import('@aws-sdk/client-ses');
             const service = await buildService();
-            const errors = [
-                Object.assign(
-                    new sdk.MessageRejected({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.TemplateDoesNotExistException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.MissingRenderingAttributeException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.MailFromDomainNotVerifiedException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.ConfigurationSetDoesNotExistException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.AccountSendingPausedException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-                Object.assign(
-                    new sdk.ConfigurationSetSendingPausedException({
-                        message: 'invalid',
-                        $metadata: {},
-                    }),
-                    { $retryable: {} }
-                ),
-            ];
-            for (const error of errors) {
-                expect(service.classifyError(error)).toEqual({
-                    code: error.name,
-                    isRetryable: false,
-                    retryAfterInMs: null,
-                    cause: error,
-                });
-            }
+            const error = new sdk.MessageRejected({
+                message: 'invalid',
+                $metadata: {},
+            });
+
+            expect(service.classifyError(error)).toEqual({
+                code: error.name,
+                cause: error,
+            });
         });
 
-        it('recognizes SDK retry metadata and transport failures without retrying unknown local errors', async () => {
-            const sdk = await import('@aws-sdk/client-ses');
-            const service = await buildService();
-            const cases: [unknown, boolean][] = [
-                [
-                    new sdk.SESServiceException({
-                        name: 'ThrottlingException',
-                        message: 'rate',
-                        $fault: 'client',
-                        $metadata: { httpStatusCode: 400 },
-                    }),
-                    true,
-                ],
-                [
-                    new sdk.SESServiceException({
-                        name: 'ServiceFailure',
-                        message: 'server',
-                        $fault: 'server',
-                        $metadata: { httpStatusCode: 503 },
-                    }),
-                    true,
-                ],
-                [
-                    new sdk.SESServiceException({
-                        name: 'ServerFailure',
-                        message: 'server',
-                        $fault: 'server',
-                        $metadata: { httpStatusCode: 501 },
-                    }),
-                    true,
-                ],
-                [
-                    new sdk.SESServiceException({
-                        name: 'RateLimited',
-                        message: 'rate',
-                        $fault: 'client',
-                        $metadata: { httpStatusCode: 429 },
-                    }),
-                    true,
-                ],
-                [
-                    Object.assign(new Error('retry trait'), { $retryable: {} }),
-                    true,
-                ],
-                [
-                    Object.assign(new Error('timeout'), {
-                        name: 'TimeoutError',
-                    }),
-                    true,
-                ],
-                [
-                    Object.assign(new Error('socket'), { code: 'ECONNRESET' }),
-                    true,
-                ],
-                [
-                    new Error('wrapped', {
-                        cause: Object.assign(new Error('socket'), {
-                            code: 'ETIMEDOUT',
-                        }),
-                    }),
-                    true,
-                ],
-                [
-                    Object.assign(new Error('abort'), {
-                        name: 'AbortError',
-                        $retryable: {},
-                        $metadata: { httpStatusCode: 503 },
-                    }),
-                    false,
-                ],
-                [
-                    new sdk.SESServiceException({
-                        name: 'UnlistedAuthorizationFailure',
-                        message: 'denied',
-                        $fault: 'client',
-                        $metadata: { httpStatusCode: 403 },
-                    }),
-                    false,
-                ],
-                [new Error('local'), false],
-                [new Error('malformed cause', { cause: null }), false],
-                [new Error('malformed cause', { cause: 'opaque' }), false],
-                [null, false],
-                ['boom', false],
-                [{ name: 'ThrottlingException' }, false],
-            ];
-            for (const [error, isRetryable] of cases) {
-                expect(service.classifyError(error)).toEqual({
-                    code: error instanceof Error ? error.name : 'unknownError',
-                    isRetryable,
-                    retryAfterInMs: null,
-                    cause: error instanceof Error ? error : null,
-                });
-            }
-        });
-        it('does not retry the SES daily quota but still retries ordinary rate throttling', async () => {
-            const sdk = await import('@aws-sdk/client-ses');
-            const service = await buildService();
-            for (const [message, isRetryable] of [
-                ['Daily message quota exceeded.', false],
-                ['Maximum sending rate exceeded.', true],
-            ] as const) {
-                const error = new sdk.SESServiceException({
-                    name: 'Throttling',
-                    message,
-                    $fault: 'client',
-                    $metadata: { httpStatusCode: 400 },
-                });
-                expect(service.classifyError(error).isRetryable).toBe(
-                    isRetryable
-                );
-            }
-        });
-    });
-
-    describe('isRetryableBulkStatus', () => {
-        it.each(['TransientFailure', 'AccountThrottled', 'Failed'])(
-            'treats the bulk status %s as retryable',
-            async status => {
-                const service = await buildService();
-
-                expect(
-                    service.isRetryableBulkStatus(status as BulkEmailStatus)
-                ).toBe(true);
-            }
-        );
-
-        it.each([
-            'Success',
-            'MessageRejected',
-            'MailFromDomainNotVerified',
-            'ConfigurationSetDoesNotExist',
-            'TemplateDoesNotExist',
-            'AccountSuspended',
-            'AccountDailyQuotaExceeded',
-            'InvalidParameterValue',
-            'InvalidSendingPoolName',
-        ])('treats the bulk status %s as not retryable', async status => {
+        it('returns unknownError for a non-Error', async () => {
             const service = await buildService();
 
-            expect(
-                service.isRetryableBulkStatus(status as BulkEmailStatus)
-            ).toBe(false);
+            expect(service.classifyError('boom')).toEqual({
+                code: 'unknownError',
+                cause: null,
+            });
         });
     });
 });

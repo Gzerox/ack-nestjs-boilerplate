@@ -1,29 +1,20 @@
 import {
-    AccountSendingPausedException,
-    ConfigurationSetDoesNotExistException,
-    ConfigurationSetSendingPausedException,
     CreateTemplateCommand,
     DeleteTemplateCommand,
     GetSendQuotaCommand,
     GetTemplateCommand,
     ListTemplatesCommand,
-    MailFromDomainNotVerifiedException,
-    MessageRejected,
-    MissingRenderingAttributeException,
     SESClient,
     SendBulkTemplatedEmailCommand,
     SendTemplatedEmailCommand,
-    TemplateDoesNotExistException,
     UpdateTemplateCommand,
 } from '@aws-sdk/client-ses';
 import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
 import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
-import { isAwsSESDailyQuotaExceeded } from '@common/aws/utils/aws.ses.util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
-    BulkEmailStatus,
     CreateTemplateCommandInput,
     CreateTemplateCommandOutput,
     DeleteTemplateCommandInput,
@@ -46,7 +37,6 @@ import type {
     IAwsSESTemplate,
 } from '@common/aws/interfaces/aws.ses.interface';
 import { AwsSesTemplateBodyRequiredException } from '@common/aws/exceptions/aws.ses-template-body-required.exception';
-import { AwsSESRetryableBulkStatuses } from '@common/aws/constants/aws.constant';
 
 @Injectable()
 export class AwsSESService implements OnModuleInit {
@@ -95,27 +85,8 @@ export class AwsSESService implements OnModuleInit {
 
     classifyError(error: unknown): IAwsDeliveryError {
         const classified = classifyAwsDeliveryError(error);
-        if (
-            error instanceof MessageRejected ||
-            error instanceof TemplateDoesNotExistException ||
-            error instanceof MissingRenderingAttributeException ||
-            error instanceof MailFromDomainNotVerifiedException ||
-            error instanceof ConfigurationSetDoesNotExistException ||
-            error instanceof AccountSendingPausedException ||
-            error instanceof ConfigurationSetSendingPausedException
-        ) {
-            return { ...classified, isRetryable: false };
-        }
-
-        if (isAwsSESDailyQuotaExceeded(error)) {
-            return { ...classified, isRetryable: false };
-        }
 
         return classified;
-    }
-
-    isRetryableBulkStatus(status: BulkEmailStatus): boolean {
-        return AwsSESRetryableBulkStatuses.includes(status);
     }
 
     async checkConnection(): Promise<boolean> {
@@ -309,7 +280,7 @@ export class AwsSESService implements OnModuleInit {
             return {
                 MessageId: undefined,
                 $metadata: {},
-            } as SendTemplatedEmailCommandOutput;
+            };
         }
 
         const command: SendTemplatedEmailCommand =

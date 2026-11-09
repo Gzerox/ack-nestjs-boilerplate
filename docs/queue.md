@@ -80,7 +80,6 @@ The queue system consists of:
 | `NotificationQueue` | `NotificationDomainModule` |
 | `NotificationEmailQueue` | `NotificationDomainModule` |
 | `NotificationPushQueue` | `NotificationDomainModule` |
-| `NotificationSmsQueue` | `NotificationDomainModule` |
 | `WorkspaceQueue` | `WorkspaceDomainModule` |
 
 A caller in another module injects the exported class rather than the `Queue` itself.
@@ -98,7 +97,6 @@ Currently available queues defined in `src/queues/enums/queue.enum.ts`:
 - `EnumQueue.notification`: General notification processing queue
 - `EnumQueue.notificationEmail`: Email notification processing queue
 - `EnumQueue.notificationPush`: Push notification processing queue
-- `EnumQueue.notificationSms`: Dormant SMS notification processing queue
 - `EnumQueue.workspace`: Workspace background processing queue
 
 Queue priorities defined in `EnumQueuePriority`:
@@ -160,13 +158,12 @@ await this.notificationPushQueue.sendNewDeviceLogin(sendPayload, data);
 
 ### Job Options
 
-Default job options come from `queue.config.ts` (interface `IConfigQueue`). Connection-level defaults on `QueueModule.forRoot()` use `notificationBackoffDelayInMs`; each queue factory overrides backoff for its own queue and sets `keepLogs` from `queue.job.keepLogs` (20). Retention is age-based: every queue shares `attempts: 3` and `keepLogs: 20`, keeps a completed job for `removeOnCompleteAgeInSeconds` (7 days) and a failed one for `removeOnFailAgeInSeconds` (14 days), and they differ in their backoff settings:
+Default job options come from `queue.config.ts` (interface `IConfigQueue`). Connection-level defaults on `QueueModule.forRoot()` use `notificationBackoffDelayInMs`; each queue factory overrides backoff for its own queue and sets `keepLogs` from `queue.job.keepLogs` (20). Retention is age-based: every queue shares `attempts: 3` and `keepLogs: 20`, keeps a completed job for `removeOnCompleteAgeInSeconds` (7 days) and a failed one for `removeOnFailAgeInSeconds` (14 days), and they differ in the exponential backoff `delay`:
 
 | Queue | config key | backoff delay |
 |-------|------------|---------------|
 | `EnumQueue.notificationEmail` | `emailBackoffDelayInMs` | `10000` |
 | `EnumQueue.notificationPush` | `pushBackoffDelayInMs` | `5000` |
-| `EnumQueue.notificationSms` | `smsBackoffDelayInMs` | `10000` |
 | `EnumQueue.notification` | `notificationBackoffDelayInMs` | `3000` |
 | `EnumQueue.workspace` | `workspaceBackoffDelayInMs` | `10000` |
 
@@ -185,8 +182,6 @@ For example, the `notificationEmail` queue:
 }
 ```
 
-Every listed delay uses BullMQ exponential backoff.
-
 A single `add()` call overrides any of these options for that job. `keepLogs` retains the BullMQ `job.log` lines the base writes for that retention window.
 
 ## Creating New Queue
@@ -198,7 +193,6 @@ export enum EnumQueue {
     notification = 'notification',
     notificationEmail = 'notificationEmail',
     notificationPush = 'notificationPush',
-    notificationSms = 'notificationSms',
     workspace = 'workspace',
     yourQueue = 'yourQueue', // New queue
 }
@@ -507,3 +501,7 @@ redis-bullboard:
 [ref-doc-environment]: environment.md
 [ref-doc-notification]: notification.md
 [ref-doc-installation]: installation.md
+
+## SMS notifications
+
+The notification SMS queue processes security alert messages through AWS SNS. No notification kind currently enqueues SMS jobs.

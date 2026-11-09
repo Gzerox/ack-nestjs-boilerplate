@@ -2,11 +2,8 @@ import type { IPaginationQueryCursorParams } from '@common/pagination/interfaces
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 import type {
-    INotificationContent,
     INotificationCreate,
     INotificationCreateEntry,
-    INotificationDeliveryContext,
-    INotificationDeliveryState,
 } from '@modules/notification/interfaces/notification.interface';
 import {
     EnumNotificationChannel,
@@ -33,27 +30,12 @@ export interface INotificationRepository {
     createMany(entries: INotificationCreateEntry[]): Promise<Notification[]>;
     markAsRead(userId: string, notificationId: string): Promise<Notification>;
     markAllAsRead(userId: string): Promise<Prisma.BatchPayload>;
-    findDeliveryStates(
-        contexts: INotificationDeliveryContext[]
-    ): Promise<INotificationDeliveryState[]>;
-    findForDelivery(
+    updateProcessAt(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel
-    ): Promise<INotificationContent | null>;
-    markSent(
-        userId: string,
-        notificationId: string,
-        channel: EnumNotificationChannel,
-        failureTokens: string[]
-    ): Promise<void>;
-    markFailed(
-        userId: string,
-        notificationId: string,
-        channel: EnumNotificationChannel,
-        failureTokens: string[]
-    ): Promise<void>;
-    markSkipped(
+    ): Promise<{ title: string; body: string } | null>;
+    updateSentAt(
         userId: string,
         notificationId: string,
         channel: EnumNotificationChannel,

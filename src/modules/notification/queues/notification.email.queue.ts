@@ -493,8 +493,7 @@ export class NotificationEmailQueue {
 
     async sendPublishTermPolicy(
         sendPayload: INotificationEmailSendPayload[],
-        publishTermPolicy: INotificationPublishTermPolicyPayload,
-        chunkIndex: number
+        publishTermPolicy: INotificationPublishTermPolicyPayload
     ): Promise<void> {
         const payload: INotificationEmailBulkQueuePayload<INotificationPublishTermPolicyPayload> =
             {
@@ -508,7 +507,7 @@ export class NotificationEmailQueue {
             {
                 priority: EnumQueuePriority.medium,
                 deduplication: {
-                    id: `${EnumNotificationProcess.publishTermPolicy}-${publishTermPolicy.type}-${publishTermPolicy.version}-${chunkIndex}`,
+                    id: `${EnumNotificationProcess.publishTermPolicy}-${publishTermPolicy.type}-${publishTermPolicy.version}`,
                     ttl: this.dedupTtlInMs,
                 },
             }

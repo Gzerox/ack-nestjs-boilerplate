@@ -39,7 +39,6 @@ export interface IConfigAws {
             arn: string | null;
         };
         region: string | null;
-        maxAttempts: number;
     };
     sns: {
         iam: {
@@ -106,7 +105,6 @@ export default registerAs('aws', (): IConfigAws => ({
             arn: process.env.AWS_SES_IAM_ARN ?? null,
         },
         region: process.env.AWS_SES_REGION ?? null,
-        maxAttempts: 1,
     },
     sns: {
         iam: {

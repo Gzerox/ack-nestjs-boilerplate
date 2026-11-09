@@ -1,4 +1,14 @@
 /**
+ * FCM error codes marking a token as invalid/unregistered; such tokens should be purged.
+ * @public
+ */
+export const FirebaseInvalidTokenCodes = [
+    'messaging/invalid-registration-token',
+    'messaging/registration-token-not-registered',
+    'messaging/invalid-argument',
+];
+
+/**
  * FCM hard limit of tokens per `sendEachForMulticast` call.
  * @public
  */

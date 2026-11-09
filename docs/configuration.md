@@ -334,7 +334,6 @@ ses: {
     arn: string | null;           // AWS IAM Role ARN for SES operations
   };
   region: string | null;          // AWS region for SES
-  maxAttempts: number;            // SES SDK attempts per send (default: 1; BullMQ owns retries)
 }
 ```
 
@@ -806,10 +805,6 @@ keyPattern: string              // Cache key pattern for API response data ('Api
 filenameExportPattern: string   // e.g. 'export-{timestamp}.{extension}'
 ```
 
-### SNS Configuration
-
-`aws.sns` in `src/configs/aws.config.ts` contains `iam.key`, `iam.secret`, `region`, optional `senderId`, and `maxAttempts` (SNS SDK attempts per send, default `1`). The first three must be set to initialize SNS. Existing notification kinds do not enqueue SMS; credentials alone do not enable it.
-
 ### Firebase Configuration
 
 **File**: `src/configs/firebase.config.ts`  
@@ -853,7 +848,6 @@ job: {
   removeOnFailAgeInSeconds: number;    // How long a failed job is kept (`ms('14d') / 1000`)
   emailBackoffDelayInMs: number;       // Email queue exponential backoff delay (ms('10s'))
   pushBackoffDelayInMs: number;        // Push queue exponential backoff delay (ms('5s'))
-  smsBackoffDelayInMs: number;         // SMS queue exponential backoff delay (ms('10s'))
   notificationBackoffDelayInMs: number; // Notification queue exponential backoff delay (ms('3s'))
   workspaceBackoffDelayInMs: number;   // Workspace queue exponential backoff delay (ms('10s'))
 }
@@ -908,6 +902,7 @@ dedupTtlInMs: number            // BullMQ deduplication TTL for a notification j
 **`push`** - Push cleanup settings
 ```typescript
 push: {
+  cleanupDedupTtlInMs: number;       // Deduplication TTL for the cleanup job (ms('1h'))
   cleanupStaleTokensCron: string;    // Cron pattern for the stale-token cleanup (default: '0 0 * * *')
   staleTokenThresholdInMs: number;   // Device inactivity after which its push token is cleared (ms('30d'))
 }
@@ -1071,3 +1066,4 @@ cache: {
 [ref-doc-environment]: environment.md
 [ref-doc-database]: database.md
 [ref-doc-cache]: cache.md
+SNS configuration uses `aws.sns.iam.key`, `aws.sns.iam.secret`, `aws.sns.region`, `aws.sns.senderId`, and `aws.sns.maxAttempts`. The SMS queue uses `queue.job.smsBackoffDelayInMs`.

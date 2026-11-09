@@ -83,8 +83,6 @@ The `DeviceOwnership` model represents the relationship between a `User` and a `
 
 `activeSessionCount` in a response is computed per read by a `_count` on `sessions`, counting only sessions that are neither revoked nor expired.
 
-A user can have several active device ownerships, each with its own notification token. Push notifications target the available tokens; see [Notification Documentation][ref-doc-notification] for the partial-acceptance and retry policy.
-
 ## Device-Session Relationship
 
 Each `Session` record has a required `deviceOwnershipId` field pointing to a `DeviceOwnership`. One device-user pair can have **only one active session** at a time.

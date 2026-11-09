@@ -83,8 +83,7 @@ export class DeviceDomain {
             );
         const { count } = await this.deviceRepository.clearTokens(
             deviceIds,
-            userId,
-            tokens
+            userId
         );
 
         return count;

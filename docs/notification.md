@@ -4,15 +4,15 @@ Notification lives in `src/modules/notification`.
 
 ## Overview
 
-Four BullMQ queues: orchestration, email, push, and a dormant SMS capability.
+Three BullMQ queues: orchestration, email, and push.
 
 Key features:
 - **Multi-Channel Delivery**: `email`, `push`, `inApp`, and `silent` channels
-- **Queue-Based Processing**: BullMQ queues for orchestration, email, push, and SMS, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
+- **Queue-Based Processing**: Three separate BullMQ queues for orchestration, email, and push, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
 - **User Preference Control**: Per type+channel opt-in/out settings for each user
 - **AWS SES Email Templates**: Handlebars `.hbs` templates synced to SES; see [Email Documentation][ref-doc-email]
 - **Firebase FCM Push**: Multicast delivery with batch chunking, rate limiting, and stale token cleanup
-- **Delivery Tracking**: `silent` and `inApp` are pre-marked at creation; email and push processors record delivery outcomes
+- **Delivery Tracking**: `silent` and `inApp` deliveries are pre-marked at creation time, `push` deliveries record `processedAt`, `sentAt`, and `failureTokens` as the processor runs, and `email` deliveries carry no timestamps at all
 
 ## Related Documents
 
@@ -69,8 +69,8 @@ Each notification record carries one or more `NotificationDelivery` rows, one pe
 
 | Channel | Delivery | `processedAt` / `sentAt` |
 |---------|----------|--------------------------|
-| `email` | Via AWS SES (queued) | `processedAt` at terminal outcome; `sentAt` on provider acceptance |
-| `push` | Via Firebase FCM (queued) | `processedAt` at terminal outcome; `sentAt` on provider acceptance |
+| `email` | Via AWS SES (queued) | Never set. The email channel domains send through SES and do not touch the delivery record |
+| `push` | Via Firebase FCM (queued) | Set by the push channel domains: `processedAt` before the send, `sentAt` after it |
 | `inApp` | In-application UI | Pre-filled at notification creation time |
 | `silent` | No external delivery; record-only | Pre-filled at notification creation time |
 
@@ -87,13 +87,12 @@ A notification can target multiple channels simultaneously. Which channels an ev
 
 ## Queue Architecture
 
-The notification module uses four dedicated BullMQ queues, each with its own processor:
+The notification module uses **three dedicated BullMQ queues**, each with its own processor:
 
 ```
 NotificationQueue       → EnumQueue.notification       → NotificationProcessor
 NotificationEmailQueue  → EnumQueue.notificationEmail  → NotificationEmailProcessor
 NotificationPushQueue   → EnumQueue.notificationPush   → NotificationPushProcessor
-NotificationSmsQueue    → EnumQueue.notificationSms    → NotificationSmsProcessor
 ```
 
 ### Orchestration Queue
@@ -113,9 +112,9 @@ That domain then:
 
 1. Fetches the target user, and for a push-capable event the user's device tokens alongside it. A user that does not resolve as active ends the job with a skip message rather than an error, so the job is not retried.
 2. Mints the `notificationId` up front with `DatabaseUtil.createId()`.
-3. Creates the `Notification` and its delivery rows before dispatching channel jobs. The domain then starts eligible email and push jobs independently using `Promise.allSettled`; a dispatch failure does not prevent the other dispatch.
+3. Creates the `Notification` record (with its delivery rows) **and** dispatches the `notificationEmail` / `notificationPush` jobs in one `Promise.allSettled` batch, all carrying that pre-minted id.
 
-A push job is only added when the user has device tokens. `forgotPassword` and `userAcceptTermPolicy` have declared push deliveries but no supported push process, so those rows are explicitly skipped. Existing producers do not enqueue SMS jobs.
+Step 3 runs both sides in one batch: the id exists before either side runs, so a queued delivery job references a record the same batch is writing. `allSettled` also means a failed dispatch does not undo the notification record, and one channel failing does not stop the other. A push job is only added when the user has at least one device token.
 
 Jobs reach this queue through `NotificationQueue`, which deduplicates on the process name plus whatever identifies that event: the target user for the account and security events, the workspace and the target user for a join request, the invite `reference` for an invite, and the policy type and version for a publication. The TTL is `notification.dedupTtlInMs` (1 second), so two different events for the same user never collapse into one.
 
@@ -138,11 +137,10 @@ Jobs reach this queue through `NotificationQueue`, which deduplicates on the pro
 | `publishTermPolicy` | New term policy published (bulk: active users whose `transactional` + `email` setting is on, chunked by `email.batchSize`) |
 | `userAcceptTermPolicy` | User accepted a term policy |
 | `workspaceInvite` | Workspace invite sent to a registered user |
+| `workspaceInviteUnregistered` | Workspace invite sent to an address with no account |
 | `workspaceJoinRequest` | Workspace join request submitted |
 | `workspaceJoinAccepted` | Workspace join request accepted |
 | `workspaceJoinRejected` | Workspace join request rejected |
-
-`workspaceInviteUnregistered` bypasses orchestration and goes directly to the email queue.
 
 ### Email Queue
 
@@ -166,7 +164,7 @@ Jobs reach this queue through `NotificationEmailQueue`, deduplicated through Bul
 | target user | account and security events |
 | invite `reference` | the two invite emails |
 | workspace and target user | a join request |
-| policy type, version, and chunk index | a publication |
+| policy type and version | a publication |
 
 Most templates use `notification.dedupTtlInMs` (1 second). A template carrying a time-limited link uses the config value matching that link's expiry or resend window instead:
 
@@ -217,11 +215,9 @@ A job payload sits in Redis until a worker consumes it, so the queue classes sea
 | `encryptedInviteAcceptLink` | `inviteAcceptLink` | `workspaceInviteUnregistered` (email queue only) | invite `reference` |
 | `encryptedJoinRequestReviewLink` | `joinRequestReviewLink` | `workspaceJoinRequest` | reviewer `userId` |
 
-An invitation for an unregistered recipient has no user or delivery row. Its outcome and attempt history exist only in the email queue; every SES send error fails the job and BullMQ retries it within the queue attempts. If SES is disabled, `AwsSESService.send()` returns no `MessageId` and the job ends with a skip message. `aws.ses.maxAttempts` defaults to `1`, so the SES client makes one request per BullMQ attempt and BullMQ owns every retry; raising it adds SDK-level retries inside each BullMQ attempt.
-
 `NotificationQueue` seals the fields of the orchestration jobs; the orchestration domains pass the sealed value through to the email job unopened. `NotificationEmailQueue` seals the invite link of `workspaceInviteUnregistered`, which skips the orchestration queue. Push jobs carry no secret: `NotificationPushQueue` builds each push payload from an explicit field list (`INotification*PushPayload`) that leaves out passwords and links.
 
-A payload that fails to open (a rotated key, a tampered value, the wrong recipient) raises `HelperDecryptFailedException` (`52200`). Inside `handle`, `NotificationEmailProcessor` maps that to a BullMQ `UnrecoverableError`, so the job fails at once without retries, and `QueueProcessorBase.onFailed` reports it to Sentry. Every other delivery failure rethrows as is and uses the remaining queue attempts.
+A payload that fails to open (a rotated key, a tampered value, the wrong recipient) raises `HelperDecryptFailedException` (`52200`). Inside `handle`, `NotificationEmailProcessor` maps that to a BullMQ `UnrecoverableError`, so the job fails at once without retries, and `QueueProcessorBase.onFailed` reports it to Sentry. Every other email failure is rethrown as it is and retried.
 
 ## Push Notifications
 
@@ -229,28 +225,14 @@ A payload that fails to open (a rotated key, a tampered value, the wrong recipie
 
 Push tokens (FCM device tokens) are part of the **Device module** (`src/modules/device`), not stored in the notification module directly. The orchestration-side domains read them through `DeviceDomain.getOwnershipsWithNotificationToken()`, which calls `DeviceOwnershipRepository.findTokensByUserId()`, and place them on the push job payload as `notificationTokens`; the push channel domain sends to the tokens it receives on the job. The lookup returns only device ownerships that are not revoked and whose device holds a token, so a revoked ownership never receives a push.
 
-One user can own multiple active devices, each with its own registration token; the push job targets those installations. FCM acceptance means the provider accepted a message for a token, not that the device displayed it or the user read it.
-
-### Push outcome policy
-
-| Attempt outcome | Delivery behavior |
-|---|---|
-| At least one token accepted, even with other failures | Mark sent and do not retry this notification. Return only counts and error codes. |
-| No acceptance, with at least one non-invalid failure | Mark failed and throw; BullMQ retries the job, which re-sends to the same tokens minus known-invalid ones. A later success marks the row sent. |
-| Every target invalid or no eligible tokens | Mark skipped; invalid tokens are scheduled for cleanup. |
-
-The any-acceptance threshold is an application choice to avoid resending to devices that already accepted the notification. FCM does not require this policy. `failureTokens` contains invalid tokens only, not transient or generic payload failures.
-
 For push token registration, revocation, and session-linking details, see the [Device documentation][ref-doc-device].
 
 ### Token Cleanup Strategy
 
-After each multicast attempt, `FirebaseService.sendMulticast()` returns `failureTokens` for unambiguous invalid-registration or unregistered-token errors. A generic `invalid-argument` payload error does not identify a token for deletion. Invalid tokens are:
+After each multicast send, `FirebaseService.sendMulticast()` returns `failureTokens`; tokens that FCM identified as invalid (codes in `FirebaseInvalidTokenCodes`). These are:
 
-1. Retained cumulatively in the delivery's `failureTokens`, across attempts and outcomes.
-2. Queued through `NotificationPushQueue.sendCleanupTokens()` without deduplication, so a later batch containing newly invalid tokens cannot be suppressed. `NotificationPushMaintenanceDomain.processCleanupTokens()` calls `DeviceDomain.cleanupNotificationTokens()`, which resolves the user's devices through `DeviceOwnershipRepository.findDeviceIdsByUserAndTokens()`. `DeviceRepository.clearTokens()` clears `notificationToken` and `notificationProvider` only while the current token remains in the rejected set; a replacement token is preserved if the device rotates it before cleanup.
-
-Cleanup follows the delivery-state write. Cleanup failure cannot turn a provider-accepted send into a resend.
+1. Stored on the delivery record via `NotificationRepository.updateSentAt()` (`failureTokens` field)
+2. Queued as a `cleanupTokens` job in `EnumQueue.notificationPush` through `NotificationPushQueue.sendCleanupTokens()`, deduplicated per user for `notification.push.cleanupDedupTtlInMs` (1 hour), and handled by `NotificationPushMaintenanceDomain.processCleanupTokens()`. It calls `DeviceDomain.cleanupNotificationTokens()`, which resolves the user's devices holding those tokens through `DeviceOwnershipRepository.findDeviceIdsByUserAndTokens()` and clears `notificationToken` and `notificationProvider` on them through `DeviceRepository.clearTokens()`
 
 Stale tokens, those whose device has no `lastActiveAt` activity within `notification.push.staleTokenThresholdInMs` (30 days), are pruned daily by the recurring `cleanupStaleTokens` job registered at startup. `NotificationPushMaintenanceDomain` reads that config value and passes it to `DeviceDomain.cleanupStaleNotificationTokens(thresholdInMs)`, which calls `DeviceRepository.clearStaleTokens(thresholdInMs)`. That write clears `notificationToken` and `notificationProvider` on every device past the threshold.
 
@@ -260,7 +242,7 @@ graph TD
     B -->|Yes| C[Store failureTokens <br/> on delivery record]
     C --> D[Enqueue cleanupTokens job]
     D --> E[DeviceRepository clears <br/> invalid tokens]
-    B -->|No| F[Record delivery outcome]
+    B -->|No| F[Record sentAt only]
     
     G[Module Init] --> H[Register daily <br/> cleanupStaleTokens job]
     H --> I[Job runs at midnight; removes <br/> tokens inactive >= 30 days]
@@ -281,8 +263,6 @@ The push processor is configured with a BullMQ rate limiter:
 
 `FirebaseService.sendMulticast()` also enforces a per-call chunk size of at most `FirebaseMaxSendPushBatchSize` (500) tokens per FCM `sendEachForMulticast` call, with chunks processed via `Promise.allSettled`. A chunk size outside 1 to 500 raises `FirebaseChunkSizeInvalidException` (500, `52300`).
 
-Push retries use BullMQ exponential backoff from `queue.job.pushBackoffDelayInMs`. The queue allows three attempts.
-
 For Firebase configuration and no-op mode (disabled when credentials are missing), see [Third-Party Integration; Firebase][ref-doc-third-party].
 
 ## Email Notifications
@@ -293,34 +273,46 @@ The email queue, rate limits, dedup, and sealed payload fields stay in this docu
 
 ## Delivery Tracking
 
-Each `Notification` has one `NotificationDelivery` row per channel. Immediate `silent` and `inApp` rows are created as sent with both timestamps set. Email and push rows begin pending.
+Each `Notification` record has related `NotificationDelivery` rows in `NotificationDeliveries` (one per channel, via `notificationId`). Delivery fields:
 
-| Field | Meaning |
-|---|---|
-| `status` | `pending` (including a send not performed because the provider is not configured), `sent`, `failed`, or `skipped` (a push case with no usable target) |
-| `processedAt` | Time of the latest sent, failed, or skipped outcome |
-| `sentAt` | Time the provider accepted the send; null on failure or skip |
-| `failureTokens` | Cumulative invalid push tokens only |
+| Field | Description |
+|-------|-------------|
+| `processedAt` | When the processor started handling the delivery. Written for `push`, pre-filled for `silent` / `inApp`, never written for `email` |
+| `sentAt` | When the message was handed to FCM. Same coverage as `processedAt` |
+| `failureTokens` | FCM tokens that were invalid (push channel only) |
+
+### Immediate channels (`silent`, `inApp`)
+
+`silent` and `inApp` deliveries have `processedAt` and `sentAt` both pre-filled with the current timestamp **at notification creation time** inside `NotificationRepository`. No queue job is dispatched for them.
+
+### Async channels (`email`, `push`)
+
+`email` and `push` deliveries are created with no timestamps and go through the queue.
+
+**Only the push channel writes them back.** The email channel domains send through SES and never read or update the delivery record, so an `email` delivery row keeps `processedAt` and `sentAt` null for its whole life. A null `sentAt` on an `email` row says nothing about delivery.
+
+The push lifecycle:
 
 ```mermaid
-flowchart TD
-    A[Pending delivery] --> P{Provider ready?}
-    P -->|No| G[Stop, row stays pending]
-    P -->|Yes| B[Read delivery row]
-    B -->|Sent, skipped, or missing| G2[Stop without sending]
-    B -->|Pending or failed| H{Eligible push tokens?}
-    H -->|None| F[Skipped]
-    H -->|Yes, or email| C{Provider outcome}
-    C -->|Accepted| D[Sent]
-    C -->|Every push target invalid| F
-    C -->|Send error| E[Failed]
-    E -->|Queue attempts remain| A
+sequenceDiagram
+    participant Q as Queue
+    participant P as Push channel service
+    participant DB as Database
+    participant FCM as Firebase
+
+    Q->>P: Job dequeued
+    P->>P: Skip when Firebase is not initialized
+    P->>DB: updateProcessAt (processedAt = now)
+    DB-->>P: Delivery row, or null
+    P->>P: Skip when the delivery row is not found
+    P->>FCM: sendMulticast
+    FCM-->>P: result with failureTokens
+    P->>DB: updateSentAt (sentAt = now, failureTokens)
 ```
 
-A push or SMS job checks its provider first. When the provider is not ready (SNS or Firebase disabled), the job ends without reading or writing the delivery row, so the row stays `pending`. A ready provider is followed by a read of the row through `NotificationRepository.findForDelivery()`, which returns a row that is not sent or skipped, so a failed row is read again by a queue retry; a sent, skipped, or missing row ends the job without a send. `skipped` marks recipient-side cases: no eligible push tokens, every push target invalid, or a declared channel with no supported process.
+Both skips return a message rather than throwing, so a push job on a deployment with Firebase disabled completes instead of being retried.
 
-An email job does not read the row first. `AwsSESService.send()` returns no `MessageId` when SES is disabled; `NotificationDeliveryDomain.completeEmail()` then writes nothing, the row stays `pending`, and the job ends with a skip message; a returned `MessageId` marks the row `sent`. Every send error marks the row failed through `NotificationDeliveryDomain.fail()` and throws `NotificationDeliveryFailedException`; BullMQ retries the job until the queue attempts are spent, and the final failure is reported to Sentry. A retry that succeeds marks the row sent. For bulk policy emails, recipients already sent are filtered out through `findForDelivery()`; each remaining recipient is marked from its own bulk status and any non-success status marks it failed. A failed recipient makes the job fail, and the next attempt re-sends only rows not yet sent. A bulk send that returns no `Status` entries (SES not initialized) writes nothing, so the remaining recipients stay `pending`.
-
+The email lifecycle is only: job dequeued, sealed fields opened, `AwsSESService.send()` or `sendBulk()`, done. A send failure is logged and rethrown, so the job retries under the queue's own retry policy; a field that fails to open ends the job without retries (see [Payload Encryption](#payload-encryption)).
 
 ## User Notification Settings
 
@@ -371,3 +363,7 @@ Special thanks to [ak2g][ref-contributor-ak2g] for contributing to the Notificat
 [ref-doc-environment]: environment.md
 
 [ref-contributor-ak2g]: https://github.com/ak2g
+
+## SMS security alerts
+
+The SMS queue sends security alert messages through AWS SNS. The SNS provider uses the configured credentials, region, and optional sender ID. The queue accepts security alert jobs, but no notification kind currently enqueues them. An unconfigured provider or an empty recipient list results in no send. Provider errors propagate to BullMQ for retries. A retry can repeat sends that succeeded before another recipient failed.

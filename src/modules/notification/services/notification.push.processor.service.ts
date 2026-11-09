@@ -1,6 +1,5 @@
 import { EnumNotificationPushProcess } from '@modules/notification/enums/notification.enum';
 import type {
-    INotificationDeliverySummary,
     INotificationNewDeviceLoginPayload,
     INotificationPushCleanupTokenQueuePayload,
     INotificationPushQueuePayload,
@@ -28,157 +27,118 @@ export class NotificationPushProcessorService implements OnModuleInit {
         private readonly notificationPushQueue: NotificationPushQueue
     ) {}
 
-    private finish(summary: INotificationDeliverySummary): IQueueResponse {
-        return {
-            message: 'Push delivery completed',
-            result: summary,
-        };
-    }
-
     async onModuleInit(): Promise<void> {
         await this.notificationPushQueue.sendCleanupStaleTokens();
     }
 
-    async processNewDeviceLogin(
-        job: Job<
-            INotificationPushQueuePayload<INotificationNewDeviceLoginPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
-
-        const summary =
-            await this.notificationPushSecurityDomain.processNewDeviceLogin(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processNewDeviceLogin({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationNewDeviceLoginPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushSecurityDomain.processNewDeviceLogin(
+            send,
+            data!
+        );
     }
 
-    async processResetTwoFactorByAdmin(
-        job: Job<
-            INotificationPushQueuePayload,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send } = job.data;
-
-        const summary =
-            await this.notificationPushSecurityDomain.processResetTwoFactorByAdmin(
-                send
-            );
-        const response = this.finish(summary);
-        return response;
+    async processResetTwoFactorByAdmin({
+        data: { send },
+    }: Job<
+        INotificationPushQueuePayload,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushSecurityDomain.processResetTwoFactorByAdmin(
+            send
+        );
     }
 
-    async processTemporaryPasswordByAdmin(
-        job: Job<
-            INotificationPushQueuePayload<INotificationTemporaryPasswordPushPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
-
-        const summary =
-            await this.notificationPushSecurityDomain.processTemporaryPasswordByAdmin(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processTemporaryPasswordByAdmin({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationTemporaryPasswordPushPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushSecurityDomain.processTemporaryPasswordByAdmin(
+            send,
+            data!
+        );
     }
 
-    async processResetPassword(
-        job: Job<
-            INotificationPushQueuePayload,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send } = job.data;
-
-        const summary =
-            await this.notificationPushSecurityDomain.processResetPassword(
-                send
-            );
-        const response = this.finish(summary);
-        return response;
+    async processResetPassword({
+        data: { send },
+    }: Job<
+        INotificationPushQueuePayload,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushSecurityDomain.processResetPassword(send);
     }
 
-    async processWorkspaceInvite(
-        job: Job<
-            INotificationPushQueuePayload<INotificationWorkspaceInvitePushPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
-
-        const summary =
-            await this.notificationPushWorkspaceDomain.processWorkspaceInvite(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processForgotPassword({
+        data: { send },
+    }: Job<
+        INotificationPushQueuePayload,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushSecurityDomain.processForgotPassword(send);
     }
 
-    async processWorkspaceJoinRequest(
-        job: Job<
-            INotificationPushQueuePayload<INotificationWorkspaceJoinRequestPushPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
-
-        const summary =
-            await this.notificationPushWorkspaceDomain.processWorkspaceJoinRequest(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processWorkspaceInvite({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationWorkspaceInvitePushPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushWorkspaceDomain.processWorkspaceInvite(
+            send,
+            data!
+        );
     }
 
-    async processWorkspaceJoinAccepted(
-        job: Job<
-            INotificationPushQueuePayload<INotificationWorkspaceJoinAcceptedPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
-
-        const summary =
-            await this.notificationPushWorkspaceDomain.processWorkspaceJoinAccepted(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processWorkspaceJoinRequest({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationWorkspaceJoinRequestPushPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushWorkspaceDomain.processWorkspaceJoinRequest(
+            send,
+            data!
+        );
     }
 
-    async processWorkspaceJoinRejected(
-        job: Job<
-            INotificationPushQueuePayload<INotificationWorkspaceJoinRejectedPayload>,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >
-    ): Promise<IQueueResponse> {
-        const { send, data } = job.data;
+    async processWorkspaceJoinAccepted({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationWorkspaceJoinAcceptedPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushWorkspaceDomain.processWorkspaceJoinAccepted(
+            send,
+            data!
+        );
+    }
 
-        const summary =
-            await this.notificationPushWorkspaceDomain.processWorkspaceJoinRejected(
-                send,
-                data!
-            );
-        const response = this.finish(summary);
-        return response;
+    async processWorkspaceJoinRejected({
+        data: { send, data },
+    }: Job<
+        INotificationPushQueuePayload<INotificationWorkspaceJoinRejectedPayload>,
+        IQueueResponse,
+        EnumNotificationPushProcess
+    >): Promise<IQueueResponse> {
+        return this.notificationPushWorkspaceDomain.processWorkspaceJoinRejected(
+            send,
+            data!
+        );
     }
 
     async processCleanupTokens({
@@ -190,17 +150,13 @@ export class NotificationPushProcessorService implements OnModuleInit {
         IQueueResponse,
         EnumNotificationPushProcess
     >): Promise<IQueueResponse> {
-        const response =
-            await this.notificationPushMaintenanceDomain.processCleanupTokens(
-                userId,
-                failureTokens
-            );
-        return response;
+        return this.notificationPushMaintenanceDomain.processCleanupTokens(
+            userId,
+            failureTokens
+        );
     }
 
     async processCleanupStaleTokens(): Promise<IQueueResponse> {
-        const response =
-            await this.notificationPushMaintenanceDomain.processCleanupStaleTokens();
-        return response;
+        return this.notificationPushMaintenanceDomain.processCleanupStaleTokens();
     }
 }

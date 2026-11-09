@@ -8,7 +8,6 @@ import type { Notification, User } from '@generated/prisma-client/client';
 import {
     EnumDeviceNotificationProvider,
     EnumDevicePlatform,
-    EnumNotificationChannel,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumUserGender,
@@ -19,7 +18,6 @@ import {
     EnumUserStatus,
 } from '@generated/prisma-client/client';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
-import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import type { IDeviceOwnershipWithDevice } from '@modules/device/interfaces/device.interface';
 import { NotificationSecurityDomain } from '@modules/notification/domains/notification.security.domain';
 import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
@@ -184,34 +182,7 @@ describe('NotificationSecurityDomain', () => {
             expect(notificationRepository.create).not.toHaveBeenCalled();
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            helperDateService.createFromIso.mockImplementation(
-                (iso: string) => new Date(iso)
-            );
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processTemporaryPasswordByAdmin(
-                    'user-id',
-                    'admin-id',
-                    data
-                )
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendTemporaryPasswordByAdmin
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendTemporaryPasswordByAdmin
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -233,12 +204,6 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendTemporaryPasswordByAdmin
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
         it('writes the notification and enqueues email and push when a device has a token', async () => {
@@ -296,11 +261,6 @@ describe('NotificationSecurityDomain', () => {
                     passwordExpiredAt: data.passwordExpiredAt,
                 }
             );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push
-            );
             expect(result).toMatchObject({
                 message: 'Temporary password by admin notification processed',
             });
@@ -317,20 +277,6 @@ describe('NotificationSecurityDomain', () => {
                 message:
                     'User not found, skipping change password notification',
             });
-        });
-
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processChangePassword('user-id')
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendChangePassword
-            ).not.toHaveBeenCalled();
         });
 
         it('writes the notification and enqueues the email', async () => {
@@ -385,44 +331,6 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processForgotPassword('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendForgotPassword
-            ).not.toHaveBeenCalled();
-        });
-
-        it('keeps the original forgot-password channels and skips push without a handler', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            notificationRepository.create.mockResolvedValue(notification);
-            notificationEmailQueue.sendForgotPassword.mockResolvedValue(
-                undefined
-            );
-
-            await domain.processForgotPassword('user-id', data);
-
-            expect(
-                NotificationKindContract[EnumNotificationKind.forgotPassword]
-                    .pendingChannels
-            ).toEqual([
-                EnumNotificationChannel.email,
-                EnumNotificationChannel.push,
-            ]);
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
-        });
-
         it('writes the notification and enqueues the email', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             notificationRepository.create.mockResolvedValue(notification);
@@ -472,27 +380,7 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processResetPassword('user-id')
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendResetPassword
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendResetPassword
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -507,15 +395,9 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendResetPassword
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -538,11 +420,6 @@ describe('NotificationSecurityDomain', () => {
                 notificationTokens: ['push-token'],
                 username: user.username,
             });
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push
-            );
             expect(result).toMatchObject({
                 message: 'Reset password notification processed',
             });
@@ -567,27 +444,7 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processResetTwoFactorByAdmin('user-id', 'admin-id')
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendResetTwoFactorByAdmin
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendResetTwoFactorByAdmin
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -602,15 +459,9 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendResetTwoFactorByAdmin
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -645,11 +496,6 @@ describe('NotificationSecurityDomain', () => {
                 notificationTokens: ['push-token'],
                 username: user.username,
             });
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push
-            );
             expect(result).toMatchObject({
                 message: 'Reset two factor by admin notification processed',
             });
@@ -699,30 +545,7 @@ describe('NotificationSecurityDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            requestContextService.resolveDevice.mockReturnValue('Chrome');
-            requestContextService.resolveCity.mockReturnValue('SF');
-            helperDateService.createFromIso.mockReturnValue(new Date());
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processNewDeviceLogin('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendNewDeviceLogin
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendNewDeviceLogin
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -740,12 +563,6 @@ describe('NotificationSecurityDomain', () => {
             expect(
                 notificationPushQueue.sendNewDeviceLogin
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
         it('resolves device and city, writes the notification, and enqueues email and push', async () => {
@@ -813,11 +630,6 @@ describe('NotificationSecurityDomain', () => {
                     username: user.username,
                 },
                 data
-            );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push
             );
             expect(result).toMatchObject({
                 message: 'New device login notification processed',

@@ -1,5 +1,3 @@
-import { NotificationPushDeliveryDomain } from '@modules/notification/domains/notification.push.delivery.domain';
-import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
 import { AwsModule } from '@common/aws/aws.module';
 import { DeviceDomainModule } from '@modules/device/device.domain.module';
 import { NotificationRepositoryModule } from '@modules/notification/notification.repository.module';
@@ -39,8 +37,6 @@ import { EnumQueue } from '@queues/enums/queue.enum';
     controllers: [],
     providers: [
         NotificationDomain,
-        NotificationDeliveryDomain,
-        NotificationPushDeliveryDomain,
         NotificationTemplateAccountDomain,
         NotificationTemplateSecurityDomain,
         NotificationTemplateTermPolicyDomain,
@@ -65,8 +61,6 @@ import { EnumQueue } from '@queues/enums/queue.enum';
     exports: [
         BullModule,
         NotificationDomain,
-        NotificationDeliveryDomain,
-        NotificationPushDeliveryDomain,
         NotificationTemplateAccountDomain,
         NotificationTemplateSecurityDomain,
         NotificationTemplateTermPolicyDomain,

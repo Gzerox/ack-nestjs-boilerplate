@@ -1,27 +1,20 @@
-import { NotificationDeliveryDomain } from '@modules/notification/domains/notification.delivery.domain';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { mock } from 'vitest-mock-extended';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
-import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
-import { HelperDecryptFailedException } from '@common/helper/exceptions/helper.decrypt-failed.exception';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { MessageService } from '@common/message/services/message.service';
 import {
-    EnumNotificationChannel,
     EnumWorkspaceJoinRejectReason,
     EnumWorkspaceMemberRole,
 } from '@generated/prisma-client/client';
 import { NotificationEmailWorkspaceDomain } from '@modules/notification/domains/notification.email.workspace.domain';
 import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
-import { EnumNotificationStatusCodeError } from '@modules/notification/enums/notification.status-code.enum';
 import type {
-    INotificationEmailSendPayload,
     INotificationWorkspaceInviteEncryptedPayload,
     INotificationWorkspaceJoinRequestEncryptedPayload,
 } from '@modules/notification/interfaces/notification.interface';
-import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 
 describe('NotificationEmailWorkspaceDomain', () => {
     const awsSESService = mock<AwsSESService>();
@@ -29,32 +22,18 @@ describe('NotificationEmailWorkspaceDomain', () => {
     const helperDateService = mock<HelperDateService>();
     const messageService = mock<MessageService>();
     const helperEncryptionService = mock<HelperEncryptionService>();
-    const notificationRepository = mock<NotificationRepository>();
     let domain: NotificationEmailWorkspaceDomain;
 
-    const send: INotificationEmailSendPayload = {
+    const send = {
         userId: 'user-id',
         notificationId: 'notification-id',
         email: 'nadia@example.com',
         username: 'nadia',
     };
-    const sendWithCcBcc: INotificationEmailSendPayload = {
+    const sendWithCcBcc = {
         ...send,
         cc: ['cc@example.com'],
         bcc: ['bcc@example.com'],
-    };
-    const sesOutput = { $metadata: {}, MessageId: 'message-1' };
-    const throttlingError = Object.assign(new Error('Rate exceeded'), {
-        name: 'Throttling',
-    });
-    const rejectedError = Object.assign(
-        new Error('Email address is not verified'),
-        { name: 'MessageRejected' }
-    );
-    const defaultTemplateData = {
-        homeName: 'Home',
-        supportEmail: 'support@example.com',
-        homeUrl: 'https://home.example.com',
     };
 
     beforeEach(async () => {
@@ -76,11 +55,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
         helperDateService.formatToRFC2822.mockImplementation((date: Date) =>
             date.toISOString()
         );
-        awsSESService.send.mockResolvedValue(sesOutput);
         const module = await Test.createTestingModule({
             providers: [
                 NotificationEmailWorkspaceDomain,
-                NotificationDeliveryDomain,
                 { provide: AwsSESService, useValue: awsSESService },
                 { provide: ConfigService, useValue: configService },
                 { provide: HelperDateService, useValue: helperDateService },
@@ -89,37 +66,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
                     provide: HelperEncryptionService,
                     useValue: helperEncryptionService,
                 },
-                {
-                    provide: NotificationRepository,
-                    useValue: notificationRepository,
-                },
             ],
         }).compile();
         domain = module.get(NotificationEmailWorkspaceDomain);
-    });
-
-    it('persists a safe permanent code while retaining the provider error for diagnostics', async () => {
-        awsSESService.send.mockRejectedValue(rejectedError);
-        awsSESService.classifyError.mockReturnValue({
-            code: 'MessageRejected',
-            cause: rejectedError,
-        });
-        await expect(
-            domain.processWorkspaceJoinAccepted(send, {
-                workspaceId: 'workspace-id',
-                workspaceName: 'Acme',
-            })
-        ).rejects.toMatchObject({
-            statusCode: EnumNotificationStatusCodeError.deliveryFailed,
-            rawError: rejectedError,
-            messageProperties: { cause: 'MessageRejected' },
-        });
-        expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-            send.userId,
-            send.notificationId,
-            EnumNotificationChannel.email,
-            []
-        );
     });
 
     describe('processWorkspaceInvite', () => {
@@ -133,10 +82,14 @@ describe('NotificationEmailWorkspaceDomain', () => {
             expiredAt: '2024-02-01T00:00:00.000Z',
         };
 
-        it('marks sent after SES accepts', async () => {
+        it('decrypts the invite link, formats the date, and sends the email', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://invite.example.com'
             );
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: 'message-1',
+            });
 
             const result = await domain.processWorkspaceInvite(
                 sendWithCcBcc,
@@ -154,7 +107,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 recipients: [sendWithCcBcc.email],
                 sender: 'noreply@example.com',
                 templateData: {
-                    ...defaultTemplateData,
+                    homeName: 'Home',
+                    supportEmail: 'support@example.com',
+                    homeUrl: 'https://home.example.com',
                     workspaceName: encrypted.workspaceName,
                     inviterName: encrypted.inviterName,
                     workspaceMemberRole: encrypted.workspaceMemberRole,
@@ -165,84 +120,21 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 cc: sendWithCcBcc.cc,
                 bcc: sendWithCcBcc.bcc,
             });
-            expect(notificationRepository.markSent).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(result).toEqual({
+            expect(result).toMatchObject({
                 message: 'Workspace invite email processed',
-                result: { acceptedCount: 1 },
             });
         });
 
-        it('leaves the delivery pending when SES returns no message id', async () => {
-            awsSESService.send.mockResolvedValue({
-                $metadata: {},
-                MessageId: undefined,
-            });
-
-            const result = await domain.processWorkspaceInvite(send, encrypted);
-
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                message: 'SES not initialized, skipping workspace invite email',
-            });
-        });
-
-        it('marks failed when a sealed field fails to decrypt', async () => {
-            const error = new HelperDecryptFailedException();
-            helperEncryptionService.aes256Decrypt.mockImplementation(() => {
-                throw error;
-            });
-
-            awsSESService.classifyError.mockImplementation(
-                classifyAwsDeliveryError
-            );
-
-            await expect(
-                domain.processWorkspaceInvite(send, encrypted)
-            ).rejects.toMatchObject({
-                rawError: error,
-                messageProperties: { cause: 'Error' },
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
-
-        it('marks failed on a throttling error, with no cc or bcc present', async () => {
+        it('rethrows when SES rejects, with no cc or bcc present', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://invite.example.com'
             );
-            awsSESService.send.mockRejectedValue(throttlingError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Throttling',
-                cause: throttlingError,
-            });
+            const error = new Error('ses down');
+            awsSESService.send.mockRejectedValue(error);
 
             await expect(
                 domain.processWorkspaceInvite(send, encrypted)
-            ).rejects.toMatchObject({
-                rawError: throttlingError,
-            });
-            expect(awsSESService.send).toHaveBeenCalledWith(
-                expect.not.objectContaining({ cc: expect.anything() })
-            );
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            ).rejects.toBe(error);
         });
     });
 
@@ -261,6 +153,10 @@ describe('NotificationEmailWorkspaceDomain', () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://invite.example.com'
             );
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: 'message-1',
+            });
 
             const result = await domain.processWorkspaceInviteUnregistered(
                 { email: 'invitee@example.com' },
@@ -278,7 +174,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 recipients: ['invitee@example.com'],
                 sender: 'noreply@example.com',
                 templateData: {
-                    ...defaultTemplateData,
+                    homeName: 'Home',
+                    supportEmail: 'support@example.com',
+                    homeUrl: 'https://home.example.com',
                     workspaceName: encrypted.workspaceName,
                     inviterName: encrypted.inviterName,
                     workspaceMemberRole: encrypted.workspaceMemberRole,
@@ -292,75 +190,19 @@ describe('NotificationEmailWorkspaceDomain', () => {
             });
         });
 
-        it('returns the skip message when SES returns no message id', async () => {
-            awsSESService.send.mockResolvedValue({
-                $metadata: {},
-                MessageId: undefined,
-            });
-            const result = await domain.processWorkspaceInviteUnregistered(
-                { email: 'invitee@example.com' },
-                encrypted
+        it('rethrows when SES rejects', async () => {
+            helperEncryptionService.aes256Decrypt.mockReturnValue(
+                'https://invite.example.com'
             );
-            expect(result).toEqual({
-                message: 'SES not initialized, skipping workspace invite email',
-            });
-        });
+            const error = new Error('ses down');
+            awsSESService.send.mockRejectedValue(error);
 
-        it('keeps decryption failures permanent without sending or creating a delivery', async () => {
-            const error = new HelperDecryptFailedException();
-            helperEncryptionService.aes256Decrypt.mockImplementation(() => {
-                throw error;
-            });
             await expect(
                 domain.processWorkspaceInviteUnregistered(
                     { email: 'invitee@example.com' },
                     encrypted
                 )
             ).rejects.toBe(error);
-            expect(awsSESService.send).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-        });
-
-        it('classifies permanent invitation failures without exposing provider details', async () => {
-            awsSESService.send.mockRejectedValue(rejectedError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'MessageRejected',
-                cause: rejectedError,
-            });
-            await expect(
-                domain.processWorkspaceInviteUnregistered(
-                    { email: 'invitee@example.com' },
-                    encrypted
-                )
-            ).rejects.toMatchObject({
-                rawError: rejectedError,
-            });
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-        });
-
-        it('workspaceInviteUnregistered writes no delivery row', async () => {
-            helperEncryptionService.aes256Decrypt.mockReturnValue(
-                'https://invite.example.com'
-            );
-            awsSESService.send.mockRejectedValue(throttlingError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Throttling',
-                cause: throttlingError,
-            });
-
-            await expect(
-                domain.processWorkspaceInviteUnregistered(
-                    { email: 'invitee@example.com' },
-                    encrypted
-                )
-            ).rejects.toMatchObject({
-                rawError: throttlingError,
-            });
-            expect(
-                notificationRepository.findForDelivery
-            ).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
         });
     });
 
@@ -372,10 +214,14 @@ describe('NotificationEmailWorkspaceDomain', () => {
             encryptedJoinRequestReviewLink: 'cipher-review-link',
         };
 
-        it('marks sent after SES accepts', async () => {
+        it('decrypts the review link and sends the email', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://review.example.com'
             );
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: 'message-1',
+            });
 
             const result = await domain.processWorkspaceJoinRequest(
                 sendWithCcBcc,
@@ -393,7 +239,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 recipients: [sendWithCcBcc.email],
                 sender: 'noreply@example.com',
                 templateData: {
-                    ...defaultTemplateData,
+                    homeName: 'Home',
+                    supportEmail: 'support@example.com',
+                    homeUrl: 'https://home.example.com',
                     username: sendWithCcBcc.username,
                     workspaceName: encrypted.workspaceName,
                     requesterName: encrypted.requesterName,
@@ -402,87 +250,33 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 cc: sendWithCcBcc.cc,
                 bcc: sendWithCcBcc.bcc,
             });
-            expect(notificationRepository.markSent).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(result).toEqual({
+            expect(result).toMatchObject({
                 message: 'Workspace join request email processed',
-                result: { acceptedCount: 1 },
             });
         });
 
-        it('leaves the delivery pending when SES returns no message id', async () => {
-            awsSESService.send.mockResolvedValue({
-                $metadata: {},
-                MessageId: undefined,
-            });
-
-            const result = await domain.processWorkspaceJoinRequest(
-                send,
-                encrypted
-            );
-
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                message:
-                    'SES not initialized, skipping workspace join request email',
-            });
-        });
-
-        it('marks failed when a sealed field fails to decrypt', async () => {
-            const error = new HelperDecryptFailedException();
-            helperEncryptionService.aes256Decrypt.mockImplementation(() => {
-                throw error;
-            });
-
-            awsSESService.classifyError.mockImplementation(
-                classifyAwsDeliveryError
-            );
-
-            await expect(
-                domain.processWorkspaceJoinRequest(send, encrypted)
-            ).rejects.toMatchObject({
-                rawError: error,
-                messageProperties: { cause: 'Error' },
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(awsSESService.send).not.toHaveBeenCalled();
-        });
-
-        it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
+        it('rethrows when SES rejects, with no cc or bcc present', async () => {
             helperEncryptionService.aes256Decrypt.mockReturnValue(
                 'https://review.example.com'
             );
-            awsSESService.send.mockRejectedValue(throttlingError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Throttling',
-                cause: throttlingError,
-            });
+            const error = new Error('ses down');
+            awsSESService.send.mockRejectedValue(error);
 
             await expect(
                 domain.processWorkspaceJoinRequest(send, encrypted)
-            ).rejects.toMatchObject({
-                rawError: throttlingError,
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            ).rejects.toBe(error);
         });
     });
 
     describe('processWorkspaceJoinAccepted', () => {
         const data = { workspaceId: 'workspace-id', workspaceName: 'Acme' };
 
-        it('marks sent after SES accepts', async () => {
+        it('sends the email with cc and bcc when present', async () => {
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: 'message-1',
+            });
+
             const result = await domain.processWorkspaceJoinAccepted(
                 sendWithCcBcc,
                 data
@@ -493,59 +287,27 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 recipients: [sendWithCcBcc.email],
                 sender: 'noreply@example.com',
                 templateData: {
-                    ...defaultTemplateData,
+                    homeName: 'Home',
+                    supportEmail: 'support@example.com',
+                    homeUrl: 'https://home.example.com',
                     username: sendWithCcBcc.username,
                     workspaceName: data.workspaceName,
                 },
                 cc: sendWithCcBcc.cc,
                 bcc: sendWithCcBcc.bcc,
             });
-            expect(notificationRepository.markSent).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(result).toEqual({
+            expect(result).toMatchObject({
                 message: 'Workspace join accepted email processed',
-                result: { acceptedCount: 1 },
             });
         });
 
-        it('leaves the delivery pending when SES returns no message id', async () => {
-            awsSESService.send.mockResolvedValue({
-                $metadata: {},
-                MessageId: undefined,
-            });
-
-            const result = await domain.processWorkspaceJoinAccepted(
-                send,
-                data
-            );
-
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                message:
-                    'SES not initialized, skipping workspace join accepted email',
-            });
-        });
-
-        it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
-            awsSESService.send.mockRejectedValue(throttlingError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Throttling',
-                cause: throttlingError,
-            });
+        it('rethrows when SES rejects, with no cc or bcc present', async () => {
+            const error = new Error('ses down');
+            awsSESService.send.mockRejectedValue(error);
 
             await expect(
                 domain.processWorkspaceJoinAccepted(send, data)
-            ).rejects.toMatchObject({
-                rawError: throttlingError,
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            ).rejects.toBe(error);
         });
     });
 
@@ -556,8 +318,12 @@ describe('NotificationEmailWorkspaceDomain', () => {
             rejectReasonCode: EnumWorkspaceJoinRejectReason.memberLimitReached,
         };
 
-        it('marks sent after SES accepts', async () => {
+        it('resolves the reject reason label and sends the email with cc and bcc when present', async () => {
             messageService.setMessage.mockReturnValue('Workspace is full');
+            awsSESService.send.mockResolvedValue({
+                $metadata: {},
+                MessageId: 'message-1',
+            });
 
             const result = await domain.processWorkspaceJoinRejected(
                 sendWithCcBcc,
@@ -572,7 +338,9 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 recipients: [sendWithCcBcc.email],
                 sender: 'noreply@example.com',
                 templateData: {
-                    ...defaultTemplateData,
+                    homeName: 'Home',
+                    supportEmail: 'support@example.com',
+                    homeUrl: 'https://home.example.com',
                     username: sendWithCcBcc.username,
                     workspaceName: data.workspaceName,
                     rejectReasonLabel: 'Workspace is full',
@@ -580,53 +348,19 @@ describe('NotificationEmailWorkspaceDomain', () => {
                 cc: sendWithCcBcc.cc,
                 bcc: sendWithCcBcc.bcc,
             });
-            expect(notificationRepository.markSent).toHaveBeenCalledWith(
-                send.userId,
-                send.notificationId,
-                EnumNotificationChannel.email,
-                []
-            );
-            expect(result).toEqual({
+            expect(result).toMatchObject({
                 message: 'Workspace join rejected email processed',
-                result: { acceptedCount: 1 },
             });
         });
 
-        it('leaves the delivery pending when SES returns no message id', async () => {
-            awsSESService.send.mockResolvedValue({
-                $metadata: {},
-                MessageId: undefined,
-            });
-
-            const result = await domain.processWorkspaceJoinRejected(
-                send,
-                data
-            );
-
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
-            expect(notificationRepository.markFailed).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                message:
-                    'SES not initialized, skipping workspace join rejected email',
-            });
-        });
-
-        it('hands an SES rejection to the failure handler, with no cc or bcc present', async () => {
+        it('rethrows when SES rejects, with no cc or bcc present', async () => {
             messageService.setMessage.mockReturnValue('Workspace is full');
-            awsSESService.send.mockRejectedValue(throttlingError);
-            awsSESService.classifyError.mockReturnValue({
-                code: 'Throttling',
-                cause: throttlingError,
-            });
+            const error = new Error('ses down');
+            awsSESService.send.mockRejectedValue(error);
 
             await expect(
                 domain.processWorkspaceJoinRejected(send, data)
-            ).rejects.toMatchObject({
-                rawError: throttlingError,
-            });
-            expect(notificationRepository.markFailed).toHaveBeenCalled();
-            expect(notificationRepository.markSent).not.toHaveBeenCalled();
+            ).rejects.toBe(error);
         });
     });
 });

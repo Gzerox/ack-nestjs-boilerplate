@@ -193,7 +193,6 @@ export class NotificationEmailProcessorService {
         >
     ): Promise<IQueueResponse> {
         return this.notificationEmailTermPolicyDomain.processPublishTermPolicy(
-            job.data.send,
             job.data.data!
         );
     }

@@ -343,13 +343,13 @@ describe('NotificationEmailQueue', () => {
     });
 
     describe('sendPublishTermPolicy', () => {
-        const data: INotificationPublishTermPolicyPayload = {
-            type: EnumTermPolicyType.privacy,
-            version: 3,
-        };
+        it('enqueues one bulk publishTermPolicy job deduplicated by type and version, medium priority', async () => {
+            const data: INotificationPublishTermPolicyPayload = {
+                type: EnumTermPolicyType.privacy,
+                version: 3,
+            };
 
-        it('enqueues one bulk publishTermPolicy job deduplicated by type, version and chunk index, medium priority', async () => {
-            await queue.sendPublishTermPolicy([send], data, 4);
+            await queue.sendPublishTermPolicy([send], data);
 
             expect(emailQueue.add).toHaveBeenCalledWith(
                 EnumNotificationProcess.publishTermPolicy,
@@ -357,37 +357,10 @@ describe('NotificationEmailQueue', () => {
                 {
                     priority: EnumQueuePriority.medium,
                     deduplication: {
-                        id: `${EnumNotificationProcess.publishTermPolicy}-${data.type}-${data.version}-4`,
+                        id: `${EnumNotificationProcess.publishTermPolicy}-${data.type}-${data.version}`,
                         ttl: 60_000,
                     },
                 }
-            );
-        });
-
-        it('two chunk jobs get distinct dedup ids', async () => {
-            const firstPromise = queue.sendPublishTermPolicy([send], data, 0);
-            const secondPromise = queue.sendPublishTermPolicy([send], data, 1);
-            await Promise.all([firstPromise, secondPromise]);
-
-            expect(emailQueue.add).toHaveBeenNthCalledWith(
-                1,
-                EnumNotificationProcess.publishTermPolicy,
-                { send: [send], data },
-                expect.objectContaining({
-                    deduplication: expect.objectContaining({
-                        id: `${EnumNotificationProcess.publishTermPolicy}-${data.type}-${data.version}-0`,
-                    }),
-                })
-            );
-            expect(emailQueue.add).toHaveBeenNthCalledWith(
-                2,
-                EnumNotificationProcess.publishTermPolicy,
-                { send: [send], data },
-                expect.objectContaining({
-                    deduplication: expect.objectContaining({
-                        id: `${EnumNotificationProcess.publishTermPolicy}-${data.type}-${data.version}-1`,
-                    }),
-                })
             );
         });
     });

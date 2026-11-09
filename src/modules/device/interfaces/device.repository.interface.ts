@@ -32,8 +32,7 @@ export interface IDeviceRepository {
     ): Promise<void>;
     clearTokens(
         deviceIds: string[],
-        updatedBy: string,
-        tokens: string[]
+        updatedBy: string
     ): Promise<Prisma.BatchPayload>;
     clearStaleTokens(thresholdInMs: number): Promise<Prisma.BatchPayload>;
 }

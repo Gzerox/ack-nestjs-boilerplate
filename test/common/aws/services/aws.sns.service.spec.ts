@@ -147,29 +147,4 @@ describe('AwsSNSService', () => {
             );
         });
     });
-
-    describe('classifyError', () => {
-        it('returns the error name as code and the error as cause', async () => {
-            const sdk = await import('@aws-sdk/client-sns');
-            const service = await buildService();
-            const error = new sdk.InvalidParameterException({
-                message: 'invalid',
-                $metadata: {},
-            });
-
-            expect(service.classifyError(error)).toEqual({
-                code: error.name,
-                cause: error,
-            });
-        });
-
-        it('returns unknownError for a non-Error', async () => {
-            const service = await buildService();
-
-            expect(service.classifyError('boom')).toEqual({
-                code: 'unknownError',
-                cause: null,
-            });
-        });
-    });
 });

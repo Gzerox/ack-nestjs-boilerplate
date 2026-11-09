@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
@@ -9,13 +10,13 @@ import type { FirebaseUtil } from '@common/firebase/utils/firebase.util';
 import type { HelperArrayService } from '@common/helper/services/helper.array.service';
 import { FirebaseMaxSendPushBatchSize } from '@common/firebase/constants/firebase.constant';
 import type { IFirebasePushPayload } from '@common/firebase/interfaces/firebase.interface';
+import { EnumFirebaseStatusCodeError } from '@common/firebase/enums/firebase.status-code.enum';
 
 vi.mock('firebase-admin', () => ({
     initializeApp: vi.fn(),
     cert: vi.fn(),
 }));
-vi.mock('firebase-admin/messaging', async importOriginal => ({
-    ...(await importOriginal<typeof import('firebase-admin/messaging')>()),
+vi.mock('firebase-admin/messaging', () => ({
     getMessaging: vi.fn(),
 }));
 
@@ -105,6 +106,7 @@ describe('FirebaseService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        vi.resetModules();
         firebaseAdmin = await import('firebase-admin');
         ({ getMessaging } = await import('firebase-admin/messaging'));
         ({ FirebaseService } =
@@ -269,255 +271,175 @@ describe('FirebaseService', () => {
         });
     });
 
-    describe('classifyError', () => {
-        it('flags only definitive invalid-token errors and keeps the provider code', async () => {
-            const { FirebaseMessagingError, MessagingErrorCode: M } =
-                await import('firebase-admin/messaging');
-            const { FirebaseAppError, AppErrorCode: A } =
-                await import('firebase-admin/app');
-            const cases: [unknown, string, boolean][] = [
-                [
-                    new FirebaseMessagingError({
-                        code: M.INVALID_REGISTRATION_TOKEN,
-                        message: 'bad',
-                    }),
-                    'messaging/invalid-registration-token',
-                    true,
-                ],
-                [
-                    new FirebaseMessagingError({
-                        code: M.REGISTRATION_TOKEN_NOT_REGISTERED,
-                        message: 'gone',
-                    }),
-                    'messaging/registration-token-not-registered',
-                    true,
-                ],
-                [
-                    new FirebaseMessagingError({
-                        code: M.INVALID_ARGUMENT,
-                        message: 'payload',
-                    }),
-                    'messaging/invalid-argument',
-                    false,
-                ],
-                [
-                    new FirebaseMessagingError({
-                        code: M.SERVER_UNAVAILABLE,
-                        message: 'down',
-                    }),
-                    'messaging/server-unavailable',
-                    false,
-                ],
-                [
-                    new FirebaseAppError({
-                        code: A.NETWORK_TIMEOUT,
-                        message: 'timeout',
-                    }),
-                    'app/network-timeout',
-                    false,
-                ],
-                [new Error('local'), 'unknownError', false],
-                [
-                    { code: 'messaging/server-unavailable' },
-                    'messaging/server-unavailable',
-                    false,
-                ],
-                [{ code: 42 }, 'unknownError', false],
-                ['failure', 'unknownError', false],
-                [null, 'unknownError', false],
-            ];
-            for (const [error, code, isInvalidToken] of cases) {
-                expect(service.classifyError(error)).toEqual({
-                    code,
-                    isInvalidToken,
-                    cause: error instanceof Error ? error : null,
-                });
-            }
-        });
-    });
-
     describe('sendMulticast', () => {
-        it('returns a zero result for no targets', async () => {
+        it('returns an all-failure result without sending when not initialized', async () => {
+            const result = await service.sendMulticast(
+                ['token-1', 'token-2'],
+                payload
+            );
+
+            expect(result).toEqual({
+                failureTokens: [],
+                successCount: 0,
+                failureCount: 2,
+            });
+        });
+
+        it('returns a zero result immediately for an empty token list', async () => {
             const messaging = mock<Messaging>();
             const initialized = await initialize(messaging);
-            expect(await initialized.sendMulticast([], payload)).toEqual({
+
+            const result = await initialized.sendMulticast([], payload);
+
+            expect(result).toEqual({
+                failureTokens: [],
                 successCount: 0,
                 failureCount: 0,
-                failureTokens: [],
-                failures: [],
             });
             expect(messaging.sendEachForMulticast).not.toHaveBeenCalled();
         });
 
-        it('preserves permanent failures for each target when uninitialized', async () => {
-            const result = await service.sendMulticast(
-                ['a', 'a', 'b'],
-                payload
+        it('throws when chunkSize is below one', async () => {
+            const messaging = mock<Messaging>();
+            const initialized = await initialize(messaging);
+
+            const rejection = initialized.sendMulticast(
+                ['token-1'],
+                payload,
+                0
             );
-            expect(result).toMatchObject({
-                successCount: 0,
-                failureCount: 2,
-                failureTokens: [],
-                failures: [
-                    {
-                        token: 'a',
-                        error: { isInvalidToken: false },
-                    },
-                    {
-                        token: 'b',
-                        error: { isInvalidToken: false },
-                    },
-                ],
+
+            await expect(rejection).rejects.toBeInstanceOf(
+                FirebaseChunkSizeInvalidException
+            );
+            await expect(rejection).rejects.toMatchObject({
+                module: 'firebase',
+                statusCode: EnumFirebaseStatusCodeError.chunkSizeInvalid,
+                statusCodeKey:
+                    EnumFirebaseStatusCodeError[
+                        EnumFirebaseStatusCodeError.chunkSizeInvalid
+                    ],
+                httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+                messagePath: 'firebase.error.chunkSizeInvalid',
             });
         });
 
-        it.each([0, -1, FirebaseMaxSendPushBatchSize + 1, 1.5, NaN, Infinity])(
-            'rejects invalid chunk size %s with the typed exception',
-            async chunkSize => {
-                const messaging = mock<Messaging>();
-                const initialized = await initialize(messaging);
-                await expect(
-                    initialized.sendMulticast(['a'], payload, chunkSize)
-                ).rejects.toBeInstanceOf(FirebaseChunkSizeInvalidException);
-            }
-        );
-
-        it('retains every partial failure, deduplicates targets, and marks only definitive invalid tokens', async () => {
-            const { FirebaseMessagingError, MessagingErrorCode: M } =
-                await import('firebase-admin/messaging');
-            const invalid = new FirebaseMessagingError({
-                code: M.REGISTRATION_TOKEN_NOT_REGISTERED,
-                message: 'gone',
-            });
-            const transient = new FirebaseMessagingError({
-                code: M.SERVER_UNAVAILABLE,
-                message: 'down',
-            });
-            const payloadError = new FirebaseMessagingError({
-                code: M.INVALID_ARGUMENT,
-                message: 'payload',
-            });
+        it('throws when chunkSize exceeds the FCM batch limit', async () => {
             const messaging = mock<Messaging>();
             const initialized = await initialize(messaging);
-            helperArrayService.chunk.mockReturnValue([['a', 'b', 'c', 'd']]);
+
+            const rejection = initialized.sendMulticast(
+                ['token-1'],
+                payload,
+                FirebaseMaxSendPushBatchSize + 1
+            );
+
+            await expect(rejection).rejects.toBeInstanceOf(
+                FirebaseChunkSizeInvalidException
+            );
+            await expect(rejection).rejects.toMatchObject({
+                module: 'firebase',
+                statusCode: EnumFirebaseStatusCodeError.chunkSizeInvalid,
+                statusCodeKey:
+                    EnumFirebaseStatusCodeError[
+                        EnumFirebaseStatusCodeError.chunkSizeInvalid
+                    ],
+                httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+                messagePath: 'firebase.error.chunkSizeInvalid',
+            });
+        });
+
+        it('chunks the tokens, aggregates fulfilled results, and collects only invalid-token failures', async () => {
+            const messaging = mock<Messaging>();
+            const initialized = await initialize(messaging);
+            const tokens = ['token-1', 'token-2', 'token-3', 'token-4'];
+            helperArrayService.chunk.mockReturnValue([tokens]);
             messaging.sendEachForMulticast.mockResolvedValue({
                 successCount: 1,
                 failureCount: 3,
                 responses: [
-                    { success: true, messageId: 'id' },
-                    { success: false, error: invalid },
-                    { success: false, error: transient },
-                    { success: false, error: payloadError },
+                    { success: true, messageId: 'm-1' },
+                    {
+                        success: false,
+                        error: { code: 'messaging/invalid-registration-token' },
+                    },
+                    {
+                        success: false,
+                        error: { code: 'messaging/internal-error' },
+                    },
+                    { success: false },
                 ],
+            } as never);
+
+            const result = await initialized.sendMulticast(tokens, payload);
+
+            expect(messaging.sendEachForMulticast).toHaveBeenCalledWith({
+                tokens,
+                notification: {
+                    title: payload.title,
+                    body: payload.body,
+                    imageUrl: payload.imageUrl,
+                },
+                data: payload.data,
             });
-            const result = await initialized.sendMulticast(
-                ['a', 'b', 'a', 'c', 'd'],
-                payload
-            );
-            expect(helperArrayService.chunk).toHaveBeenCalledWith(
-                ['a', 'b', 'c', 'd'],
-                500
-            );
             expect(result).toEqual({
                 successCount: 1,
                 failureCount: 3,
-                failureTokens: ['b'],
-                failures: [
-                    {
-                        token: 'b',
-                        error: {
-                            code: 'messaging/registration-token-not-registered',
-                            isInvalidToken: true,
-                            cause: invalid,
-                        },
-                    },
-                    {
-                        token: 'c',
-                        error: {
-                            code: 'messaging/server-unavailable',
-                            isInvalidToken: false,
-                            cause: transient,
-                        },
-                    },
-                    {
-                        token: 'd',
-                        error: {
-                            code: 'messaging/invalid-argument',
-                            isInvalidToken: false,
-                            cause: payloadError,
-                        },
-                    },
-                ],
+                failureTokens: ['token-2'],
             });
         });
 
-        it('keeps input order across successful and rejected chunks', async () => {
-            const { FirebaseAppError, AppErrorCode } =
-                await import('firebase-admin/app');
-            const network = new FirebaseAppError({
-                code: AppErrorCode.NETWORK_TIMEOUT,
-                message: 'timeout',
-            });
+        it('counts an entire rejected chunk as failures', async () => {
             const messaging = mock<Messaging>();
             const initialized = await initialize(messaging);
-            helperArrayService.chunk.mockReturnValue([['a'], ['b', 'c']]);
+            const chunkA = ['token-1'];
+            const chunkB = ['token-2', 'token-3'];
+            helperArrayService.chunk.mockReturnValue([chunkA, chunkB]);
             messaging.sendEachForMulticast
                 .mockResolvedValueOnce({
                     successCount: 1,
                     failureCount: 0,
-                    responses: [{ success: true, messageId: 'id' }],
-                })
-                .mockRejectedValueOnce(network);
+                    responses: [{ success: true, messageId: 'm-1' }],
+                } as never)
+                .mockRejectedValueOnce(new Error('chunk failed'));
+
             const result = await initialized.sendMulticast(
-                ['a', 'b', 'c'],
+                [...chunkA, ...chunkB],
                 payload,
-                2
+                1
             );
-            expect(result).toMatchObject({
+
+            expect(result).toEqual({
                 successCount: 1,
                 failureCount: 2,
                 failureTokens: [],
-                failures: [
-                    {
-                        token: 'b',
-                        error: {
-                            code: 'app/network-timeout',
-                            cause: network,
-                        },
-                    },
-                    {
-                        token: 'c',
-                        error: {
-                            code: 'app/network-timeout',
-                            cause: network,
-                        },
-                    },
-                ],
             });
         });
+    });
 
-        it('does not invent an invalid token for an untyped chunk rejection', async () => {
-            const messaging = mock<Messaging>();
-            const initialized = await initialize(messaging);
-            helperArrayService.chunk.mockReturnValue([['a']]);
-            messaging.sendEachForMulticast.mockRejectedValue('unexpected');
+    describe('isInvalidTokenError', () => {
+        it('returns false when error is null', () => {
+            expect(service['isInvalidTokenError'](null)).toBe(false);
+        });
+
+        it('returns false when error carries no code', () => {
+            expect(service['isInvalidTokenError']({})).toBe(false);
+        });
+
+        it('returns true when the code is one of the known invalid-token codes', () => {
             expect(
-                await initialized.sendMulticast(['a'], payload)
-            ).toMatchObject({
-                successCount: 0,
-                failureCount: 1,
-                failureTokens: [],
-                failures: [
-                    {
-                        token: 'a',
-                        error: {
-                            code: 'unknownError',
-                            isInvalidToken: false,
-                            cause: null,
-                        },
-                    },
-                ],
-            });
+                service['isInvalidTokenError']({
+                    code: 'messaging/invalid-registration-token',
+                })
+            ).toBe(true);
+        });
+
+        it('returns false when the code is not an invalid-token code', () => {
+            expect(
+                service['isInvalidTokenError']({
+                    code: 'messaging/internal-error',
+                })
+            ).toBe(false);
         });
     });
 });

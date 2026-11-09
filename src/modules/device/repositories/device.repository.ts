@@ -95,13 +95,11 @@ export class DeviceRepository implements IDeviceRepository {
 
     async clearTokens(
         deviceIds: string[],
-        updatedBy: string,
-        tokens: string[]
+        updatedBy: string
     ): Promise<Prisma.BatchPayload> {
         return this.databaseService.client.device.updateMany({
             where: {
                 id: { in: deviceIds },
-                notificationToken: { in: tokens },
             },
             data: {
                 notificationToken: null,

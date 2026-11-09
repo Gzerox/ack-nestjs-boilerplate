@@ -99,7 +99,6 @@
         "notFound": "Notification not found.",
         "alreadyRead": "Notification is already marked as read.",
         "invalidType": "Invalid notification type.",
-        "invalidChannel": "Invalid notification channel.",
-        "deliveryFailed": "Notification delivery failed: {cause}."
+        "invalidChannel": "Invalid notification channel."
     }
 }

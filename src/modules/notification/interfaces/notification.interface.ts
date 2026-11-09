@@ -1,7 +1,7 @@
+import type { EnumNotificationSmsProcess } from '@modules/notification/enums/notification.enum';
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     EnumNotificationChannel,
-    EnumNotificationDeliveryStatus,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumTermPolicyType,
@@ -11,10 +11,7 @@ import {
     EnumWorkspaceMemberRole,
     Prisma,
 } from '@generated/prisma-client/client';
-import {
-    EnumNotificationKind,
-    EnumNotificationSmsProcess,
-} from '@modules/notification/enums/notification.enum';
+import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
 
 export interface INotificationKindContract {
     type: EnumNotificationType;
@@ -40,12 +37,6 @@ export interface INotificationCreate {
 export interface INotificationCreateEntry {
     kind: EnumNotificationKind;
     payload: INotificationCreate;
-}
-
-export interface INotificationContent {
-    failureTokens: string[];
-    title: string;
-    body: string;
 }
 
 export interface INotificationUserSettingUpdate {
@@ -214,13 +205,6 @@ export interface INotificationPushCleanupTokenQueuePayload {
     };
 }
 
-export interface INotificationSendSmsPayload {
-    userId: string;
-    notificationId: string;
-    kind: EnumNotificationSmsProcess;
-    phoneNumbers: string[];
-}
-
 export interface INotificationEmailSendPayload {
     userId: string;
     notificationId: string;
@@ -251,19 +235,11 @@ export interface INotificationEmailUnregisteredQueuePayload<T = unknown> {
     data?: T;
 }
 
-export interface INotificationDeliveryContext {
+export interface INotificationSendSmsPayload {
     userId: string;
     notificationId: string;
-    channel: EnumNotificationChannel;
-}
-
-export interface INotificationDeliveryState extends INotificationDeliveryContext {
-    status: EnumNotificationDeliveryStatus;
-}
-
-export interface INotificationDeliveryFailure {
-    code: string;
-    cause: Error | null;
+    kind: EnumNotificationSmsProcess;
+    phoneNumbers: string[];
 }
 
 export interface INotificationDeliverySummary {

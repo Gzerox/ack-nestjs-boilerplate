@@ -1,6 +1,4 @@
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
-import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
-import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -57,12 +55,6 @@ export class AwsSNSService implements OnModuleInit {
 
     isInitialized(): boolean {
         return !!this.snsClient;
-    }
-
-    classifyError(error: unknown): IAwsDeliveryError {
-        const classified = classifyAwsDeliveryError(error);
-
-        return classified;
     }
 
     async send(

@@ -5,7 +5,7 @@ import { mock } from 'vitest-mock-extended';
 import { SentryService } from '@common/sentry/services/sentry.service';
 import { NotificationSmsProcessor } from '@modules/notification/processors/notification.sms.processor';
 import { NotificationSmsProcessorService } from '@modules/notification/services/notification.sms.processor.service';
-import { NotificationDeliveryFailedException } from '@modules/notification/exceptions/notification.delivery-failed.exception';
+import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 import { EnumNotificationSmsProcess } from '@modules/notification/enums/notification.enum';
 
 describe('NotificationSmsProcessor delivery errors', () => {
@@ -31,18 +31,12 @@ describe('NotificationSmsProcessor delivery errors', () => {
         processor = module.get(NotificationSmsProcessor);
     });
     it('rethrows a delivery failure as is so BullMQ retries it', async () => {
-        const failure = new NotificationDeliveryFailedException({
-            code: 'Throttling',
-            cause: new Error('provider'),
-        });
+        const failure = new AppUnknownException(new Error('provider'));
         service.processSecurityAlert.mockRejectedValue(failure);
         await expect(processor.process(job)).rejects.toBe(failure);
     });
     it('does not report to Sentry while attempts remain', async () => {
-        const failure = new NotificationDeliveryFailedException({
-            code: 'Throttling',
-            cause: null,
-        });
+        const failure = new AppUnknownException(null);
         service.processSecurityAlert.mockRejectedValue(failure);
         const error: unknown = await processor
             .process(job)
@@ -62,10 +56,9 @@ describe('NotificationSmsProcessor delivery errors', () => {
             return 1;
         });
         job.attemptsMade = 3;
-        const failure = new NotificationDeliveryFailedException({
-            code: 'messaging/invalid-argument',
-            cause: new Error('private provider details'),
-        });
+        const failure = new AppUnknownException(
+            new Error('private provider details')
+        );
         service.processSecurityAlert.mockRejectedValue(failure);
         const error: unknown = await processor
             .process(job)

@@ -1,4 +1,3 @@
-import { NotificationKindContract } from '@modules/notification/contracts/notification.kind.contract';
 import { Test } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import { DatabaseUtil } from '@common/database/utils/database.util';
@@ -6,7 +5,6 @@ import type { Notification, User } from '@generated/prisma-client/client';
 import {
     EnumDeviceNotificationProvider,
     EnumDevicePlatform,
-    EnumNotificationChannel,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumUserGender,
@@ -184,27 +182,7 @@ describe('NotificationWorkspaceDomain', () => {
             expect(notificationRepository.create).not.toHaveBeenCalled();
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWorkspaceInvite('user-id', 'admin-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWorkspaceInvite
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendWorkspaceInvite
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -219,115 +197,9 @@ describe('NotificationWorkspaceDomain', () => {
             expect(
                 notificationPushQueue.sendWorkspaceInvite
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('dispatches channels independently and returns safe failure statuses', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockResolvedValue(notification);
-            const failure = Object.assign(new Error('queue unavailable'), {
-                secret: 'sensitive-token',
-            });
-            notificationEmailQueue.sendWorkspaceInvite.mockRejectedValue(
-                failure
-            );
-            notificationPushQueue.sendWorkspaceInvite.mockResolvedValue(
-                undefined
-            );
-            const result = await domain.processWorkspaceInvite(
-                'user-id',
-                'admin-id',
-                data
-            );
-            expect(
-                notificationPushQueue.sendWorkspaceInvite
-            ).toHaveBeenCalledOnce();
-            expect(result).toMatchObject({
-                results: [{ status: 'rejected' }, { status: 'fulfilled' }],
-            });
-            expect(JSON.stringify(result)).not.toContain('sensitive-token');
-        });
-
-        it.each([
-            {
-                channels: [EnumNotificationChannel.email],
-                email: true,
-                push: false,
-            },
-            {
-                channels: [EnumNotificationChannel.push],
-                email: false,
-                push: true,
-            },
-        ])(
-            'dispatches only the contract channels $channels',
-            async ({ channels, email, push }) => {
-                userDomain.getOneActive.mockResolvedValue(user);
-                deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
-                    [deviceOwnership]
-                );
-                notificationRepository.create.mockResolvedValue(notification);
-                const contract =
-                    NotificationKindContract[
-                        EnumNotificationKind.workspaceInvite
-                    ];
-                const original = contract.pendingChannels;
-                try {
-                    contract.pendingChannels = channels;
-                    await domain.processWorkspaceInvite(
-                        'user-id',
-                        'admin-id',
-                        data
-                    );
-                    expect(
-                        notificationEmailQueue.sendWorkspaceInvite
-                    ).toHaveBeenCalledTimes(email ? 1 : 0);
-                    expect(
-                        notificationPushQueue.sendWorkspaceInvite
-                    ).toHaveBeenCalledTimes(push ? 1 : 0);
-                    expect(
-                        notificationRepository.markSkipped
-                    ).not.toHaveBeenCalled();
-                } finally {
-                    contract.pendingChannels = original;
-                }
-            }
-        );
-
-        it('keeps email enqueue independent when push enqueue fails', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockResolvedValue(notification);
-            notificationEmailQueue.sendWorkspaceInvite.mockResolvedValue(
-                undefined
-            );
-            notificationPushQueue.sendWorkspaceInvite.mockRejectedValue(
-                new Error('push enqueue failed')
-            );
-            const result = await domain.processWorkspaceInvite(
-                'user-id',
-                'admin-id',
-                data
-            );
-            expect(
-                notificationEmailQueue.sendWorkspaceInvite
-            ).toHaveBeenCalledOnce();
-            expect(result).toMatchObject({
-                results: [{ status: 'fulfilled' }, { status: 'rejected' }],
-            });
-        });
-
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('writes the notification and enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -389,7 +261,6 @@ describe('NotificationWorkspaceDomain', () => {
                     expiredAt: data.expiredAt,
                 }
             );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toMatchObject({
                 message: 'Workspace invite notification processed',
             });
@@ -422,27 +293,7 @@ describe('NotificationWorkspaceDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWorkspaceJoinRequest('user-id', 'admin-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWorkspaceJoinRequest
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendWorkspaceJoinRequest
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -461,15 +312,9 @@ describe('NotificationWorkspaceDomain', () => {
             expect(
                 notificationPushQueue.sendWorkspaceJoinRequest
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('writes the notification and enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -517,7 +362,6 @@ describe('NotificationWorkspaceDomain', () => {
                     requesterName: data.requesterName,
                 }
             );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toMatchObject({
                 message: 'Workspace join request notification processed',
             });
@@ -548,27 +392,7 @@ describe('NotificationWorkspaceDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWorkspaceJoinAccepted('user-id', 'admin-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWorkspaceJoinAccepted
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendWorkspaceJoinAccepted
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -587,15 +411,9 @@ describe('NotificationWorkspaceDomain', () => {
             expect(
                 notificationPushQueue.sendWorkspaceJoinAccepted
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('writes the notification and enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -638,7 +456,6 @@ describe('NotificationWorkspaceDomain', () => {
                 },
                 data
             );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toMatchObject({
                 message: 'Workspace join accepted notification processed',
             });
@@ -670,27 +487,7 @@ describe('NotificationWorkspaceDomain', () => {
             });
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
-                deviceOwnership,
-            ]);
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWorkspaceJoinRejected('user-id', 'admin-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWorkspaceJoinRejected
-            ).not.toHaveBeenCalled();
-            expect(
-                notificationPushQueue.sendWorkspaceJoinRejected
-            ).not.toHaveBeenCalled();
-        });
-
-        it('marks push skipped when the user has no device tokens', async () => {
+        it('does not enqueue a push when there is no device with a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue(
                 []
@@ -709,15 +506,9 @@ describe('NotificationWorkspaceDomain', () => {
             expect(
                 notificationPushQueue.sendWorkspaceJoinRejected
             ).not.toHaveBeenCalled();
-            expect(notificationRepository.markSkipped).toHaveBeenCalledWith(
-                user.id,
-                'notification-id',
-                EnumNotificationChannel.push,
-                []
-            );
         });
 
-        it('enqueues exactly the channels in pendingChannels', async () => {
+        it('writes the notification and enqueues email and push when a device has a token', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             deviceDomain.getOwnershipsWithNotificationToken.mockResolvedValue([
                 deviceOwnership,
@@ -761,7 +552,6 @@ describe('NotificationWorkspaceDomain', () => {
                 },
                 data
             );
-            expect(notificationRepository.markSkipped).not.toHaveBeenCalled();
             expect(result).toMatchObject({
                 message: 'Workspace join rejected notification processed',
             });

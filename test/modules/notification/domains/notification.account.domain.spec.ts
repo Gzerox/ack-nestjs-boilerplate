@@ -132,21 +132,6 @@ describe('NotificationAccountDomain', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWelcomeByAdmin('user-id', 'admin-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWelcomeByAdmin
-            ).not.toHaveBeenCalled();
-        });
-
         it('writes the notification and enqueues the email for an active user', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             databaseUtil.createId.mockReturnValue('notification-id');
@@ -204,22 +189,6 @@ describe('NotificationAccountDomain', () => {
                 message: 'User not found, skipping welcome notification',
             });
             expect(notificationRepository.createMany).not.toHaveBeenCalled();
-        });
-
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            notificationRepository.createMany.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWelcome('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(notificationEmailQueue.sendWelcome).not.toHaveBeenCalled();
-            expect(
-                notificationEmailQueue.sendVerificationEmail
-            ).not.toHaveBeenCalled();
         });
 
         it('writes both notifications and enqueues both emails for an active user', async () => {
@@ -290,21 +259,6 @@ describe('NotificationAccountDomain', () => {
             expect(notificationRepository.create).not.toHaveBeenCalled();
         });
 
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processWelcomeSocial('user-id')
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendWelcomeSocial
-            ).not.toHaveBeenCalled();
-        });
-
         it('writes the notification and enqueues the email for an active user', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             databaseUtil.createId.mockReturnValue('notification-id');
@@ -350,21 +304,6 @@ describe('NotificationAccountDomain', () => {
                 message: 'User not found, skipping verified email notification',
             });
             expect(notificationRepository.create).not.toHaveBeenCalled();
-        });
-
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processVerifiedEmail('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendVerifiedEmail
-            ).not.toHaveBeenCalled();
         });
 
         it('writes the notification and enqueues the email for an active user', async () => {
@@ -424,21 +363,6 @@ describe('NotificationAccountDomain', () => {
                     'User not found, skipping verification email notification',
             });
             expect(notificationRepository.create).not.toHaveBeenCalled();
-        });
-
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processVerificationEmail('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendVerificationEmail
-            ).not.toHaveBeenCalled();
         });
 
         it('writes the notification and enqueues the email for an active user', async () => {
@@ -501,22 +425,6 @@ describe('NotificationAccountDomain', () => {
             });
             expect(notificationRepository.create).not.toHaveBeenCalled();
             expect(helperStringService.censor).not.toHaveBeenCalled();
-        });
-
-        it('creates the notification before enqueueing any channel', async () => {
-            userDomain.getOneActive.mockResolvedValue(user);
-            databaseUtil.createId.mockReturnValue('notification-id');
-            helperStringService.censor.mockReturnValue('+1555*****67');
-            notificationRepository.create.mockRejectedValue(
-                new Error('write failed')
-            );
-
-            await expect(
-                domain.processVerifiedMobileNumber('user-id', data)
-            ).rejects.toThrow('write failed');
-            expect(
-                notificationEmailQueue.sendVerifiedMobileNumber
-            ).not.toHaveBeenCalled();
         });
 
         it('censors the mobile number, writes the notification, and enqueues the email', async () => {

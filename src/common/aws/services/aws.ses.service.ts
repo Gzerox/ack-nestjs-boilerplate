@@ -1,3 +1,6 @@
+import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
     CreateTemplateCommand,
     DeleteTemplateCommand,
@@ -9,11 +12,6 @@ import {
     SendTemplatedEmailCommand,
     UpdateTemplateCommand,
 } from '@aws-sdk/client-ses';
-import type { IAwsDeliveryError } from '@common/aws/interfaces/aws.delivery.interface';
-import { classifyAwsDeliveryError } from '@common/aws/utils/aws.delivery.util';
-import { Injectable, Logger } from '@nestjs/common';
-import type { OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type {
     CreateTemplateCommandInput,
     CreateTemplateCommandOutput,
@@ -45,7 +43,6 @@ export class AwsSESService implements OnModuleInit {
     private readonly iamKey: string | null;
     private readonly iamSecret: string | null;
     private readonly region: string | null;
-    private readonly maxAttempts: number;
 
     private sesClient: SESClient;
 
@@ -55,9 +52,6 @@ export class AwsSESService implements OnModuleInit {
             'aws.ses.iam.secret'
         )!;
         this.region = this.configService.get<string | null>('aws.ses.region')!;
-        this.maxAttempts = this.configService.get<number>(
-            'aws.ses.maxAttempts'
-        )!;
     }
 
     onModuleInit(): void {
@@ -75,18 +69,11 @@ export class AwsSESService implements OnModuleInit {
                 secretAccessKey: this.iamSecret,
             },
             region: this.region,
-            maxAttempts: this.maxAttempts,
         });
     }
 
     isInitialized(): boolean {
         return !!this.sesClient;
-    }
-
-    classifyError(error: unknown): IAwsDeliveryError {
-        const classified = classifyAwsDeliveryError(error);
-
-        return classified;
     }
 
     async checkConnection(): Promise<boolean> {
@@ -280,7 +267,7 @@ export class AwsSESService implements OnModuleInit {
             return {
                 MessageId: undefined,
                 $metadata: {},
-            };
+            } as SendTemplatedEmailCommandOutput;
         }
 
         const command: SendTemplatedEmailCommand =

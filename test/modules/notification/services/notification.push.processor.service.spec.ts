@@ -1,6 +1,5 @@
-import type { INotificationDeliverySummary } from '@modules/notification/interfaces/notification.interface';
 import { Test } from '@nestjs/testing';
-import { Job } from 'bullmq';
+import type { Job } from 'bullmq';
 import { mock } from 'vitest-mock-extended';
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
@@ -35,12 +34,6 @@ describe('NotificationPushProcessorService', () => {
     const notificationPushQueue = mock<NotificationPushQueue>();
     let service: NotificationPushProcessorService;
 
-    const completedSummary: INotificationDeliverySummary = {
-        acceptedCount: 1,
-        failedCount: 0,
-        invalidTargetCount: 0,
-        errorCodes: [],
-    };
     const response: IQueueResponse = { message: 'processed' };
     const send: INotificationSendPushPayload = {
         userId: 'user-id',
@@ -49,7 +42,10 @@ describe('NotificationPushProcessorService', () => {
         username: 'nadia',
     };
 
-    const jobState = { attemptsMade: 0, opts: { attempts: 3 } };
+    const buildJob = <T>(
+        data: T
+    ): Job<T, IQueueResponse, EnumNotificationPushProcess> =>
+        ({ data }) as Job<T, IQueueResponse, EnumNotificationPushProcess>;
 
     beforeEach(async () => {
         vi.resetAllMocks();
@@ -75,46 +71,6 @@ describe('NotificationPushProcessorService', () => {
             ],
         }).compile();
         service = module.get(NotificationPushProcessorService);
-    });
-
-    it('returns the delivery summary of an accepted partial send', async () => {
-        const job = {
-            ...jobState,
-            data: { send },
-        } as Job<
-            INotificationPushQueuePayload,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >;
-        const summary = {
-            acceptedCount: 1,
-            failedCount: 1,
-            invalidTargetCount: 0,
-            errorCodes: ['messaging/server-unavailable'],
-        };
-        notificationPushSecurityDomain.processResetPassword.mockResolvedValue(
-            summary
-        );
-        expect(await service.processResetPassword(job)).toEqual({
-            message: 'Push delivery completed',
-            result: summary,
-        });
-    });
-
-    it('propagates a domain failure so BullMQ retries the job', async () => {
-        const job = {
-            ...jobState,
-            data: { send },
-        } as Job<
-            INotificationPushQueuePayload,
-            IQueueResponse,
-            EnumNotificationPushProcess
-        >;
-        const error = new Error('delivery failed');
-        notificationPushSecurityDomain.processResetPassword.mockRejectedValue(
-            error
-        );
-        await expect(service.processResetPassword(job)).rejects.toBe(error);
     });
 
     describe('onModuleInit', () => {
@@ -152,52 +108,35 @@ describe('NotificationPushProcessorService', () => {
                 requestLog,
             };
             notificationPushSecurityDomain.processNewDeviceLogin.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processNewDeviceLogin(job);
 
             expect(
                 notificationPushSecurityDomain.processNewDeviceLogin
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
     describe('processResetTwoFactorByAdmin', () => {
         it('forwards send to the security domain', async () => {
             notificationPushSecurityDomain.processResetTwoFactorByAdmin.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = { ...jobState, data: { send } } as Job<
-                INotificationPushQueuePayload,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload>({ send });
 
             const result = await service.processResetTwoFactorByAdmin(job);
 
             expect(
                 notificationPushSecurityDomain.processResetTwoFactorByAdmin
             ).toHaveBeenCalledWith(send);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
@@ -208,52 +147,51 @@ describe('NotificationPushProcessorService', () => {
                 passwordCreatedAt: '2024-01-01T00:00:00.000Z',
             };
             notificationPushSecurityDomain.processTemporaryPasswordByAdmin.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processTemporaryPasswordByAdmin(job);
 
             expect(
                 notificationPushSecurityDomain.processTemporaryPasswordByAdmin
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
     describe('processResetPassword', () => {
         it('forwards send to the security domain', async () => {
             notificationPushSecurityDomain.processResetPassword.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = { ...jobState, data: { send } } as Job<
-                INotificationPushQueuePayload,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload>({ send });
 
             const result = await service.processResetPassword(job);
 
             expect(
                 notificationPushSecurityDomain.processResetPassword
             ).toHaveBeenCalledWith(send);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
+        });
+    });
+
+    describe('processForgotPassword', () => {
+        it('forwards send to the security domain', async () => {
+            notificationPushSecurityDomain.processForgotPassword.mockResolvedValue(
+                response
+            );
+            const job = buildJob<INotificationPushQueuePayload>({ send });
+
+            const result = await service.processForgotPassword(job);
+
+            expect(
+                notificationPushSecurityDomain.processForgotPassword
+            ).toHaveBeenCalledWith(send);
+            expect(result).toBe(response);
         });
     });
 
@@ -268,29 +206,19 @@ describe('NotificationPushProcessorService', () => {
                 expiredAt: '2024-02-01T00:00:00.000Z',
             };
             notificationPushWorkspaceDomain.processWorkspaceInvite.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processWorkspaceInvite(job);
 
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceInvite
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
@@ -302,29 +230,19 @@ describe('NotificationPushProcessorService', () => {
                 requesterName: 'Omar',
             };
             notificationPushWorkspaceDomain.processWorkspaceJoinRequest.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processWorkspaceJoinRequest(job);
 
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinRequest
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
@@ -332,29 +250,19 @@ describe('NotificationPushProcessorService', () => {
         it('forwards send and data to the workspace domain', async () => {
             const data = { workspaceId: 'workspace-id', workspaceName: 'Acme' };
             notificationPushWorkspaceDomain.processWorkspaceJoinAccepted.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processWorkspaceJoinAccepted(job);
 
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinAccepted
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
@@ -367,29 +275,19 @@ describe('NotificationPushProcessorService', () => {
                     EnumWorkspaceJoinRejectReason.memberLimitReached,
             };
             notificationPushWorkspaceDomain.processWorkspaceJoinRejected.mockResolvedValue(
-                completedSummary
+                response
             );
-            const job = {
-                ...jobState,
-                data: {
-                    send,
-                    data,
-                },
-            } as Job<
-                INotificationPushQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob<INotificationPushQueuePayload<typeof data>>({
+                send,
+                data,
+            });
 
             const result = await service.processWorkspaceJoinRejected(job);
 
             expect(
                 notificationPushWorkspaceDomain.processWorkspaceJoinRejected
             ).toHaveBeenCalledWith(send, data);
-            expect(result).toEqual({
-                message: 'Push delivery completed',
-                result: completedSummary,
-            });
+            expect(result).toBe(response);
         });
     });
 
@@ -401,11 +299,7 @@ describe('NotificationPushProcessorService', () => {
             notificationPushMaintenanceDomain.processCleanupTokens.mockResolvedValue(
                 response
             );
-            const job = { ...jobState, data: payload } as Job<
-                INotificationPushCleanupTokenQueuePayload,
-                IQueueResponse,
-                EnumNotificationPushProcess
-            >;
+            const job = buildJob(payload);
 
             const result = await service.processCleanupTokens(job);
 

@@ -17,12 +17,13 @@ import { Queue } from 'bullmq';
 import { EnumQueue, EnumQueuePriority } from '@queues/enums/queue.enum';
 
 /**
- * Enqueues deduplicated push sends and idempotent token cleanup jobs.
+ * Enqueues push notification jobs (FCM) onto the push queue, deduplicated per user.
  */
 @Injectable()
 export class NotificationPushQueue {
     private readonly defTz: string;
     private readonly dedupTtlInMs: number;
+    private readonly cleanupDedupTtlInMs: number;
     private readonly cleanupStaleTokensCron: string;
 
     constructor(
@@ -33,6 +34,9 @@ export class NotificationPushQueue {
         this.defTz = this.configService.get<string>('app.timezone')!;
         this.dedupTtlInMs = this.configService.get<number>(
             'notification.dedupTtlInMs'
+        )!;
+        this.cleanupDedupTtlInMs = this.configService.get<number>(
+            'notification.push.cleanupDedupTtlInMs'
         )!;
         this.cleanupStaleTokensCron = this.configService.get<string>(
             'notification.push.cleanupStaleTokensCron'
@@ -252,6 +256,10 @@ export class NotificationPushQueue {
                 payload,
                 {
                     priority: EnumQueuePriority.low,
+                    deduplication: {
+                        id: `${EnumNotificationPushProcess.cleanupTokens}-${userId}`,
+                        ttl: this.cleanupDedupTtlInMs,
+                    },
                 }
             );
         }

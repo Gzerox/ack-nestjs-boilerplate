@@ -46,7 +46,10 @@ describe('NotificationEmailProcessorService', () => {
     };
     const response: IQueueResponse = { message: 'processed' };
 
-    const jobState = { attemptsMade: 0, opts: { attempts: 3 } };
+    const buildJob = <T>(
+        data: T
+    ): Job<T, IQueueResponse, EnumNotificationProcess> =>
+        ({ data }) as Job<T, IQueueResponse, EnumNotificationProcess>;
 
     beforeEach(async () => {
         vi.resetAllMocks();
@@ -79,14 +82,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processWelcome.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<INotificationEmailQueuePayload>({ send });
 
             const result = await service.processWelcome(job);
 
@@ -102,14 +98,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processWelcomeSocial.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<INotificationEmailQueuePayload>({ send });
 
             const result = await service.processWelcomeSocial(job);
 
@@ -130,14 +119,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processWelcomeByAdmin.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processWelcomeByAdmin(job);
 
@@ -158,14 +140,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processTemporaryPasswordByAdmin.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processTemporaryPasswordByAdmin(job);
 
@@ -181,14 +156,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processChangePassword.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<INotificationEmailQueuePayload>({ send });
 
             const result = await service.processChangePassword(job);
 
@@ -204,14 +172,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processResetPassword.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<INotificationEmailQueuePayload>({ send });
 
             const result = await service.processResetPassword(job);
 
@@ -233,14 +194,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processVerificationEmail.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processVerificationEmail(job);
 
@@ -257,14 +211,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processVerifiedEmail.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processVerifiedEmail(job);
 
@@ -287,14 +234,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processForgotPassword.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processForgotPassword(job);
 
@@ -315,14 +255,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailAccountDomain.processVerifiedMobileNumber.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processVerifiedMobileNumber(job);
 
@@ -338,14 +271,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processResetTwoFactorByAdmin.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send },
-            } as Job<
-                INotificationEmailQueuePayload,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<INotificationEmailQueuePayload>({ send });
 
             const result = await service.processResetTwoFactorByAdmin(job);
 
@@ -379,14 +305,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailSecurityDomain.processNewDeviceLogin.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processNewDeviceLogin(job);
 
@@ -398,29 +317,23 @@ describe('NotificationEmailProcessorService', () => {
     });
 
     describe('processPublishTermPolicy', () => {
-        const data: INotificationPublishTermPolicyPayload = {
-            type: EnumTermPolicyType.privacy,
-            version: 2,
-        };
-
-        it('forwards send and data to the term-policy domain', async () => {
+        it('forwards data to the term-policy domain', async () => {
+            const data: INotificationPublishTermPolicyPayload = {
+                type: EnumTermPolicyType.privacy,
+                version: 2,
+            };
             notificationEmailTermPolicyDomain.processPublishTermPolicy.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send: [send], data },
-            } as Job<
-                INotificationEmailBulkQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<
+                INotificationEmailBulkQueuePayload<typeof data>
+            >({ send: [send], data });
 
             const result = await service.processPublishTermPolicy(job);
 
             expect(
                 notificationEmailTermPolicyDomain.processPublishTermPolicy
-            ).toHaveBeenCalledWith([send], data);
+            ).toHaveBeenCalledWith(data);
             expect(result).toBe(response);
         });
     });
@@ -439,14 +352,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailWorkspaceDomain.processWorkspaceInvite.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processWorkspaceInvite(job);
 
@@ -473,14 +379,9 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailWorkspaceDomain.processWorkspaceInviteUnregistered.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send: unregisteredSend, data },
-            } as Job<
-                INotificationEmailUnregisteredQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob<
+                INotificationEmailUnregisteredQueuePayload<typeof data>
+            >({ send: unregisteredSend, data });
 
             const result =
                 await service.processWorkspaceInviteUnregistered(job);
@@ -503,14 +404,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailWorkspaceDomain.processWorkspaceJoinRequest.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processWorkspaceJoinRequest(job);
 
@@ -527,14 +421,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailWorkspaceDomain.processWorkspaceJoinAccepted.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processWorkspaceJoinAccepted(job);
 
@@ -556,14 +443,7 @@ describe('NotificationEmailProcessorService', () => {
             notificationEmailWorkspaceDomain.processWorkspaceJoinRejected.mockResolvedValue(
                 response
             );
-            const job = {
-                ...jobState,
-                data: { send, data },
-            } as Job<
-                INotificationEmailQueuePayload<typeof data>,
-                IQueueResponse,
-                EnumNotificationProcess
-            >;
+            const job = buildJob({ send, data });
 
             const result = await service.processWorkspaceJoinRejected(job);
 

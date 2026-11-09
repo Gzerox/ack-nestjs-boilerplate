@@ -1,4 +1,8 @@
-import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
+import {
+    GetSMSAttributesCommand,
+    PublishCommand,
+    SNSClient,
+} from '@aws-sdk/client-sns';
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -6,7 +10,7 @@ import type {
     PublishCommandInput,
     PublishCommandOutput,
 } from '@aws-sdk/client-sns';
-import type { IAwsSnsSendResult } from '@common/aws/interfaces/aws.sns.interface';
+import type { IAwsSNSSendSms } from '@common/aws/interfaces/aws.sns.interface';
 
 @Injectable()
 export class AwsSNSService implements OnModuleInit {
@@ -37,7 +41,7 @@ export class AwsSNSService implements OnModuleInit {
     onModuleInit(): void {
         if (!this.iamKey || !this.iamSecret || !this.region) {
             this.logger.warn(
-                'AWS SNS credentials not configured. SMS functionalities will be disabled.'
+                'AWS SNS credentials not configured. SNS functionalities will be disabled.'
             );
 
             return;
@@ -57,17 +61,34 @@ export class AwsSNSService implements OnModuleInit {
         return !!this.snsClient;
     }
 
-    async send(
-        phoneNumber: string,
-        message: string
-    ): Promise<IAwsSnsSendResult> {
+    async checkConnection(): Promise<boolean> {
         const isInitialized = this.isInitialized();
         if (!isInitialized) {
             this.logger.warn(
-                'AWS SNS credentials not configured. SMS functionalities will be disabled.'
+                'AWS SNS credentials not configured. SNS functionalities will be disabled.'
+            );
+            return false;
+        }
+
+        try {
+            await this.snsClient.send(new GetSMSAttributesCommand({}));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async sendSms({
+        phoneNumber,
+        message,
+    }: IAwsSNSSendSms): Promise<PublishCommandOutput> {
+        const isInitialized = this.isInitialized();
+        if (!isInitialized) {
+            this.logger.warn(
+                'AWS SNS credentials not configured. SNS functionalities will be disabled.'
             );
 
-            return { messageId: null };
+            return { $metadata: {} };
         }
 
         const command: PublishCommand = new PublishCommand({
@@ -94,6 +115,6 @@ export class AwsSNSService implements OnModuleInit {
             PublishCommandOutput
         >(command);
 
-        return { messageId: published.MessageId ?? null };
+        return published;
     }
 }

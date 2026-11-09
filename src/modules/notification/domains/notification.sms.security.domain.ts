@@ -30,12 +30,12 @@ export class NotificationSmsSecurityDomain {
         }
         const body = this.messageService.setMessage(`notification.sms.${kind}`);
         const sends = [...new Set(phoneNumbers)].map(phoneNumber =>
-            this.awsSNSService.send(phoneNumber, body)
+            this.awsSNSService.sendSms({ phoneNumber, message: body })
         );
         try {
             const results = await Promise.all(sends);
             summary.acceptedCount = results.filter(
-                result => result.messageId
+                result => result.MessageId
             ).length;
         } catch (error: unknown) {
             throw new AppUnknownException(error);

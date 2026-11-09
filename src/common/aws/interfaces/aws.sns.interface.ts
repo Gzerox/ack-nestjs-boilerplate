@@ -1,3 +1,4 @@
-export interface IAwsSnsSendResult {
-    messageId: string | null;
+export interface IAwsSNSSendSms {
+    phoneNumber: string;
+    message: string;
 }

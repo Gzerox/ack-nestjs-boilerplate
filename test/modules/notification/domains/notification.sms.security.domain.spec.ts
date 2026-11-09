@@ -18,7 +18,7 @@ describe('NotificationSmsSecurityDomain', () => {
     beforeEach(async () => {
         vi.resetAllMocks();
         sns.isInitialized.mockReturnValue(true);
-        sns.send.mockResolvedValue({ messageId: 'accepted' });
+        sns.sendSms.mockResolvedValue({ MessageId: 'accepted', $metadata: {} });
         messages.setMessage.mockReturnValue('Security alert');
         const module = await Test.createTestingModule({
             providers: [
@@ -31,11 +31,14 @@ describe('NotificationSmsSecurityDomain', () => {
     });
     it('sends once per unique number without a delivery record', async () => {
         await domain.process({ ...payload, phoneNumbers: ['+111', '+111'] });
-        expect(sns.send).toHaveBeenCalledTimes(1);
-        expect(sns.send).toHaveBeenCalledWith('+111', 'Security alert');
+        expect(sns.sendSms).toHaveBeenCalledTimes(1);
+        expect(sns.sendSms).toHaveBeenCalledWith({
+            phoneNumber: '+111',
+            message: 'Security alert',
+        });
     });
     it('propagates provider failures so BullMQ can retry', async () => {
-        sns.send.mockRejectedValue(new Error('unavailable'));
+        sns.sendSms.mockRejectedValue(new Error('unavailable'));
         await expect(domain.process(payload)).rejects.toMatchObject({
             rawError: expect.objectContaining({ message: 'unavailable' }),
         });
@@ -45,6 +48,6 @@ describe('NotificationSmsSecurityDomain', () => {
         await domain.process(payload);
         sns.isInitialized.mockReturnValue(true);
         await domain.process({ ...payload, phoneNumbers: [] });
-        expect(sns.send).not.toHaveBeenCalled();
+        expect(sns.sendSms).not.toHaveBeenCalled();
     });
 });

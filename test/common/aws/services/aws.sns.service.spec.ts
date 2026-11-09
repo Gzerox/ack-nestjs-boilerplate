@@ -85,25 +85,56 @@ describe('AwsSNSService', () => {
         });
     });
 
-    describe('send', () => {
+    describe('checkConnection', () => {
+        it('returns false without credentials', async () => {
+            const service = await buildService({ 'aws.sns.iam.key': null });
+            expect(await service.checkConnection()).toBe(false);
+            expect(send).not.toHaveBeenCalled();
+        });
+
+        it('checks SMS attributes and returns true on success', async () => {
+            const { GetSMSAttributesCommand } =
+                await import('@aws-sdk/client-sns');
+            send.mockResolvedValue({ $metadata: {} });
+            const service = await buildService();
+            expect(await service.checkConnection()).toBe(true);
+            expect(send).toHaveBeenCalledWith(
+                expect.any(GetSMSAttributesCommand)
+            );
+        });
+
+        it('returns false when the provider rejects the check', async () => {
+            send.mockRejectedValue(new Error('denied'));
+            const service = await buildService();
+            expect(await service.checkConnection()).toBe(false);
+        });
+    });
+
+    describe('sendSms', () => {
         it('is a no-op when credentials are missing', async () => {
             const service = await buildService({ 'aws.sns.iam.key': null });
 
-            const result = await service.send('+15550100', 'hello');
+            const result = await service.sendSms({
+                phoneNumber: '+15550100',
+                message: 'hello',
+            });
 
             expect(service.isInitialized()).toBe(false);
             expect(SNSClient).not.toHaveBeenCalled();
             expect(send).not.toHaveBeenCalled();
-            expect(result).toEqual({ messageId: null });
+            expect(result).toEqual({ $metadata: {} });
         });
 
         it('publishes with Transactional and the sender id', async () => {
             send.mockResolvedValue({ MessageId: 'm-1', $metadata: {} });
             const service = await buildService();
 
-            const result = await service.send('+15550100', 'hello');
+            const result = await service.sendSms({
+                phoneNumber: '+15550100',
+                message: 'hello',
+            });
 
-            expect(result).toEqual({ messageId: 'm-1' });
+            expect(result).toEqual({ MessageId: 'm-1', $metadata: {} });
             expect(send).toHaveBeenCalledWith(
                 expect.objectContaining({
                     input: {
@@ -128,9 +159,12 @@ describe('AwsSNSService', () => {
             send.mockResolvedValue({ $metadata: {} });
             const service = await buildService({ 'aws.sns.senderId': null });
 
-            const result = await service.send('+15550100', 'hello');
+            const result = await service.sendSms({
+                phoneNumber: '+15550100',
+                message: 'hello',
+            });
 
-            expect(result).toEqual({ messageId: null });
+            expect(result).toEqual({ $metadata: {} });
             expect(send).toHaveBeenCalledWith(
                 expect.objectContaining({
                     input: {

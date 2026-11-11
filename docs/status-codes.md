@@ -32,12 +32,11 @@ The machine registry is the `*.status-code.enum.ts` files under `src/`. This pag
 | `50700` | `api-key` | `50700`–`50708` | 9 |
 | `50800` | `auth` | `50800`–`50816` | 17 |
 | `50900` | `country` | `50900`–`50902` | 3 |
-| `51000` | `user` | `51000`–`51027` | 28 |
+| `51000` | `user` | `51000`–`51028` | 29 |
 | `51100` | `policy` | `51100`–`51103` | 4 |
 | `51200` | `notification` | `51200`–`51203` | 4 |
 | `51300` | `device` | `51300` | 1 |
-| `51400` | `aws` | `51400` | 1 |
-| `51500` | `term-policy` | `51500`–`51508` | 9 |
+| `51500` | `term-policy` | `51500`–`51509` | 10 |
 | `51600` | `workspace` | `51600`–`51620` | 21 |
 | `51700` | `project` | `51700`–`51707` | 8 |
 | `51800` | `database` | `51800` | 1 |
@@ -45,8 +44,9 @@ The machine registry is the `*.status-code.enum.ts` files under `src/`. This pag
 | `52000` | `activity-log` | `52000` | 1 |
 | `52100` | `analytic` | `52100` | 1 |
 | `52200` | `helper` | `52200`–`52202` | 3 |
+| `52300` | `storage` | `52300`–`52307` | 8 |
 
-Next free hundred: `52300`. The enum files are the source; this map follows them.
+Next free hundred: `52400`. The enum files are the source; this map follows them.
 
 ## `app`
 
@@ -216,6 +216,7 @@ Read `module` together with `statusCode` when branching on this one: `FileImport
 | `importEmailExist` | `51025` | `importEmailExist` | 409 (`CONFLICT`) | `user.error.importEmailExist` | There are existing users with the provided email addresses. Email: {emails} |
 | `importUsernameExist` | `51026` | `importUsernameExist` | 409 (`CONFLICT`) | `user.error.importUsernameExist` | There are existing users with the provided usernames. Username: {usernames} |
 | `notAuthenticated` | `51027` | `notAuthenticated` | 401 (`UNAUTHORIZED`) | `user.error.notAuthenticated` | This request does not carry an authenticated user. |
+| `photoSizeExceeded` | `51028` | `photoSizeExceeded` | 413 (`PAYLOAD_TOO_LARGE`) | `user.error.photoSizeExceeded` | The profile photo is larger than the allowed size. |
 
 ## `policy`
 
@@ -241,12 +242,6 @@ Read `module` together with `statusCode` when branching on this one: `FileImport
 |---|---|---|---|---|---|
 | `notFound` | `51300` | `notFound` | 404 (`NOT_FOUND`) | `device.error.notFound` | Device information not found |
 
-## `aws`
-
-| member | statusCode | statusCodeKey | httpStatus | messagePath | description |
-|---|---|---|---|---|---|
-| `serviceUnavailable` | `51400` | `serviceUnavailable` | 503 (`SERVICE_UNAVAILABLE`) | `aws.error.serviceUnavailable` | The AWS service is currently unavailable. Please try again later. |
-
 ## `term-policy`
 
 | member | statusCode | statusCodeKey | httpStatus | messagePath | description |
@@ -260,6 +255,7 @@ Read `module` together with `statusCode` when branching on this one: `FileImport
 | `contentNotFound` | `51506` | `contentNotFound` | 404 (`NOT_FOUND`) | `termPolicy.error.contentNotFound` | Term policy content not found. |
 | `contentExist` | `51507` | `contentExist` | 409 (`CONFLICT`) | `termPolicy.error.contentExist` | This content already exists in the term policy. |
 | `contentEmpty` | `51508` | `contentEmpty` | 400 (`BAD_REQUEST`) | `termPolicy.error.contentEmpty` | Term policy content cannot be empty. |
+| `contentSizeExceeded` | `51509` | `contentSizeExceeded` | 413 (`PAYLOAD_TOO_LARGE`) | `termPolicy.error.contentSizeExceeded` | The term policy content is larger than the allowed size. |
 
 ## `workspace`
 
@@ -337,6 +333,21 @@ Read `module` together with `statusCode` when branching on this one: `FileImport
 `HelperDecryptFailedException` covers a malformed, tampered, or wrong-key payload; `HelperEncryptionSecretInvalidException` covers a root secret that is not canonical base64url of 48 bytes. `AuthTwoFactorDomain` turns a `decryptFailed` on a stored TOTP secret into `twoFactorSecretUnavailable` (409), and `NotificationEmailProcessor` turns it into a BullMQ `UnrecoverableError`.
 
 `HelperPatternTokenMissingException` carries the offending token in `messageProperties.token`. `HelperStringService.fillPattern` raises it when a `{token}` in the pattern has no entry in the values it was given, which makes a configured pattern and its call site disagree an error rather than a key holding the literal `{token}`.
+
+## `storage`
+
+| member | statusCode | statusCodeKey | httpStatus | messagePath | description |
+|---|---|---|---|---|---|
+| `serviceUnavailable` | `52300` | `serviceUnavailable` | 503 (`SERVICE_UNAVAILABLE`) | `storage.error.serviceUnavailable` | The storage service is currently unavailable. Please try again later. |
+| `objectNotFound` | `52301` | `objectNotFound` | 404 (`NOT_FOUND`) | `storage.error.objectNotFound` | The requested file was not found. |
+| `keyInvalid` | `52302` | `keyInvalid` | 400 (`BAD_REQUEST`) | `storage.error.keyInvalid` | The file key is invalid. |
+| `objectConflict` | `52303` | `objectConflict` | 409 (`CONFLICT`) | `storage.error.objectConflict` | The file key conflicts with an existing file. |
+| `contentTypeInvalid` | `52304` | `contentTypeInvalid` | 422 (`UNPROCESSABLE_ENTITY`) | `storage.error.contentTypeInvalid` | The file type is not allowed. |
+| `sizeInvalid` | `52305` | `sizeInvalid` | 422 (`UNPROCESSABLE_ENTITY`) | `storage.error.sizeInvalid` | The file size is invalid or exceeds the allowed limit. |
+| `signedRequestInvalid` | `52306` | `signedRequestInvalid` | 403 (`FORBIDDEN`) | `storage.error.signedRequestInvalid` | The signed file link is invalid or has expired. |
+| `promotionFailed` | `52307` | `promotionFailed` | 500 (`INTERNAL_SERVER_ERROR`) | `storage.error.promotionFailed` | The uploaded file could not be stored. Please try again. |
+
+`StorageErrorUtil` maps every `@nestjs/storage` error onto one of these members, so a caller never sees a package error. `StorageLocalDriverGuard` answers `objectNotFound` (404) on every local-driver route when `STORAGE_DRIVER` is not `local`.
 
 ## Related documents
 

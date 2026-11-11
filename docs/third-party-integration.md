@@ -6,10 +6,10 @@ Third-party clients are configured through environment variables. Each section b
 
 ## Related Documents
 
-- [Configuration Documentation][ref-doc-configuration] - AWS, Firebase, Sentry config keys
+- [Configuration Documentation][ref-doc-configuration] - Storage, AWS SES, Firebase, Sentry config keys
 - [Environment Documentation][ref-doc-environment] - Credential env vars
 - [Authentication Documentation][ref-doc-authentication] - Google and Apple OAuth
-- [File Upload Documentation][ref-doc-file-upload] - Multipart upload and S3 presign
+- [File Upload Documentation][ref-doc-file-upload] - Stored uploads, signed direct uploads, and the client flow
 - [Email Documentation][ref-doc-email] - SES templates and sync
 - [Notification Documentation][ref-doc-notification] - Push and email delivery
 - [Queue Documentation][ref-doc-queue] - BullMQ workers that call these services
@@ -20,11 +20,19 @@ Third-party clients are configured through environment variables. Each section b
 
 - [Overview](#overview)
 - [Related Documents](#related-documents)
+- [Object Storage](#object-storage)
+  - [Drivers](#drivers)
+  - [AWS S3 configuration](#aws-s3-configuration)
+  - [Cloudflare R2 configuration](#cloudflare-r2-configuration)
+  - [Bucket setup](#bucket-setup)
+  - [Browser CORS](#browser-cors)
+  - [Lifecycle rules](#lifecycle-rules)
+  - [Least-privilege permissions](#least-privilege-permissions)
+  - [Encryption at rest](#encryption-at-rest)
+  - [Credential and signing-key rotation](#credential-and-signing-key-rotation)
+  - [Health and error codes](#health-and-error-codes)
 - [AWS Services](#aws-services)
-  - [S3 Storage](#s3-storage)
-    - [Bucket setup](#bucket-setup)
   - [SES Email](#ses-email)
-  - [Error Codes](#error-codes)
 - [Firebase](#firebase)
 - [Sentry](#sentry)
 - [Redis](#redis)
@@ -34,66 +42,167 @@ Third-party clients are configured through environment variables. Each section b
   - [Apple Sign In](#apple-sign-in)
 - [HashiCorp Vault](#hashicorp-vault)
 
-## AWS Services
+## Object Storage
 
-### S3 Storage
-
-[AWS S3][ref-aws-s3] is used for file storage with support for both public and private buckets.
+[`@nestjs/storage`][ref-nestjs-storage] backs the `storage` kit in `src/common/storage`. The kit registers two named disks, `public` and `private`, and features call `ObjectStorageService` for every storage operation. Upload and delivery flows: [File Upload][ref-doc-file-upload].
 
 **Packages:**
-- `@aws-sdk/client-s3`
-- `@aws-sdk/s3-request-presigner`
+- `@nestjs/storage` (local, S3, and in-memory disks; S3 requests are SigV4-signed `fetch` calls)
 
-**Environment Variables:**
+| Disk | Holds | Delivery |
+|---|---|---|
+| `public` | Verified assets readable by anyone holding the URL: profile photos, published term policy content | Public URL, `STORAGE_PUBLIC_BASE_URL` plus the object key |
+| `private` | Draft term policy content, and every unverified direct upload under `incoming/` | Short-lived signed URL, issued after authorization |
+
+### Drivers
+
+`STORAGE_DRIVER` selects the implementation. Either driver runs in any environment; the choice belongs to the deployment.
+
+- **`local`** (default) keeps `<STORAGE_LOCAL_ROOT>/public` and `<STORAGE_LOCAL_ROOT>/private` on the API host. The API serves them under `/api/storage` (public files, signed downloads, signed uploads), and the private URLs are signed with `STORAGE_LOCAL_SIGNING_KEYS`. Objects live as long as that directory does, so a multi-instance or ephemeral-disk deployment needs shared, persistent storage behind it. `docker-compose.yml` mounts `./storage-data` into the API container.
+- **`s3`** talks to AWS S3 or any S3-compatible service through `STORAGE_S3_ENDPOINT`: Cloudflare R2, MinIO (with `STORAGE_S3_FORCE_PATH_STYLE=true`), and others. One bucket backs each disk, and the provider signs uploads and downloads itself.
+
+Startup validation fails when a variable the chosen driver needs is missing, so a running instance always has working storage. Variable reference: [Environment][ref-doc-environment].
+
+### AWS S3 configuration
+
 ```dotenv
-AWS_S3_IAM_CREDENTIAL_KEY=<your_aws_s3_access_key>
-AWS_S3_IAM_CREDENTIAL_SECRET=<your_aws_s3_secret_key>
-AWS_S3_IAM_ARN=<your_aws_s3_iam_arn>
-AWS_S3_REGION=ap-southeast-3
-AWS_S3_PUBLIC_BUCKET=<your_aws_s3_public_bucket>
-AWS_S3_PUBLIC_CDN=<your_aws_s3_public_cdn>
-AWS_S3_PRIVATE_BUCKET=<your_aws_s3_private_bucket>
-AWS_S3_PRIVATE_CDN=<your_aws_s3_private_cdn>
+STORAGE_DRIVER=s3
+STORAGE_PUBLIC_BASE_URL=https://<public-bucket>.s3.<region>.amazonaws.com
+STORAGE_S3_ENDPOINT=
+STORAGE_S3_REGION=<region>
+STORAGE_S3_ACCESS_KEY_ID=<access_key_id>
+STORAGE_S3_SECRET_ACCESS_KEY=<secret_access_key>
+STORAGE_S3_FORCE_PATH_STYLE=false
+STORAGE_S3_PUBLIC_BUCKET=<public-bucket>
+STORAGE_S3_PRIVATE_BUCKET=<private-bucket>
 ```
 
-**Use Cases:**
-- Public file uploads (user avatars, public documents)
-- Private file storage (sensitive documents)
-- Presigned URL generation for secure access
+An empty `STORAGE_S3_ENDPOINT` uses the AWS regional endpoint. With a CloudFront distribution in front of the public bucket, `STORAGE_PUBLIC_BASE_URL` is the distribution URL.
 
-**No-Op Mode:**
+### Cloudflare R2 configuration
 
-If any of these is not set, the S3 integration runs in no-op mode (disabled, logs a warning on startup, S3 operations return safe defaults instead of failing):
+```dotenv
+STORAGE_DRIVER=s3
+STORAGE_PUBLIC_BASE_URL=https://<public-bucket-custom-domain>
+STORAGE_S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+STORAGE_S3_REGION=auto
+STORAGE_S3_ACCESS_KEY_ID=<r2_access_key_id>
+STORAGE_S3_SECRET_ACCESS_KEY=<r2_secret_access_key>
+STORAGE_S3_FORCE_PATH_STYLE=false
+STORAGE_S3_PUBLIC_BUCKET=<public-bucket>
+STORAGE_S3_PRIVATE_BUCKET=<private-bucket>
+```
 
-- `AWS_S3_IAM_CREDENTIAL_KEY`
-- `AWS_S3_IAM_CREDENTIAL_SECRET`
-- `AWS_S3_REGION`
-
-For detailed upload and presign behavior, see [File Upload][ref-doc-file-upload].
+Validation rejects any region other than `auto` for an endpoint ending in `.r2.cloudflarestorage.com`. `STORAGE_PUBLIC_BASE_URL` is the custom domain connected to the public bucket, or its `r2.dev` URL.
 
 ### Bucket setup
 
-`pnpm migration awsS3Config` is a migration command, not a database seed. It applies bucket policy and settings on AWS for both the public and private buckets. It writes no database rows.
+Buckets are configured in the provider's console or infrastructure code; the API changes no bucket setting.
 
-```bash
-pnpm migration awsS3Config --type seed
+- **Private bucket.** Block Public Access stays on with all four settings, on AWS. On R2 the bucket has no custom domain and its `r2.dev` URL stays disabled. A client reads a private object only through a signed URL the API issued after an authorization check.
+- **Public bucket.** Objects are publicly readable: a bucket policy granting `s3:GetObject` to `*` on `arn:aws:s3:::<public-bucket>/*` (with Block Public Access relaxed for that bucket only), or a CloudFront distribution with origin access control in front of a bucket that stays blocked. On R2, a custom domain or the `r2.dev` URL.
+- **Object ownership.** Bucket owner enforced (ACLs disabled). The API sends no ACL.
+
+### Browser CORS
+
+A signed direct upload is a `PUT` from the browser to the private bucket. The private bucket's CORS rule admits `PUT` from the approved frontend origins and the headers the signed upload returns (`content-type`; browsers set `content-length` themselves):
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://app.example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["content-type"],
+    "ExposeHeaders": ["etag"],
+    "MaxAgeSeconds": 3600
+  }
+]
 ```
 
-`--type remove` is a no-op for this command.
+The same JSON applies to an R2 bucket's CORS policy. A frontend that reads public or signed objects with `fetch` (rather than an `<img>` or a link) also needs `GET` and `HEAD` from those origins on the bucket it reads. Under the `local` driver every storage URL is on the API origin, so the API's own CORS settings (`CORS_ALLOWED_ORIGIN`) cover it.
 
-Applied in this order (later steps depend on earlier ones):
+### Lifecycle rules
 
-1. **Block public access** - Public access restrictions
-2. **Disable ACL** - Bucket-owner ownership controls
-3. **Bucket policy** - Read/write permissions for public vs private
-4. **CORS** - Cross-origin rules
-5. **Lifecycle** - Deletes incomplete multipart uploads
+- **`incoming/` expiry on the private bucket.** A direct upload is staged under `incoming/` until completion verifies and promotes it. Completion deletes the staged object, and deletes a rejected one best-effort; an upload that is never completed stays. An expiration rule on the `incoming/` prefix removes those, for example after one day.
+- **Incomplete multipart abort on both buckets.** Bodies above 8 MiB go up in parts. A rule aborting incomplete multipart uploads (for example after one day) removes the parts of an upload that never finished.
 
-**Public buckets:** public read (`s3:GetObject`), full IAM management access, CORS GET/HEAD from any origin and PUT/POST/DELETE from whitelisted origins.
+```json
+{
+  "Rules": [
+    {
+      "ID": "expire-incoming",
+      "Filter": { "Prefix": "incoming/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 1 }
+    },
+    {
+      "ID": "abort-incomplete-multipart",
+      "Filter": {},
+      "Status": "Enabled",
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}
+```
 
-**Private buckets:** all public access blocked, CORS only for whitelisted origins, full IAM access for every operation.
+R2 offers both rule kinds under the bucket's object lifecycle settings.
 
-Needs valid AWS credentials, IAM permission to change those bucket settings, and the bucket names/ARNs in your environment.
+### Least-privilege permissions
+
+The storage identity needs list, read, write, delete, and multipart abort on the two buckets, and nothing else. On AWS:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::<public-bucket>",
+        "arn:aws:s3:::<private-bucket>"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": [
+        "arn:aws:s3:::<public-bucket>/*",
+        "arn:aws:s3:::<private-bucket>/*"
+      ]
+    }
+  ]
+}
+```
+
+- `s3:ListBucket` serves the health probe and prefix deletion.
+- `kms:GenerateDataKey` and `kms:Decrypt` on the key ARN are added only when a bucket encrypts with SSE-KMS.
+- On R2, the API token has **Object Read & Write** permission, scoped to the two buckets.
+
+### Encryption at rest
+
+The API sends no server-side encryption header, so each object takes its bucket's default encryption. AWS S3 encrypts every new object with SSE-S3 by default; a bucket whose default is SSE-KMS encrypts with that key, and the storage identity then needs the KMS permissions above. R2 encrypts every object at rest.
+
+### Credential and signing-key rotation
+
+- **S3 access keys.** AWS allows two active keys per IAM user: create the second key, deploy it to `STORAGE_S3_ACCESS_KEY_ID` / `STORAGE_S3_SECRET_ACCESS_KEY`, then deactivate and delete the first. The values are read at startup, so the new pair takes effect on restart.
+- **R2 tokens.** Create a new token with the same scope, deploy it, then revoke the old one.
+- **Local signing keys.** `STORAGE_LOCAL_SIGNING_KEYS` is a comma-separated list: the first key signs and every key verifies. `pnpm generate:secret:storage` draws a new key into `keys/storage-secret.env`. With `--direct-insert` it replaces the whole list in `.env`, so local URLs signed with the old key stop verifying. To keep issued URLs valid, put the new key first by hand, restart, and drop the old key once the URLs it signed have expired (10 minutes for an upload, 5 for a download).
+
+A signed URL is a bearer credential that cannot be revoked before it expires, which is why both lifetimes stay short.
+
+### Health and error codes
+
+`GET /system/health/storage` probes each disk with one `list` of at most one key, under a 3-second limit, and reports `storagePublic` and `storagePrivate` without naming a bucket. `GET /system/health/aws` reports SES only.
+
+Storage errors use `EnumStorageStatusCodeError` (`52300`–`52307`, module `storage`); the table is in [Status Codes][ref-doc-status-codes].
+
+## AWS Services
 
 ### SES Email
 
@@ -125,14 +234,6 @@ If any of these is not set, the SES integration runs in no-op mode (disabled, lo
 - `AWS_SES_REGION`
 
 Templates, the sync command, and send flow: [Email Documentation][ref-doc-email]. Queue wiring: [Notification][ref-doc-notification] and [Queue][ref-doc-queue].
-
-### Error Codes
-
-AWS service errors use `EnumAwsStatusCodeError` located at `src/common/aws/enums/aws.status-code.enum.ts`:
-
-| Enum | Code | i18n Key | Description |
-|---|---|---|---|
-| `EnumAwsStatusCodeError.serviceUnavailable` | `51400` | `aws.error.serviceUnavailable` | AWS service is unavailable |
 
 ## Firebase
 
@@ -273,7 +374,7 @@ For authentication flow details, see [Authentication][ref-doc-authentication].
 
 <!-- REFERENCES -->
 
-[ref-aws-s3]: https://docs.aws.amazon.com/s3/
+[ref-nestjs-storage]: https://www.npmjs.com/package/@nestjs/storage
 [ref-aws-ses]: https://docs.aws.amazon.com/ses/
 [ref-firebase]: https://firebase.google.com/docs/admin/setup
 [ref-sentry]: https://sentry.io
@@ -295,3 +396,4 @@ For authentication flow details, see [Authentication][ref-doc-authentication].
 [ref-doc-notification]: notification.md
 [ref-doc-vault]: vault.md
 [ref-doc-logger]: logger.md
+[ref-doc-status-codes]: status-codes.md

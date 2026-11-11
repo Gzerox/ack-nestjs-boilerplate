@@ -74,7 +74,6 @@ Message files use JSON format with nested structure. Key paths follow the patter
 | `analytic.json` | Analytic messages |
 | `apiKey.json` | API key messages |
 | `auth.json` | Authentication messages |
-| `aws.json` | AWS service messages |
 | `country.json` | Country-related messages |
 | `database.json` | Database-related messages |
 | `device.json` | Device management messages |
@@ -94,6 +93,7 @@ Message files use JSON format with nested structure. Key paths follow the patter
 | `response.json` | Response serialization error messages |
 | `role.json` | Role messages |
 | `session.json` | Session messages |
+| `storage.json` | Object storage errors |
 | `termPolicy.json` | Terms & policy messages |
 | `user.json` | User messages |
 | `workspace.json` | Workspace messages |

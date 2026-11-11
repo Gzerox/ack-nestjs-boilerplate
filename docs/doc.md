@@ -84,7 +84,7 @@ Basic operation metadata for an endpoint. Every endpoint carries `@Doc({ summary
   - Helper decrypt / encryption-secret / pattern-token failures (500)
   - Missing request schema or request context (500)
   - Unique-value generation failure (500)
-  - AWS service unavailable (503)
+  - Storage service unavailable (503, `storage.error.serviceUnavailable`)
 
 **Usage:**
 
@@ -169,7 +169,7 @@ A hand-written schema object beside a zod schema is a mirror. Every field carrie
 | `@Response(messagePath, { schema?, cache? })` | Success envelope; HTTP status and body `statusCode` from `@HttpCode` or Nest method defaults (`POST` → 201, else 200) | `DocSerializationErrorResponses.serialization` |
 | `@ResponsePagination(messagePath, { schema, cache? })` | 200 page envelope with `baseSchema: ResponsePaginationSchema`; item schema is the row | Shared pagination errors plus both offset and cursor kits, plus serialization / pagination-shape / pagination-type failures |
 | `@ResponseFile({ extension? })` | Non-JSON produces for the extension | Export size / data caps from `DocFileErrorResponses` |
-| `FileUpload*` | Multipart consumes + binary body | Upload errors from `DocFileErrorResponses` |
+| `FileUpload*`, `StorageUploadSingle` | Multipart consumes + binary body | Upload errors from `DocFileErrorResponses` |
 
 `IResponseOptions` carries only `schema` and `cache`. It does not carry `httpStatus` or `statusCode`. Override either status at runtime via `metadata` on the handler return. `@ResponsePagination` does not emit list `ApiQuery`s; those come from the zod query schema.
 
@@ -400,28 +400,28 @@ async list(
 @UserProtected()
 @AuthJwtAccessProtected()
 @ApiKeyProtected()
-@FileUploadSingle()
+@StorageUploadSingle({
+    fieldName: 'file',
+    visibility: EnumStorageVisibility.public,
+    scopePrefixPatternConfigKey: 'user.photo.scopePrefixPattern',
+    maxSizeInBytesConfigKey: 'user.photo.maxSizeInBytes',
+    extensions: Object.values(EnumFileExtensionImage),
+})
 @RequestTimeout('1m')
 @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
 @HttpCode(HttpStatus.OK)
 @Post('/profile/photo/upload')
 async uploadPhotoProfile(
-    @AuthJwtPayload('userId') userId: string,
-    @UploadedFile(
-        FileRequiredPipe(),
-        FileExtensionPipe([
-            EnumFileExtensionImage.jpeg,
-            EnumFileExtensionImage.png,
-            EnumFileExtensionImage.jpg,
-        ])
-    )
-    file: IFile
+    @AuthJwtPayload('userId')
+    userId: string,
+    @StoredUpload()
+    stored: IStoredAsset
 ): Promise<void> {
-    await this.userProfileHttpService.uploadPhotoProfile(userId, file);
+    await this.userProfileHttpService.uploadPhotoProfile(userId, stored);
 }
 ```
 
-`FileUploadSingle` publishes multipart consumes, the binary body field, and the upload error kit. `@Response` publishes the success envelope.
+`StorageUploadSingle` publishes multipart consumes, the binary body field named by `fieldName`, and the upload error kit. Flow: [File Upload Documentation][ref-doc-file-upload]. `@Response` publishes the success envelope.
 
 See the [NestJS OpenAPI documentation][ref-nestjs-swagger].
 

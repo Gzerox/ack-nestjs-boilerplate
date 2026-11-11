@@ -12,7 +12,7 @@ Templates live as `.hbs` files under `src/modules/notification/templates/`. Four
 - [Third Party Integration][ref-doc-third-party] - SES credentials and no-op mode
 - [Environment Documentation][ref-doc-environment] - `AWS_SES_*` and `HOME_*` / support email vars
 - [Configuration Documentation][ref-doc-configuration] - Email and home config keys
-- [Term Policy Documentation][ref-doc-term-policy] - Policy HTML on S3 (`templateTermPolicy`), not SES
+- [Term Policy Documentation][ref-doc-term-policy] - Policy templates in object storage (`templateTermPolicy`), not SES
 
 ## Table of Contents
 

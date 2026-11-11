@@ -9,7 +9,7 @@ Term Policy stores versioned legal documents (terms of service, privacy policy, 
 - [Database Documentation][ref-doc-database] - Migration, seeding, and schema
 - [Authorization Documentation][ref-doc-authorization] - Admin RBAC on term-policy routes
 - [Authentication Documentation][ref-doc-authentication] - JWT and session context
-- [File Upload Documentation][ref-doc-file-upload] - Content upload and admin content GET (presign)
+- [File Upload Documentation][ref-doc-file-upload] - Signed content upload, verification, and signed download
 - [Analytic Documentation][ref-doc-analytic] - Admin acceptance-rate and time-to-accept metrics under `/admin/analytic/term-policies/*`
 - [Email Documentation][ref-doc-email] - SES templates for policy publication (not the HTML bodies)
 
@@ -29,7 +29,7 @@ Term Policy stores versioned legal documents (terms of service, privacy policy, 
   - [Accept Policy](#accept-policy)
   - [View Acceptance History](#view-acceptance-history)
 - [Admin Endpoints](#admin-endpoints)
-  - [Generate Presign URL](#generate-presign-url)
+  - [Generate Signed Upload](#generate-signed-upload)
   - [Create Policy](#create-policy)
   - [Add Content](#add-content)
   - [Update Content](#update-content)
@@ -64,21 +64,21 @@ Term policies follow a two-stage status:
 
 ### Draft Status
 - Policy created by admin
-- Content files stored in **private S3 bucket**
+- Content files stored on the **private** disk
 - Can be edited, updated, or deleted
 - Not visible to users
-- Key: `term-policies/{type}/v{version}/{language}.hbs` (from `termPolicy.uploadContentPath`)
+- Key: `term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` (prefix from `termPolicy.contentScopePrefixPattern`)
 
 ### Published Status
 - Policy published by admin
-- Content files exist in both buckets: the private originals the draft was uploaded to, and a copy in the **public S3 bucket**
+- Content files live on the **public** disk
 - Cannot be edited or deleted
 - Visible to all users
 - **Invalidates all existing user acceptances** for that policy type
 - Every active user re-accepts the new version before reaching protected endpoints again
-- Key: `term-policies/{type}/v{version}/{language}.hbs` (from `termPolicy.contentPublicPath`)
+- Key: a new random key under the same `term-policies/{type}/v{version}/{language}/` prefix
 
-Both paths resolve to the same key, so the two copies differ by bucket alone. The record's `contents` point at the public copy, each entry carrying the `access` of the bucket it names.
+Each content row stores `key`, `visibility`, `contentType`, `size`, and `etag`. Publication copies every private object to a new public key, and the record's `contents` are rewritten to those public copies; the private originals are deleted after the commit.
 
 Publishing a new version sets `termPolicy[type]` to `false` for every active, non-deleted user, so each one accepts the new version before reaching protected endpoints again.
 
@@ -91,32 +91,37 @@ sequenceDiagram
     participant Admin
     participant API
     participant Database
-    participant S3 Private
-    participant S3 Public
+    participant Private as Private disk
+    participant Public as Public disk
     participant Users
 
     Note over Admin,Users: Policy Creation & Management
     
-    Admin->>API: Generate presign URL
-    API->>Admin: Return presign URL
-    Admin->>S3 Private: Upload content (.hbs file)
+    Admin->>API: Generate signed upload
+    API->>Admin: { key, url, method, headers, expiresAt }
+    Admin->>Private: PUT content (.hbs file) under incoming/
     
     Admin->>API: Create policy (draft)
     API->>Database: Save policy metadata
     API->>Admin: Policy created (draft status)
     
-    Note over Admin,S3 Private: Content Management (Draft Only)
+    Note over Admin,Private: Content Management (Draft Only)
     
-    Admin->>API: Add/Update/Remove language content
-    API->>S3 Private: Upload/Update/Delete content
+    Admin->>API: Add/Update language content { key, language }
+    API->>Private: Verify the staged object, promote it to its final key
     API->>Database: Update policy contents
+    API->>Private: Delete the staged object and any replaced content
+    Admin->>API: Remove language content
+    API->>Database: Update policy contents
+    API->>Private: Delete the removed content
     
     Note over Admin,Users: Publishing Process
     
     Admin->>API: Publish policy
     API->>Database: Reject an already-published policy, then a policy with no content
-    API->>S3 Public: Copy all content files from the private bucket
-    API->>Database: One transaction: status = published, publishedAt = now,<br/>contents rewritten to the public items,<br/>active users termPolicy[type] = false
+    API->>Public: Copy every content file from the private disk (all or none)
+    API->>Database: One transaction: status = published, publishedAt = now,<br/>contents rewritten to the public copies,<br/>active users termPolicy[type] = false
+    API->>Private: Delete the private originals
     API->>Users: Queue publishTermPolicy notification
     API->>Admin: Policy published
     
@@ -204,9 +209,9 @@ Returns all policies the user has accepted with timestamps and policy details.
 
 Admins manage the complete lifecycle of term policies from creation to publishing.
 
-### Generate Presign URL
+### Generate Signed Upload
 
-Generate presigned URL for uploading content to S3:
+Issue a signed upload for one language's content:
 
 ```typescript
 POST /admin/term-policy/content/presign/generate
@@ -218,14 +223,13 @@ POST /admin/term-policy/content/presign/generate
 }
 ```
 
-The API derives the S3 key itself from `type`, `version`, and `language`; the client does not supply it.
+The API derives the staging key itself, `incoming/term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` on the private disk; the client does not supply it.
 
-Response:
+Response: the signed upload `{ key, url, method, headers, expiresAt }`. The client sends `method` to `url` with `headers` unchanged, within 10 minutes.
 
-- the standard presign payload (`key`, `mime`, `extension`, `presignUrl`, `expiredInSeconds`)
-- against the **private** bucket
-
-Requesting a presign for a type and version already published returns `400` (`statusInvalid`).
+- a type and version already published returns `400` (`statusInvalid`)
+- a `size` below 1 returns `422` (`storage` `sizeInvalid`)
+- a `size` above `termPolicy.content.maxSizeInBytes` (1 MB) returns `413` (`contentSizeExceeded`)
 
 ### Create Policy
 
@@ -241,7 +245,13 @@ Add new language variant to draft policy:
 
 ```typescript
 PUT /admin/term-policy/content/:termPolicyId/add
+{
+  "key": "incoming/term-policies/termsOfService/v1/en/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.hbs",
+  "language": "en"
+}
 ```
+
+The body is the staging key from the signed upload and the language. Verification checks the key is under that type, version, and language, reads the real size, and accepts valid UTF-8 text with no NUL byte as a template. The verified object is promoted to a new key on the private disk; a language that already has content returns `409` (`contentExist`).
 
 ### Update Content
 
@@ -250,6 +260,8 @@ Replace existing language content in draft policy:
 ```typescript
 PUT /admin/term-policy/content/:termPolicyId/update
 ```
+
+Same body and verification as add. A language with no content returns `404` (`contentNotFound`). The replaced object is deleted after the row update commits.
 
 ### Remove Content
 
@@ -261,13 +273,13 @@ DELETE /admin/term-policy/content/:termPolicyId/remove
 
 ### Get Content
 
-Get presigned URL to download policy content:
+Get a URL to download policy content:
 
 ```typescript
 GET /admin/term-policy/content/:termPolicyId/:language/get
 ```
 
-Works on draft and published policies alike. The signature targets the bucket named by the stored content's own `access`: the private bucket for a draft, the public one for a published policy.
+Works on draft and published policies alike, and answers `{ url, expiresAt }`. A draft's private content answers a signed attachment download valid for 5 minutes. A published policy's public content answers its public URL with `expiresAt: null`.
 
 ### Publish Policy
 
@@ -282,7 +294,7 @@ Publishing:
 - an already-published policy returns `400` (`statusInvalid`)
 - a policy with no content returns `400` (`contentEmpty`)
 
-Once published, a policy cannot be edited or deleted, and its content files exist in both buckets: the public copy the record points at, and the private original the draft was uploaded to.
+Once published, a policy cannot be edited or deleted, and its content files live on the public disk. When one copy fails, the copies already made are deleted and the transaction never runs.
 
 ### List Policies
 
@@ -296,12 +308,12 @@ Offset pagination, unlike the public list. `type` and `status` each accept a com
 
 ### Delete Policy
 
-Delete draft policy and remove S3 content:
+Delete draft policy and its stored content:
 
 ```typescript
 DELETE /admin/term-policy/delete/:termPolicyId
 ```
-Only draft policies can be deleted; anything else returns `400` (`statusInvalid`). The record is hard deleted.
+Only draft policies can be deleted; anything else returns `400` (`statusInvalid`). The record is hard deleted, then every object under `term-policies/{type}/v{version}/` on the private disk is removed best-effort.
 
 ## TermPolicyAcceptanceProtected
 
@@ -420,7 +432,7 @@ src/migration/seeds/migration.template-term-policy.seed.ts  # command: templateT
 ```
 
 - `termPolicy` is the seed wired into `pnpm migration:seed` and `pnpm migration:remove`. It upserts the rows in `src/migration/data/migration.term-policy.data.ts`: one version 1 record per type, all `published`, with empty `contents`. Details of that seed (actor, order, remove): [Database Documentation][ref-doc-database].
-- `templateTermPolicy` is run on its own. For each type it uploads the bundled `.hbs` document to the private bucket, copies it to the public content path, and upserts a published version 1 record whose single `en` content entry is the public item, so a seeded policy sits in both buckets like any published one. It throws when S3 is not initialized, and its `remove()` is a no-op.
+- `templateTermPolicy` is run on its own. For each type it writes the bundled `.hbs` document to a new key on the public disk, then upserts a published version 1 record whose single `en` content entry is that object, replacing the record's previous content rows. Its `remove()` deletes the version 1 content rows, then their stored objects; the term policy rows stay, because the `termPolicy` seed owns them.
 
 ```bash
 pnpm migration templateTermPolicy --type seed
@@ -440,7 +452,7 @@ Special thanks to [Gzerox][ref-contributor-gzerox] for contributing to the Term 
 [ref-doc-database]: database.md
 [ref-doc-authorization]: authorization.md
 [ref-doc-authentication]: authentication.md
-[ref-doc-file-upload]: file-upload.md#presign-upload
+[ref-doc-file-upload]: file-upload.md#term-policy-content
 [ref-doc-analytic]: analytic.md
 [ref-doc-email]: email.md
 

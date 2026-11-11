@@ -13,7 +13,7 @@ Prisma + PostgreSQL, transactions, seeds, and the Database Module.
 - [Configuration Documentation][ref-doc-configuration] - Config module structure
 - [Email Documentation][ref-doc-email] - SES templates and `templateEmailNotification`
 - [Term Policy Documentation][ref-doc-term-policy] - Term policy rows and `templateTermPolicy`
-- [Third Party Integration][ref-doc-third-party-s3] - S3 bucket setup (`awsS3Config`)
+- [File Upload Documentation][ref-doc-file-upload] - Stored asset columns and how storage writes pair with database writes
 
 ## Table of Contents
 
@@ -85,8 +85,7 @@ Seeds run through nest-commander (`src/migration/seeds/*`, data in `src/migratio
 Commands that are **not** database seeds (run separately; not in `migration:seed`):
 
 - SES email templates: [Email][ref-doc-email] (`templateEmailNotification`)
-- Term policy HTML on S3: [Term Policy][ref-doc-term-policy] (`templateTermPolicy`)
-- S3 bucket policy/CORS: [Third Party Integration][ref-doc-third-party-s3] (`awsS3Config`)
+- Term policy templates into object storage: [Term Policy][ref-doc-term-policy] (`templateTermPolicy`)
 
 ### Database Seeds
 
@@ -251,7 +250,7 @@ Four term policy documents are created:
 | `privacy` | 1 | EN | Privacy policy document |
 | `termsOfService` | 1 | EN | Terms of Service document |
 
-The `termPolicy` seed creates each record with an empty `contents` array and `status: published`. The document bodies are Handlebars templates in `src/modules/term-policy/templates/*.hbs`, one per type. Linking them onto S3 is `templateTermPolicy`: [Term Policy][ref-doc-term-policy].
+The `termPolicy` seed creates each record with an empty `contents` array and `status: published`. The document bodies are Handlebars templates in `src/modules/term-policy/templates/*.hbs`, one per type. Uploading them to object storage and linking them is `templateTermPolicy`: [Term Policy][ref-doc-term-policy].
 
 
 ## Models
@@ -322,8 +321,9 @@ Resolved once per request into the request store (`RequestLogStoreKey`, as part 
 Two shapes that would be composite types on a document database are, on PostgreSQL, a related table or a set of flattened columns:
 
 - **Term policy acceptance flags** live directly on `User` as `termsOfServiceAccepted`, `privacyAccepted`, `cookiesAccepted`, and `marketingAccepted` (each `Boolean`), rather than as a nested object.
-- **`UserPhoto`** is its own table (`user_photos`), related to `User` one-to-one through `userId`. It carries `bucket`, `key`, `cdnUrl`, `completedUrl`, `mime`, `extension`, and `access` for the user's profile photo in AWS S3.
-- **`TermPolicyContent`** is its own table (`term_policy_contents`), related to `TermPolicy` through `termPolicyId`. It carries `language`, `bucket`, `key`, `cdnUrl`, `completedUrl`, `mime`, `extension`, `access`, and `size` for a localized content file on AWS S3.
+- **`UserPhoto`** is its own table (`user_photos`), related to `User` one-to-one through `userId`. It carries `key`, `visibility` (`EnumStorageVisibility`), `contentType`, `size` (`BigInt`), and `etag` (nullable) for the user's profile photo in object storage.
+- **`TermPolicyContent`** is its own table (`term_policy_contents`), related to `TermPolicy` through `termPolicyId`. It carries `language`, `key`, `visibility`, `contentType`, `size` (`BigInt`), and `etag` (nullable) for a localized content file in object storage, unique per `(termPolicyId, language)`.
+- A stored-asset row holds the logical identity only. A bucket, an endpoint, or a URL never reaches the database; the URL is resolved per response ([File Upload][ref-doc-file-upload]).
 
 
 ## Audit Fields and Soft Delete
@@ -458,5 +458,5 @@ This boilerplate uses **PostgreSQL** (`provider = "postgresql"`). UUID primary k
 [ref-doc-security-and-middleware]: security-and-middleware.md
 [ref-doc-activity-log]: activity-log.md
 [ref-doc-email]: email.md
-[ref-doc-third-party-s3]: third-party-integration.md#bucket-setup
+[ref-doc-file-upload]: file-upload.md
 [ref-doc-term-policy]: term-policy.md#migration--seeding

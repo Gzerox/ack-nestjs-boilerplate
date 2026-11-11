@@ -1,4 +1,4 @@
-import type { IAwsS3 } from '@common/aws/interfaces/aws.interface';
+import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import type {
     IPaginationEqual,
@@ -23,7 +23,7 @@ import {
     EnumUserLoginWith,
     Prisma,
 } from '@generated/prisma-client/client';
-import type { User } from '@generated/prisma-client/client';
+import type { User, UserPhoto } from '@generated/prisma-client/client';
 import type { IAuthPassword } from '@modules/auth/interfaces/auth.interface';
 import type { IWorkspaceInviteInviter } from '@modules/workspace/interfaces/workspace.interface';
 
@@ -73,7 +73,10 @@ export interface IUserRepository {
         userId: string,
         { countryId, ...data }: UserUpdateProfileRequestDto
     ): Promise<User>;
-    updatePhotoProfile(userId: string, photo: IAwsS3): Promise<User>;
+    updatePhotoProfile(
+        userId: string,
+        { key, visibility, contentType, size, etag }: IStoredAsset
+    ): Promise<UserPhoto | null>;
     deleteSelfInTx(
         tx: IDatabaseTransactionClient,
         userId: string,

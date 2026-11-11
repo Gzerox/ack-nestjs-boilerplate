@@ -1,4 +1,3 @@
-import { AwsModule } from '@common/aws/aws.module';
 import { TermPolicyAcceptanceDomain } from '@modules/term-policy/domains/term-policy.acceptance.domain';
 import { UserDomainModule } from '@modules/user/user.domain.module';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
@@ -32,6 +31,6 @@ import { TermPolicyAcceptanceAnalyticDomain } from '@modules/term-policy/domains
         TermPolicyAnalyticDomain,
         TermPolicyAcceptanceAnalyticDomain,
     ],
-    imports: [TermPolicyRepositoryModule, AwsModule, UserDomainModule],
+    imports: [TermPolicyRepositoryModule, UserDomainModule],
 })
 export class TermPolicyDomainModule {}

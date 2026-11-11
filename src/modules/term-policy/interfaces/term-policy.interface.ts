@@ -1,4 +1,8 @@
-import type { IAwsS3 } from '@common/aws/interfaces/aws.interface';
+import type {
+    IStorageSignedDownload,
+    IStoredAsset,
+    IStoredAssetReference,
+} from '@common/storage/interfaces/storage.interface';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { EnumTermPolicyType } from '@generated/prisma-client/client';
 import type {
@@ -19,13 +23,29 @@ export interface ITermPolicyUserAcceptance extends TermPolicyUserAcceptance {
 
 export interface ITermPolicyContentUpload {
     language: EnumMessageLanguage;
-    size: number;
     key: string;
 }
 
 /** The persistable columns of one localized content document — the create/update input shape. */
-export interface ITermPolicyContentCreate extends Omit<IAwsS3, 'data'> {
-    language: EnumMessageLanguage;
+export interface ITermPolicyContentCreate extends IStoredAsset {
+    language: TermPolicyContent['language'];
+}
+
+export interface ITermPolicyContentPromoted {
+    staged: IStoredAsset;
+    content: ITermPolicyContentCreate;
+}
+
+export interface ITermPolicyContentAccess {
+    asset: IStoredAssetReference;
+    signedDownload: IStorageSignedDownload | null;
+}
+
+export interface ITermPolicyContentDownload extends Omit<
+    IStorageSignedDownload,
+    'expiresAt'
+> {
+    expiresAt: Date | null;
 }
 
 export interface ITermPolicyCreate {

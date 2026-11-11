@@ -1,9 +1,13 @@
 import { registerAs } from '@nestjs/config';
+import bytes from 'bytes';
 import ms from 'ms';
 
 export interface IUserConfig {
     usernamePattern: RegExp;
-    uploadPhotoProfilePath: string;
+    photo: {
+        scopePrefixPattern: string;
+        maxSizeInBytes: number;
+    };
     maxDataImport: number;
     maxDataExport: number;
     default: {
@@ -18,7 +22,10 @@ export interface IUserConfig {
 
 export default registerAs('user', (): IUserConfig => ({
     usernamePattern: /^[a-zA-Z0-9-_]+$/,
-    uploadPhotoProfilePath: 'users/{userId}/profile',
+    photo: {
+        scopePrefixPattern: 'users/{userId}/profile/',
+        maxSizeInBytes: bytes('10mb')!,
+    },
     maxDataImport: 50,
     maxDataExport: 500,
     default: {

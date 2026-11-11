@@ -12,6 +12,7 @@ services:
             - ./src:/app/src
             - ./prisma:/app/prisma
             - ./.env:/app/.env
+            - ./storage-data:/app/storage-data
         restart: on-failure
         networks:
             - app-network

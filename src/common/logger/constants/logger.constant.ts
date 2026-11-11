@@ -91,6 +91,10 @@ export const LoggerSensitiveFields: string[] = [
     'encryptedInviteAcceptLink',
     'encryptedJoinRequestReviewLink',
     'link',
+    'signature',
+    'X-Amz-Signature',
+    'X-Amz-Credential',
+    'X-Amz-Security-Token',
 ];
 
 /**

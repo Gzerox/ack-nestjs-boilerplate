@@ -33,6 +33,7 @@ describe('HealthHttpService', () => {
 
     it.each([
         ['checkAws', 'checkAws'],
+        ['checkStorage', 'checkStorage'],
         ['checkDatabase', 'checkDatabase'],
         ['checkThirdParty', 'checkThirdParty'],
         ['checkInstance', 'checkInstance'],

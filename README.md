@@ -157,7 +157,7 @@ See [package.json][ref-package-json] for the full list.
 
 - **Prisma on PostgreSQL** - Type-safe queries with relational transactions
 - **Redis cache** - Shared across instances, with configurable TTLs
-- **AWS S3** - Presigned upload and download for public and private buckets
+- **Object storage** - Local disk, AWS S3, or Cloudflare R2 behind one service, with public and private disks, signed direct uploads verified before use, and short-lived signed downloads ([docs][ref-doc-file-upload])
 - **Offset & cursor pagination** - List endpoints that still feel fast as data grows
 
 ### 🔔 Notifications
@@ -176,7 +176,7 @@ See [package.json][ref-package-json] for the full list.
 ### 🩺 Monitoring
 
 - **Sentry** - Errors, performance, and Pino logs, with credentials scrubbed before send
-- **Health checks** - `/system/health` for database, AWS, third-party, and instance status
+- **Health checks** - `/system/health` for database, storage, AWS SES, third-party, and instance status
 
 ### 🛠 Development
 
@@ -202,7 +202,7 @@ pnpm install
 # Setup environment
 cp .env.example .env
 
-# Generate JWT keys and encryption secrets into .env
+# Generate JWT keys, encryption secrets, and the local storage signing key into .env
 pnpm generate:secret --direct-insert
 
 # Generate the Prisma client and src/generated/package/package.ts

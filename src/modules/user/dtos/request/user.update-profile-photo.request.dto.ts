@@ -1,20 +1,15 @@
-import { z } from 'zod';
-import { AwsS3PresignRequestSchema } from '@common/aws/dtos/request/aws.s3-presign.request.dto';
+import type { z } from 'zod';
+import { StorageSignedUploadCompleteRequestSchema } from '@common/storage/dtos/request/storage.signed-upload-complete.request.dto';
 
 /**
- * Validates the body for saving an uploaded profile photo.
+ * Validates the body that completes a signed direct upload of a profile photo: the staging key, and nothing else.
  * @public
  */
 export const UserUpdateProfilePhotoRequestSchema =
-    AwsS3PresignRequestSchema.pick({ size: true }).extend({
-        key: AwsS3PresignRequestSchema.shape.key.meta({
-            description:
-                'Key of the uploaded profile photo, as returned by the presign step',
-        }),
-    });
+    StorageSignedUploadCompleteRequestSchema.extend({});
 
 /**
- * Body for saving an uploaded profile photo.
+ * Body that completes a signed direct upload of a profile photo.
  * @public
  */
 export type UserUpdateProfilePhotoRequestDto = z.infer<

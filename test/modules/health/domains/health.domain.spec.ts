@@ -1,10 +1,10 @@
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
 
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
+import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import { HealthDomain } from '@modules/health/domains/health.domain';
 import { HealthAppleIndicator } from '@modules/health/indicators/health.apple.indicator';
-import { HealthAwsS3BucketIndicator } from '@modules/health/indicators/health.aws-s3.indicator';
+import { HealthStorageIndicator } from '@modules/health/indicators/health.storage.indicator';
 import { HealthAwsSESIndicator } from '@modules/health/indicators/health.aws-ses.indicator';
 import { HealthDatabaseIndicator } from '@modules/health/indicators/health.database.indicator';
 import { HealthFirebaseIndicator } from '@modules/health/indicators/health.firebase.indicator';
@@ -27,7 +27,7 @@ vi.mock('@modules/health/indicators/health.sentry.indicator', () => ({
 describe('HealthDomain', () => {
     const health: MockProxy<HealthCheckService> = mock<HealthCheckService>();
     const instance = mock<HealthInstanceIndicator>();
-    const s3 = mock<HealthAwsS3BucketIndicator>();
+    const storage = mock<HealthStorageIndicator>();
     const ses = mock<HealthAwsSESIndicator>();
     const database = mock<HealthDatabaseIndicator>();
     const redis = mock<HealthRedisIndicator>();
@@ -41,7 +41,7 @@ describe('HealthDomain', () => {
     const domain = new HealthDomain(
         health,
         instance,
-        s3,
+        storage,
         ses,
         database,
         redis,
@@ -54,6 +54,7 @@ describe('HealthDomain', () => {
     );
 
     beforeEach(() => {
+        vi.resetAllMocks();
         health.check.mockImplementation(async checks => {
             for (const check of checks) {
                 if (typeof check === 'function') {
@@ -64,19 +65,24 @@ describe('HealthDomain', () => {
         });
     });
 
-    it('checks both S3 buckets and SES with exact keys', async () => {
+    it('checks SES only on the AWS check', async () => {
         await expect(domain.checkAws()).resolves.toBe(result);
-        expect(s3.isHealthy).toHaveBeenNthCalledWith(
-            1,
-            's3PublicBucket',
-            EnumAwsS3Accessibility.public
-        );
-        expect(s3.isHealthy).toHaveBeenNthCalledWith(
-            2,
-            's3PrivateBucket',
-            EnumAwsS3Accessibility.private
-        );
         expect(ses.isHealthy).toHaveBeenCalledWith('ses');
+        expect(storage.isHealthy).not.toHaveBeenCalled();
+    });
+
+    it('checks both storage disks with their logical keys', async () => {
+        await expect(domain.checkStorage()).resolves.toBe(result);
+        expect(storage.isHealthy).toHaveBeenNthCalledWith(
+            1,
+            'storagePublic',
+            EnumStorageVisibility.public
+        );
+        expect(storage.isHealthy).toHaveBeenNthCalledWith(
+            2,
+            'storagePrivate',
+            EnumStorageVisibility.private
+        );
     });
 
     it('checks database dependencies with exact keys', async () => {

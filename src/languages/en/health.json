@@ -1,6 +1,7 @@
 {
-    "checkAws": "AWS health check completed.",
+    "checkAws": "AWS SES health check completed.",
     "checkDatabase": "Database health check completed.",
     "checkInstance": "Instance health check completed.",
+    "checkStorage": "Storage health check completed.",
     "checkThirdParty": "Third-party services health check completed."
 }

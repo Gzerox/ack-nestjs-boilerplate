@@ -1,6 +1,7 @@
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -22,8 +23,17 @@ export class ProjectMemberHttpService {
         private readonly projectMemberDomain: ProjectMemberDomain,
         private readonly workspaceMemberDomain: WorkspaceMemberDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapMember(member: IProjectMember): IProjectMember {
+        const photo = this.objectStorageService.toAssetResponse(
+            member.user.photo
+        );
+
+        return { ...member, user: { ...member.user, photo } };
+    }
 
     async getMembersList(
         project: Project,
@@ -41,8 +51,10 @@ export class ProjectMemberHttpService {
         const { data, ...others } =
             await this.projectMemberDomain.getMembersList(project, params);
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }
@@ -64,7 +76,9 @@ export class ProjectMemberHttpService {
             role
         );
 
-        return { data: member };
+        const mapped = this.mapMember(member);
+
+        return { data: mapped };
     }
 
     async updateMemberRole(

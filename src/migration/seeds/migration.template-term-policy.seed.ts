@@ -1,6 +1,7 @@
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { DatabaseService } from '@common/database/services/database.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
+import type { IStoredAssetReference } from '@common/storage/interfaces/storage.interface';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import {
     EnumTermPolicyStatus,
     EnumTermPolicyType,
@@ -15,7 +16,9 @@ import { ConfigService } from '@nestjs/config';
 import { Command } from 'nest-commander';
 
 /**
- * Uploads term policy documents to S3 and writes their published records; removal is a no-op. Throws if S3 is uninitialized.
+ * Uploads the term policy templates to object storage and writes their published version 1 records.
+ * Removal deletes the version 1 content rows this seed wrote, then their stored objects; the term
+ * policy rows stay, because the `termPolicy` seed owns that table.
  */
 @Command({
     name: 'templateTermPolicy',
@@ -33,7 +36,7 @@ export class MigrationTemplateTermPolicySeed
     constructor(
         private readonly termPolicyTemplateDomain: TermPolicyTemplateDomain,
         private readonly databaseService: DatabaseService,
-        private readonly awsS3Service: AwsS3Service,
+        private readonly objectStorageService: ObjectStorageService,
         private readonly configService: ConfigService
     ) {
         super();
@@ -43,68 +46,88 @@ export class MigrationTemplateTermPolicySeed
         )!;
     }
 
+    private versionOneContentWhere(): Prisma.TermPolicyContentWhereInput {
+        const types = Object.values(EnumTermPolicyType);
+
+        return {
+            termPolicy: {
+                type: { in: types },
+                version: 1,
+            },
+        };
+    }
+
+    private async deleteObject({
+        key,
+        visibility,
+    }: IStoredAssetReference): Promise<void> {
+        try {
+            await this.objectStorageService.delete({ key, visibility });
+        } catch (error: unknown) {
+            this.logger.error(
+                error,
+                `Failed to delete ${visibility} term policy template object ${key}`
+            );
+        }
+    }
+
+    private async deleteObjects(
+        references: IStoredAssetReference[]
+    ): Promise<void> {
+        await Promise.all(
+            references.map(reference => this.deleteObject(reference))
+        );
+    }
+
     async seed(): Promise<void> {
         this.logger.log('Seeding Term Policies...');
 
-        const isS3Initialized = this.awsS3Service.isInitialized();
-        if (!isS3Initialized) {
-            this.logger.error(
-                'AWS S3 is not initialized. Cannot seed term policies.'
-            );
+        const types = Object.values(EnumTermPolicyType);
+        const results = await Promise.allSettled(
+            types.map(async type => {
+                const { key, visibility, contentType, size, etag } =
+                    await this.termPolicyTemplateDomain.importTemplate(type);
+                const contents: Prisma.TermPolicyContentCreateManyTermPolicyInput[] =
+                    [
+                        {
+                            language: EnumMessageLanguage.en,
+                            key,
+                            visibility,
+                            contentType,
+                            size: BigInt(size),
+                            etag,
+                        },
+                    ];
 
-            throw new Error('AWS S3 is not initialized');
+                return { type, contents };
+            })
+        );
+        const policies = results.flatMap(result =>
+            result.status === 'fulfilled' ? [result.value] : []
+        );
+        const importedContents = policies.flatMap(({ contents }) => contents);
+        const rejected = results.find(
+            (result): result is PromiseRejectedResult =>
+                result.status === 'rejected'
+        );
+        if (rejected) {
+            await this.deleteObjects(importedContents);
+
+            throw rejected.reason;
         }
 
+        const where = this.versionOneContentWhere();
+
+        let previousContents: IStoredAssetReference[];
         try {
-            const [
-                termsOfServiceAsset,
-                privacyAsset,
-                cookieAsset,
-                marketingAsset,
-            ] = await Promise.all([
-                this.termPolicyTemplateDomain.importTermsOfService(),
-                this.termPolicyTemplateDomain.importPrivacy(),
-                this.termPolicyTemplateDomain.importCookie(),
-                this.termPolicyTemplateDomain.importMarketing(),
-            ]);
-
-            const policies = [
-                {
-                    type: EnumTermPolicyType.termsOfService,
-                    asset: termsOfServiceAsset,
-                },
-                {
-                    type: EnumTermPolicyType.privacy,
-                    asset: privacyAsset,
-                },
-                {
-                    type: EnumTermPolicyType.cookies,
-                    asset: cookieAsset,
-                },
-                {
-                    type: EnumTermPolicyType.marketing,
-                    asset: marketingAsset,
-                },
-            ];
-
-            await this.databaseService.withTransaction(
+            previousContents = await this.databaseService.withTransaction(
                 async tx => {
-                    for (const { type, asset } of policies) {
-                        if (!asset) {
-                            throw new Error(
-                                `Template asset for ${type} could not be imported`
-                            );
-                        }
+                    const rows = await tx.termPolicyContent.findMany({
+                        where,
+                        select: { key: true, visibility: true },
+                    });
 
-                        const { data: _data, ...content } = asset;
-                        const contents: Prisma.TermPolicyContentCreateManyTermPolicyInput[] =
-                            [
-                                {
-                                    language: EnumMessageLanguage.en,
-                                    ...content,
-                                },
-                            ];
-
+                    for (const { type, contents } of policies) {
                         await tx.termPolicy.upsert({
                             where: {
                                 type_version: {
@@ -129,13 +152,18 @@ export class MigrationTemplateTermPolicySeed
                             },
                         });
                     }
+
+                    return rows;
                 },
                 { timeout: this.seedTransactionTimeoutInMs }
             );
         } catch (error: unknown) {
-            this.logger.error(error, 'Error seeding term policies');
+            await this.deleteObjects(importedContents);
+
             throw error;
         }
+
+        await this.deleteObjects(previousContents);
 
         this.logger.log('Term Policies seeded successfully.');
 
@@ -143,7 +171,25 @@ export class MigrationTemplateTermPolicySeed
     }
 
     async remove(): Promise<void> {
-        this.logger.log('Skipping removal of Term Policies seed.');
+        this.logger.log('Removing Term Policy templates...');
+
+        const where = this.versionOneContentWhere();
+        const contents = await this.databaseService.withTransaction(
+            async tx => {
+                const rows = await tx.termPolicyContent.findMany({
+                    where,
+                    select: { key: true, visibility: true },
+                });
+                await tx.termPolicyContent.deleteMany({ where });
+
+                return rows;
+            },
+            { timeout: this.seedTransactionTimeoutInMs }
+        );
+
+        await this.deleteObjects(contents);
+
+        this.logger.log('Term Policy templates removed successfully.');
 
         return;
     }

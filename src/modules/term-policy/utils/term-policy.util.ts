@@ -1,8 +1,9 @@
-import type { IFileRandomFilenameOptions } from '@common/file/interfaces/file.interface';
+import { EnumFileExtensionTemplate } from '@common/file/enums/file.enum';
 import { HelperArrayService } from '@common/helper/services/helper.array.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import type { IActivityLogMetadata } from '@modules/activity-log/interfaces/activity-log.interface';
+import { TermPolicyContentType } from '@modules/term-policy/constants/term-policy.constant';
 import type { TermPolicyContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.content.request.dto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,19 +15,19 @@ import type {
 
 @Injectable()
 export class TermPolicyUtil {
-    private readonly uploadContentPath: string;
-    private readonly contentPublicPath: string;
+    private readonly draftPrefixPattern: string;
+    private readonly contentScopePrefixPattern: string;
 
     constructor(
         private readonly configService: ConfigService,
         private readonly helperArrayService: HelperArrayService,
         private readonly helperStringService: HelperStringService
     ) {
-        this.uploadContentPath = this.configService.get<string>(
-            'termPolicy.uploadContentPath'
+        this.draftPrefixPattern = this.configService.get<string>(
+            'termPolicy.draftPrefixPattern'
         )!;
-        this.contentPublicPath = this.configService.get<string>(
-            'termPolicy.contentPublicPath'
+        this.contentScopePrefixPattern = this.configService.get<string>(
+            'termPolicy.contentScopePrefixPattern'
         )!;
     }
 
@@ -36,38 +37,50 @@ export class TermPolicyUtil {
         return uniqueLanguages.length === languages.length;
     }
 
-    getPath(termPolicy: TermPolicy): string {
-        return this.helperStringService.fillPattern(this.uploadContentPath, {
-            type: termPolicy.type,
-            version: termPolicy.version.toString(),
-        });
-    }
-
-    /** Builds the private S3 key `{path}/{language}.{ext}`, stripping any leading slash. */
-    createRandomFilenameContentWithPath(
-        type: EnumTermPolicyType,
-        version: number,
-        language: EnumMessageLanguage,
-        { extension }: IFileRandomFilenameOptions
-    ): string {
-        const path: string = this.helperStringService.fillPattern(
-            this.uploadContentPath,
-            { type, version: version.toString() }
-        );
-
-        let fullPath: string = `${path}/${language}.${extension.toLowerCase()}`;
-        if (fullPath.startsWith('/')) {
-            fullPath = fullPath.replace('/', '');
-        }
-
-        return fullPath;
-    }
-
-    getContentPublicPath(type: EnumTermPolicyType, version: number): string {
-        return this.helperStringService.fillPattern(this.contentPublicPath, {
+    getDraftPrefix({
+        type,
+        version,
+    }: Pick<TermPolicy, 'type' | 'version'>): string {
+        return this.helperStringService.fillPattern(this.draftPrefixPattern, {
             type,
             version: version.toString(),
         });
+    }
+
+    getContentScopePrefix(
+        type: EnumTermPolicyType,
+        version: number,
+        language: TermPolicyContent['language']
+    ): string {
+        return this.helperStringService.fillPattern(
+            this.contentScopePrefixPattern,
+            { type, version: version.toString(), language }
+        );
+    }
+
+    createContentFilename(
+        type: EnumTermPolicyType,
+        version: number,
+        language: TermPolicyContent['language']
+    ): string {
+        return `${type}-v${version}-${language}.${EnumFileExtensionTemplate.hbs}`;
+    }
+
+    /** Recognizes a UTF-8 template from its leading bytes: no NUL byte and a valid encoding; a sequence cut by the sample end passes. */
+    detectTemplateContentType(head: Uint8Array): string | null {
+        if (head.includes(0)) {
+            return null;
+        }
+
+        try {
+            new TextDecoder('utf-8', { fatal: true }).decode(head, {
+                stream: true,
+            });
+        } catch {
+            return null;
+        }
+
+        return TermPolicyContentType;
     }
 
     mapActivityLogMetadata(

@@ -1,10 +1,11 @@
 import type { TermPolicyAdminListRequestDto } from '@modules/term-policy/dtos/request/term-policy.admin-list.request.dto';
 import { TermPolicyAdminListRequestSchema } from '@modules/term-policy/dtos/request/term-policy.admin-list.request.dto';
 import { Doc } from '@common/doc/decorators/doc.decorator';
-import { AwsS3PresignResponseSchema } from '@common/aws/dtos/response/aws.s3-presign.response.dto';
-import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
+import { StorageSignedUploadResponseSchema } from '@common/storage/dtos/response/storage.signed-upload.response.dto';
+import type { IStorageSignedUpload } from '@common/storage/interfaces/storage.interface';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { RequestThrottle } from '@common/request/decorators/request.decorator';
+import { EnumRequestThrottleRoute } from '@common/request/enums/request.enum';
 import { RequestMessageLanguageSchema } from '@common/request/validations/request.message-language.validation';
 import { RequestUuidSchema } from '@common/request/validations/request.uuid.validation';
 import {
@@ -35,7 +36,9 @@ import { TermPolicyCreateRequestSchema } from '@modules/term-policy/dtos/request
 import type { TermPolicyCreateRequestDto } from '@modules/term-policy/dtos/request/term-policy.create.request.dto';
 import { TermPolicyRemoveContentRequestSchema } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
 import type { TermPolicyRemoveContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
+import { TermPolicyContentDownloadResponseSchema } from '@modules/term-policy/dtos/response/term-policy.content-download.response.dto';
 import { TermPolicyResponseSchema } from '@modules/term-policy/dtos/response/term-policy.response.dto';
+import type { ITermPolicyContentDownload } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyContentHttpService } from '@modules/term-policy/services/term-policy.content.http.service';
 import { TermPolicyHttpService } from '@modules/term-policy/services/term-policy.http.service';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
@@ -106,7 +109,7 @@ export class TermPolicyAdminController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @RequestThrottle({ user: true })
+    @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @Post('/create')
     async create(
         @Body({ schema: TermPolicyCreateRequestSchema })
@@ -139,7 +142,7 @@ export class TermPolicyAdminController {
 
     @Doc({ summary: 'Generate presign url for term or policy content upload' })
     @Response('termPolicy.generateContentPresign', {
-        schema: AwsS3PresignResponseSchema,
+        schema: StorageSignedUploadResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
@@ -154,13 +157,13 @@ export class TermPolicyAdminController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @RequestThrottle({ user: true })
+    @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @HttpCode(HttpStatus.OK)
     @Post('/content/presign/generate')
     async generate(
         @Body({ schema: TermPolicyContentPresignRequestSchema })
         body: TermPolicyContentPresignRequestDto
-    ): Promise<IResponseReturn<IAwsS3Presign>> {
+    ): Promise<IResponseReturn<IStorageSignedUpload>> {
         return this.termPolicyContentHttpService.generateContentPresignByAdmin(
             body
         );
@@ -177,7 +180,7 @@ export class TermPolicyAdminController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @RequestThrottle({ user: true })
+    @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @Put('/content/:termPolicyId/update')
     async updateContent(
         @Param('termPolicyId', { schema: RequestUuidSchema })
@@ -202,7 +205,7 @@ export class TermPolicyAdminController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @RequestThrottle({ user: true })
+    @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @Put('/content/:termPolicyId/add')
     async addContent(
         @Param('termPolicyId', { schema: RequestUuidSchema })
@@ -243,7 +246,7 @@ export class TermPolicyAdminController {
 
     @Doc({ summary: 'Get content of a term or policy by ID and language' })
     @Response('termPolicy.getContent', {
-        schema: AwsS3PresignResponseSchema,
+        schema: TermPolicyContentDownloadResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
     @PolicyProtected({
@@ -261,7 +264,7 @@ export class TermPolicyAdminController {
         termPolicyId: string,
         @Param('language', { schema: RequestMessageLanguageSchema })
         language: EnumMessageLanguage
-    ): Promise<IResponseReturn<IAwsS3Presign>> {
+    ): Promise<IResponseReturn<ITermPolicyContentDownload>> {
         return this.termPolicyContentHttpService.getContentByAdmin(
             termPolicyId,
             language

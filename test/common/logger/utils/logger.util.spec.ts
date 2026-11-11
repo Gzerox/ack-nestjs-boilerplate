@@ -82,6 +82,24 @@ describe('LoggerUtil', () => {
             });
         });
 
+        it('redacts the signature parameters of a signed storage URL query', () => {
+            const query = {
+                signature: 'local-hmac',
+                'X-Amz-Signature': 'aws-signature',
+                'X-Amz-Credential': 'AKIA/20260101/eu-west-1/s3/aws4_request',
+                'X-Amz-Security-Token': 'session-token',
+                expires: '1767225600',
+            };
+
+            expect(util.redactValue(query)).toEqual({
+                signature: LoggerRedactedValue,
+                'X-Amz-Signature': LoggerRedactedValue,
+                'X-Amz-Credential': LoggerRedactedValue,
+                'X-Amz-Security-Token': LoggerRedactedValue,
+                expires: '1767225600',
+            });
+        });
+
         it('preserves scalar, Date, and RegExp values and masks deep values', () => {
             const date = new Date('2026-01-01T00:00:00.000Z');
             const regex = /value/;

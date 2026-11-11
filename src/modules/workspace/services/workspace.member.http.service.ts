@@ -1,6 +1,7 @@
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client/client';
 import type { WorkspaceMember } from '@generated/prisma-client/client';
@@ -21,8 +22,17 @@ export class WorkspaceMemberHttpService {
     constructor(
         private readonly workspaceMemberDomain: WorkspaceMemberDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapMember(member: IWorkspaceMember): IWorkspaceMember {
+        const photo = this.objectStorageService.toAssetResponse(
+            member.user.photo
+        );
+
+        return { ...member, user: { ...member.user, photo } };
+    }
 
     async transferOwnership(
         workspaceId: string,
@@ -74,8 +84,10 @@ export class WorkspaceMemberHttpService {
                 role?.where
             );
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }
@@ -125,8 +137,10 @@ export class WorkspaceMemberHttpService {
                 params
             );
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }

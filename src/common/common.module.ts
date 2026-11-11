@@ -24,13 +24,14 @@ import { PolicyDomainModule } from '@modules/policy/policy.domain.module';
 import { RoleDomainModule } from '@modules/role/role.domain.module';
 import { FeatureFlagDomainModule } from '@modules/feature-flag/feature-flag.domain.module';
 import { SentryModule } from '@common/sentry/sentry.module';
+import { StorageMainModule } from '@common/storage/storage.module';
 
 /**
  * Composes kit `forRoot()` modules and the app-wide `@Global()` feature domains.
  *
  * Bootstraps the following in order:
  * - Config, message, logger, Sentry, Redis cache, BullMQ connections, cache, database, request, response
- * - Shared utilities: helper, pagination, file, Firebase
+ * - Shared utilities: helper, pagination, file, object storage, Firebase
  * - Feature modules: activity log, API key, auth, feature flag, role, policy, term policy, session, notification
  */
 @Module({
@@ -58,6 +59,7 @@ import { SentryModule } from '@common/sentry/sentry.module';
         HelperModule.forRoot(),
         PaginationModule.forRoot(),
         FileModule.forRoot(),
+        StorageMainModule.forRoot(),
         FirebaseModule.forRoot(),
 
         ActivityLogDomainModule,

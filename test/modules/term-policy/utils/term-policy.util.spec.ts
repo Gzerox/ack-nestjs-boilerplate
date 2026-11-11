@@ -10,7 +10,7 @@ import {
     EnumTermPolicyType,
     type TermPolicy,
 } from '@generated/prisma-client';
-import { EnumFileExtensionDocument } from '@common/file/enums/file.enum';
+import { TermPolicyContentType } from '@modules/term-policy/constants/term-policy.constant';
 import { HelperArrayService } from '@common/helper/services/helper.array.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
@@ -26,8 +26,9 @@ describe('TermPolicyUtil', () => {
 
     beforeEach(async () => {
         const config: Record<string, string> = {
-            'termPolicy.uploadContentPath': '/terms/{type}/{version}',
-            'termPolicy.contentPublicPath': 'public/{type}/{version}',
+            'termPolicy.draftPrefixPattern': 'term-policies/{type}/v{version}/',
+            'termPolicy.contentScopePrefixPattern':
+                'term-policies/{type}/v{version}/{language}/',
         };
         vi.mocked(configService.get).mockImplementation(
             (key: string) => config[key]
@@ -53,30 +54,70 @@ describe('TermPolicyUtil', () => {
     it('rejects duplicate languages', () => {
         expect(
             util.validateUniqueLanguages([
-                { language: EnumMessageLanguage.en, size: 1, key: 'en' },
-                { language: EnumMessageLanguage.en, size: 2, key: 'en-2' },
+                { language: EnumMessageLanguage.en, key: 'en' },
+                { language: EnumMessageLanguage.en, key: 'en-2' },
             ] satisfies TermPolicyContentRequestDto[])
         ).toBe(false);
     });
 
-    it('builds private and public content paths', () => {
-        const termPolicy = {
-            type: EnumTermPolicyType.privacy,
-            version: 2,
-        } as TermPolicy;
+    it('builds the draft prefix of a policy version', () => {
+        expect(
+            util.getDraftPrefix({
+                type: EnumTermPolicyType.privacy,
+                version: 2,
+            })
+        ).toBe('term-policies/privacy/v2/');
+    });
 
-        expect(util.getPath(termPolicy)).toBe('/terms/privacy/2');
+    it('builds the storage scope prefix of one language content', () => {
         expect(
-            util.getContentPublicPath(termPolicy.type, termPolicy.version)
-        ).toBe('public/privacy/2');
-        expect(
-            util.createRandomFilenameContentWithPath(
+            util.getContentScopePrefix(
                 EnumTermPolicyType.privacy,
                 2,
-                EnumMessageLanguage.en,
-                { extension: EnumFileExtensionDocument.pdf }
+                EnumMessageLanguage.en
             )
-        ).toBe('terms/privacy/2/en.pdf');
+        ).toBe('term-policies/privacy/v2/en/');
+    });
+
+    it('builds the download filename of one language content', () => {
+        expect(
+            util.createContentFilename(
+                EnumTermPolicyType.privacy,
+                2,
+                EnumMessageLanguage.en
+            )
+        ).toBe('privacy-v2-en.hbs');
+    });
+
+    describe('detectTemplateContentType', () => {
+        it('detects UTF-8 text as a Handlebars template', () => {
+            const head = new TextEncoder().encode('<h1>{{title}}</h1> é');
+
+            expect(util.detectTemplateContentType(head)).toBe(
+                TermPolicyContentType
+            );
+        });
+
+        it('accepts a multi-byte character cut by the end of the sample', () => {
+            const encoded = new TextEncoder().encode('terms é');
+            const head = encoded.subarray(0, encoded.length - 1);
+
+            expect(util.detectTemplateContentType(head)).toBe(
+                TermPolicyContentType
+            );
+        });
+
+        it('rejects bytes carrying a NUL byte', () => {
+            const head = new Uint8Array([0x7b, 0x7b, 0x00, 0x7d, 0x7d]);
+
+            expect(util.detectTemplateContentType(head)).toBeNull();
+        });
+
+        it('rejects bytes that are not valid UTF-8', () => {
+            const head = new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]);
+
+            expect(util.detectTemplateContentType(head)).toBeNull();
+        });
     });
 
     it('maps activity metadata using the updated timestamp', () => {

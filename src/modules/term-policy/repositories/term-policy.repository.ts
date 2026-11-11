@@ -33,6 +33,24 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         private readonly helperDateService: HelperDateService
     ) {}
 
+    private toContentData({
+        language,
+        key,
+        visibility,
+        contentType,
+        size,
+        etag,
+    }: ITermPolicyContentCreate): Prisma.TermPolicyContentCreateManyTermPolicyInput {
+        return {
+            language,
+            key,
+            visibility,
+            contentType,
+            size: BigInt(size),
+            etag,
+        };
+    }
+
     async find(
         {
             where,
@@ -224,7 +242,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                 status: EnumTermPolicyStatus.draft,
                 contents: {
                     createMany: {
-                        data: contents,
+                        data: contents.map(content =>
+                            this.toContentData(content)
+                        ),
                     },
                 },
             },
@@ -243,6 +263,8 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         content: ITermPolicyContentCreate
     ): Promise<TermPolicy> {
+        const data = this.toContentData(content);
+
         return this.databaseService.client.termPolicy.update({
             where: {
                 id: termPolicyId,
@@ -256,7 +278,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                                 language: content.language,
                             },
                         },
-                        data: content,
+                        data,
                     },
                 },
             },
@@ -267,13 +289,15 @@ export class TermPolicyRepository implements ITermPolicyRepository {
         termPolicyId: string,
         newContent: ITermPolicyContentCreate
     ): Promise<TermPolicy> {
+        const data = this.toContentData(newContent);
+
         return this.databaseService.client.termPolicy.update({
             where: {
                 id: termPolicyId,
             },
             data: {
                 contents: {
-                    create: newContent,
+                    create: data,
                 },
             },
         });
@@ -317,7 +341,9 @@ export class TermPolicyRepository implements ITermPolicyRepository {
                 contents: {
                     deleteMany: {},
                     createMany: {
-                        data: contents,
+                        data: contents.map(content =>
+                            this.toContentData(content)
+                        ),
                     },
                 },
             },

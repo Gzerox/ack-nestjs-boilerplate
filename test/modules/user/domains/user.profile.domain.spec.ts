@@ -1,21 +1,31 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { HttpStatus } from '@nestjs/common';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-
-import { AwsServiceUnavailableException } from '@common/aws/exceptions/aws.service-unavailable.exception';
-import type {
-    IAwsS3,
-    IAwsS3Presign,
-} from '@common/aws/interfaces/aws.interface';
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
+import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
+import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
-import type { IFile } from '@common/file/interfaces/file.interface';
-import { FileService } from '@common/file/services/file.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
+import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.key-invalid.exception';
+import { StorageObjectNotFoundException } from '@common/storage/exceptions/storage.object-not-found.exception';
+import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
+import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
+import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
+import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
+import type {
+    IStorageSignedUpload,
+    IStoredAsset,
+} from '@common/storage/interfaces/storage.interface';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
-import { EnumUserGender } from '@generated/prisma-client';
+import type { IActivityLogStagedEvent } from '@modules/activity-log/interfaces/activity-log.interface';
+import {
+    EnumActivityLogAction,
+    EnumStorageVisibility,
+    EnumUserGender,
+} from '@generated/prisma-client/client';
+import type { UserPhoto } from '@generated/prisma-client/client';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
 import { CountryDomain } from '@modules/country/domains/country.domain';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
@@ -23,6 +33,7 @@ import { UserUsernameContainBadWordException } from '@modules/user/exceptions/us
 import { UserUsernameExistException } from '@modules/user/exceptions/user.username-exist.exception';
 import { UserUsernameNotAllowedException } from '@modules/user/exceptions/user.username-not-allowed.exception';
 import { UserRepository } from '@modules/user/repositories/user.repository';
+import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import { UserProfileDomain } from '@modules/user/domains/user.profile.domain';
 import { UserUtil } from '@modules/user/utils/user.util';
 
@@ -32,34 +43,66 @@ describe('UserProfileDomain', () => {
         mock<ActivityLogDomain>();
     const countryDomain: MockProxy<CountryDomain> = mock<CountryDomain>();
     const userUtil: MockProxy<UserUtil> = mock<UserUtil>();
-    const awsS3Service: MockProxy<AwsS3Service> = mock<AwsS3Service>();
-    const fileService: MockProxy<FileService> = mock<FileService>();
+    const objectStorageService: MockProxy<ObjectStorageService> =
+        mock<ObjectStorageService>();
     const configService: MockProxy<ConfigService> = mock<ConfigService>();
 
-    const aws = {
-        bucket: 'bucket',
-        key: 'users/user-id/photo.png',
-        cdnUrl: null,
-        completedUrl: 'https://cdn.example.com/users/user-id/photo.png',
-        mime: 'image/png',
-        extension: 'png',
-        access: EnumAwsS3Accessibility.public,
+    const userId = 'user-id';
+    const scopePrefix = 'avatars/user-id/photo/';
+    const maxSizeInBytes = 2048;
+    const photoContentTypes = ['image/jpeg', 'image/png'];
+    const preparedEvent: IActivityLogStagedEvent = {
+        action: EnumActivityLogAction.userUpdatePhotoProfile,
+        metadata: {},
+        onError: false,
+    };
+    const stored: IStoredAsset = {
+        key: 'users/user-id/profile/new-photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
         size: 100,
-    } satisfies IAwsS3;
-    const presign = {
-        key: aws.key,
-        mime: aws.mime,
-        extension: aws.extension,
-        presignUrl: 'https://s3.example.com/presign',
-        expiredInSeconds: 300,
-    } satisfies IAwsS3Presign;
+        etag: '"new-etag"',
+    };
+    const previousPhoto: UserPhoto = {
+        id: 'photo-id',
+        userId,
+        key: 'users/user-id/profile/old-photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        size: BigInt(50),
+        etag: null,
+    };
+    const stagedKey = 'incoming/users/user-id/profile/staged-photo.png';
+    const staged: IStoredAsset = {
+        key: stagedKey,
+        visibility: EnumStorageVisibility.private,
+        contentType: 'image/png',
+        size: 100,
+        etag: '"staged-etag"',
+    };
+    const promoted: IStoredAsset = {
+        key: 'users/user-id/profile/promoted-photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        size: 100,
+        etag: '"promoted-etag"',
+    };
+    const signedUpload: IStorageSignedUpload = {
+        key: stagedKey,
+        url: 'https://storage.example.com/upload?signature=abc',
+        method: 'PUT',
+        headers: { 'content-type': 'image/png', 'content-length': '100' },
+        expiresAt: new Date('2026-01-01T00:10:00.000Z'),
+    };
 
     let service: UserProfileDomain;
 
     beforeEach(async () => {
+        vi.resetAllMocks();
         vi.mocked(configService.get).mockImplementation((key: string) => {
             const values = {
-                'user.uploadPhotoProfilePath': 'users/{userId}/photos',
+                'user.photo.maxSizeInBytes': maxSizeInBytes,
+                'user.photo.scopePrefixPattern': 'avatars/{userId}/photo/',
             };
 
             return values[key as keyof typeof values];
@@ -68,13 +111,12 @@ describe('UserProfileDomain', () => {
         userUtil.checkUsernamePattern.mockReturnValue(false);
         userUtil.checkBadWord.mockResolvedValue(false);
         userRepository.existsByUsername.mockResolvedValue(false);
-        fileService.createRandomFilename.mockReturnValue(aws.key);
-        fileService.extractExtensionFromFilename.mockReturnValue(
-            EnumFileExtensionImage.png
-        );
-        awsS3Service.presignPutItem.mockResolvedValue(presign);
-        awsS3Service.mapPresign.mockReturnValue(aws);
-        awsS3Service.putItem.mockResolvedValue(aws);
+        activityLogDomain.prepare.mockReturnValue(preparedEvent);
+        userRepository.updatePhotoProfile.mockResolvedValue(previousPhoto);
+        objectStorageService.createSignedUpload.mockResolvedValue(signedUpload);
+        objectStorageService.verifyStaged.mockResolvedValue(staged);
+        objectStorageService.promote.mockResolvedValue(promoted);
+        objectStorageService.delete.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -83,8 +125,10 @@ describe('UserProfileDomain', () => {
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
                 { provide: CountryDomain, useValue: countryDomain },
                 { provide: UserUtil, useValue: userUtil },
-                { provide: AwsS3Service, useValue: awsS3Service },
-                { provide: FileService, useValue: fileService },
+                {
+                    provide: ObjectStorageService,
+                    useValue: objectStorageService,
+                },
                 { provide: ConfigService, useValue: configService },
             ],
         }).compile();
@@ -134,95 +178,384 @@ describe('UserProfileDomain', () => {
     });
 
     describe('generatePhotoProfilePresign', () => {
-        it('creates a user-scoped filename and returns the S3 presign', async () => {
+        it('creates a private signed upload scoped to the user profile with the extension content type and size', async () => {
             await expect(
-                service.generatePhotoProfilePresign('user-id', {
+                service.generatePhotoProfilePresign(userId, {
                     extension: EnumFileExtensionImage.png,
                     size: 100,
                 })
-            ).resolves.toEqual(presign);
+            ).resolves.toEqual(signedUpload);
 
-            expect(fileService.createRandomFilename).toHaveBeenCalledWith({
-                path: 'users/user-id/photos',
-                extension: EnumFileExtensionImage.png,
-                randomLength: 20,
+            expect(
+                objectStorageService.createSignedUpload
+            ).toHaveBeenCalledWith(scopePrefix, {
+                contentType: 'image/png',
+                size: 100,
             });
-            expect(awsS3Service.presignPutItem).toHaveBeenCalledWith(
-                {
-                    key: aws.key,
-                    size: 100,
-                },
-                {
-                    forceUpdate: true,
-                    access: EnumAwsS3Accessibility.public,
-                }
-            );
         });
 
-        it('throws AwsServiceUnavailableException when S3 cannot create a presign', async () => {
-            awsS3Service.presignPutItem.mockResolvedValue(null);
+        it('maps a jpg extension onto the image/jpeg content type', async () => {
+            await service.generatePhotoProfilePresign(userId, {
+                extension: EnumFileExtensionImage.jpg,
+                size: 100,
+            });
 
+            expect(
+                objectStorageService.createSignedUpload
+            ).toHaveBeenCalledWith(scopePrefix, {
+                contentType: 'image/jpeg',
+                size: 100,
+            });
+        });
+
+        it('throws StorageSizeInvalidException without signing when the size is 0', async () => {
             await expect(
-                service.generatePhotoProfilePresign('user-id', {
+                service.generatePhotoProfilePresign(userId, {
                     extension: EnumFileExtensionImage.png,
-                    size: 100,
+                    size: 0,
                 })
-            ).rejects.toBeInstanceOf(AwsServiceUnavailableException);
+            ).rejects.toMatchObject({
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.sizeInvalid,
+                statusCodeKey:
+                    EnumStorageStatusCodeError[
+                        EnumStorageStatusCodeError.sizeInvalid
+                    ],
+                messagePath: 'storage.error.sizeInvalid',
+            });
+            expect(
+                objectStorageService.createSignedUpload
+            ).not.toHaveBeenCalled();
+        });
+
+        it('throws UserPhotoSizeExceededException without signing when the size is above the configured photo maximum', async () => {
+            await expect(
+                service.generatePhotoProfilePresign(userId, {
+                    extension: EnumFileExtensionImage.png,
+                    size: maxSizeInBytes + 1,
+                })
+            ).rejects.toMatchObject({
+                module: 'user',
+                statusCode: EnumUserStatusCodeError.photoSizeExceeded,
+                statusCodeKey:
+                    EnumUserStatusCodeError[
+                        EnumUserStatusCodeError.photoSizeExceeded
+                    ],
+                messagePath: 'user.error.photoSizeExceeded',
+                httpStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+            });
+            expect(
+                objectStorageService.createSignedUpload
+            ).not.toHaveBeenCalled();
+        });
+
+        it('accepts a size equal to the photo maximum', async () => {
+            await service.generatePhotoProfilePresign(userId, {
+                extension: EnumFileExtensionImage.png,
+                size: maxSizeInBytes,
+            });
+
+            expect(
+                objectStorageService.createSignedUpload
+            ).toHaveBeenCalledWith(scopePrefix, {
+                contentType: 'image/png',
+                size: maxSizeInBytes,
+            });
         });
     });
 
     describe('updatePhotoProfile', () => {
-        it('maps the presigned object and stores it on the user profile', async () => {
-            await service.updatePhotoProfile('user-id', {
-                key: aws.key,
-                size: 100,
+        it('verifies the staged key against the user scope, the photo maximum and the image content types', async () => {
+            await service.updatePhotoProfile(userId, { key: stagedKey });
+
+            expect(objectStorageService.verifyStaged).toHaveBeenCalledWith(
+                stagedKey,
+                {
+                    scopePrefix,
+                    maxSizeInBytes,
+                    contentTypes: photoContentTypes,
+                }
+            );
+        });
+
+        it('promotes the verified object to the public disk under the user scope and stores the promoted metadata', async () => {
+            await service.updatePhotoProfile(userId, { key: stagedKey });
+
+            expect(objectStorageService.promote).toHaveBeenCalledWith(staged, {
+                visibility: EnumStorageVisibility.public,
+                scopePrefix,
+            });
+            expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
+                userId,
+                promoted
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.userUpdatePhotoProfile,
+            });
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                preparedEvent,
+            ]);
+        });
+
+        it('deletes the staged object and the previous photo only after the database update commits', async () => {
+            const callOrder: string[] = [];
+            userRepository.updatePhotoProfile.mockImplementation(async () => {
+                callOrder.push('update');
+                return previousPhoto;
+            });
+            objectStorageService.delete.mockImplementation(async ({ key }) => {
+                callOrder.push(`delete:${key}`);
             });
 
-            expect(awsS3Service.mapPresign).toHaveBeenCalledWith(
-                { key: aws.key, size: 100 },
-                { access: EnumAwsS3Accessibility.public }
+            await service.updatePhotoProfile(userId, { key: stagedKey });
+
+            expect(callOrder[0]).toBe('update');
+            expect(callOrder).toEqual(
+                expect.arrayContaining([
+                    `delete:${stagedKey}`,
+                    `delete:${previousPhoto.key}`,
+                ])
             );
-            expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
-                'user-id',
-                aws
+            expect(objectStorageService.delete).toHaveBeenCalledTimes(2);
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: stagedKey,
+                visibility: EnumStorageVisibility.private,
+            });
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: previousPhoto.key,
+                visibility: previousPhoto.visibility,
+            });
+        });
+
+        it('deletes only the staged object when the user had no previous photo', async () => {
+            userRepository.updatePhotoProfile.mockResolvedValue(null);
+
+            await service.updatePhotoProfile(userId, { key: stagedKey });
+
+            expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: stagedKey,
+                visibility: EnumStorageVisibility.private,
+            });
+        });
+
+        it('rejects a foreign or traversal key as StorageKeyInvalidException with no promotion and no database write', async () => {
+            objectStorageService.verifyStaged.mockRejectedValue(
+                new StorageKeyInvalidException()
             );
+
+            await expect(
+                service.updatePhotoProfile(userId, {
+                    key: 'incoming/users/other-user/profile/../photo.png',
+                })
+            ).rejects.toMatchObject({
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.keyInvalid,
+                statusCodeKey:
+                    EnumStorageStatusCodeError[
+                        EnumStorageStatusCodeError.keyInvalid
+                    ],
+                messagePath: 'storage.error.keyInvalid',
+            });
+            expect(objectStorageService.verifyStaged).toHaveBeenCalledWith(
+                'incoming/users/other-user/profile/../photo.png',
+                expect.objectContaining({ scopePrefix })
+            );
+            expect(objectStorageService.promote).not.toHaveBeenCalled();
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+            expect(objectStorageService.delete).not.toHaveBeenCalled();
+        });
+
+        it('rejects a missing staged object as StorageObjectNotFoundException with no promotion and no database write', async () => {
+            objectStorageService.verifyStaged.mockRejectedValue(
+                new StorageObjectNotFoundException()
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).rejects.toMatchObject({
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.objectNotFound,
+                messagePath: 'storage.error.objectNotFound',
+            });
+            expect(objectStorageService.promote).not.toHaveBeenCalled();
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+        });
+
+        it('rejects staged bytes that are not an image as StorageContentTypeInvalidException with nothing promoted', async () => {
+            objectStorageService.verifyStaged.mockRejectedValue(
+                new StorageContentTypeInvalidException()
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).rejects.toMatchObject({
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.contentTypeInvalid,
+                messagePath: 'storage.error.contentTypeInvalid',
+            });
+            expect(objectStorageService.promote).not.toHaveBeenCalled();
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+        });
+
+        it('rejects an oversize staged object as StorageSizeInvalidException with nothing promoted', async () => {
+            objectStorageService.verifyStaged.mockRejectedValue(
+                new StorageSizeInvalidException()
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).rejects.toBeInstanceOf(StorageSizeInvalidException);
+            expect(objectStorageService.promote).not.toHaveBeenCalled();
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+        });
+
+        it('writes nothing when the promotion fails', async () => {
+            objectStorageService.promote.mockRejectedValue(
+                new StoragePromotionFailedException(new Error('copy failed'))
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).rejects.toBeInstanceOf(StoragePromotionFailedException);
+            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+            expect(objectStorageService.delete).not.toHaveBeenCalled();
+        });
+
+        it('deletes the promoted object, keeps the staged object and rethrows as AppUnknownException when the database update fails', async () => {
+            userRepository.updatePhotoProfile.mockRejectedValue(
+                new Error('db down')
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).rejects.toMatchObject({
+                module: 'app',
+                statusCode: EnumAppStatusCodeError.unknown,
+            });
+            expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: promoted.key,
+                visibility: promoted.visibility,
+            });
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('resolves when deleting the staged object or the previous photo fails after the commit', async () => {
+            objectStorageService.delete.mockRejectedValue(
+                new Error('delete failed')
+            );
+
+            await expect(
+                service.updatePhotoProfile(userId, { key: stagedKey })
+            ).resolves.toBeUndefined();
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                preparedEvent,
+            ]);
         });
     });
 
     describe('uploadPhotoProfile', () => {
-        it('uploads a local file to S3 and stores the resulting object when upload succeeds', async () => {
-            const file = {
-                originalname: 'avatar.png',
-                size: 100,
-                buffer: Buffer.from('image'),
-            } as IFile;
+        it('stores the uploaded asset metadata and stages the activity event', async () => {
+            await service.uploadPhotoProfile(userId, stored);
 
-            await service.uploadPhotoProfile('user-id', file);
-
-            expect(
-                fileService.extractExtensionFromFilename
-            ).toHaveBeenCalledWith('avatar.png');
-            expect(awsS3Service.putItem).toHaveBeenCalledWith(
-                { key: aws.key, size: 100, file: file.buffer },
-                { access: EnumAwsS3Accessibility.public }
-            );
             expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
-                'user-id',
-                aws
+                userId,
+                stored
             );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.userUpdatePhotoProfile,
+            });
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                preparedEvent,
+            ]);
         });
 
-        it('does not update the profile when S3 returns no uploaded object', async () => {
-            awsS3Service.putItem.mockResolvedValue(null);
-            const file = {
-                originalname: 'avatar.png',
-                size: 100,
-                buffer: Buffer.from('image'),
-            } as IFile;
+        it('deletes the previous photo after the database update commits', async () => {
+            const callOrder: string[] = [];
+            userRepository.updatePhotoProfile.mockImplementation(async () => {
+                callOrder.push('update');
+                return previousPhoto;
+            });
+            objectStorageService.delete.mockImplementation(async () => {
+                callOrder.push('delete');
+            });
 
-            await service.uploadPhotoProfile('user-id', file);
+            await service.uploadPhotoProfile(userId, stored);
 
+            expect(callOrder).toEqual(['update', 'delete']);
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: previousPhoto.key,
+                visibility: previousPhoto.visibility,
+            });
+        });
+
+        it('deletes nothing on a first upload with no previous photo', async () => {
+            userRepository.updatePhotoProfile.mockResolvedValue(null);
+
+            await service.uploadPhotoProfile(userId, stored);
+
+            expect(objectStorageService.delete).not.toHaveBeenCalled();
+        });
+
+        it('deletes the new object and rethrows as AppUnknownException when the database update fails', async () => {
+            const failure = new Error('db down');
+            userRepository.updatePhotoProfile.mockRejectedValue(failure);
+
+            await expect(
+                service.uploadPhotoProfile(userId, stored)
+            ).rejects.toMatchObject({
+                module: 'app',
+                statusCode: EnumAppStatusCodeError.unknown,
+                statusCodeKey:
+                    EnumAppStatusCodeError[EnumAppStatusCodeError.unknown],
+                messagePath: 'http.serverError.internalServerError',
+                rawError: failure,
+            });
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: stored.key,
+                visibility: stored.visibility,
+            });
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('deletes the new object and rethrows the typed exception unchanged when the activity contract fails', async () => {
+            const exception = new StorageKeyInvalidException();
+            activityLogDomain.prepare.mockImplementation(() => {
+                throw exception;
+            });
+
+            await expect(
+                service.uploadPhotoProfile(userId, stored)
+            ).rejects.toBe(exception);
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
+            expect(objectStorageService.delete).toHaveBeenCalledWith({
+                key: stored.key,
+                visibility: stored.visibility,
+            });
+        });
+
+        it('resolves when deleting the previous photo fails after the commit', async () => {
+            objectStorageService.delete.mockRejectedValue(
+                new Error('delete failed')
+            );
+
+            await expect(
+                service.uploadPhotoProfile(userId, stored)
+            ).resolves.toBeUndefined();
+        });
+
+        it('rejects with the original failure when the compensating delete also fails', async () => {
+            userRepository.updatePhotoProfile.mockRejectedValue(
+                new Error('db down')
+            );
+            objectStorageService.delete.mockRejectedValue(
+                new Error('delete failed')
+            );
+
+            await expect(
+                service.uploadPhotoProfile(userId, stored)
+            ).rejects.toBeInstanceOf(AppUnknownException);
         });
     });
 

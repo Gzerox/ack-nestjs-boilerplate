@@ -8,8 +8,7 @@ describe('TermPolicyCreateRequestSchema', () => {
         contents: [
             {
                 language: EnumMessageLanguage.en,
-                size: 1,
-                key: 'term-policies/privacy/v1/en.hbs',
+                key: 'incoming/term-policies/privacy/v1/en/content.hbs',
             },
         ],
     };

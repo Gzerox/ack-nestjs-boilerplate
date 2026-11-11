@@ -16,6 +16,16 @@ export const UserGuardIsVerifiedMetaKey = 'UserGuardIsVerifiedMetaKey';
 export const UserStoreKey = 'UserStore';
 
 /**
+ * Stored-asset columns of a user photo embedded in another response; size and etag stay in the database.
+ * @public
+ */
+export const UserPhotoRefSelect = {
+    key: true,
+    visibility: true,
+    contentType: true,
+} satisfies Prisma.UserPhotoSelect;
+
+/**
  * User guard error kit for `@UserProtected` (no `auth.error.accessTokenUnauthorized`).
  * @public
  */
@@ -57,7 +67,9 @@ export const UserRefSelect = {
     id: true,
     name: true,
     username: true,
-    photo: true,
+    photo: {
+        select: UserPhotoRefSelect,
+    },
     createdAt: true,
     createdBy: true,
     updatedAt: true,
@@ -122,7 +134,9 @@ export const UserAdminListSelect = {
     privacyAccepted: true,
     cookiesAccepted: true,
     marketingAccepted: true,
-    photo: true,
+    photo: {
+        select: UserPhotoRefSelect,
+    },
     createdAt: true,
     createdBy: true,
     updatedAt: true,

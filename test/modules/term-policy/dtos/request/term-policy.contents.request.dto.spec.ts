@@ -3,8 +3,7 @@ import { TermPolicyContentsRequestSchema } from '@modules/term-policy/dtos/reque
 describe('TermPolicyContentsRequestSchema', () => {
     const content = {
         language: EnumMessageLanguage.en,
-        size: 1,
-        key: 'term-policies/privacy/v1/en.hbs',
+        key: 'incoming/term-policies/privacy/v1/en/content.hbs',
     };
     it('accepts one content per language', () =>
         expect(

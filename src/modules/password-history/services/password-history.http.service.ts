@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import {
     PasswordHistoryCursorAvailableOrderBy,
@@ -18,8 +19,22 @@ export class PasswordHistoryHttpService {
     constructor(
         private readonly passwordHistoryDomain: PasswordHistoryDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapPasswordHistory(
+        passwordHistory: IPasswordHistoryList
+    ): IPasswordHistoryList {
+        const photo = this.objectStorageService.toAssetResponse(
+            passwordHistory.user.photo
+        );
+
+        return {
+            ...passwordHistory,
+            user: { ...passwordHistory.user, photo },
+        };
+    }
 
     async getListOffsetByAdmin(
         userId: string,
@@ -40,8 +55,12 @@ export class PasswordHistoryHttpService {
                 params
             );
 
+        const passwordHistories = data.map(passwordHistory =>
+            this.mapPasswordHistory(passwordHistory)
+        );
+
         return {
-            data,
+            data: passwordHistories,
             ...others,
         };
     }
@@ -62,8 +81,12 @@ export class PasswordHistoryHttpService {
         const { data, ...others } =
             await this.passwordHistoryDomain.getListCursor(userId, params);
 
+        const passwordHistories = data.map(passwordHistory =>
+            this.mapPasswordHistory(passwordHistory)
+        );
+
         return {
-            data,
+            data: passwordHistories,
             ...others,
         };
     }

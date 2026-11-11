@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -14,6 +15,7 @@ import type { DeviceAdminListRequestDto } from '@modules/device/dtos/request/dev
 import type { DeviceSharedListRequestDto } from '@modules/device/dtos/request/device.shared-list.request.dto';
 import type { DeviceRefreshRequestDto } from '@modules/device/dtos/request/device.refresh.request.dto';
 import type { IDeviceOwnershipDetail } from '@modules/device/interfaces/device.interface';
+import type { IUserRef } from '@modules/user/interfaces/user.interface';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -22,8 +24,21 @@ export class DeviceHttpService {
     constructor(
         private readonly deviceDomain: DeviceDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapRevokedBy(revokedBy: IUserRef | null): IUserRef | null {
+        if (!revokedBy) {
+            return null;
+        }
+
+        const photo = this.objectStorageService.toAssetResponse(
+            revokedBy.photo
+        );
+
+        return { ...revokedBy, photo };
+    }
 
     async getListOffsetByAdmin(
         userId: string,
@@ -55,11 +70,16 @@ export class DeviceHttpService {
                 isRevoked?.where
             );
         const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
-            deviceOwnership => ({
-                ...deviceOwnership,
-                activeSessionCount: deviceOwnership._count.sessions,
-                isCurrentDevice: false,
-            })
+            deviceOwnership => {
+                const revokedBy = this.mapRevokedBy(deviceOwnership.revokedBy);
+
+                return {
+                    ...deviceOwnership,
+                    revokedBy,
+                    activeSessionCount: deviceOwnership._count.sessions,
+                    isCurrentDevice: false,
+                };
+            }
         );
 
         return {
@@ -88,11 +108,16 @@ export class DeviceHttpService {
             params
         );
         const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
-            deviceOwnership => ({
-                ...deviceOwnership,
-                activeSessionCount: deviceOwnership._count.sessions,
-                isCurrentDevice: deviceOwnership.sessions.length > 0,
-            })
+            deviceOwnership => {
+                const revokedBy = this.mapRevokedBy(deviceOwnership.revokedBy);
+
+                return {
+                    ...deviceOwnership,
+                    revokedBy,
+                    activeSessionCount: deviceOwnership._count.sessions,
+                    isCurrentDevice: deviceOwnership.sessions.length > 0,
+                };
+            }
         );
 
         return {

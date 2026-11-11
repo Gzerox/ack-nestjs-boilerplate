@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { AwsS3PresignRequestSchema } from '@common/aws/dtos/request/aws.s3-presign.request.dto';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { StorageSignedUploadRequestSchema } from '@common/storage/dtos/request/storage.signed-upload.request.dto';
 
 /**
- * Validates the body that requests a presigned profile photo upload.
+ * Validates the body that requests a signed direct upload of a profile photo.
  * @public
  */
 export const UserGeneratePhotoProfileRequestSchema =
-    AwsS3PresignRequestSchema.pick({ size: true }).extend({
+    StorageSignedUploadRequestSchema.extend({
         extension: z.enum(EnumFileExtensionImage).meta({
             description: 'Image file extension of the profile photo',
             default: EnumFileExtensionImage.jpg,
@@ -16,7 +16,7 @@ export const UserGeneratePhotoProfileRequestSchema =
     });
 
 /**
- * Body that requests a presigned profile photo upload.
+ * Body that requests a signed direct upload of a profile photo.
  * @public
  */
 export type UserGeneratePhotoProfileRequestDto = z.infer<

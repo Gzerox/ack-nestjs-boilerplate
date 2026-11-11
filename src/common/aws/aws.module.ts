@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { AwsSESService } from '@common/aws/services/aws.ses.service';
 
 /**
- * Provides and exports `AwsS3Service` and `AwsSESService`.
+ * Provides and exports `AwsSESService`.
  */
 @Module({
-    exports: [AwsS3Service, AwsSESService],
-    providers: [AwsS3Service, AwsSESService],
+    exports: [AwsSESService],
+    providers: [AwsSESService],
     imports: [],
     controllers: [],
 })

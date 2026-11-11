@@ -1,0 +1,12 @@
+{
+    "error": {
+        "serviceUnavailable": "The storage service is currently unavailable. Please try again later.",
+        "objectNotFound": "The requested file was not found.",
+        "keyInvalid": "The file key is invalid.",
+        "objectConflict": "The file key conflicts with an existing file.",
+        "contentTypeInvalid": "The file type is not allowed.",
+        "sizeInvalid": "The file size is invalid or exceeds the allowed limit.",
+        "signedRequestInvalid": "The signed file link is invalid or has expired.",
+        "promotionFailed": "The uploaded file could not be stored. Please try again."
+    }
+}

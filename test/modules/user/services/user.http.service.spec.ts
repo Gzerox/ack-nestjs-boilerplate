@@ -7,14 +7,18 @@ import { PaginationStoreKey } from '@common/pagination/constants/pagination.cons
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
+import type { StorageAssetResponseDto } from '@common/storage/dtos/response/storage.asset.response.dto';
 import {
     EnumActivityLogAction,
     EnumRoleType,
+    EnumStorageVisibility,
     EnumUserGender,
     EnumUserSignUpFrom,
     EnumUserSignUpWith,
     EnumUserStatus,
 } from '@generated/prisma-client/client';
+import type { UserPhoto } from '@generated/prisma-client/client';
 import { EnumUserCreateMode } from '@modules/user/enums/user.enum';
 import type { UserCheckEmailRequestDto } from '@modules/user/dtos/request/user.check-email.request.dto';
 import type { UserCheckUsernameRequestDto } from '@modules/user/dtos/request/user.check-username.request.dto';
@@ -43,6 +47,8 @@ describe('UserHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
+    const objectStorageService: MockProxy<ObjectStorageService> =
+        mock<ObjectStorageService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const role = {
         id: 'role-id',
@@ -212,14 +218,41 @@ describe('UserHttpService', () => {
     } satisfies IUserCreateByAdminPrepared['input'];
     const createdUser = { id: 'created-user-id' } as IUser;
 
+    const userPhoto: UserPhoto = {
+        id: 'photo-id',
+        userId: 'user-id',
+        key: 'users/user-id/profile/photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        size: BigInt(1024),
+        etag: '"etag"',
+    };
+    const photoResponse: StorageAssetResponseDto = {
+        key: 'users/user-id/profile/photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        url: 'https://cdn.example.com/users/user-id/profile/photo.png',
+    };
+
     let service: UserHttpService;
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        objectStorageService.toAssetResponse.mockImplementation(asset => {
+            if (asset === userPhoto) {
+                return photoResponse;
+            }
+
+            return null;
+        });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 UserHttpService,
+                {
+                    provide: ObjectStorageService,
+                    useValue: objectStorageService,
+                },
                 { provide: UserDomain, useValue: userDomain },
                 {
                     provide: UserOnboardingDomain,
@@ -317,6 +350,26 @@ describe('UserHttpService', () => {
                 undefined
             );
         });
+        it('resolves every row photo through toAssetResponse', async () => {
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            userDomain.getListOffsetByAdmin.mockResolvedValue({
+                ...offsetPage,
+                data: [{ ...userListItem, photo: userPhoto }, userListItem],
+            });
+
+            const result = await service.getListOffsetByAdmin({});
+
+            expect(objectStorageService.toAssetResponse).toHaveBeenCalledWith(
+                userPhoto
+            );
+            expect(result.data).toEqual([
+                { ...userListItem, photo: photoResponse },
+                { ...userListItem, photo: null },
+            ]);
+        });
     });
 
     describe('getOne', () => {
@@ -327,6 +380,19 @@ describe('UserHttpService', () => {
 
             expect(userDomain.getOne).toHaveBeenCalledWith('user-id');
             expect(result).toEqual({ data: userProfile });
+        });
+
+        it('resolves the profile photo through toAssetResponse', async () => {
+            userDomain.getOne.mockResolvedValue({
+                ...userProfile,
+                photo: userPhoto,
+            });
+
+            const result = await service.getOne('user-id');
+
+            expect(result).toEqual({
+                data: { ...userProfile, photo: photoResponse },
+            });
         });
     });
 

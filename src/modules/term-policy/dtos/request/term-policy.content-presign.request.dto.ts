@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import { AwsS3PresignRequestSchema } from '@common/aws/dtos/request/aws.s3-presign.request.dto';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
+import { StorageSignedUploadRequestSchema } from '@common/storage/dtos/request/storage.signed-upload.request.dto';
 import { TermPolicyAcceptRequestSchema } from '@modules/term-policy/dtos/request/term-policy.accept.request.dto';
 
 /**
- * Validates the body that requests a presigned term policy content upload.
+ * Validates the body that requests a signed direct upload of one term policy content.
  * @public
  */
 export const TermPolicyContentPresignRequestSchema =
-    AwsS3PresignRequestSchema.pick({ size: true }).extend({
+    StorageSignedUploadRequestSchema.extend({
         type: TermPolicyAcceptRequestSchema.shape.type,
         language: z.enum(EnumMessageLanguage).meta({
             description: 'Language of the term document',
@@ -21,7 +21,7 @@ export const TermPolicyContentPresignRequestSchema =
     });
 
 /**
- * Body that requests a presigned term policy content upload.
+ * Body that requests a signed direct upload of one term policy content.
  * @public
  */
 export type TermPolicyContentPresignRequestDto = z.infer<

@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -13,6 +14,7 @@ import {
 import type { SessionAdminListRequestDto } from '@modules/session/dtos/request/session.admin-list.request.dto';
 import type { SessionSharedListRequestDto } from '@modules/session/dtos/request/session.shared-list.request.dto';
 import type { ISessionList } from '@modules/session/interfaces/session.interface';
+import type { IUserRef } from '@modules/user/interfaces/user.interface';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { Injectable } from '@nestjs/common';
 
@@ -21,8 +23,29 @@ export class SessionHttpService {
     constructor(
         private readonly sessionDomain: SessionDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapSession(session: ISessionList): ISessionList {
+        const userPhoto = this.objectStorageService.toAssetResponse(
+            session.user.photo
+        );
+
+        let revokedBy: IUserRef | null = null;
+        if (session.revokedBy) {
+            const revokedByPhoto = this.objectStorageService.toAssetResponse(
+                session.revokedBy.photo
+            );
+            revokedBy = { ...session.revokedBy, photo: revokedByPhoto };
+        }
+
+        return {
+            ...session,
+            user: { ...session.user, photo: userPhoto },
+            revokedBy,
+        };
+    }
 
     async getListOffsetByAdmin(
         userId: string,
@@ -50,8 +73,10 @@ export class SessionHttpService {
                 params,
                 isRevoked?.where
             );
+        const sessions = data.map(session => this.mapSession(session));
+
         return {
-            data,
+            data: sessions,
             ...others,
         };
     }
@@ -70,8 +95,10 @@ export class SessionHttpService {
             userId,
             params
         );
+        const sessions = data.map(session => this.mapSession(session));
+
         return {
-            data,
+            data: sessions,
             ...others,
         };
     }

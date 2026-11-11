@@ -20,11 +20,11 @@ import type {
     TwoFactorBackupCode,
     User,
     UserMobileNumber,
-    UserPhoto,
 } from '@generated/prisma-client/client';
 import type {
     UserAdminListSelect,
     UserAdminNearLockoutSelect,
+    UserPhotoRefSelect,
 } from '@modules/user/constants/user.constant';
 import type {
     IAuthPassword,
@@ -47,7 +47,7 @@ export interface IUser extends User {
 /** A user row flattened for CSV export: only the role name and the photo are joined. */
 export interface IUserExport extends User {
     role: Pick<Role, 'name'>;
-    photo: UserPhoto | null;
+    photo: IUserPhotoRef | null;
 }
 
 export type IUserList = Prisma.UserGetPayload<{
@@ -60,11 +60,15 @@ export type IUserNearLockout = Prisma.UserGetPayload<{
 
 export type IUserContact = Pick<User, 'id' | 'email' | 'username'>;
 
+export type IUserPhotoRef = Prisma.UserPhotoGetPayload<{
+    select: typeof UserPhotoRefSelect;
+}>;
+
 export interface IUserRef {
     id: string;
     name: string | null;
     username: string;
-    photo: UserPhoto | null;
+    photo: IUserPhotoRef | null;
     createdAt: Date;
     createdBy: string | null;
     updatedAt: Date;
@@ -80,7 +84,7 @@ export interface IUserMobileNumber extends UserMobileNumber {
 export interface IUserProfile extends IUser {
     mobileNumbers: IUserMobileNumber[];
     country: Country;
-    photo: UserPhoto | null;
+    photo: IUserPhotoRef | null;
 }
 
 export interface IUserForgotPasswordCreate {
@@ -240,11 +244,6 @@ export interface IUserUpdateProfile {
 
 export interface IUserGeneratePhotoProfile {
     extension: EnumFileExtensionImage;
-    size: number;
-}
-
-export interface IUserUpdatePhotoProfile {
-    key: string;
     size: number;
 }
 

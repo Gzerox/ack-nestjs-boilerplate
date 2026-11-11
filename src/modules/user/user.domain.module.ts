@@ -1,4 +1,3 @@
-import { AwsModule } from '@common/aws/aws.module';
 import { CountryDomainModule } from '@modules/country/country.domain.module';
 import { DeviceDomainModule } from '@modules/device/device.domain.module';
 import { PasswordHistoryDomainModule } from '@modules/password-history/password-history.domain.module';
@@ -73,7 +72,6 @@ import { UserMobileNumberAnalyticDomain } from '@modules/user/domains/user.mobil
         CountryDomainModule,
         PasswordHistoryDomainModule,
         DeviceDomainModule,
-        AwsModule,
     ],
 })
 export class UserDomainModule {}

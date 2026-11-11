@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -19,8 +20,19 @@ export class TermPolicyAcceptanceHttpService {
     constructor(
         private readonly termPolicyAcceptanceDomain: TermPolicyAcceptanceDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapAcceptance(
+        acceptance: ITermPolicyUserAcceptance
+    ): ITermPolicyUserAcceptance {
+        const photo = this.objectStorageService.toAssetResponse(
+            acceptance.user.photo
+        );
+
+        return { ...acceptance, user: { ...acceptance.user, photo } };
+    }
 
     async getListUserAccepted(
         userId: string,
@@ -41,8 +53,12 @@ export class TermPolicyAcceptanceHttpService {
                 userId,
                 params
             );
+        const acceptances = data.map(acceptance =>
+            this.mapAcceptance(acceptance)
+        );
+
         return {
-            data,
+            data: acceptances,
             ...others,
         };
     }

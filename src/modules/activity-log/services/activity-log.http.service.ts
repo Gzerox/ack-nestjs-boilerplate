@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { ActivityLogDefaultAvailableOrderBy } from '@modules/activity-log/constants/activity-log.list.constant';
 import type { ActivityLogAdminListRequestDto } from '@modules/activity-log/dtos/request/activity-log.admin-list.request.dto';
@@ -15,8 +16,17 @@ export class ActivityLogHttpService {
     constructor(
         private readonly activityLogDomain: ActivityLogDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapActivityLog(activityLog: IActivityLog): IActivityLog {
+        const photo = this.objectStorageService.toAssetResponse(
+            activityLog.user.photo
+        );
+
+        return { ...activityLog, user: { ...activityLog.user, photo } };
+    }
 
     async getListOffsetByUser(
         userId: string,
@@ -34,8 +44,12 @@ export class ActivityLogHttpService {
         const { data, ...others } =
             await this.activityLogDomain.getListOffsetByUser(userId, params);
 
+        const activityLogs = data.map(activityLog =>
+            this.mapActivityLog(activityLog)
+        );
+
         return {
-            data,
+            data: activityLogs,
             ...others,
         };
     }
@@ -56,8 +70,12 @@ export class ActivityLogHttpService {
         const { data, ...others } =
             await this.activityLogDomain.getListCursorByUser(userId, params);
 
+        const activityLogs = data.map(activityLog =>
+            this.mapActivityLog(activityLog)
+        );
+
         return {
-            data,
+            data: activityLogs,
             ...others,
         };
     }
@@ -83,8 +101,12 @@ export class ActivityLogHttpService {
                 params
             );
 
+        const activityLogs = data.map(activityLog =>
+            this.mapActivityLog(activityLog)
+        );
+
         return {
-            data,
+            data: activityLogs,
             ...others,
         };
     }
@@ -110,8 +132,12 @@ export class ActivityLogHttpService {
                 params
             );
 
+        const activityLogs = data.map(activityLog =>
+            this.mapActivityLog(activityLog)
+        );
+
         return {
-            data,
+            data: activityLogs,
             ...others,
         };
     }

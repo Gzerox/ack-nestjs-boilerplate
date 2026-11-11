@@ -31,4 +31,5 @@ export enum EnumUserStatusCodeError {
     importEmailExist = 51025,
     importUsernameExist = 51026,
     notAuthenticated = 51027,
+    photoSizeExceeded = 51028,
 }

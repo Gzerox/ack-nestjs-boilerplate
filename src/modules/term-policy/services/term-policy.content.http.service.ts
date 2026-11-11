@@ -1,21 +1,24 @@
-import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
+import type { IStorageSignedUpload } from '@common/storage/interfaces/storage.interface';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import type { IResponseReturn } from '@common/response/interfaces/response.interface';
 import type { TermPolicyContentPresignRequestDto } from '@modules/term-policy/dtos/request/term-policy.content-presign.request.dto';
 import type { TermPolicyContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.content.request.dto';
 import type { TermPolicyRemoveContentRequestDto } from '@modules/term-policy/dtos/request/term-policy.remove-content.request.dto';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
+import type { ITermPolicyContentDownload } from '@modules/term-policy/interfaces/term-policy.interface';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class TermPolicyContentHttpService {
     constructor(
-        private readonly termPolicyContentDomain: TermPolicyContentDomain
+        private readonly termPolicyContentDomain: TermPolicyContentDomain,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
 
     async generateContentPresignByAdmin(
         body: TermPolicyContentPresignRequestDto
-    ): Promise<IResponseReturn<IAwsS3Presign>> {
+    ): Promise<IResponseReturn<IStorageSignedUpload>> {
         const presign =
             await this.termPolicyContentDomain.generateContentPresignByAdmin(
                 body
@@ -63,12 +66,18 @@ export class TermPolicyContentHttpService {
     async getContentByAdmin(
         termPolicyId: string,
         language: EnumMessageLanguage
-    ): Promise<IResponseReturn<IAwsS3Presign>> {
-        const presign = await this.termPolicyContentDomain.getContentByAdmin(
-            termPolicyId,
-            language
-        );
+    ): Promise<IResponseReturn<ITermPolicyContentDownload>> {
+        const { asset, signedDownload } =
+            await this.termPolicyContentDomain.getContentByAdmin(
+                termPolicyId,
+                language
+            );
+        if (signedDownload) {
+            return { data: signedDownload };
+        }
 
-        return { data: presign };
+        const url = this.objectStorageService.publicUrl(asset);
+
+        return { data: { url, expiresAt: null } };
     }
 }

@@ -6,6 +6,7 @@ import { EnumAuthStatusCodeError } from '@modules/auth/enums/auth.status-code.en
 import { EnumCountryStatusCodeError } from '@modules/country/enums/country.status-code.enum';
 import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import { EnumRequestStatusCodeError } from '@common/request/enums/request.status-code.enum';
+import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
 import { useE2eApp } from '@test/e2e/support/app';
 import {
     e2eDelete,
@@ -273,29 +274,37 @@ describe('User shared routes', () => {
             await deleteUserFixture(app, user.id);
         });
 
-        // CONFIRMED src/ DEFECT (see hand-back): `AwsS3Service.mapPresign`
-        // (src/common/aws/services/aws.s3.service.ts:1018-1041) is the only presign-shaped method
-        // on that service missing the `isInitialized()` guard every sibling method has (e.g.
-        // `presignPutItem` at src/common/aws/services/aws.s3.service.ts:905-916, which returns
-        // `null` gracefully so the domain can throw `AwsServiceUnavailableException`). With no S3
-        // credentials configured (this e2e profile's AWS_S3_* vars are intentionally empty —
-        // S3 is a disabled boundary here), `mapPresign` calls `getConfig()`
-        // (src/common/aws/services/aws.s3.service.ts:202-212), which throws a raw `Error`.
-        // `UserProfileDomain.updatePhotoProfile`'s catch-all then wraps that into
-        // `AppUnknownException`, and the route 500s for every payload, real or not — a success
-        // case cannot be demonstrated against current code/environment.
-        it('500s because mapPresign has no isInitialized guard with S3 disabled (confirmed src/ defect)', async () => {
-            const key = `users/${user.id}/profile/e2e-photo.jpg`;
+        it('404s with storage objectNotFound when the staged key under the caller scope does not exist', async () => {
+            const key = `incoming/users/${user.id}/profile/e2e-missing.jpg`;
 
             const response = await withSharedAuth(
                 e2ePut(app, '/api/v1/shared/user/profile/photo/update'),
                 accessToken
             )
-                .send({ key, size: 1024 })
-                .expect(500);
+                .send({ key })
+                .expect(404);
 
             expect(response.body).toMatchObject({
-                module: 'app',
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.objectNotFound,
+                statusCodeKey:
+                    EnumStorageStatusCodeError[
+                        EnumStorageStatusCodeError.objectNotFound
+                    ],
+            });
+        });
+
+        it('400s with storage keyInvalid for a key outside the caller scope', async () => {
+            const response = await withSharedAuth(
+                e2ePut(app, '/api/v1/shared/user/profile/photo/update'),
+                accessToken
+            )
+                .send({ key: 'incoming/users/someone-else/profile/photo.jpg' })
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                module: 'storage',
+                statusCode: EnumStorageStatusCodeError.keyInvalid,
             });
         });
 
@@ -304,7 +313,7 @@ describe('User shared routes', () => {
                 e2ePut(app, '/api/v1/shared/user/profile/photo/update'),
                 accessToken
             )
-                .send({ key: '', size: 1024 })
+                .send({ key: '' })
                 .expect(422);
 
             expect(response.body).toMatchObject({

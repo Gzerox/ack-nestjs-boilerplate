@@ -5,6 +5,7 @@ import { EnumRequestTimezone } from '@common/request/enums/request.enum';
 import { EnumLoggerLevel } from '@common/logger/enums/logger.enum';
 import { RequestBooleanStringSchema } from '@common/request/validations/request.boolean-string.validation';
 import { RequestEncryptionSecretSchema } from '@common/request/validations/request.encryption-secret.validation';
+import { EnumStorageDriver } from '@common/storage/enums/storage.enum';
 
 /**
  * Validated shape of all application environment variables.
@@ -70,19 +71,24 @@ export const AppEnvSchema = z
         AUTH_SOCIAL_APPLE_CLIENT_ID: z.string().optional(),
         AUTH_SOCIAL_APPLE_SIGN_IN_CLIENT_ID: z.string().optional(),
 
-        AWS_S3_IAM_CREDENTIAL_KEY: z.string().optional(),
-        AWS_S3_IAM_CREDENTIAL_SECRET: z.string().optional(),
-        AWS_S3_IAM_ARN: z.string().optional(),
-        AWS_S3_REGION: z.string().optional(),
-        AWS_S3_PUBLIC_BUCKET: z.string().optional(),
-        AWS_S3_PUBLIC_CDN: z.string().optional(),
-        AWS_S3_PRIVATE_BUCKET: z.string().optional(),
-        AWS_S3_PRIVATE_CDN: z.string().optional(),
-
         AWS_SES_IAM_CREDENTIAL_KEY: z.string().optional(),
         AWS_SES_IAM_CREDENTIAL_SECRET: z.string().optional(),
         AWS_SES_IAM_ARN: z.string().optional(),
         AWS_SES_REGION: z.string().optional(),
+
+        STORAGE_DRIVER: z
+            .enum(EnumStorageDriver)
+            .default(EnumStorageDriver.local),
+        STORAGE_PUBLIC_BASE_URL: z.url({ protocol: /^https?$/ }),
+        STORAGE_LOCAL_ROOT: z.string().optional(),
+        STORAGE_LOCAL_SIGNING_KEYS: z.string().optional(),
+        STORAGE_S3_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
+        STORAGE_S3_REGION: z.string().optional(),
+        STORAGE_S3_ACCESS_KEY_ID: z.string().optional(),
+        STORAGE_S3_SECRET_ACCESS_KEY: z.string().optional(),
+        STORAGE_S3_FORCE_PATH_STYLE: RequestBooleanStringSchema.optional(),
+        STORAGE_S3_PUBLIC_BUCKET: z.string().optional(),
+        STORAGE_S3_PRIVATE_BUCKET: z.string().optional(),
 
         CACHE_REDIS_URL: z.string().min(1),
         QUEUE_REDIS_URL: z.string().min(1),
@@ -94,17 +100,66 @@ export const AppEnvSchema = z
         FIREBASE_PRIVATE_KEY: z.string().optional(),
     })
     .superRefine((env, ctx) => {
-        if (
-            (env.AWS_S3_IAM_CREDENTIAL_KEY ??
-                env.AWS_S3_IAM_CREDENTIAL_SECRET) &&
-            !env.AWS_S3_IAM_ARN
-        ) {
-            ctx.addIssue({
-                code: 'custom',
-                path: ['AWS_S3_IAM_ARN'],
-                message:
-                    'AWS_S3_IAM_ARN is required when an AWS S3 IAM credential is set',
-            });
+        if (env.STORAGE_DRIVER === EnumStorageDriver.local) {
+            if (!env.STORAGE_LOCAL_ROOT) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['STORAGE_LOCAL_ROOT'],
+                    message:
+                        'STORAGE_LOCAL_ROOT is required when STORAGE_DRIVER is local',
+                });
+            }
+
+            const signingKeys = (env.STORAGE_LOCAL_SIGNING_KEYS ?? '')
+                .split(',')
+                .map(key => key.trim())
+                .filter(key => key.length > 0);
+            if (
+                signingKeys.length === 0 ||
+                signingKeys.some(key => key.length < 32)
+            ) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['STORAGE_LOCAL_SIGNING_KEYS'],
+                    message:
+                        'STORAGE_LOCAL_SIGNING_KEYS needs at least one comma-separated key, each of at least 32 characters',
+                });
+            }
+        }
+
+        if (env.STORAGE_DRIVER === EnumStorageDriver.s3) {
+            const required = [
+                'STORAGE_S3_REGION',
+                'STORAGE_S3_ACCESS_KEY_ID',
+                'STORAGE_S3_SECRET_ACCESS_KEY',
+                'STORAGE_S3_PUBLIC_BUCKET',
+                'STORAGE_S3_PRIVATE_BUCKET',
+            ] as const;
+            for (const key of required) {
+                if (!env[key]) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: [key],
+                        message: `${key} is required when STORAGE_DRIVER is s3`,
+                    });
+                }
+            }
+
+            if (
+                env.STORAGE_S3_ENDPOINT &&
+                env.STORAGE_S3_REGION &&
+                env.STORAGE_S3_REGION !== 'auto' &&
+                new URL(env.STORAGE_S3_ENDPOINT).hostname.endsWith(
+                    '.r2.cloudflarestorage.com'
+                )
+            ) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['STORAGE_S3_REGION'],
+                    message:
+                        'STORAGE_S3_REGION must be auto for a Cloudflare R2 endpoint',
+                });
+            }
         }
 
         if (

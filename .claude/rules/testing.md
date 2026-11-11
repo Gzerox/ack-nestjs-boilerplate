@@ -19,8 +19,8 @@ kind for every assertion it makes.
 
 This repository's suite is **unit**. `pnpm test` and `pnpm test:cov` collect `test/**/*.spec.ts`
 through `vitest.config.ts`. `coder` and `test-writer` write that kind and no other. Integration
-tests, e2e tests, and load tests are not this suite: they are not authored under `test/`, they
-are not in that `include`, and they have no TDD cycle here.
+tests, e2e tests, and load tests are not this suite: they are not in that `include`, and they
+have no TDD cycle here. E2E has its own tree, `test/e2e/` (below).
 
 `reviewer-e2e` is a read-only review agent that traces a flow in source. It is not an e2e
 suite and it writes no test.
@@ -38,7 +38,7 @@ Every DI collaborator is a double. The subject is the one class that is real
   `select` shape and does not prove the query against PostgreSQL. Those files sit outside the
   coverage set.
 - A controller and a processor are route or job delegation. They have no unit spec.
-- OpenAPI composition on runtime decorators (`@Doc`, `@Response*`, `*Protected`, `FileUpload*`) has no unit spec.
+- OpenAPI composition on runtime decorators (`@Doc`, `@Response*`, `*Protected`, `FileUpload*`, `StorageUploadSingle`) has no unit spec.
 - A contract is a lookup table. The consumer's unit spec exercises it.
 
 TDD is this kind (`coder`). `/ack-spec` covers this kind against code that already exists,
@@ -59,8 +59,10 @@ proven against the engine. It is not authored under `test/` and it is not collec
 The subject is a request or a job entering the running process. Guards, pipes, interceptors,
 the HTTP or processor service, the domain, and the repository all run for real.
 
-This kind is not authored under `test/` and it is not collected by `vitest.config.ts`. Load
-tests are the same ban.
+This kind lives in `test/e2e/**/*.e2e-spec.ts` with its helpers in `test/e2e/support/**`, runs
+through `pnpm test:e2e` (`vitest.e2e.config.ts`), and is written by `e2e-writer` under
+`rules/testing-e2e.md`. `vitest.config.ts` does not collect it, and `coder` and `test-writer`
+never write it. Load tests are not authored in this repository.
 
 ## Where specs live (HARD)
 
@@ -158,7 +160,7 @@ contract is a lookup table — specs there would assert the mock, restatement, o
 already proved. If you find yourself wanting a controller, processor, or repository spec,
 the logic is probably in the wrong layer. A contract is exercised by the consumer that reads
 it (a domain or a pipe), not by a spec of the table. OpenAPI composition on `@Doc` /
-`@Response*` / `*Protected` / `FileUpload*` is not a unit subject.
+`@Response*` / `*Protected` / `FileUpload*` / `StorageUploadSingle` is not a unit subject.
 
 **The denylist decides WHAT gets a spec for `/ack-spec`, and an excluded file gets NONE
 (HARD).** Wanting coverage on an excluded path is a request to change `vitest.config.ts`,
@@ -215,8 +217,8 @@ Always:
   deliberately — decide which and say which.
 - **Do NOT lower the coverage threshold**, add a path to the coverage denylist, or add an
   ignore comment (`/* v8 ignore */`) to reach 100%.
-- **Do NOT write integration, e2e, or load tests in this tree.** The suite is unit specs
-  (`Kinds of test` above).
+- **Do NOT write integration, e2e, or load tests in the unit tree.** The suite is unit specs
+  (`Kinds of test` above); `test/e2e/` belongs to `e2e-writer`.
 - If a file is genuinely untestable as written (a static global, an unmockable import), report
   it as a design defect to fix rather than building an elaborate mock around it. A hard
   `new Date()` is NOT one of these — `vi.useFakeTimers()` in `beforeAll` covers it.

@@ -40,7 +40,7 @@ neither do you.
 
 The TDD spec is a **unit** spec (`rules/testing.md`). Do not write an integration spec, an
 e2e spec, or a load test. Controllers, processors, repositories, contracts, and OpenAPI
-composition on `@Doc` / `@Response*` / `*Protected` / `FileUpload*` are outside the coverage
+composition on `@Doc` / `@Response*` / `*Protected` / `FileUpload*` / `StorageUploadSingle` are outside the coverage
 set. Do not write a spec for those layers. When the behaviour lives on a domain, the TDD
 subject is that domain class. A repository's place in the cycle is the double in that domain
 spec. A contract row is the `src/` that turns the consumer spec green. A seed has no TDD
@@ -134,7 +134,7 @@ skill that dispatched you calls it.
 8. **Boot the app if you changed any `imports:`, `providers:` or a constructor's injected
    class** — a cycle or a type-only DI import surfaces only there (`rules/nest-wiring.md`).
    The local `.env` carries live third-party credentials: a boot is fine, but a request that
-   sends email, pushes, or writes S3 is not yours to trigger.
+   sends email, pushes, or writes to remote object storage is not yours to trigger.
 
 ## Rules
 

@@ -211,8 +211,8 @@ interface when the row is a shape; a table whose rows are plain values needs non
 - **`Regex` names a `RegExp`**: `workspace.slugRegex`, `project.slugRegex`.
 - A placeholder string that is a **full URL** takes `Pattern`:
   `workspace.invite.linkPattern`, `workspace.invite.signUpLinkPattern`,
-  `workspace.joinRequest.reviewLinkPattern`, `aws.s3.objectUrlPattern`,
-  `aws.s3.cdnUrlPattern` (`rules/config.md`).
+  `workspace.joinRequest.reviewLinkPattern`, `storage.publicUrlPattern`
+  (`rules/config.md`).
 - A placeholder string that is a relative **fragment** takes `Pattern` when the fragment IS
   the whole value (`doc.jsonUrlPattern`), and is named for the thing it holds when the
   placeholder is incidental to what the key carries (`termPolicy.uploadContentPath`).

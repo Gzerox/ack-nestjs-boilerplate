@@ -7,7 +7,7 @@ not settled here.
 
 ## Credentials
 
-A credential is a password hash, a generated password, a 2FA secret or pending secret, a backup code, a raw access or refresh token, a verification, reset or invite token, an API key secret, an encryption root secret, a JWT private key, or a presign signature.
+A credential is a password hash, a generated password, a 2FA secret or pending secret, a backup code, a raw access or refresh token, a verification, reset or invite token, an API key secret, an encryption root secret, a JWT private key, or a signed upload or download URL.
 
 - **A credential MUST NOT appear in a log line or a Sentry event** — not in `logger.debug`, not inside an error message, not inside a `JSON.stringify`, not in a URL path. Pino and `src/instrument.ts` redact the keys in `LoggerSensitiveFields`, but redaction is a safety net, not a licence (`rules/logging.md`).
 - **A credential at rest or in a job payload is hashed or encrypted.** A value that is only compared (backup code, token, API key secret) is stored as its SHA-256 hash; a value that must be read back (2FA secret, a queued password or link) is encrypted with `HelperEncryptionService`.
@@ -127,7 +127,7 @@ The decorator stack in `rules/http.md` is the enforcement order and it is exact.
 
 ## Request store
 
-Per-request state lives in one CLS-backed `RequestStoreService` (`src/common/request/services/request.store.service.ts`), keyed by `*StoreKey` constants — the request's own (`RequestLogStoreKey`, `RequestLanguageStoreKey`, `RequestVersionStoreKey`, `RequestIdStoreKey`, `RequestCorrelationIdStoreKey`, `RequestActorStoreKey`, `RequestThrottleHandledStoreKey`) and the guards' (`AuthPayloadStoreKey`, `UserStoreKey`, `ApiKeyStoreKey`, `PolicyStoreKey`, `WorkspaceStoreKey`, `WorkspaceMemberStoreKey`, `ProjectStoreKey`, `ProjectMemberStoreKey`, `ProjectWorkspaceOwnerStoreKey`), plus the two a kit writes for itself (`ActivityLogStageStoreKey`, `PaginationStoreKey`). `RequestActorStoreKey` is the actor the audit stamping reads (`rules/database.md`). Do not create a per-module CLS store; add a key to the shared one — the `workspace` module's own key constants (`workspace.constant.ts`) are the pattern to follow, not an exception to it.
+Per-request state lives in one CLS-backed `RequestStoreService` (`src/common/request/services/request.store.service.ts`), keyed by `*StoreKey` constants — the request's own (`RequestLogStoreKey`, `RequestLanguageStoreKey`, `RequestVersionStoreKey`, `RequestIdStoreKey`, `RequestCorrelationIdStoreKey`, `RequestActorStoreKey`, `RequestThrottleHandledStoreKey`) and the guards' (`AuthPayloadStoreKey`, `UserStoreKey`, `ApiKeyStoreKey`, `PolicyStoreKey`, `WorkspaceStoreKey`, `WorkspaceMemberStoreKey`, `ProjectStoreKey`, `ProjectMemberStoreKey`, `ProjectWorkspaceOwnerStoreKey`), plus the three a kit writes for itself (`ActivityLogStageStoreKey`, `PaginationStoreKey`, `StorageStoredUploadStoreKey`). `RequestActorStoreKey` is the actor the audit stamping reads (`rules/database.md`). Do not create a per-module CLS store; add a key to the shared one — the `workspace` module's own key constants (`workspace.constant.ts`) are the pattern to follow, not an exception to it.
 
 Geo-location and user-agent are resolved once per request into `RequestLogStoreKey` as an `IRequestLog`, then threaded to the repository as the last method parameter. Do not re-parse them downstream.
 

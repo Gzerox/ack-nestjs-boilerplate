@@ -6,7 +6,7 @@ schema migrations — the schema is `rules/prisma-schema.md`. Flow narrative:
 
 ## What `src/migration/` is — and is NOT
 
-`src/migration/` seeds **initial data only**: the reference and bootstrap rows an empty database needs to boot and be usable — roles, countries, the seed api-key, feature flags, term policies, notification/term templates, the aws-s3 config, and the seed user.
+`src/migration/` seeds **initial data only**: the reference and bootstrap rows an empty database needs to boot and be usable — roles, countries, the seed api-key, feature flags, term policies, notification/term templates, and the seed user.
 
 - **`prisma/migrations/` holds the schema migration files; `src/migration/` does not.** Schema migrations are generated and applied together by the owner running `db:migrate` (`prisma migrate dev`), which writes a new file under `prisma/migrations/` and applies it in one step (`rules/prisma-schema.md`). So there is no "write a migration" task inside `src/migration/` — there is only "seed initial data".
 - **A seed is re-runnable bootstrap.** It populates the baseline an empty install starts from.
@@ -25,12 +25,13 @@ src/migration/
 ```
 
 - A seed is `<module>.<concern>.seed.ts`, class `Migration<Module>Seed`, decorated `@Command({ name })`, and **extends `MigrationSeedBase`** — never `CommandRunner` directly. The base owns the `--type seed|remove` dispatch; a seed only implements `seed()` and `remove()`.
-- **`@Command` `name` is camelCase** matching the module or concern — `apiKey`, `featureFlag`, `termPolicy`, `templateEmailNotification`, `templateTermPolicy`, `awsS3Config`. Never kebab-case and never a mixed dash form (`template-email-notification`, `template-termPolicy`, `aws-s3-config`).
+- **`@Command` `name` is camelCase** matching the module or concern — `apiKey`, `featureFlag`, `termPolicy`, `templateEmailNotification`, `templateTermPolicy`. Never kebab-case and never a mixed dash form (`template-email-notification`, `template-termPolicy`, `feature-flag`).
 - **Every `seed()` has a matching `remove()`.** Seeding without a clean teardown leaves `migration:remove` unable to undo it. The pair is mandatory, not optional.
 - **Static seed rows live in `data/` as a PascalCase const** (`<module>.<concern>.data.ts`), imported by the seed. Every const in that tree is PascalCase, exported or not. A seed whose data is built inline (no external key/reference) needs no `data/` file — do not invent one to be symmetric.
 - **A seed writes its audit fields explicitly.** There is no request actor in a command, so `createdBy` and `updatedBy` on every seeded row — including the update branch of an upsert and every nested row — carry `MigrationUserSuperAdminId`, the fixed id the user seed gives the superadmin. A seeded activity row follows the same contracts a request does (`rules/security.md`): a row one user creates for another writes the pair, and an action with no metadata writes `{}`.
 - **A seed that finds its fixed id taken by a different row stops.** The user seed aborts with a message naming the email, the id it found and the id it expects, because writing around it would leave activity rows pointing at a user that does not exist. Realigning is the owner's `migration:remove` then `migration:seed`.
-- Registration is a provider entry in `migration.module.ts`. Seeds may inject **`DatabaseService`** (sanctioned — most data seeds do this today), a feature's **repository** (with its `<Feature>RepositoryModule` in `migration.module.ts` `imports`), or a feature **domain** (template / notification seeds) or shared kit service (`AwsSESService`, `AwsS3Service`). Prefer the existing pattern in the sibling seed you are extending; do not invent a second access path for the same table. A seed that needs a transaction opens it with `this.databaseService.withTransaction` (`rules/database.md`), in callback form, passing `database.seedTransactionTimeoutInMs` — seed batches outlive Prisma's 5 s default. Work that is not a write (hashing a password, drawing a key, building rows) happens BEFORE the callback, so the transaction holds only statements.
+- Registration is a provider entry in `migration.module.ts`. Seeds may inject **`DatabaseService`** (sanctioned — most data seeds do this today), a feature's **repository** (with its `<Feature>RepositoryModule` in `migration.module.ts` `imports`), or a feature **domain** (template / notification seeds) or shared kit service (`AwsSESService`, `ObjectStorageService`). Prefer the existing pattern in the sibling seed you are extending; do not invent a second access path for the same table. A seed that needs a transaction opens it with `this.databaseService.withTransaction` (`rules/database.md`), in callback form, passing `database.seedTransactionTimeoutInMs` — seed batches outlive Prisma's 5 s default. Work that is not a write (hashing a password, drawing a key, building rows) happens BEFORE the callback, so the transaction holds only statements.
+- **A seed that writes objects goes through `ObjectStorageService`** and runs unchanged on every `STORAGE_DRIVER` (`rules/file.md`). Storage is always configured, so the seed carries no initialization guard. Bucket policy, CORS, and lifecycle are deployment infrastructure, never a seed.
 - **`MigrationModule` is its own composition root, and the repository-privacy rule does not reach it.** A seed writes baseline rows rather than serving a request, so importing another feature's repository module here is correct, not a boundary crossing (`rules/cross-module.md`).
 
 ## Order is in the script, not the module
@@ -42,7 +43,7 @@ Bundled today:
 - `migration:seed` — `apiKey → country → featureFlag → role → policy → termPolicy → user → workspace`
 - `migration:remove` — `workspace → user → apiKey → featureFlag → country → policy → role → termPolicy` (**not** a strict reverse of seed; do not invent a reverse that is not in the script)
 
-Extra seeds exist and are registered (`templateEmailNotification`, `templateTermPolicy`, `awsS3Config`, …) but are **not** part of `migration:seed` / `migration:remove` — run them as separate `migration` commands when needed.
+Extra seeds exist and are registered (`templateEmailNotification`, `templateTermPolicy`) but are **not** part of `migration:seed` / `migration:remove` — run them as separate `migration` commands when needed.
 
 Adding a seed with a dependency means placing it correctly in **both** bundled scripts when it belongs in the bundled flow. The `providers` array order is irrelevant to execution.
 

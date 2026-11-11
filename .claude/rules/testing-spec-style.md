@@ -112,8 +112,8 @@ The line is WHOSE contract the fixture is standing in for, not how ugly the cast
 row, or exception is small, stable, and ours to keep true. A `{ id: 'user-1' } as IUser` is a
 lie the compiler was asked to stop reporting. Complete the fixture.
 
-**A THIRD-PARTY shape is cast ONCE, at the boundary that produces it.** An AWS S3 `Body`, a
-BullMQ `Job`, a Firebase message: dozens of members we do not own, of which the subject reads
+**A THIRD-PARTY shape is cast ONCE, at the boundary that produces it.** A `@nestjs/storage` `stat()` result or
+`Readable` from a disk read, a BullMQ `Job`, a Firebase message: dozens of members we do not own, of which the subject reads
 two. One cast, at the factory or the mock call site — never scattered through the assertions.
 
 **`@ts-ignore` and `@ts-expect-error` are FORBIDDEN outright.** Unlike a cast they name no

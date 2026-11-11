@@ -7,7 +7,7 @@ not carry conventions from one tree into the other.
 
 ## Runtime
 
-- `pnpm test:e2e` runs `vitest.e2e.config.mts`, matching `test/**/*.e2e-spec.ts` only.
+- `pnpm test:e2e` runs `vitest.e2e.config.ts`, matching `test/**/*.e2e-spec.ts` only.
   `testTimeout` is 30000ms, `hookTimeout` is 60000ms, `pool: 'forks'`, `isolate: true`.
   `isolate` resets the JS module registry per file — it does not reset Postgres or Redis.
 - `test/e2e/setup.ts` loads `.env.e2e` and selects the `test` application environment before any
@@ -31,7 +31,10 @@ not carry conventions from one tree into the other.
 
 ## External boundaries
 
-SES, S3, Firebase, and Sentry are disabled in the test profile. A route that would call one of
+SES, Firebase, and Sentry are disabled in the test profile. Object storage runs on the `local`
+driver the profile configures, so a route that stores, signs, or promotes a file is asserted
+against that disk through `ObjectStorageService`, never against a remote bucket and never through
+a recording adapter. A route that would call one of
 them is asserted through a recording adapter, never a live third-party call. Until a recording
 adapter exists for a given boundary, a route reaching it is out of scope for a behavioral case
 and gets a hand-back note instead of a skipped assertion.
@@ -70,7 +73,7 @@ under `test/e2e/support/` the first time a spec needs an authenticated route, an
 - database and fixture cleanup helpers;
 - response-envelope, pagination, validation, and exception assertions;
 - multipart upload and CSV request builders;
-- recording adapters for SES, S3, Firebase, queue dispatch, and Sentry.
+- recording adapters for SES, Firebase, queue dispatch, and Sentry.
 
 Helpers stay explicitly imported — no global setup magic. Endpoint-specific request bodies,
 state transitions, and assertions stay in the route's own spec file. A spec needing a helper

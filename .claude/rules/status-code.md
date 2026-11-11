@@ -41,7 +41,6 @@ done
 | `51100`–`51103` | `policy` |
 | `51200`–`51203` | `notification` |
 | `51300` | `device` |
-| `51400` | `src/common/aws` |
 | `51500`–`51508` | `term-policy` |
 | `51600`–`51620` | `workspace` |
 | `51700`–`51707` | `project` |
@@ -50,10 +49,12 @@ done
 | `52000` | `activity-log` |
 | `52100` | `analytic` |
 | `52200`–`52202` | `src/common/helper` |
+| `52300`–`52307` | `src/common/storage` |
 
 | Note | Detail |
 |---|---|
-| Next free hundred | `52300` (verify by scan before claiming) |
+| Next free hundred | `52400` (verify by scan before claiming) |
+| Unallocated gap | `51400` — never claimed; a gap inside the layout stays empty |
 | Prefer | `5xxxx` for feature modules |
 
 ---
@@ -105,7 +106,7 @@ export class <Module><Descriptor>Exception extends AppBaseException {
 | Step | Action |
 |---|---|
 | 1 | Scan — highest allocated block and gaps |
-| 2 | Take the next free **5-digit** hundred that does not overlap a neighbour |
+| 2 | Take the next **5-digit** hundred above the highest allocated block — never a gap inside the layout |
 | 3 | Create `enums/<module>.status-code.enum.ts` with the first member at the block base |
 | 4 | Report the claim in `generated/docs/report-coder-<feature>.md` (module, base, next free, members) |
 

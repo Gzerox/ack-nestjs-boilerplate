@@ -90,6 +90,17 @@ returned object, and a bare payload has none. A handler with nothing to return i
   value is always present-or-null.
 - Do not combine the two on new code (`rules/null-safety.md`).
 
+## Change a response only when the behaviour requires it
+
+A returned shape or type changes only when the behaviour it carries changes. A refactor that
+moves where a value comes from keeps the response it produced, and keeps the interface names
+and shapes that describe it. A shape shared by many projections changes at its single source
+and nowhere else — the embedded user `photo` is the stored-asset shape
+`{ key, visibility, contentType, url }`, typed once at the user reference select and the photo
+DTO, resolved through `ObjectStorageService.toAssetResponse` (`rules/file.md`). Every
+projection that embeds it keeps its own interface (`IActivityLog`, `IDeviceOwnershipDetail`,
+`ProjectMember`, …); no `I*Response` twin is declared per projection.
+
 ## Field names
 
 Field names are the JSON keys, and they are camelCase (`rules/naming.md`). **Rename

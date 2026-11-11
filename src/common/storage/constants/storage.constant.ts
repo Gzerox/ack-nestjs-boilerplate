@@ -1,12 +1,6 @@
 import { EnumStorageVisibility } from '@generated/prisma-client/client';
 
 /**
- * Key prefix on the private disk under which every signed direct upload is staged until it is verified.
- * @public
- */
-export const StorageIncomingPrefix = 'incoming/';
-
-/**
  * Admits the characters of an object key: letters, digits, dot, underscore, hyphen and `/`. Every character a URL
  * or `String.prototype.replace` treats as structure (`$`, `?`, `#`, `%`) is excluded.
  * @public
@@ -38,7 +32,7 @@ export const StorageAssetExample = {
 };
 
 /**
- * Leading bytes of a staged object read to detect its content type, enough for a feature detector of a text format.
+ * Leading bytes of an uploaded object read to detect its content type, enough for a feature detector of a text format.
  * @public
  */
 export const StorageContentTypeSampleBytes = 4096;

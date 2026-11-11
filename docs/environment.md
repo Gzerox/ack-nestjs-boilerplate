@@ -553,13 +553,13 @@ STORAGE_S3_FORCE_PATH_STYLE=false
 ```
 
 **`STORAGE_S3_PUBLIC_BUCKET`** *(required when `STORAGE_DRIVER=s3`)*  
-Bucket behind the `public` disk: verified assets delivered without authentication, such as profile photos and published term policy content.
+Bucket behind the `public` disk: every uploaded asset, delivered without authentication, such as profile photos and term policy content. Signed direct uploads land here at their final key.
 ```bash
 STORAGE_S3_PUBLIC_BUCKET=
 ```
 
 **`STORAGE_S3_PRIVATE_BUCKET`** *(required when `STORAGE_DRIVER=s3`)*  
-Bucket behind the `private` disk: draft term policy content and every unverified signed upload under `incoming/`. It blocks all public access.
+Bucket behind the `private` disk: protected documents delivered only through signed downloads. No feature stores to it today. It blocks all public access.
 ```bash
 STORAGE_S3_PRIVATE_BUCKET=
 ```

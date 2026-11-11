@@ -161,7 +161,7 @@ describe('UserProfileHttpService', () => {
     describe('generatePhotoProfilePresign', () => {
         it('returns the signed upload the domain issued', async () => {
             const signedUpload: IStorageSignedUpload = {
-                key: 'incoming/users/user-id/profile/photo.png',
+                key: 'users/user-id/profile/photo.png',
                 url: 'https://storage.example.com/upload?signature=abc',
                 method: 'PUT',
                 headers: { 'content-type': 'image/png' },
@@ -189,12 +189,12 @@ describe('UserProfileHttpService', () => {
     describe('updatePhotoProfile', () => {
         it('hands the staging key alone to the domain', async () => {
             await service.updatePhotoProfile('user-id', {
-                key: 'incoming/users/user-id/profile/photo.png',
+                key: 'users/user-id/profile/photo.png',
             });
 
             expect(userProfileDomain.updatePhotoProfile).toHaveBeenCalledWith(
                 'user-id',
-                { key: 'incoming/users/user-id/profile/photo.png' }
+                { key: 'users/user-id/profile/photo.png' }
             );
         });
     });

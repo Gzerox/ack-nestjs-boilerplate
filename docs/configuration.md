@@ -329,6 +329,7 @@ local: {
   signingKeys: string[];        // STORAGE_LOCAL_SIGNING_KEYS split on ',' and trimmed; the first signs, every key verifies
   publicUrlPattern: string;     // '{baseUrl}{globalPrefix}/storage/public'
   signedUrlPattern: string;     // '{baseUrl}{globalPrefix}/storage/private'
+  signedUploadUrlPattern: string; // '{baseUrl}{globalPrefix}/storage/upload'
 }
 ```
 
@@ -774,7 +775,7 @@ keyPattern: string              // Redis key pattern for user sessions ('User:{u
 
 **`draftPrefixPattern`** - Key prefix of every object of one term policy version
 ```typescript
-draftPrefixPattern: string      // 'term-policies/{type}/v{version}/'; deleting a draft clears this prefix on the private disk
+draftPrefixPattern: string      // 'term-policies/{type}/v{version}/'; deleting a draft clears this prefix on the public disk
 ```
 
 **`contentScopePrefixPattern`** - Key prefix of one language's content

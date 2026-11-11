@@ -3,7 +3,7 @@ import { StorageSignedUploadResponseSchema } from '@common/storage/dtos/response
 describe('StorageSignedUploadResponseSchema', () => {
     const expiresAt = new Date('2026-01-01T00:10:00.000Z');
     const signedUpload = {
-        key: 'incoming/users/user-1/profile/upload.png',
+        key: 'users/user-1/profile/upload.png',
         url: 'https://api.example.com/api/storage/private?signature=abc',
         method: 'PUT',
         headers: { 'content-type': 'image/png' },

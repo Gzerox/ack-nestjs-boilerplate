@@ -6,9 +6,9 @@ import { z } from 'zod';
  */
 export const StorageSignedUploadResponseSchema = z.object({
     key: z.string().meta({
-        description: 'Staging key to send back on completion',
+        description: 'Upload key to send back on completion',
         example:
-            'incoming/users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpg',
+            'users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpg',
     }),
     url: z.string().meta({
         description: 'Signed URL the file is uploaded to',

@@ -19,10 +19,7 @@ import { TermPolicyExistException } from '@modules/term-policy/exceptions/term-p
 import { TermPolicyLanguageDuplicateException } from '@modules/term-policy/exceptions/term-policy.language-duplicate.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
-import type {
-    ITermPolicyContentCreate,
-    ITermPolicyCreate,
-} from '@modules/term-policy/interfaces/term-policy.interface';
+import type { ITermPolicyCreate } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
@@ -34,10 +31,7 @@ import {
     EnumTermPolicyStatus,
     Prisma,
 } from '@generated/prisma-client/client';
-import type {
-    TermPolicy,
-    TermPolicyContent,
-} from '@generated/prisma-client/client';
+import type { TermPolicy } from '@generated/prisma-client/client';
 
 @Injectable()
 export class TermPolicyDomain {
@@ -110,32 +104,15 @@ export class TermPolicyDomain {
     private async deletePrefixQuietly(prefix: string): Promise<void> {
         try {
             await this.objectStorageService.deletePrefix(
-                EnumStorageVisibility.private,
+                EnumStorageVisibility.public,
                 prefix
             );
         } catch (error: unknown) {
             this.logger.error(
                 error,
-                `Failed to delete private term policy objects under ${prefix}`
+                `Failed to delete public term policy objects under ${prefix}`
             );
         }
-    }
-
-    private async copyContentPublic(
-        { type, version }: Pick<TermPolicy, 'type' | 'version'>,
-        { key, visibility, contentType, language }: TermPolicyContent
-    ): Promise<ITermPolicyContentCreate> {
-        const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
-            type,
-            version,
-            language
-        );
-        const copied = await this.objectStorageService.copyAcrossDisks(
-            { key, visibility, contentType },
-            { visibility: EnumStorageVisibility.public, scopePrefix }
-        );
-
-        return { ...copied, language };
     }
 
     async getListByAdmin(
@@ -172,16 +149,15 @@ export class TermPolicyDomain {
             throw new TermPolicyLanguageDuplicateException();
         }
 
-        const promotions = await this.settleAllOrDelete(
+        const mappedContents = await this.settleAllOrDelete(
             contents.map(upload =>
-                this.termPolicyContentDomain.promoteContent(
+                this.termPolicyContentDomain.verifyContent(
                     { type, version },
                     upload
                 )
             ),
-            ({ content }) => content
+            content => content
         );
-        const mappedContents = promotions.map(({ content }) => content);
 
         let created: TermPolicy;
         try {
@@ -209,9 +185,6 @@ export class TermPolicyDomain {
             const exception = this.wrapError(err);
             throw exception;
         }
-
-        const staged = promotions.map(promotion => promotion.staged);
-        await this.termPolicyContentDomain.deleteObjectsQuietly(staged);
 
         return created;
     }
@@ -263,20 +236,12 @@ export class TermPolicyDomain {
             throw new TermPolicyContentEmptyException();
         }
 
-        const publicContents = await this.settleAllOrDelete(
-            termPolicy.contents.map(content =>
-                this.copyContentPublic(termPolicy, content)
-            ),
-            content => content
-        );
-
         let events: IActivityLogStagedEvent[];
         try {
             events = await this.databaseService.withTransaction(async tx => {
                 const row = await this.termPolicyRepository.publishInTx(
                     tx,
-                    termPolicyId,
-                    publicContents
+                    termPolicyId
                 );
                 await this.userDomain.resetTermPolicyForActiveUsersInTx(
                     tx,
@@ -292,19 +257,11 @@ export class TermPolicyDomain {
                 ];
             });
         } catch (err: unknown) {
-            await this.termPolicyContentDomain.deleteObjectsQuietly(
-                publicContents
-            );
-
             const exception = this.wrapError(err);
             throw exception;
         }
 
         this.activityLogDomain.stagePrepared(events);
-
-        await this.termPolicyContentDomain.deleteObjectsQuietly(
-            termPolicy.contents
-        );
 
         try {
             await this.notificationQueue.sendPublishTermPolicy(

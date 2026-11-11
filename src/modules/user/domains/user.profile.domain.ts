@@ -9,10 +9,7 @@ import type {
     IStoredAssetReference,
 } from '@common/storage/interfaces/storage.interface';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import {
-    EnumActivityLogAction,
-    EnumStorageVisibility,
-} from '@generated/prisma-client/client';
+import { EnumActivityLogAction } from '@generated/prisma-client/client';
 import type { UserPhoto } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
@@ -180,20 +177,15 @@ export class UserProfileDomain {
         { key }: UserUpdateProfilePhotoRequestDto
     ): Promise<void> {
         const scopePrefix = this.createPhotoScopePrefix(userId);
-        const staged = await this.objectStorageService.verifyStaged(key, {
+        const staged = await this.objectStorageService.verifyUpload(key, {
             scopePrefix,
             maxSizeInBytes: this.photoMaxSizeInBytes,
             contentTypes: this.photoContentTypes,
         });
-        const promoted = await this.objectStorageService.promote(staged, {
-            visibility: EnumStorageVisibility.public,
-            scopePrefix,
-        });
+        const previous = await this.savePhoto(userId, staged);
 
-        const previous = await this.savePhoto(userId, promoted);
-
-        const cleanups = [this.deleteQuietly(staged)];
-        if (previous) {
+        const cleanups: Promise<void>[] = [];
+        if (previous && previous.key !== staged.key) {
             const previousCleanup = this.deleteQuietly(previous);
             cleanups.push(previousCleanup);
         }

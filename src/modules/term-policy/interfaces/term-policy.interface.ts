@@ -31,11 +31,6 @@ export interface ITermPolicyContentCreate extends IStoredAsset {
     language: TermPolicyContent['language'];
 }
 
-export interface ITermPolicyContentPromoted {
-    staged: IStoredAsset;
-    content: ITermPolicyContentCreate;
-}
-
 export interface ITermPolicyContentAccess {
     asset: IStoredAssetReference;
     signedDownload: IStorageSignedDownload | null;

@@ -34,6 +34,8 @@ describe('StorageDiskFactory', () => {
             '{baseUrl}{globalPrefix}/storage/public',
         'storage.local.signedUrlPattern':
             '{baseUrl}{globalPrefix}/storage/private',
+        'storage.local.signedUploadUrlPattern':
+            '{baseUrl}{globalPrefix}/storage/upload',
         'storage.s3.endpoint': null,
         'storage.s3.region': 'ap-southeast-3',
         'storage.s3.accessKeyId': 'access-key-id',
@@ -83,6 +85,10 @@ describe('StorageDiskFactory', () => {
             expect(LocalDisk).toHaveBeenCalledWith({
                 root: 'storage-data/public',
                 publicUrl: 'http://localhost:3000/api/storage/public',
+                signedUrls: {
+                    baseUrl: 'http://localhost:3000/api/storage/upload',
+                    keys: baseConfig['storage.local.signingKeys'],
+                },
             });
             expect(LocalDisk).toHaveBeenCalledWith({
                 root: 'storage-data/private',

@@ -91,7 +91,6 @@ export interface ITermPolicyRepository {
     ): Promise<TermPolicy>;
     publishInTx(
         tx: IDatabaseTransactionClient,
-        termPolicyId: string,
-        contents: ITermPolicyContentCreate[]
+        termPolicyId: string
     ): Promise<TermPolicy>;
 }

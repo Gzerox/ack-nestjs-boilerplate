@@ -144,22 +144,6 @@ export const AppEnvSchema = z
                     });
                 }
             }
-
-            if (
-                env.STORAGE_S3_ENDPOINT &&
-                env.STORAGE_S3_REGION &&
-                env.STORAGE_S3_REGION !== 'auto' &&
-                new URL(env.STORAGE_S3_ENDPOINT).hostname.endsWith(
-                    '.r2.cloudflarestorage.com'
-                )
-            ) {
-                ctx.addIssue({
-                    code: 'custom',
-                    path: ['STORAGE_S3_REGION'],
-                    message:
-                        'STORAGE_S3_REGION must be auto for a Cloudflare R2 endpoint',
-                });
-            }
         }
 
         if (

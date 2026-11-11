@@ -8,7 +8,7 @@ Three ways a file reaches the API:
 
 - **Parsed multipart.** `FileUploadSingle`, `FileUploadMultiple`, and `FileUploadMultipleFields` buffer the file in memory for a pipe chain that reads and discards it, such as a CSV import. Nothing is stored.
 - **Stored multipart.** `StorageUploadSingle` streams one file through the API onto a storage disk after detecting its type from the bytes. The handler receives the stored asset, never a buffer.
-- **Signed direct upload.** The API issues a short-lived signed `PUT`; the client sends the bytes straight to the private disk under `incoming/`; a completion call with `{ key }` verifies the staged object and promotes it to its final key. The bytes never pass through the API on a remote driver.
+- **Signed direct upload.** The API issues a short-lived signed `PUT` for the final key; the client sends the bytes straight to the public disk; a completion call with `{ key }` verifies the object in place. There is no temporary area and no copy. The bytes never pass through the API on a remote driver.
 
 Features reach storage through `ObjectStorageService` only. It works over two named disks, `public` and `private`, backed by the local filesystem or by an S3-compatible bucket depending on `STORAGE_DRIVER`. Provider setup (buckets, CORS, lifecycle, permissions, encryption, rotation): [Third Party Integration][ref-doc-third-party].
 
@@ -490,8 +490,8 @@ See [Language Message Documentation][ref-doc-message] for i18n paths.
 
 | Disk | Holds | URL |
 |---|---|---|
-| `public` | Verified assets for unauthenticated delivery: profile photos, published term policy content | `publicUrl`, the public base URL plus the key |
-| `private` | Draft term policy content, and every unverified signed upload under `incoming/` | `signedDownload`, issued after authorization |
+| `public` | Every upload, verified or not yet verified: profile photos, term policy content | `publicUrl`, the public base URL plus the key |
+| `private` | Protected documents. No feature stores to it today; the health probe and the signed-download path use it | `signedDownload`, issued after authorization |
 
 | `STORAGE_DRIVER` | Disks |
 |---|---|
@@ -508,10 +508,8 @@ Unit specs use `InMemoryDisk`. Startup validation fails when the chosen driver's
 |---|---|
 | `publicUrl(asset)` | URL of a public asset; throws on a private one |
 | `toAssetResponse(asset)` | `{ key, visibility, contentType, url }`, with `url: null` for a private asset |
-| `createSignedUpload(scopePrefix, { contentType, size })` | Signed `PUT` for a random key under `incoming/<scopePrefix>` on the private disk, with the length pinned |
-| `verifyStaged(key, rules)` | Checks the key, then the real size and the sniffed type of a staged object |
-| `promote(staged, target)` | Streams a verified staged object to a new random key on the target disk |
-| `copyAcrossDisks(source, target)` | Streams an object to a new random key on another disk |
+| `createSignedUpload(scopePrefix, { contentType, size })` | Signed `PUT` for a random key under `<scopePrefix>` on the public disk, with the length pinned |
+| `verifyUpload(key, rules)` | Checks the key, then the real size and the sniffed type of the uploaded object; a rejected object is deleted |
 | `store(target, { body, contentType })` | Writes a buffer to a new random key |
 | `createUploadEngine(target, contentTypes)` | Multer engine streaming one part to a disk (used by `StorageUploadSingle`) |
 | `signedDownload(asset, { filename, disposition })` | `{ url, expiresAt }` for an existing object |
@@ -548,7 +546,7 @@ A key admits letters, digits, `.`, `_`, `-`, and `/`, at most 1024 characters, w
 | Profile photo | `users/{userId}/profile/` (`user.photo.scopePrefixPattern`) |
 | Term policy content | `term-policies/{type}/v{version}/{language}/` (`termPolicy.contentScopePrefixPattern`) |
 
-A signed upload is staged under `incoming/` followed by the scope prefix.
+A signed upload writes straight to its final key under the scope prefix on the public disk. The key `createSignedUpload` returns is the key the row stores.
 
 ## Stored Multipart Upload
 
@@ -589,7 +587,7 @@ async uploadPhotoProfile(
 
 ## Signed Direct Upload
 
-A signed upload is not an asset: it is an untrusted private object until completion verifies and promotes it.
+A signed upload is not an asset until completion verifies it: the object already sits at its final key on the public disk, but no row references it, and a rejected object is deleted.
 
 ### Issue
 
@@ -599,11 +597,11 @@ A signed upload is not an asset: it is an untrusted private object until complet
 { "size": 102400, "extension": "jpg" }
 ```
 
-`size` is a positive integer. The domain rejects a size below 1 with `storage` `sizeInvalid` (422) and one above `user.photo.maxSizeInBytes` with `user` `photoSizeExceeded` (`51028`, 413). `extension` is an `EnumFileExtensionImage` member, mapped to its content type. `createSignedUpload` then signs a `PUT` for a random key under `incoming/users/<userId>/profile/` on the private disk, with `contentLength` pinned to the declared size:
+`size` is a positive integer. The domain rejects a size below 1 with `storage` `sizeInvalid` (422) and one above `user.photo.maxSizeInBytes` with `user` `photoSizeExceeded` (`51028`, 413). `extension` is an `EnumFileExtensionImage` member, mapped to its content type. `createSignedUpload` then signs a `PUT` for a random key under `users/<userId>/profile/` on the public disk, with `contentLength` pinned to the declared size:
 
 ```json
 {
-  "key": "incoming/users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpeg",
+  "key": "users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpeg",
   "url": "<signed URL>",
   "method": "PUT",
   "headers": { "content-type": "image/jpeg", "content-length": "102400" },
@@ -618,17 +616,16 @@ The client sends that method to that URL with those headers unchanged. The signa
 `PUT /shared/user/profile/photo/update` takes the key and nothing else:
 
 ```json
-{ "key": "incoming/users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpeg" }
+{ "key": "users/0199a7a4-7c1e-7cc3-9d6e-4a6b2f1f0c11/profile/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.jpeg" }
 ```
 
-1. `verifyStaged` checks the key first: a malformed key, or one outside `incoming/<caller's scope>`, is `keyInvalid` and the object is never read.
+1. `verifyUpload` checks the key first: a malformed key, or one outside the caller's scope prefix, is `keyInvalid` and the object is never read.
 2. It reads the real size; zero or above the cap is `sizeInvalid`. A missing object is `objectNotFound`.
-3. It sniffs the type from the first bytes (up to 4096). A type outside the allow-list, or none, is `contentTypeInvalid`. A rejected staged object is deleted best-effort.
-4. `promote` streams the verified object to a new random key under `users/<userId>/profile/` on the public disk.
-5. The repository writes the promoted metadata. A failed write deletes the promoted object.
-6. After the write commits, the staged object and the replaced photo are deleted best-effort; a cleanup failure is logged and the request still succeeds.
+3. It sniffs the type from the first bytes (up to 4096). A type outside the allow-list, or none, is `contentTypeInvalid`. A rejected object is deleted best-effort and the rejection is logged.
+4. The repository writes the verified metadata under the same key. A failed write deletes the uploaded object.
+5. After the write commits, the replaced photo is deleted best-effort; a cleanup failure is logged and the request still succeeds.
 
-Two completions of one key take no lock: the first to read the staged object wins, and the other fails `objectNotFound` once it is gone. Every issue and completion route carries `@RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })`.
+Two completions of one key take no lock: both verify the object and write the same row, and the replaced-photo cleanup skips a previous row that already holds the same key. Every issue and completion route carries `@RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })`.
 
 ### Flow Diagram
 
@@ -637,7 +634,6 @@ sequenceDiagram
     participant Client
     participant API
     participant Storage as ObjectStorageService
-    participant Private as private disk
     participant Public as public disk
     participant DB as PostgreSQL
 
@@ -646,20 +642,17 @@ sequenceDiagram
     Storage-->>API: { key, url, method, headers, expiresAt }
     API-->>Client: signed upload
 
-    Client->>Private: PUT url with the returned headers and the file bytes
-    Private-->>Client: 200
+    Client->>Public: PUT url with the returned headers and the file bytes
+    Public-->>Client: 200
 
     Client->>API: PUT /shared/user/profile/photo/update { key }
-    API->>Storage: verifyStaged(key, scope, size cap, content types)
-    Storage->>Private: stat, then read the first bytes
-    API->>Storage: promote(staged, public)
-    Storage->>Public: stream to a new random key
+    API->>Storage: verifyUpload(key, scope, size cap, content types)
+    Storage->>Public: stat, then read the first bytes
     API->>DB: write the photo row
     alt write fails
-        API->>Public: delete the promoted object
+        API->>Public: delete the uploaded object
         API-->>Client: error
     else write commits
-        API->>Private: delete the staged object
         API->>Public: delete the replaced photo
         API-->>Client: 200
     end
@@ -726,17 +719,17 @@ curl -s -X PUT http://localhost:3000/api/v1/shared/user/profile/photo/update \
   -d "{\"key\":\"$(jq -r '.data.key' upload.json)\"}"
 ```
 
-`curl --data-binary` sends `content-length` from the file. Under the local driver the signed URL is `http://localhost:3000/api/storage/private?...`; under S3 or R2 it is the provider's own presigned URL, and the browser needs the CORS rule in [Third Party Integration][ref-doc-third-party].
+`curl --data-binary` sends `content-length` from the file. Under the local driver the signed URL is `http://localhost:3000/api/storage/upload?...`; under S3 or R2 it is the provider's own presigned URL, and the browser needs the CORS rule in [Third Party Integration][ref-doc-third-party].
 
 ### Term Policy Content
 
 Term policy content follows the same issue, upload, complete sequence on the admin routes of `TermPolicyAdminController`:
 
 - `POST /admin/term-policy/content/presign/generate` takes `{ type, version, language, size }`. A version already `published` is `TermPolicyStatusInvalidException`; a size below 1 is `storage` `sizeInvalid` (422), and one above `termPolicy.content.maxSizeInBytes` (1 MB) is `termPolicy` `contentSizeExceeded` (`51509`, 413). The content type is `text/x-handlebars-template`.
-- `PUT /admin/term-policy/content/:termPolicyId/add` and `PUT /admin/term-policy/content/:termPolicyId/update` take `{ key, language }`. A template has no byte signature, so verification passes `TermPolicyUtil.detectTemplateContentType`, which accepts valid UTF-8 with no NUL byte. Draft content is promoted onto the private disk.
+- `PUT /admin/term-policy/content/:termPolicyId/add` and `PUT /admin/term-policy/content/:termPolicyId/update` take `{ key, language }`. A template has no byte signature, so verification passes `TermPolicyUtil.detectTemplateContentType`, which accepts valid UTF-8 with no NUL byte. The verified object stays at its key on the public disk.
 - `DELETE /admin/term-policy/content/:termPolicyId/remove` writes the row change first, then deletes the object.
-- Publication copies every private content object to the public disk with `copyAcrossDisks` before its transaction runs. One failed copy deletes the copies already made and the transaction never runs; a failed transaction deletes every new copy. After the commit, the private originals are deleted best-effort.
-- Deleting a draft clears its whole `term-policies/{type}/v{version}/` prefix on the private disk after the row is gone.
+- Publication moves no object: it flips the status inside one transaction. Draft content is already on the public disk, so a draft's content URL is readable by anyone holding the key from the moment it is verified.
+- Deleting a draft clears its whole `term-policies/{type}/v{version}/` prefix on the public disk after the row is gone.
 
 Flow and routes: [Term Policy][ref-doc-term-policy].
 
@@ -744,7 +737,7 @@ Flow and routes: [Term Policy][ref-doc-term-policy].
 
 `signedDownload(asset, { filename, disposition })` checks the object exists, then returns `{ url, expiresAt }` valid for 5 minutes (`storage.signedDownload.expiresInMs`). The URL is a bearer credential that cannot be revoked, so the authorization check runs before it is issued, and it never reaches a log line or activity metadata.
 
-`GET /admin/term-policy/content/:termPolicyId/:language/get` is the route that uses it. A published (public) content answers its public URL with `expiresAt: null`; a draft (private) content answers a signed attachment download named after its type, version, and language.
+`GET /admin/term-policy/content/:termPolicyId/:language/get` calls it for a private content row. Term policy content is stored public, so the route answers its public URL with `expiresAt: null`; the signed attachment branch stays for a row whose `visibility` is `private`.
 
 ## Storage and the Database
 
@@ -752,7 +745,7 @@ Storage and PostgreSQL share no transaction. Each workflow keeps one authoritati
 
 - A database reference is written only after its object is verified and written.
 - An authoritative object is deleted only after the database change that replaces or removes it commits.
-- A failed database write deletes the object written for it; a staged object left behind expires under the `incoming/` lifecycle rule.
+- A failed database write deletes the object written for it; an uploaded object that is never completed stays on the public disk, because no prefix separates it from verified assets for a lifecycle rule.
 - A cleanup failure after a commit is logged and never rolled back into the domain.
 
 ## Local-Driver Routes
@@ -764,10 +757,11 @@ Storage and PostgreSQL share no transaction. Each workflow keeps one authoritati
 | `GET /api/storage/public/*key` | A public object, inline, with `Cache-Control: public, max-age=31536000, immutable` |
 | `GET /api/storage/private?...` | A private object, after verifying the signature |
 | `PUT /api/storage/private?...` | A signed upload into the private disk |
+| `PUT /api/storage/upload?...` | A signed upload into the public disk, the route behind `createSignedUpload` |
 
 - `StorageLocalDriverGuard` answers 404 (`objectNotFound`) on every route when the driver is not `local`, so a remote deployment exposes none of them.
 - The routes carry `@ApiExcludeController` and no API-key, auth, or per-user throttle guard: a browser follows the URL without API headers, and the signature is the guard.
-- The serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the Helmet default. The signed-upload route is excluded from `RequestBodyParserMiddleware`, so the raw body reaches `receiveSignedUpload`.
+- The serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the Helmet default. The signed-upload routes (`storage/private` and `storage/upload`) are excluded from `RequestBodyParserMiddleware`, so the raw body reaches `receiveSignedUpload`.
 
 ## Storage Errors
 
@@ -775,12 +769,11 @@ Storage and PostgreSQL share no transaction. Each workflow keeps one authoritati
 |---|---|---|---|
 | `52300` | `serviceUnavailable` | 503 | The store refused the request, could not be reached, or the health probe timed out |
 | `52301` | `objectNotFound` | 404 | The object does not exist, or a local-driver route under another driver |
-| `52302` | `keyInvalid` | 400 | A malformed key, or a staged key outside the caller's scope |
+| `52302` | `keyInvalid` | 400 | A malformed key, or an upload key outside the caller's scope |
 | `52303` | `objectConflict` | 409 | The store reported a key conflict |
 | `52304` | `contentTypeInvalid` | 422 | The sniffed type is not allowed, or the declared extension has no content type |
-| `52305` | `sizeInvalid` | 422 | A declared size below 1, a staged object of zero bytes or above the cap, or a body length that does not match the signature |
+| `52305` | `sizeInvalid` | 422 | A declared size below 1, an uploaded object of zero bytes or above the cap, or a body length that does not match the signature |
 | `52306` | `signedRequestInvalid` | 403 | A local signed URL that is invalid or expired |
-| `52307` | `promotionFailed` | 500 | Copying a verified object to its final key failed |
 
 Messages live in `src/languages/en/storage.json` under `storage.error.*`. Full catalog: [Status Codes](status-codes.md).
 

@@ -235,7 +235,7 @@ describe('AppEnvSchema', () => {
             ).toEqual([]);
         });
 
-        it('requires region auto when the endpoint is Cloudflare R2', () => {
+        it('accepts a configured region for a Cloudflare R2 endpoint', () => {
             expect(
                 issuePaths({
                     ...validS3Env,
@@ -243,7 +243,7 @@ describe('AppEnvSchema', () => {
                         'https://account-id.r2.cloudflarestorage.com',
                     STORAGE_S3_REGION: 'us-east-1',
                 })
-            ).toEqual(['STORAGE_S3_REGION']);
+            ).toEqual([]);
         });
 
         it('accepts an S3-compatible endpoint with path style', () => {

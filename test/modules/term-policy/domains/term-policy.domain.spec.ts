@@ -12,7 +12,6 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.key-invalid.exception';
-import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
 import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import {
     EnumActivityLogAction,
@@ -37,7 +36,6 @@ import { TermPolicyStatusInvalidException } from '@modules/term-policy/exception
 import type {
     ITermPolicy,
     ITermPolicyContentCreate,
-    ITermPolicyContentPromoted,
 } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
@@ -138,9 +136,6 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.existsByVersionAndType.mockResolvedValue(false);
         termPolicyRepository.publishInTx.mockResolvedValue(published);
         termPolicyContentDomain.deleteObjectsQuietly.mockResolvedValue();
-        objectStorageService.copyAcrossDisks.mockImplementation(async source =>
-            publicCopy(`public/${source.key}`)
-        );
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -216,7 +211,7 @@ describe('TermPolicyDomain', () => {
         const uploads = [
             {
                 language: EnumMessageLanguage.en,
-                key: 'incoming/term-policies/privacy/v1/en/staged.hbs',
+                key: 'term-policies/privacy/v1/en/staged.hbs',
             },
         ];
         const promotedContent: ITermPolicyContentCreate = {
@@ -227,19 +222,11 @@ describe('TermPolicyDomain', () => {
             etag: null,
             language: EnumMessageLanguage.en,
         };
-        const promotion: ITermPolicyContentPromoted = {
-            staged: {
-                key: 'incoming/term-policies/privacy/v1/en/staged.hbs',
-                visibility: EnumStorageVisibility.private,
-                contentType: TermPolicyContentType,
-                size: 100,
-                etag: null,
-            },
-            content: promotedContent,
-        };
 
         beforeEach(() => {
-            termPolicyContentDomain.promoteContent.mockResolvedValue(promotion);
+            termPolicyContentDomain.verifyContent.mockResolvedValue(
+                promotedContent
+            );
             termPolicyRepository.create.mockResolvedValue(published);
         });
 
@@ -254,7 +241,7 @@ describe('TermPolicyDomain', () => {
                 })
             ).rejects.toBeInstanceOf(TermPolicyExistException);
             expect(
-                termPolicyContentDomain.promoteContent
+                termPolicyContentDomain.verifyContent
             ).not.toHaveBeenCalled();
         });
 
@@ -269,11 +256,11 @@ describe('TermPolicyDomain', () => {
                 })
             ).rejects.toBeInstanceOf(TermPolicyLanguageDuplicateException);
             expect(
-                termPolicyContentDomain.promoteContent
+                termPolicyContentDomain.verifyContent
             ).not.toHaveBeenCalled();
         });
 
-        it('verifies and promotes every staged content, creates the draft with the promoted metadata, then deletes the staged objects', async () => {
+        it('verifies every uploaded object and creates the draft without copying', async () => {
             const callOrder: string[] = [];
             termPolicyRepository.create.mockImplementation(async () => {
                 callOrder.push('create');
@@ -291,7 +278,7 @@ describe('TermPolicyDomain', () => {
                 version: 1,
             });
 
-            expect(termPolicyContentDomain.promoteContent).toHaveBeenCalledWith(
+            expect(termPolicyContentDomain.verifyContent).toHaveBeenCalledWith(
                 { type: EnumTermPolicyType.privacy, version: 1 },
                 uploads[0]
             );
@@ -306,8 +293,8 @@ describe('TermPolicyDomain', () => {
             );
             expect(
                 termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([promotion.staged]);
-            expect(callOrder).toEqual(['create', 'cleanup']);
+            ).not.toHaveBeenCalled();
+            expect(callOrder).toEqual(['create']);
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.adminTermPolicyCreate,
                 metadata: {},
@@ -317,8 +304,8 @@ describe('TermPolicyDomain', () => {
 
         it('deletes the contents already promoted and writes nothing when one staged content is rejected', async () => {
             const exception = new StorageKeyInvalidException();
-            termPolicyContentDomain.promoteContent
-                .mockResolvedValueOnce(promotion)
+            termPolicyContentDomain.verifyContent
+                .mockResolvedValueOnce(promotedContent)
                 .mockRejectedValueOnce(exception);
 
             await expect(
@@ -327,7 +314,7 @@ describe('TermPolicyDomain', () => {
                         ...uploads,
                         {
                             language: EnumMessageLanguage.en,
-                            key: 'incoming/term-policies/other/v1/en/foreign.hbs',
+                            key: 'term-policies/other/v1/en/foreign.hbs',
                         },
                     ],
                     type: EnumTermPolicyType.privacy,
@@ -384,7 +371,7 @@ describe('TermPolicyDomain', () => {
             expect(termPolicyRepository.delete).not.toHaveBeenCalled();
         });
 
-        it('deletes the aggregate first, then every private object under the draft prefix', async () => {
+        it('deletes the aggregate first, then public objects under the draft prefix', async () => {
             const callOrder: string[] = [];
             termPolicyRepository.delete.mockImplementation(async () => {
                 callOrder.push('delete');
@@ -398,7 +385,7 @@ describe('TermPolicyDomain', () => {
 
             expect(termPolicyUtil.getDraftPrefix).toHaveBeenCalledWith(draft);
             expect(objectStorageService.deletePrefix).toHaveBeenCalledWith(
-                EnumStorageVisibility.private,
+                EnumStorageVisibility.public,
                 'term-policies/privacy/v1/'
             );
             expect(callOrder).toEqual(['delete', 'deletePrefix']);
@@ -456,46 +443,20 @@ describe('TermPolicyDomain', () => {
             await expect(
                 service.publishByAdmin(draft.id, 'admin-id')
             ).rejects.toBeInstanceOf(TermPolicyContentEmptyException);
-            expect(objectStorageService.copyAcrossDisks).not.toHaveBeenCalled();
         });
 
-        it('copies every private content to a new public key, publishes with the public metadata and resets acceptance', async () => {
+        it('publishes existing content without copying and resets acceptance', async () => {
             await service.publishByAdmin(draft.id, 'admin-id');
-
-            expect(objectStorageService.copyAcrossDisks).toHaveBeenCalledTimes(
-                2
-            );
-            expect(objectStorageService.copyAcrossDisks).toHaveBeenCalledWith(
-                {
-                    key: contentEn.key,
-                    visibility: EnumStorageVisibility.private,
-                    contentType: TermPolicyContentType,
-                },
-                {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'term-policies/privacy/v1/en/',
-                }
-            );
             expect(termPolicyRepository.publishInTx).toHaveBeenCalledWith(
                 tx,
-                draft.id,
-                [
-                    {
-                        ...publicCopy(`public/${contentEn.key}`),
-                        language: EnumMessageLanguage.en,
-                    },
-                    {
-                        ...publicCopy(`public/${contentSecond.key}`),
-                        language: EnumMessageLanguage.en,
-                    },
-                ]
+                draft.id
             );
             expect(
                 userDomain.resetTermPolicyForActiveUsersInTx
             ).toHaveBeenCalledWith(tx, EnumTermPolicyType.privacy);
         });
 
-        it('deletes the private drafts after the commit, then sends the notification', async () => {
+        it('keeps the objects and sends the notification after commit', async () => {
             const callOrder: string[] = [];
             termPolicyRepository.publishInTx.mockImplementation(async () => {
                 callOrder.push('publish');
@@ -516,7 +477,7 @@ describe('TermPolicyDomain', () => {
 
             expect(
                 termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith(draft.contents);
+            ).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
@@ -526,36 +487,10 @@ describe('TermPolicyDomain', () => {
                 { type: EnumTermPolicyType.privacy, version: 1 },
                 'admin-id'
             );
-            expect(callOrder).toEqual(['publish', 'cleanup', 'notify']);
+            expect(callOrder).toEqual(['publish', 'notify']);
         });
 
-        it('deletes the public copies already made, runs no transaction and stays draft when one copy fails', async () => {
-            const exception = new StoragePromotionFailedException(
-                new Error('copy failed')
-            );
-            objectStorageService.copyAcrossDisks
-                .mockResolvedValueOnce(publicCopy('public/en.hbs'))
-                .mockRejectedValueOnce(exception);
-
-            await expect(
-                service.publishByAdmin(draft.id, 'admin-id')
-            ).rejects.toBe(exception);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([
-                {
-                    ...publicCopy('public/en.hbs'),
-                    language: EnumMessageLanguage.en,
-                },
-            ]);
-            expect(databaseService.withTransaction).not.toHaveBeenCalled();
-            expect(termPolicyRepository.publishInTx).not.toHaveBeenCalled();
-            expect(
-                notificationQueue.sendPublishTermPolicy
-            ).not.toHaveBeenCalled();
-        });
-
-        it('deletes every new public copy and keeps the drafts when the transaction rejects', async () => {
+        it('keeps the objects when the transaction rejects', async () => {
             termPolicyRepository.publishInTx.mockRejectedValue(new Error('db'));
 
             await expect(
@@ -563,19 +498,7 @@ describe('TermPolicyDomain', () => {
             ).rejects.toBeInstanceOf(AppUnknownException);
             expect(
                 termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledTimes(1);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([
-                {
-                    ...publicCopy(`public/${contentEn.key}`),
-                    language: EnumMessageLanguage.en,
-                },
-                {
-                    ...publicCopy(`public/${contentSecond.key}`),
-                    language: EnumMessageLanguage.en,
-                },
-            ]);
+            ).not.toHaveBeenCalled();
             expect(
                 notificationQueue.sendPublishTermPolicy
             ).not.toHaveBeenCalled();
@@ -660,11 +583,11 @@ describe('TermPolicyDomain', () => {
     });
 
     describe('deletePrefixQuietly', () => {
-        it('deletes every private object under the prefix', async () => {
+        it('deletes every public object under the prefix', async () => {
             await service['deletePrefixQuietly']('term-policies/privacy/v1/');
 
             expect(objectStorageService.deletePrefix).toHaveBeenCalledWith(
-                EnumStorageVisibility.private,
+                EnumStorageVisibility.public,
                 'term-policies/privacy/v1/'
             );
         });
@@ -677,22 +600,6 @@ describe('TermPolicyDomain', () => {
             await expect(
                 service['deletePrefixQuietly']('term-policies/privacy/v1/')
             ).resolves.toBeUndefined();
-        });
-    });
-
-    describe('copyContentPublic', () => {
-        it('copies one private content to the public disk under its language scope', async () => {
-            const result = await service['copyContentPublic'](draft, contentEn);
-
-            expect(termPolicyUtil.getContentScopePrefix).toHaveBeenCalledWith(
-                EnumTermPolicyType.privacy,
-                1,
-                EnumMessageLanguage.en
-            );
-            expect(result).toEqual({
-                ...publicCopy(`public/${contentEn.key}`),
-                language: EnumMessageLanguage.en,
-            });
         });
     });
 });

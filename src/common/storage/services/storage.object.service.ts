@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import {
     InjectDisk,
     StorageDisk,
-    StorageFileNotFoundError,
     detectContentType,
     uploadToDisk,
 } from '@nestjs/storage';
@@ -20,7 +19,6 @@ import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
 import {
     StorageContentTypeSampleBytes,
     StorageDeleteBatchSize,
-    StorageIncomingPrefix,
     StorageObjectKeyMaxLength,
     StorageObjectKeyRegex,
     StorageObjectKeyStructureInvalidRegex,
@@ -42,12 +40,11 @@ import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.k
 import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import { StorageServiceUnavailableException } from '@common/storage/exceptions/storage.service-unavailable.exception';
-import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 
 /**
- * The application's only surface onto object storage: URLs, signed transfers, staged-upload verification,
- * cross-disk promotion, deletion and health probes over the named `public` and `private` disks.
+ * The application's only surface onto object storage: URLs, signed transfers, upload verification,
+ * deletion and health probes over the named `public` and `private` disks.
  */
 @Injectable()
 export class ObjectStorageService {
@@ -137,7 +134,7 @@ export class ObjectStorageService {
 
     private async readHead(key: string, size: number): Promise<Buffer> {
         const length = Math.min(size, StorageContentTypeSampleBytes);
-        const download: StorageDownload = await this.privateDisk.get(key, {
+        const download: StorageDownload = await this.publicDisk.get(key, {
             range: { start: 0, end: length - 1 },
         });
 
@@ -147,52 +144,6 @@ export class ObjectStorageService {
         }
 
         return Buffer.concat(chunks).subarray(0, length);
-    }
-
-    private async transfer(
-        source: IStoredAssetSource,
-        target: IStorageTarget
-    ): Promise<IStoredAsset> {
-        const validScope = this.isValidScope(target.scopePrefix);
-        if (!validScope) {
-            throw new StorageKeyInvalidException();
-        }
-
-        const sourceDisk = this.diskOf(source.visibility);
-        const targetDisk = this.diskOf(target.visibility);
-        const key = this.createKey(target.scopePrefix, source.contentType);
-
-        let download: StorageDownload;
-        try {
-            download = await sourceDisk.get(source.key);
-        } catch (error: unknown) {
-            if (error instanceof StorageFileNotFoundError) {
-                const exception = this.storageErrorUtil.translate(error);
-                throw exception;
-            }
-
-            throw new StoragePromotionFailedException(error);
-        }
-
-        try {
-            const written = await targetDisk.put(key, download.body, {
-                contentType: source.contentType,
-                contentLength: download.size,
-            });
-
-            return {
-                key,
-                visibility: target.visibility,
-                contentType: written.contentType,
-                size: written.size,
-                etag: written.etag ?? null,
-            };
-        } catch (error: unknown) {
-            download.body.destroy();
-            await this.deleteQuietly(target.visibility, key);
-
-            throw new StoragePromotionFailedException(error);
-        }
     }
 
     publicUrl(asset: IStoredAssetReference): string {
@@ -238,13 +189,10 @@ export class ObjectStorageService {
             throw new StorageKeyInvalidException();
         }
 
-        const key = this.createKey(
-            `${StorageIncomingPrefix}${scopePrefix}`,
-            contentType
-        );
+        const key = this.createKey(scopePrefix, contentType);
 
         try {
-            const signed = await this.privateDisk.signedUpload(key, {
+            const signed = await this.publicDisk.signedUpload(key, {
                 contentType,
                 contentLength: size,
                 expiresIn: this.signedUploadExpiresInMs,
@@ -283,7 +231,7 @@ export class ObjectStorageService {
         }
     }
 
-    async verifyStaged(
+    async verifyUpload(
         key: string,
         {
             scopePrefix,
@@ -293,23 +241,21 @@ export class ObjectStorageService {
         }: IStorageVerifyRules
     ): Promise<IStoredAsset> {
         const valid = this.isValidKey(key);
-        if (
-            !valid ||
-            !key.startsWith(`${StorageIncomingPrefix}${scopePrefix}`)
-        ) {
+        if (!valid || !key.startsWith(scopePrefix)) {
             throw new StorageKeyInvalidException();
         }
 
         let stat: StorageFile;
         try {
-            stat = await this.privateDisk.stat(key);
+            stat = await this.publicDisk.stat(key);
         } catch (error: unknown) {
             const exception = this.storageErrorUtil.translate(error);
             throw exception;
         }
 
         if (stat.size === 0 || stat.size > maxSizeInBytes) {
-            await this.deleteQuietly(EnumStorageVisibility.private, key);
+            this.logger.warn(`Rejected upload ${key}: invalid size`);
+            await this.deleteQuietly(EnumStorageVisibility.public, key);
 
             throw new StorageSizeInvalidException();
         }
@@ -335,32 +281,19 @@ export class ObjectStorageService {
         }
 
         if (!contentType || !accepted) {
-            await this.deleteQuietly(EnumStorageVisibility.private, key);
+            this.logger.warn(`Rejected upload ${key}: invalid content type`);
+            await this.deleteQuietly(EnumStorageVisibility.public, key);
 
             throw new StorageContentTypeInvalidException();
         }
 
         return {
             key,
-            visibility: EnumStorageVisibility.private,
+            visibility: EnumStorageVisibility.public,
             contentType,
             size: stat.size,
             etag: stat.etag ?? null,
         };
-    }
-
-    async promote(
-        staged: IStoredAsset,
-        target: IStorageTarget
-    ): Promise<IStoredAsset> {
-        if (
-            staged.visibility !== EnumStorageVisibility.private ||
-            !staged.key.startsWith(StorageIncomingPrefix)
-        ) {
-            throw new StorageKeyInvalidException();
-        }
-
-        return this.transfer(staged, target);
     }
 
     async store(
@@ -394,13 +327,6 @@ export class ObjectStorageService {
             const exception = this.storageErrorUtil.translate(error);
             throw exception;
         }
-    }
-
-    async copyAcrossDisks(
-        source: IStoredAssetSource,
-        target: IStorageTarget
-    ): Promise<IStoredAsset> {
-        return this.transfer(source, target);
     }
 
     createUploadEngine(

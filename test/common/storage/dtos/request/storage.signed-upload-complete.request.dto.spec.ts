@@ -2,7 +2,7 @@ import { StorageSignedUploadCompleteRequestSchema } from '@common/storage/dtos/r
 
 describe('StorageSignedUploadCompleteRequestSchema', () => {
     it('accepts a staged key', () => {
-        const body = { key: 'incoming/users/user-1/profile/upload-1.png' };
+        const body = { key: 'users/user-1/profile/upload-1.png' };
 
         const result = StorageSignedUploadCompleteRequestSchema.parse(body);
 
@@ -11,11 +11,11 @@ describe('StorageSignedUploadCompleteRequestSchema', () => {
 
     it.each([
         ['an empty key', ''],
-        ['a parent segment', 'incoming/users/../admin/file.png'],
-        ['a leading slash', '/incoming/users/user-1/file.png'],
-        ['a replacement token', 'incoming/users/$&/file.png'],
-        ['a query character', 'incoming/users/user-1/file.png?x=1'],
-        ['an empty segment', 'incoming//file.png'],
+        ['a parent segment', 'users/../admin/file.png'],
+        ['a leading slash', '/users/user-1/file.png'],
+        ['a replacement token', 'users/$&/file.png'],
+        ['a query character', 'users/user-1/file.png?x=1'],
+        ['an empty segment', 'users//file.png'],
     ])('rejects %s', (_label, key) => {
         const result = StorageSignedUploadCompleteRequestSchema.safeParse({
             key,
@@ -26,7 +26,7 @@ describe('StorageSignedUploadCompleteRequestSchema', () => {
 
     it('rejects a key longer than 1024 characters', () => {
         const result = StorageSignedUploadCompleteRequestSchema.safeParse({
-            key: `incoming/${'a'.repeat(1024)}`,
+            key: `users/${'a'.repeat(1024)}`,
         });
 
         expect(result.success).toBe(false);
@@ -34,7 +34,7 @@ describe('StorageSignedUploadCompleteRequestSchema', () => {
 
     it('rejects a client size or visibility', () => {
         const result = StorageSignedUploadCompleteRequestSchema.safeParse({
-            key: 'incoming/users/user-1/profile/upload-1.png',
+            key: 'users/user-1/profile/upload-1.png',
             size: 10,
         });
 

@@ -326,8 +326,7 @@ export class TermPolicyRepository implements ITermPolicyRepository {
 
     async publishInTx(
         tx: IDatabaseTransactionClient,
-        termPolicyId: string,
-        contents: ITermPolicyContentCreate[]
+        termPolicyId: string
     ): Promise<TermPolicy> {
         const publishedAt = this.helperDateService.create();
 
@@ -338,14 +337,6 @@ export class TermPolicyRepository implements ITermPolicyRepository {
             data: {
                 status: EnumTermPolicyStatus.published,
                 publishedAt,
-                contents: {
-                    deleteMany: {},
-                    createMany: {
-                        data: contents.map(content =>
-                            this.toContentData(content)
-                        ),
-                    },
-                },
             },
         });
     }

@@ -51,8 +51,8 @@ Third-party clients are configured through environment variables. Each section b
 
 | Disk | Holds | Delivery |
 |---|---|---|
-| `public` | Verified assets readable by anyone holding the URL: profile photos, published term policy content | Public URL, `STORAGE_PUBLIC_BASE_URL` plus the object key |
-| `private` | Draft term policy content, and every unverified direct upload under `incoming/` | Short-lived signed URL, issued after authorization |
+| `public` | Every upload, readable by anyone holding the URL: profile photos, term policy content; a signed direct upload writes here | Public URL, `STORAGE_PUBLIC_BASE_URL` plus the object key |
+| `private` | Protected documents; no feature stores to it today | Short-lived signed URL, issued after authorization |
 
 ### Drivers
 
@@ -105,7 +105,7 @@ Buckets are configured in the provider's console or infrastructure code; the API
 
 ### Browser CORS
 
-A signed direct upload is a `PUT` from the browser to the private bucket. The private bucket's CORS rule admits `PUT` from the approved frontend origins and the headers the signed upload returns (`content-type`; browsers set `content-length` themselves):
+A signed direct upload is a `PUT` from the browser to the public bucket. The public bucket's CORS rule admits `PUT` from the approved frontend origins and the headers the signed upload returns (`content-type`; browsers set `content-length` themselves):
 
 ```json
 [
@@ -123,18 +123,12 @@ The same JSON applies to an R2 bucket's CORS policy. A frontend that reads publi
 
 ### Lifecycle rules
 
-- **`incoming/` expiry on the private bucket.** A direct upload is staged under `incoming/` until completion verifies and promotes it. Completion deletes the staged object, and deletes a rejected one best-effort; an upload that is never completed stays. An expiration rule on the `incoming/` prefix removes those, for example after one day.
+- **No expiry rule for abandoned direct uploads.** A direct upload is written to its final key on the public bucket. Completion deletes a rejected object best-effort; an upload that is never completed stays, and no key prefix tells it apart from a verified asset, so a prefix lifecycle rule cannot remove it.
 - **Incomplete multipart abort on both buckets.** Bodies above 8 MiB go up in parts. A rule aborting incomplete multipart uploads (for example after one day) removes the parts of an upload that never finished.
 
 ```json
 {
   "Rules": [
-    {
-      "ID": "expire-incoming",
-      "Filter": { "Prefix": "incoming/" },
-      "Status": "Enabled",
-      "Expiration": { "Days": 1 }
-    },
     {
       "ID": "abort-incomplete-multipart",
       "Filter": {},
@@ -145,7 +139,7 @@ The same JSON applies to an R2 bucket's CORS policy. A frontend that reads publi
 }
 ```
 
-R2 offers both rule kinds under the bucket's object lifecycle settings.
+R2 offers the rule under the bucket's object lifecycle settings.
 
 ### Least-privilege permissions
 
@@ -200,7 +194,7 @@ A signed URL is a bearer credential that cannot be revoked before it expires, wh
 
 `GET /system/health/storage` probes each disk with one `list` of at most one key, under a 3-second limit, and reports `storagePublic` and `storagePrivate` without naming a bucket. `GET /system/health/aws` reports SES only.
 
-Storage errors use `EnumStorageStatusCodeError` (`52300`–`52307`, module `storage`); the table is in [Status Codes][ref-doc-status-codes].
+Storage errors use `EnumStorageStatusCodeError` (`52300`–`52306`, module `storage`); the table is in [Status Codes][ref-doc-status-codes].
 
 ## AWS Services
 

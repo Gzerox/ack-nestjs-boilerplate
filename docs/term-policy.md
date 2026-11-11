@@ -64,21 +64,21 @@ Term policies follow a two-stage status:
 
 ### Draft Status
 - Policy created by admin
-- Content files stored on the **private** disk
+- Content files stored on the **public** disk, at their final key from the moment they are verified
 - Can be edited, updated, or deleted
 - Not visible to users
 - Key: `term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` (prefix from `termPolicy.contentScopePrefixPattern`)
 
 ### Published Status
 - Policy published by admin
-- Content files live on the **public** disk
+- Content files stay where they were verified, on the **public** disk
 - Cannot be edited or deleted
 - Visible to all users
 - **Invalidates all existing user acceptances** for that policy type
 - Every active user re-accepts the new version before reaching protected endpoints again
-- Key: a new random key under the same `term-policies/{type}/v{version}/{language}/` prefix
+- Key: unchanged by publication
 
-Each content row stores `key`, `visibility`, `contentType`, `size`, and `etag`. Publication copies every private object to a new public key, and the record's `contents` are rewritten to those public copies; the private originals are deleted after the commit.
+Each content row stores `key`, `visibility`, `contentType`, `size`, and `etag`. Publication moves no object and rewrites no content row; it only sets the status and `publishedAt`.
 
 Publishing a new version sets `termPolicy[type]` to `false` for every active, non-deleted user, so each one accepts the new version before reaching protected endpoints again.
 
@@ -91,7 +91,6 @@ sequenceDiagram
     participant Admin
     participant API
     participant Database
-    participant Private as Private disk
     participant Public as Public disk
     participant Users
 
@@ -99,29 +98,27 @@ sequenceDiagram
     
     Admin->>API: Generate signed upload
     API->>Admin: { key, url, method, headers, expiresAt }
-    Admin->>Private: PUT content (.hbs file) under incoming/
+    Admin->>Public: PUT content (.hbs file) to its final key
     
     Admin->>API: Create policy (draft)
     API->>Database: Save policy metadata
     API->>Admin: Policy created (draft status)
     
-    Note over Admin,Private: Content Management (Draft Only)
+    Note over Admin,Public: Content Management (Draft Only)
     
     Admin->>API: Add/Update language content { key, language }
-    API->>Private: Verify the staged object, promote it to its final key
+    API->>Public: Verify the uploaded object in place
     API->>Database: Update policy contents
-    API->>Private: Delete the staged object and any replaced content
+    API->>Public: Delete any replaced content
     Admin->>API: Remove language content
     API->>Database: Update policy contents
-    API->>Private: Delete the removed content
+    API->>Public: Delete the removed content
     
     Note over Admin,Users: Publishing Process
     
     Admin->>API: Publish policy
     API->>Database: Reject an already-published policy, then a policy with no content
-    API->>Public: Copy every content file from the private disk (all or none)
-    API->>Database: One transaction: status = published, publishedAt = now,<br/>contents rewritten to the public copies,<br/>active users termPolicy[type] = false
-    API->>Private: Delete the private originals
+    API->>Database: One transaction: status = published, publishedAt = now,<br/>active users termPolicy[type] = false
     API->>Users: Queue publishTermPolicy notification
     API->>Admin: Policy published
     
@@ -223,7 +220,7 @@ POST /admin/term-policy/content/presign/generate
 }
 ```
 
-The API derives the staging key itself, `incoming/term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` on the private disk; the client does not supply it.
+The API derives the key itself, `term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` on the public disk; the client does not supply it.
 
 Response: the signed upload `{ key, url, method, headers, expiresAt }`. The client sends `method` to `url` with `headers` unchanged, within 10 minutes.
 
@@ -246,12 +243,12 @@ Add new language variant to draft policy:
 ```typescript
 PUT /admin/term-policy/content/:termPolicyId/add
 {
-  "key": "incoming/term-policies/termsOfService/v1/en/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.hbs",
+  "key": "term-policies/termsOfService/v1/en/0199a7a4-8f2d-7a10-b3c5-1d2e3f4a5b6c.hbs",
   "language": "en"
 }
 ```
 
-The body is the staging key from the signed upload and the language. Verification checks the key is under that type, version, and language, reads the real size, and accepts valid UTF-8 text with no NUL byte as a template. The verified object is promoted to a new key on the private disk; a language that already has content returns `409` (`contentExist`).
+The body is the key from the signed upload and the language. Verification checks the key is under that type, version, and language, reads the real size, and accepts valid UTF-8 text with no NUL byte as a template. The verified object stays at that key on the public disk; a language that already has content returns `409` (`contentExist`).
 
 ### Update Content
 
@@ -279,7 +276,7 @@ Get a URL to download policy content:
 GET /admin/term-policy/content/:termPolicyId/:language/get
 ```
 
-Works on draft and published policies alike, and answers `{ url, expiresAt }`. A draft's private content answers a signed attachment download valid for 5 minutes. A published policy's public content answers its public URL with `expiresAt: null`.
+Works on draft and published policies alike, and answers `{ url, expiresAt }`. Content is stored public, so the answer is the public URL with `expiresAt: null` for a draft and a published policy alike. A content row whose `visibility` is `private` would answer a signed attachment download valid for 5 minutes.
 
 ### Publish Policy
 
@@ -294,7 +291,7 @@ Publishing:
 - an already-published policy returns `400` (`statusInvalid`)
 - a policy with no content returns `400` (`contentEmpty`)
 
-Once published, a policy cannot be edited or deleted, and its content files live on the public disk. When one copy fails, the copies already made are deleted and the transaction never runs.
+Once published, a policy cannot be edited or deleted, and its content files live on the public disk.
 
 ### List Policies
 
@@ -313,7 +310,7 @@ Delete draft policy and its stored content:
 ```typescript
 DELETE /admin/term-policy/delete/:termPolicyId
 ```
-Only draft policies can be deleted; anything else returns `400` (`statusInvalid`). The record is hard deleted, then every object under `term-policies/{type}/v{version}/` on the private disk is removed best-effort.
+Only draft policies can be deleted; anything else returns `400` (`statusInvalid`). The record is hard deleted, then every object under `term-policies/{type}/v{version}/` on the public disk is removed best-effort.
 
 ## TermPolicyAcceptanceProtected
 

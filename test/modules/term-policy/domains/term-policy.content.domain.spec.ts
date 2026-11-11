@@ -54,7 +54,7 @@ describe('TermPolicyContentDomain', () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
     const maxSizeInBytes = 4096;
     const scopePrefix = 'term-policies/privacy/v1/en/';
-    const stagedKey = 'incoming/term-policies/privacy/v1/en/staged.hbs';
+    const stagedKey = 'term-policies/privacy/v1/en/upload.hbs';
     const preparedEvent: IActivityLogStagedEvent = {
         action: EnumActivityLogAction.adminTermPolicyAddContent,
         metadata: {},
@@ -85,19 +85,11 @@ describe('TermPolicyContentDomain', () => {
     const emptyDraft: ITermPolicy = { ...draft, contents: [] };
     const staged: IStoredAsset = {
         key: stagedKey,
-        visibility: EnumStorageVisibility.private,
+        visibility: EnumStorageVisibility.public,
         contentType: TermPolicyContentType,
         size: 200,
         etag: '"staged"',
     };
-    const promoted: IStoredAsset = {
-        key: 'term-policies/privacy/v1/en/final.hbs',
-        visibility: EnumStorageVisibility.private,
-        contentType: TermPolicyContentType,
-        size: 200,
-        etag: '"final"',
-    };
-    const promotedContent = { ...promoted, language: EnumMessageLanguage.en };
 
     let service: TermPolicyContentDomain;
 
@@ -122,8 +114,7 @@ describe('TermPolicyContentDomain', () => {
             'privacy-v1-en.hbs'
         );
         termPolicyRepository.findOneById.mockResolvedValue(draft);
-        objectStorageService.verifyStaged.mockResolvedValue(staged);
-        objectStorageService.promote.mockResolvedValue(promoted);
+        objectStorageService.verifyUpload.mockResolvedValue(staged);
         objectStorageService.delete.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
@@ -254,10 +245,10 @@ describe('TermPolicyContentDomain', () => {
         });
     });
 
-    describe('promoteContent', () => {
+    describe('verifyContent', () => {
         it('verifies the staged key against the policy language scope, the content maximum and the template detector', async () => {
             let rules: IStorageVerifyRules | undefined;
-            objectStorageService.verifyStaged.mockImplementation(
+            objectStorageService.verifyUpload.mockImplementation(
                 async (_key, verifyRules) => {
                     rules = verifyRules;
                     return staged;
@@ -267,12 +258,12 @@ describe('TermPolicyContentDomain', () => {
                 TermPolicyContentType
             );
 
-            const result = await service.promoteContent(draft, {
+            const result = await service.verifyContent(draft, {
                 language: EnumMessageLanguage.en,
                 key: stagedKey,
             });
 
-            expect(objectStorageService.verifyStaged).toHaveBeenCalledWith(
+            expect(objectStorageService.verifyUpload).toHaveBeenCalledWith(
                 stagedKey,
                 expect.objectContaining({
                     scopePrefix,
@@ -285,11 +276,10 @@ describe('TermPolicyContentDomain', () => {
             expect(
                 termPolicyUtil.detectTemplateContentType
             ).toHaveBeenCalledWith(head);
-            expect(objectStorageService.promote).toHaveBeenCalledWith(staged, {
-                visibility: EnumStorageVisibility.private,
-                scopePrefix,
+            expect(result).toEqual({
+                ...staged,
+                language: EnumMessageLanguage.en,
             });
-            expect(result).toEqual({ staged, content: promotedContent });
         });
     });
 
@@ -329,7 +319,7 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.addContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-            expect(objectStorageService.verifyStaged).not.toHaveBeenCalled();
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
         });
 
         it('throws TermPolicyStatusInvalidException without verifying after publication', async () => {
@@ -341,7 +331,7 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.addContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
-            expect(objectStorageService.verifyStaged).not.toHaveBeenCalled();
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
         });
 
         it('throws TermPolicyContentExistException without verifying when the language exists', async () => {
@@ -353,7 +343,7 @@ describe('TermPolicyContentDomain', () => {
                 module: 'termPolicy',
                 statusCode: EnumTermPolicyStatusCodeError.contentExist,
             });
-            expect(objectStorageService.verifyStaged).not.toHaveBeenCalled();
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
         });
 
         it.each([
@@ -367,17 +357,16 @@ describe('TermPolicyContentDomain', () => {
         ])(
             'rejects %s with no promotion and no database write',
             async (_case, exception) => {
-                objectStorageService.verifyStaged.mockRejectedValue(exception);
+                objectStorageService.verifyUpload.mockRejectedValue(exception);
 
                 await expect(
                     service.addContentByAdmin('term-id', upload)
                 ).rejects.toBe(exception);
-                expect(objectStorageService.promote).not.toHaveBeenCalled();
                 expect(termPolicyRepository.addContent).not.toHaveBeenCalled();
             }
         );
 
-        it('stores the promoted private metadata, stages the activity, then deletes the staged object', async () => {
+        it('stores the verified metadata and stages the activity', async () => {
             const callOrder: string[] = [];
             termPolicyRepository.addContent.mockImplementation(async () => {
                 callOrder.push('add');
@@ -391,7 +380,7 @@ describe('TermPolicyContentDomain', () => {
 
             expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
                 'term-id',
-                promotedContent
+                { ...staged, language: EnumMessageLanguage.en }
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.adminTermPolicyAddContent,
@@ -400,10 +389,10 @@ describe('TermPolicyContentDomain', () => {
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
-            expect(callOrder).toEqual(['add', `delete:${stagedKey}`]);
+            expect(callOrder).toEqual(['add']);
         });
 
-        it('deletes the promoted object, keeps the staged object and rethrows as AppUnknownException when the database write fails', async () => {
+        it('deletes the verified object and rethrows as AppUnknownException when the database write fails', async () => {
             termPolicyRepository.addContent.mockRejectedValue(new Error('db'));
 
             await expect(
@@ -411,8 +400,8 @@ describe('TermPolicyContentDomain', () => {
             ).rejects.toBeInstanceOf(AppUnknownException);
             expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
             expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: promoted.key,
-                visibility: promoted.visibility,
+                key: staged.key,
+                visibility: staged.visibility,
             });
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
@@ -440,22 +429,21 @@ describe('TermPolicyContentDomain', () => {
                 statusCode: EnumTermPolicyStatusCodeError.contentNotFound,
                 messagePath: 'termPolicy.error.contentNotFound',
             });
-            expect(objectStorageService.verifyStaged).not.toHaveBeenCalled();
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
         });
 
-        it('rejects a foreign key with no promotion and no database write', async () => {
-            objectStorageService.verifyStaged.mockRejectedValue(
+        it('rejects a foreign key with no database write', async () => {
+            objectStorageService.verifyUpload.mockRejectedValue(
                 new StorageKeyInvalidException()
             );
 
             await expect(
                 service.updateContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(StorageKeyInvalidException);
-            expect(objectStorageService.promote).not.toHaveBeenCalled();
             expect(termPolicyRepository.updateContent).not.toHaveBeenCalled();
         });
 
-        it('replaces the content row, then deletes the staged object and the replaced private object', async () => {
+        it('replaces the content row, then deletes the previous object', async () => {
             const callOrder: string[] = [];
             termPolicyRepository.updateContent.mockImplementation(async () => {
                 callOrder.push('update');
@@ -469,14 +457,11 @@ describe('TermPolicyContentDomain', () => {
 
             expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
                 'term-id',
-                promotedContent
+                { ...staged, language: EnumMessageLanguage.en }
             );
             expect(callOrder[0]).toBe('update');
             expect(callOrder).toEqual(
-                expect.arrayContaining([
-                    `delete:${stagedKey}`,
-                    `delete:${existingContent.key}`,
-                ])
+                expect.arrayContaining([`delete:${existingContent.key}`])
             );
             expect(objectStorageService.delete).toHaveBeenCalledWith({
                 key: existingContent.key,
@@ -494,8 +479,8 @@ describe('TermPolicyContentDomain', () => {
             ).rejects.toBeInstanceOf(AppUnknownException);
             expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
             expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: promoted.key,
-                visibility: promoted.visibility,
+                key: staged.key,
+                visibility: staged.visibility,
             });
         });
 

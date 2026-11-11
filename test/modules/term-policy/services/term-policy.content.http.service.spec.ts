@@ -23,7 +23,7 @@ describe('TermPolicyContentHttpService', () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
     const upload = {
         language: EnumMessageLanguage.en,
-        key: 'incoming/term-policies/privacy/v1/en/staged.hbs',
+        key: 'term-policies/privacy/v1/en/staged.hbs',
     };
 
     let service: TermPolicyContentHttpService;

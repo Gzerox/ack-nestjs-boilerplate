@@ -12,7 +12,7 @@ import {
     StorageServiceError,
     getDiskToken,
 } from '@nestjs/storage';
-import type { StorageDownload, StoredUpload } from '@nestjs/storage';
+import type { StoredUpload } from '@nestjs/storage';
 import { UnsupportedMediaTypeException } from '@nestjs/common';
 import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import type { UserPhoto } from '@generated/prisma-client/client';
@@ -26,7 +26,6 @@ import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.k
 import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import { StorageServiceUnavailableException } from '@common/storage/exceptions/storage.service-unavailable.exception';
-import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 import type {
     IStorageTarget,
@@ -51,6 +50,10 @@ describe('ObjectStorageService', () => {
 
     const publicDisk = new InMemoryDisk({
         publicUrl: 'https://cdn.example.com',
+        signedUrls: {
+            baseUrl: 'https://api.example.com/api/storage/upload',
+            keys: [signingKey],
+        },
     });
     const privateDisk = new InMemoryDisk({
         signedUrls: { baseUrl: privateBaseUrl, keys: [signingKey] },
@@ -69,7 +72,7 @@ describe('ObjectStorageService', () => {
         maxSizeInBytes: 1024,
         contentTypes: ['image/png', 'image/jpeg'],
     };
-    const stagedKey = 'incoming/users/user-1/profile/upload-1.png';
+    const stagedKey = 'users/user-1/profile/upload-1.png';
 
     beforeAll(() => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -209,19 +212,38 @@ describe('ObjectStorageService', () => {
     });
 
     describe('createSignedUpload', () => {
-        it('signs a PUT for a random key under incoming/<scope>/ that pins the declared size', async () => {
+        it('signs the final public key on the public disk', async () => {
+            const sign = vi
+                .spyOn(publicDisk, 'signedUpload')
+                .mockResolvedValue({
+                    url: 'https://storage.example.com/upload',
+                    method: 'PUT',
+                    headers: { 'content-type': 'image/png' },
+                    expiresAt: now,
+                });
+
             const result = await service.createSignedUpload(
                 'users/user-1/profile/',
                 { contentType: 'image/png', size: 2048 }
             );
 
-            expect(result.key).toBe('incoming/users/user-1/profile/id-1.png');
+            expect(result.key).toBe('users/user-1/profile/id-1.png');
+            expect(sign).toHaveBeenCalledWith(result.key, expect.anything());
+        });
+
+        it('signs a PUT for a random key under the scope and pins the declared size', async () => {
+            const result = await service.createSignedUpload(
+                'users/user-1/profile/',
+                { contentType: 'image/png', size: 2048 }
+            );
+
+            expect(result.key).toBe('users/user-1/profile/id-1.png');
             expect(result).toMatchObject({
                 method: 'PUT',
                 headers: { 'content-type': 'image/png' },
                 expiresAt: new Date(now.getTime() + signedUploadExpiresInMs),
             });
-            const claims = privateDisk.verifySignedUrl(result.url, 'PUT');
+            const claims = publicDisk.verifySignedUrl(result.url, 'PUT');
             expect(claims).toMatchObject({
                 key: result.key,
                 contentType: 'image/png',
@@ -280,7 +302,7 @@ describe('ObjectStorageService', () => {
                 operation: 'presign',
                 code: 'NetworkError',
             });
-            vi.spyOn(privateDisk, 'signedUpload').mockRejectedValue(error);
+            vi.spyOn(publicDisk, 'signedUpload').mockRejectedValue(error);
 
             await expect(
                 service.createSignedUpload('users/user-1/profile/', {
@@ -341,17 +363,17 @@ describe('ObjectStorageService', () => {
         });
     });
 
-    describe('verifyStaged', () => {
+    describe('verifyUpload', () => {
         it('returns the size, detected content type and etag of an allowed staged object', async () => {
-            const written = await privateDisk.put(stagedKey, pngBytes, {
+            const written = await publicDisk.put(stagedKey, pngBytes, {
                 contentType: 'image/jpeg',
             });
 
-            const result = await service.verifyStaged(stagedKey, photoRules);
+            const result = await service.verifyUpload(stagedKey, photoRules);
 
             expect(result).toEqual({
                 key: stagedKey,
-                visibility: EnumStorageVisibility.private,
+                visibility: EnumStorageVisibility.public,
                 contentType: 'image/png',
                 size: pngBytes.length,
                 etag: written.etag,
@@ -359,24 +381,20 @@ describe('ObjectStorageService', () => {
         });
 
         it.each([
-            [
-                'another user scope',
-                'incoming/users/user-2/profile/upload-1.png',
-            ],
+            ['another user scope', 'users/user-2/profile/upload-1.png'],
             [
                 'a parent segment',
-                'incoming/users/user-1/profile/../../user-2/profile/upload-1.png',
+                'users/user-1/profile/../../user-2/profile/upload-1.png',
             ],
-            ['a leading slash', '/incoming/users/user-1/profile/upload-1.png'],
-            ['no incoming prefix', 'users/user-1/profile/upload-1.png'],
+            ['a leading slash', '/users/user-1/profile/upload-1.png'],
         ])(
             'throws StorageKeyInvalidException for %s without reading the object',
             async (_label, key) => {
-                const stat = vi.spyOn(privateDisk, 'stat');
-                const get = vi.spyOn(privateDisk, 'get');
+                const stat = vi.spyOn(publicDisk, 'stat');
+                const get = vi.spyOn(publicDisk, 'get');
 
                 await expect(
-                    service.verifyStaged(key, photoRules)
+                    service.verifyUpload(key, photoRules)
                 ).rejects.toMatchObject({
                     statusCode: EnumStorageStatusCodeError.keyInvalid,
                     messagePath: 'storage.error.keyInvalid',
@@ -391,7 +409,7 @@ describe('ObjectStorageService', () => {
             storageErrorUtil.translate.mockReturnValue(exception);
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toBe(exception);
             expect(storageErrorUtil.translate).toHaveBeenCalledWith(
                 expect.any(StorageFileNotFoundError)
@@ -399,43 +417,43 @@ describe('ObjectStorageService', () => {
         });
 
         it('throws StorageSizeInvalidException and deletes an object over the maximum size', async () => {
-            await privateDisk.put(
+            await publicDisk.put(
                 stagedKey,
                 Buffer.concat([pngBytes, Buffer.alloc(2048)])
             );
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageSizeInvalidException);
-            expect(privateDisk.keys()).toEqual([]);
+            expect(publicDisk.keys()).toEqual([]);
         });
 
         it('throws StorageSizeInvalidException and deletes an empty object', async () => {
-            await privateDisk.put(stagedKey, Buffer.alloc(0));
+            await publicDisk.put(stagedKey, Buffer.alloc(0));
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageSizeInvalidException);
-            expect(privateDisk.keys()).toEqual([]);
+            expect(publicDisk.keys()).toEqual([]);
         });
 
         it('throws StorageContentTypeInvalidException and deletes an object whose bytes are not an allowed type', async () => {
-            await privateDisk.put(stagedKey, '<html>not an image</html>', {
+            await publicDisk.put(stagedKey, '<html>not an image</html>', {
                 contentType: 'image/png',
             });
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toMatchObject({
                 statusCode: EnumStorageStatusCodeError.contentTypeInvalid,
                 messagePath: 'storage.error.contentTypeInvalid',
             });
-            expect(privateDisk.keys()).toEqual([]);
+            expect(publicDisk.keys()).toEqual([]);
         });
 
         it('still throws the rejection when deleting the rejected object fails', async () => {
-            await privateDisk.put(stagedKey, '<html>not an image</html>');
-            vi.spyOn(privateDisk, 'delete').mockRejectedValue(
+            await publicDisk.put(stagedKey, '<html>not an image</html>');
+            vi.spyOn(publicDisk, 'delete').mockRejectedValue(
                 new StorageServiceError({
                     operation: 'delete',
                     code: 'Timeout',
@@ -443,13 +461,13 @@ describe('ObjectStorageService', () => {
             );
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageContentTypeInvalidException);
         });
 
         it('returns a null etag when the disk reports none', async () => {
-            await privateDisk.put(stagedKey, pngBytes);
-            vi.spyOn(privateDisk, 'stat').mockResolvedValue({
+            await publicDisk.put(stagedKey, pngBytes);
+            vi.spyOn(publicDisk, 'stat').mockResolvedValue({
                 key: stagedKey,
                 size: pngBytes.length,
                 contentType: 'image/png',
@@ -457,36 +475,35 @@ describe('ObjectStorageService', () => {
                 metadata: {},
             });
 
-            const result = await service.verifyStaged(stagedKey, photoRules);
+            const result = await service.verifyUpload(stagedKey, photoRules);
 
             expect(result.etag).toBeNull();
         });
 
         it('throws the translated exception when reading the first bytes fails', async () => {
-            await privateDisk.put(stagedKey, pngBytes);
+            await publicDisk.put(stagedKey, pngBytes);
             const exception = new StorageServiceUnavailableException();
             storageErrorUtil.translate.mockReturnValue(exception);
             const error = new StorageServiceError({
                 operation: 'get',
                 code: 'Timeout',
             });
-            vi.spyOn(privateDisk, 'get').mockRejectedValue(error);
+            vi.spyOn(publicDisk, 'get').mockRejectedValue(error);
 
             await expect(
-                service.verifyStaged(stagedKey, photoRules)
+                service.verifyUpload(stagedKey, photoRules)
             ).rejects.toBe(exception);
             expect(storageErrorUtil.translate).toHaveBeenCalledWith(error);
         });
 
         it('accepts a signature-less format through the feature detector', async () => {
-            const templateKey =
-                'incoming/term-policies/privacy/v1/en/upload-1.hbs';
-            await privateDisk.put(templateKey, '<p>{{name}}</p>');
+            const templateKey = 'term-policies/privacy/v1/en/upload-1.hbs';
+            await publicDisk.put(templateKey, '<p>{{name}}</p>');
             const detect = vi.fn((head: Uint8Array) =>
                 head.includes(0) ? null : 'text/x-handlebars-template'
             );
 
-            const result = await service.verifyStaged(templateKey, {
+            const result = await service.verifyUpload(templateKey, {
                 scopePrefix: 'term-policies/privacy/v1/en/',
                 maxSizeInBytes: 1024,
                 contentTypes: ['text/x-handlebars-template'],
@@ -500,15 +517,14 @@ describe('ObjectStorageService', () => {
         });
 
         it('rejects a signature-less format the feature detector refuses', async () => {
-            const templateKey =
-                'incoming/term-policies/privacy/v1/en/upload-1.hbs';
-            await privateDisk.put(
+            const templateKey = 'term-policies/privacy/v1/en/upload-1.hbs';
+            await publicDisk.put(
                 templateKey,
                 Buffer.from([0x3c, 0x70, 0x00, 0x3e])
             );
 
             await expect(
-                service.verifyStaged(templateKey, {
+                service.verifyUpload(templateKey, {
                     scopePrefix: 'term-policies/privacy/v1/en/',
                     maxSizeInBytes: 1024,
                     contentTypes: ['text/x-handlebars-template'],
@@ -516,130 +532,6 @@ describe('ObjectStorageService', () => {
                         head.includes(0) ? null : 'text/x-handlebars-template',
                 })
             ).rejects.toBeInstanceOf(StorageContentTypeInvalidException);
-            expect(privateDisk.keys()).toEqual([]);
-        });
-    });
-
-    describe('promote', () => {
-        const staged = {
-            key: stagedKey,
-            visibility: EnumStorageVisibility.private,
-            contentType: 'image/png',
-            size: pngBytes.length,
-            etag: null,
-        };
-
-        it('streams the staged object to a new random key on the target disk with the verified type', async () => {
-            await privateDisk.put(stagedKey, pngBytes, {
-                contentType: 'image/jpeg',
-            });
-
-            const result = await service.promote(staged, {
-                visibility: EnumStorageVisibility.public,
-                scopePrefix: 'users/user-1/profile/',
-            });
-
-            expect(result).toMatchObject({
-                key: 'users/user-1/profile/id-1.png',
-                visibility: EnumStorageVisibility.public,
-                contentType: 'image/png',
-                size: pngBytes.length,
-            });
-            const stat = await publicDisk.stat('users/user-1/profile/id-1.png');
-            expect(stat.contentType).toBe('image/png');
-            expect(result.etag).toBe(stat.etag);
-            const promoted = await publicDisk.getBuffer(
-                'users/user-1/profile/id-1.png'
-            );
-            expect(promoted.equals(pngBytes)).toBe(true);
-            expect(privateDisk.keys()).toEqual([stagedKey]);
-        });
-
-        it('promotes onto the private disk when the target is private', async () => {
-            await privateDisk.put(stagedKey, pngBytes);
-
-            const result = await service.promote(staged, {
-                visibility: EnumStorageVisibility.private,
-                scopePrefix: 'users/user-1/profile/',
-            });
-
-            expect(result.visibility).toBe(EnumStorageVisibility.private);
-            expect(privateDisk.keys()).toEqual([
-                stagedKey,
-                'users/user-1/profile/id-1.png',
-            ]);
-        });
-
-        it('throws StorageKeyInvalidException for a source outside incoming/', async () => {
-            await expect(
-                service.promote(
-                    { ...staged, key: 'users/user-1/profile/photo.png' },
-                    {
-                        visibility: EnumStorageVisibility.public,
-                        scopePrefix: 'users/user-1/profile/',
-                    }
-                )
-            ).rejects.toBeInstanceOf(StorageKeyInvalidException);
-        });
-
-        it('throws the translated not-found exception when the staged object is gone', async () => {
-            const exception = new StorageObjectNotFoundException();
-            storageErrorUtil.translate.mockReturnValue(exception);
-
-            await expect(
-                service.promote(staged, {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'users/user-1/profile/',
-                })
-            ).rejects.toBe(exception);
-            expect(publicDisk.keys()).toEqual([]);
-        });
-
-        it('throws StoragePromotionFailedException when opening the staged object fails', async () => {
-            vi.spyOn(privateDisk, 'get').mockRejectedValue(
-                new StorageServiceError({ operation: 'get', code: 'Timeout' })
-            );
-
-            await expect(
-                service.promote(staged, {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'users/user-1/profile/',
-                })
-            ).rejects.toBeInstanceOf(StoragePromotionFailedException);
-            expect(storageErrorUtil.translate).not.toHaveBeenCalled();
-        });
-
-        it('throws StoragePromotionFailedException and removes the partial target when the read fails mid-stream', async () => {
-            await privateDisk.put(stagedKey, pngBytes);
-            const failure = new Error('connection reset');
-            const body = new Readable({
-                read() {
-                    this.push(pngBytes.subarray(0, 8));
-                    this.destroy(failure);
-                },
-            });
-            vi.spyOn(privateDisk, 'get').mockResolvedValue({
-                body,
-                key: stagedKey,
-                size: pngBytes.length,
-                contentType: 'image/png',
-                lastModified: now,
-                metadata: {},
-            } as StorageDownload);
-            const remove = vi.spyOn(publicDisk, 'delete');
-
-            await expect(
-                service.promote(staged, {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'users/user-1/profile/',
-                })
-            ).rejects.toMatchObject({
-                statusCode: EnumStorageStatusCodeError.promotionFailed,
-                messagePath: 'storage.error.promotionFailed',
-            });
-            expect(remove).toHaveBeenCalledWith(
-                'users/user-1/profile/id-1.png'
-            );
             expect(publicDisk.keys()).toEqual([]);
         });
     });
@@ -740,130 +632,6 @@ describe('ObjectStorageService', () => {
             expect(deleteSpy).toHaveBeenCalledWith(
                 'term-policies/privacy/v1/en/id-1.hbs'
             );
-        });
-    });
-
-    describe('copyAcrossDisks', () => {
-        it('streams a private object to a new public key and leaves the source', async () => {
-            const sourceKey = 'term-policies/privacy/v1/en/draft-1.hbs';
-            await privateDisk.put(sourceKey, '<p>{{name}}</p>');
-
-            const result = await service.copyAcrossDisks(
-                {
-                    key: sourceKey,
-                    visibility: EnumStorageVisibility.private,
-                    contentType: 'text/x-handlebars-template',
-                },
-                {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'term-policies/privacy/v1/en/',
-                }
-            );
-
-            expect(result).toMatchObject({
-                key: 'term-policies/privacy/v1/en/id-1.hbs',
-                visibility: EnumStorageVisibility.public,
-                contentType: 'text/x-handlebars-template',
-                size: Buffer.byteLength('<p>{{name}}</p>'),
-            });
-            const copied = await publicDisk.getText(result.key);
-            expect(copied).toBe('<p>{{name}}</p>');
-            expect(privateDisk.keys()).toEqual([sourceKey]);
-        });
-
-        it('omits the extension when the content type has none and reports a null etag the disk did not return', async () => {
-            const sourceKey = 'term-policies/privacy/v1/en/draft-1';
-            await privateDisk.put(sourceKey, 'raw');
-            vi.spyOn(publicDisk, 'put').mockResolvedValue({
-                key: 'term-policies/privacy/v1/en/id-1',
-                size: 3,
-                contentType: 'application/x-storage-spec-unknown',
-            });
-
-            const result = await service.copyAcrossDisks(
-                {
-                    key: sourceKey,
-                    visibility: EnumStorageVisibility.private,
-                    contentType: 'application/x-storage-spec-unknown',
-                },
-                {
-                    visibility: EnumStorageVisibility.public,
-                    scopePrefix: 'term-policies/privacy/v1/en/',
-                }
-            );
-
-            expect(result).toEqual({
-                key: 'term-policies/privacy/v1/en/id-1',
-                visibility: EnumStorageVisibility.public,
-                contentType: 'application/x-storage-spec-unknown',
-                size: 3,
-                etag: null,
-            });
-        });
-
-        it('throws StoragePromotionFailedException and attempts to delete the target when the write fails', async () => {
-            const sourceKey = 'term-policies/privacy/v1/en/draft-1.hbs';
-            await privateDisk.put(sourceKey, '<p>{{name}}</p>');
-            vi.spyOn(publicDisk, 'put').mockRejectedValue(
-                new StorageServiceError({ operation: 'put', code: 'SlowDown' })
-            );
-            const remove = vi.spyOn(publicDisk, 'delete');
-
-            await expect(
-                service.copyAcrossDisks(
-                    {
-                        key: sourceKey,
-                        visibility: EnumStorageVisibility.private,
-                        contentType: 'text/x-handlebars-template',
-                    },
-                    {
-                        visibility: EnumStorageVisibility.public,
-                        scopePrefix: 'term-policies/privacy/v1/en/',
-                    }
-                )
-            ).rejects.toBeInstanceOf(StoragePromotionFailedException);
-            expect(remove).toHaveBeenCalledWith(
-                'term-policies/privacy/v1/en/id-1.hbs'
-            );
-        });
-
-        it('still throws StoragePromotionFailedException when the cleanup delete fails', async () => {
-            const sourceKey = 'term-policies/privacy/v1/en/draft-1.hbs';
-            await privateDisk.put(sourceKey, '<p>{{name}}</p>');
-            vi.spyOn(publicDisk, 'put').mockRejectedValue(new Error('reset'));
-            vi.spyOn(publicDisk, 'delete').mockRejectedValue(
-                new Error('unreachable')
-            );
-
-            await expect(
-                service.copyAcrossDisks(
-                    {
-                        key: sourceKey,
-                        visibility: EnumStorageVisibility.private,
-                        contentType: 'text/x-handlebars-template',
-                    },
-                    {
-                        visibility: EnumStorageVisibility.public,
-                        scopePrefix: 'term-policies/privacy/v1/en/',
-                    }
-                )
-            ).rejects.toBeInstanceOf(StoragePromotionFailedException);
-        });
-
-        it('throws StorageKeyInvalidException for an invalid target scope', async () => {
-            await expect(
-                service.copyAcrossDisks(
-                    {
-                        key: 'term-policies/privacy/v1/en/draft-1.hbs',
-                        visibility: EnumStorageVisibility.private,
-                        contentType: 'text/x-handlebars-template',
-                    },
-                    {
-                        visibility: EnumStorageVisibility.public,
-                        scopePrefix: '../escape/',
-                    }
-                )
-            ).rejects.toBeInstanceOf(StorageKeyInvalidException);
         });
     });
 

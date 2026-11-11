@@ -12,7 +12,6 @@ import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.k
 import { StorageObjectNotFoundException } from '@common/storage/exceptions/storage.object-not-found.exception';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
-import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
 import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
 import type {
     IStorageSignedUpload,
@@ -72,20 +71,13 @@ describe('UserProfileDomain', () => {
         size: BigInt(50),
         etag: null,
     };
-    const stagedKey = 'incoming/users/user-id/profile/staged-photo.png';
+    const stagedKey = 'users/user-id/profile/staged-photo.png';
     const staged: IStoredAsset = {
         key: stagedKey,
-        visibility: EnumStorageVisibility.private,
-        contentType: 'image/png',
-        size: 100,
-        etag: '"staged-etag"',
-    };
-    const promoted: IStoredAsset = {
-        key: 'users/user-id/profile/promoted-photo.png',
         visibility: EnumStorageVisibility.public,
         contentType: 'image/png',
         size: 100,
-        etag: '"promoted-etag"',
+        etag: '"staged-etag"',
     };
     const signedUpload: IStorageSignedUpload = {
         key: stagedKey,
@@ -114,8 +106,7 @@ describe('UserProfileDomain', () => {
         activityLogDomain.prepare.mockReturnValue(preparedEvent);
         userRepository.updatePhotoProfile.mockResolvedValue(previousPhoto);
         objectStorageService.createSignedUpload.mockResolvedValue(signedUpload);
-        objectStorageService.verifyStaged.mockResolvedValue(staged);
-        objectStorageService.promote.mockResolvedValue(promoted);
+        objectStorageService.verifyUpload.mockResolvedValue(staged);
         objectStorageService.delete.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
@@ -268,7 +259,7 @@ describe('UserProfileDomain', () => {
         it('verifies the staged key against the user scope, the photo maximum and the image content types', async () => {
             await service.updatePhotoProfile(userId, { key: stagedKey });
 
-            expect(objectStorageService.verifyStaged).toHaveBeenCalledWith(
+            expect(objectStorageService.verifyUpload).toHaveBeenCalledWith(
                 stagedKey,
                 {
                     scopePrefix,
@@ -278,75 +269,40 @@ describe('UserProfileDomain', () => {
             );
         });
 
-        it('promotes the verified object to the public disk under the user scope and stores the promoted metadata', async () => {
+        it('stores the verified public object without copying', async () => {
             await service.updatePhotoProfile(userId, { key: stagedKey });
-
-            expect(objectStorageService.promote).toHaveBeenCalledWith(staged, {
-                visibility: EnumStorageVisibility.public,
-                scopePrefix,
-            });
             expect(userRepository.updatePhotoProfile).toHaveBeenCalledWith(
                 userId,
-                promoted
+                staged
             );
-            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
-                action: EnumActivityLogAction.userUpdatePhotoProfile,
-            });
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
         });
 
-        it('deletes the staged object and the previous photo only after the database update commits', async () => {
-            const callOrder: string[] = [];
-            userRepository.updatePhotoProfile.mockImplementation(async () => {
-                callOrder.push('update');
-                return previousPhoto;
-            });
-            objectStorageService.delete.mockImplementation(async ({ key }) => {
-                callOrder.push(`delete:${key}`);
-            });
-
+        it('deletes the previous photo after the update commits', async () => {
             await service.updatePhotoProfile(userId, { key: stagedKey });
-
-            expect(callOrder[0]).toBe('update');
-            expect(callOrder).toEqual(
-                expect.arrayContaining([
-                    `delete:${stagedKey}`,
-                    `delete:${previousPhoto.key}`,
-                ])
-            );
-            expect(objectStorageService.delete).toHaveBeenCalledTimes(2);
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: stagedKey,
-                visibility: EnumStorageVisibility.private,
-            });
             expect(objectStorageService.delete).toHaveBeenCalledWith({
                 key: previousPhoto.key,
                 visibility: previousPhoto.visibility,
             });
-        });
-
-        it('deletes only the staged object when the user had no previous photo', async () => {
-            userRepository.updatePhotoProfile.mockResolvedValue(null);
-
-            await service.updatePhotoProfile(userId, { key: stagedKey });
-
             expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: stagedKey,
-                visibility: EnumStorageVisibility.private,
-            });
         });
 
-        it('rejects a foreign or traversal key as StorageKeyInvalidException with no promotion and no database write', async () => {
-            objectStorageService.verifyStaged.mockRejectedValue(
+        it('keeps the uploaded object on a first photo', async () => {
+            userRepository.updatePhotoProfile.mockResolvedValue(null);
+            await service.updatePhotoProfile(userId, { key: stagedKey });
+            expect(objectStorageService.delete).not.toHaveBeenCalled();
+        });
+
+        it('rejects a foreign or traversal key with no database write', async () => {
+            objectStorageService.verifyUpload.mockRejectedValue(
                 new StorageKeyInvalidException()
             );
 
             await expect(
                 service.updatePhotoProfile(userId, {
-                    key: 'incoming/users/other-user/profile/../photo.png',
+                    key: 'users/other-user/profile/../photo.png',
                 })
             ).rejects.toMatchObject({
                 module: 'storage',
@@ -357,17 +313,16 @@ describe('UserProfileDomain', () => {
                     ],
                 messagePath: 'storage.error.keyInvalid',
             });
-            expect(objectStorageService.verifyStaged).toHaveBeenCalledWith(
-                'incoming/users/other-user/profile/../photo.png',
+            expect(objectStorageService.verifyUpload).toHaveBeenCalledWith(
+                'users/other-user/profile/../photo.png',
                 expect.objectContaining({ scopePrefix })
             );
-            expect(objectStorageService.promote).not.toHaveBeenCalled();
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
             expect(objectStorageService.delete).not.toHaveBeenCalled();
         });
 
         it('rejects a missing staged object as StorageObjectNotFoundException with no promotion and no database write', async () => {
-            objectStorageService.verifyStaged.mockRejectedValue(
+            objectStorageService.verifyUpload.mockRejectedValue(
                 new StorageObjectNotFoundException()
             );
 
@@ -378,12 +333,11 @@ describe('UserProfileDomain', () => {
                 statusCode: EnumStorageStatusCodeError.objectNotFound,
                 messagePath: 'storage.error.objectNotFound',
             });
-            expect(objectStorageService.promote).not.toHaveBeenCalled();
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
         });
 
         it('rejects staged bytes that are not an image as StorageContentTypeInvalidException with nothing promoted', async () => {
-            objectStorageService.verifyStaged.mockRejectedValue(
+            objectStorageService.verifyUpload.mockRejectedValue(
                 new StorageContentTypeInvalidException()
             );
 
@@ -394,35 +348,21 @@ describe('UserProfileDomain', () => {
                 statusCode: EnumStorageStatusCodeError.contentTypeInvalid,
                 messagePath: 'storage.error.contentTypeInvalid',
             });
-            expect(objectStorageService.promote).not.toHaveBeenCalled();
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
         });
 
         it('rejects an oversize staged object as StorageSizeInvalidException with nothing promoted', async () => {
-            objectStorageService.verifyStaged.mockRejectedValue(
+            objectStorageService.verifyUpload.mockRejectedValue(
                 new StorageSizeInvalidException()
             );
 
             await expect(
                 service.updatePhotoProfile(userId, { key: stagedKey })
             ).rejects.toBeInstanceOf(StorageSizeInvalidException);
-            expect(objectStorageService.promote).not.toHaveBeenCalled();
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
         });
 
-        it('writes nothing when the promotion fails', async () => {
-            objectStorageService.promote.mockRejectedValue(
-                new StoragePromotionFailedException(new Error('copy failed'))
-            );
-
-            await expect(
-                service.updatePhotoProfile(userId, { key: stagedKey })
-            ).rejects.toBeInstanceOf(StoragePromotionFailedException);
-            expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
-            expect(objectStorageService.delete).not.toHaveBeenCalled();
-        });
-
-        it('deletes the promoted object, keeps the staged object and rethrows as AppUnknownException when the database update fails', async () => {
+        it('deletes the verified object and rethrows as AppUnknownException when the database update fails', async () => {
             userRepository.updatePhotoProfile.mockRejectedValue(
                 new Error('db down')
             );
@@ -435,8 +375,8 @@ describe('UserProfileDomain', () => {
             });
             expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
             expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: promoted.key,
-                visibility: promoted.visibility,
+                key: staged.key,
+                visibility: staged.visibility,
             });
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });

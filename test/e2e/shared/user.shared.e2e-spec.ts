@@ -275,7 +275,7 @@ describe('User shared routes', () => {
         });
 
         it('404s with storage objectNotFound when the staged key under the caller scope does not exist', async () => {
-            const key = `incoming/users/${user.id}/profile/e2e-missing.jpg`;
+            const key = `users/${user.id}/profile/e2e-missing.jpg`;
 
             const response = await withSharedAuth(
                 e2ePut(app, '/api/v1/shared/user/profile/photo/update'),
@@ -299,7 +299,7 @@ describe('User shared routes', () => {
                 e2ePut(app, '/api/v1/shared/user/profile/photo/update'),
                 accessToken
             )
-                .send({ key: 'incoming/users/someone-else/profile/photo.jpg' })
+                .send({ key: 'users/someone-else/profile/photo.jpg' })
                 .expect(400);
 
             expect(response.body).toMatchObject({

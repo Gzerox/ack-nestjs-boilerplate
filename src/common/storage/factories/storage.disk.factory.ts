@@ -35,6 +35,9 @@ export class StorageDiskFactory implements StorageOptionsFactory {
         const signedUrlPattern = this.configService.get<string>(
             'storage.local.signedUrlPattern'
         )!;
+        const signedUploadUrlPattern = this.configService.get<string>(
+            'storage.local.signedUploadUrlPattern'
+        )!;
         const baseUrl = this.configService.get<string>(
             'storage.publicBaseUrl'
         )!;
@@ -49,6 +52,10 @@ export class StorageDiskFactory implements StorageOptionsFactory {
             signedUrlPattern,
             { baseUrl, globalPrefix }
         );
+        const signedUploadBaseUrl = this.helperStringService.fillPattern(
+            signedUploadUrlPattern,
+            { baseUrl, globalPrefix }
+        );
         const publicRoot = join(rootPath, EnumStorageVisibility.public);
         const privateRoot = join(rootPath, EnumStorageVisibility.private);
 
@@ -56,6 +63,7 @@ export class StorageDiskFactory implements StorageOptionsFactory {
             [EnumStorageVisibility.public]: new LocalDisk({
                 root: publicRoot,
                 publicUrl,
+                signedUrls: { baseUrl: signedUploadBaseUrl, keys: signingKeys },
             }),
             [EnumStorageVisibility.private]: new LocalDisk({
                 root: privateRoot,

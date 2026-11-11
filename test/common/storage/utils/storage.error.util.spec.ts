@@ -19,7 +19,6 @@ import { StorageObjectConflictException } from '@common/storage/exceptions/stora
 import { StorageServiceUnavailableException } from '@common/storage/exceptions/storage.service-unavailable.exception';
 import { StorageSignedRequestInvalidException } from '@common/storage/exceptions/storage.signed-request-invalid.exception';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
-import { StoragePromotionFailedException } from '@common/storage/exceptions/storage.promotion-failed.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 
 describe('StorageErrorUtil', () => {
@@ -178,26 +177,6 @@ describe('StorageErrorUtil', () => {
                     ],
                 httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
                 messagePath: 'storage.error.contentTypeInvalid',
-            });
-        });
-
-        it('returns StoragePromotionFailedException unchanged with its 500 status', () => {
-            const cause = new Error('stream reset');
-            const exception = new StoragePromotionFailedException(cause);
-
-            const result = util.translate(exception);
-
-            expect(result).toBe(exception);
-            expect(result).toMatchObject({
-                module: 'storage',
-                statusCode: EnumStorageStatusCodeError.promotionFailed,
-                statusCodeKey:
-                    EnumStorageStatusCodeError[
-                        EnumStorageStatusCodeError.promotionFailed
-                    ],
-                httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
-                messagePath: 'storage.error.promotionFailed',
-                rawError: cause,
             });
         });
     });

@@ -10,6 +10,7 @@ export interface IConfigStorage {
         signingKeys: string[];
         publicUrlPattern: string;
         signedUrlPattern: string;
+        signedUploadUrlPattern: string;
     };
     s3: {
         endpoint: string | null;
@@ -44,6 +45,7 @@ export default registerAs('storage', (): IConfigStorage => ({
             .filter(key => key.length > 0),
         publicUrlPattern: '{baseUrl}{globalPrefix}/storage/public',
         signedUrlPattern: '{baseUrl}{globalPrefix}/storage/private',
+        signedUploadUrlPattern: '{baseUrl}{globalPrefix}/storage/upload',
     },
     s3: {
         endpoint: process.env.STORAGE_S3_ENDPOINT || null,

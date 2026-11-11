@@ -72,4 +72,12 @@ export class StorageLocalController {
     ): Promise<void> {
         await receiveSignedUpload(this.privateDisk, { req, res });
     }
+
+    @Put('upload')
+    async receivePublic(
+        @Req() req: Request,
+        @Res({ passthrough: true }) res: Response
+    ): Promise<void> {
+        await receiveSignedUpload(this.publicDisk, { req, res });
+    }
 }

@@ -44,7 +44,7 @@ The machine registry is the `*.status-code.enum.ts` files under `src/`. This pag
 | `52000` | `activity-log` | `52000` | 1 |
 | `52100` | `analytic` | `52100` | 1 |
 | `52200` | `helper` | `52200`–`52202` | 3 |
-| `52300` | `storage` | `52300`–`52307` | 8 |
+| `52300` | `storage` | `52300`–`52306` | 7 |
 
 Next free hundred: `52400`. The enum files are the source; this map follows them.
 
@@ -345,7 +345,6 @@ Read `module` together with `statusCode` when branching on this one: `FileImport
 | `contentTypeInvalid` | `52304` | `contentTypeInvalid` | 422 (`UNPROCESSABLE_ENTITY`) | `storage.error.contentTypeInvalid` | The file type is not allowed. |
 | `sizeInvalid` | `52305` | `sizeInvalid` | 422 (`UNPROCESSABLE_ENTITY`) | `storage.error.sizeInvalid` | The file size is invalid or exceeds the allowed limit. |
 | `signedRequestInvalid` | `52306` | `signedRequestInvalid` | 403 (`FORBIDDEN`) | `storage.error.signedRequestInvalid` | The signed file link is invalid or has expired. |
-| `promotionFailed` | `52307` | `promotionFailed` | 500 (`INTERNAL_SERVER_ERROR`) | `storage.error.promotionFailed` | The uploaded file could not be stored. Please try again. |
 
 `StorageErrorUtil` maps every `@nestjs/storage` error onto one of these members, so a caller never sees a package error. `StorageLocalDriverGuard` answers `objectNotFound` (404) on every local-driver route when `STORAGE_DRIVER` is not `local`.
 

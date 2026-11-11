@@ -73,11 +73,18 @@ export class RequestMiddlewareModule implements NestModule {
             .forRoutes('{*wildcard}');
         consumer
             .apply(RequestBodyParserMiddleware)
-            .exclude({
-                path: 'storage/private',
-                method: RequestMethod.PUT,
-                version: VERSION_NEUTRAL,
-            })
+            .exclude(
+                {
+                    path: 'storage/private',
+                    method: RequestMethod.PUT,
+                    version: VERSION_NEUTRAL,
+                },
+                {
+                    path: 'storage/upload',
+                    method: RequestMethod.PUT,
+                    version: VERSION_NEUTRAL,
+                }
+            )
             .forRoutes('{*wildcard}');
         consumer
             .apply(

@@ -19,8 +19,8 @@ import { TermPolicyStatusInvalidException } from '@modules/term-policy/exception
 import type {
     ITermPolicy,
     ITermPolicyContentAccess,
+    ITermPolicyContentCreate,
     ITermPolicyContentPresign,
-    ITermPolicyContentPromoted,
     ITermPolicyContentUpload,
 } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
@@ -107,27 +107,22 @@ export class TermPolicyContentDomain {
         await Promise.all(assets.map(asset => this.deleteQuietly(asset)));
     }
 
-    async promoteContent(
+    async verifyContent(
         { type, version }: Pick<TermPolicy, 'type' | 'version'>,
         { language, key }: ITermPolicyContentUpload
-    ): Promise<ITermPolicyContentPromoted> {
+    ): Promise<ITermPolicyContentCreate> {
         const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
             type,
             version,
             language
         );
-        const staged = await this.objectStorageService.verifyStaged(key, {
+        const staged = await this.objectStorageService.verifyUpload(key, {
             scopePrefix,
             maxSizeInBytes: this.contentMaxSizeInBytes,
             contentTypes: [TermPolicyContentType],
             detect: head => this.termPolicyUtil.detectTemplateContentType(head),
         });
-        const promoted = await this.objectStorageService.promote(staged, {
-            visibility: EnumStorageVisibility.private,
-            scopePrefix,
-        });
-
-        return { staged, content: { ...promoted, language } };
+        return { ...staged, language };
     }
 
     async generateContentPresignByAdmin({
@@ -175,10 +170,7 @@ export class TermPolicyContentDomain {
             throw new TermPolicyContentNotFoundException();
         }
 
-        const { staged, content } = await this.promoteContent(
-            termPolicy,
-            upload
-        );
+        const content = await this.verifyContent(termPolicy, upload);
 
         try {
             const timestamp = this.helperDateService.create();
@@ -202,7 +194,9 @@ export class TermPolicyContentDomain {
             throw exception;
         }
 
-        await this.deleteObjectsQuietly([staged, existingContent]);
+        if (existingContent.key !== content.key) {
+            await this.deleteQuietly(existingContent);
+        }
     }
 
     async addContentByAdmin(
@@ -219,10 +213,7 @@ export class TermPolicyContentDomain {
             throw new TermPolicyContentExistException();
         }
 
-        const { staged, content } = await this.promoteContent(
-            termPolicy,
-            upload
-        );
+        const content = await this.verifyContent(termPolicy, upload);
 
         try {
             const timestamp = this.helperDateService.create();
@@ -242,8 +233,6 @@ export class TermPolicyContentDomain {
             const exception = this.wrapError(err);
             throw exception;
         }
-
-        await this.deleteQuietly(staged);
     }
 
     async removeContentByAdmin(

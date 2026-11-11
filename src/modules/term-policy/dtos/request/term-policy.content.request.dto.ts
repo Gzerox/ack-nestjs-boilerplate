@@ -3,7 +3,7 @@ import { StorageSignedUploadCompleteRequestSchema } from '@common/storage/dtos/r
 import { TermPolicyContentPresignRequestSchema } from '@modules/term-policy/dtos/request/term-policy.content-presign.request.dto';
 
 /**
- * Validates the completion of one term policy content upload: its language and the staging key, nothing else.
+ * Validates the completion of one term policy content upload: its language and the upload key, nothing else.
  * @public
  */
 export const TermPolicyContentRequestSchema =

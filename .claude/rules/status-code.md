@@ -49,7 +49,7 @@ done
 | `52000` | `activity-log` |
 | `52100` | `analytic` |
 | `52200`–`52202` | `src/common/helper` |
-| `52300`–`52307` | `src/common/storage` |
+| `52300`–`52306` | `src/common/storage` |
 
 | Note | Detail |
 |---|---|

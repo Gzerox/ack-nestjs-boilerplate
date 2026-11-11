@@ -10,5 +10,4 @@ export enum EnumStorageStatusCodeError {
     contentTypeInvalid = 52304,
     sizeInvalid = 52305,
     signedRequestInvalid = 52306,
-    promotionFailed = 52307,
 }

@@ -9,7 +9,7 @@ Third-party clients are configured through environment variables. Each section b
 - [Configuration Documentation][ref-doc-configuration] - Storage, AWS SES, Firebase, Sentry config keys
 - [Environment Documentation][ref-doc-environment] - Credential env vars
 - [Authentication Documentation][ref-doc-authentication] - Google and Apple OAuth
-- [File Upload Documentation][ref-doc-file-upload] - Stored uploads, signed direct uploads, and the client flow
+- [Storage Documentation][ref-doc-storage] - Stored uploads, signed direct uploads, and the client flow
 - [Email Documentation][ref-doc-email] - SES templates and sync
 - [Notification Documentation][ref-doc-notification] - Push and email delivery
 - [Queue Documentation][ref-doc-queue] - BullMQ workers that call these services
@@ -44,7 +44,7 @@ Third-party clients are configured through environment variables. Each section b
 
 ## Object Storage
 
-[`@nestjs/storage`][ref-nestjs-storage] backs the `storage` kit in `src/common/storage`. The kit registers two named disks, `public` and `private`, and features call `ObjectStorageService` for every storage operation. Upload and delivery flows: [File Upload][ref-doc-file-upload].
+[`@nestjs/storage`][ref-nestjs-storage] backs the `storage` kit in `src/common/storage`. The kit registers two named disks, `public` and `private`, and features call `ObjectStorageService` for every storage operation. Upload and delivery flows: [Storage][ref-doc-storage].
 
 **Packages:**
 - `@nestjs/storage` (local, S3, and in-memory disks; S3 requests are SigV4-signed `fetch` calls)
@@ -382,7 +382,7 @@ For authentication flow details, see [Authentication][ref-doc-authentication].
 [ref-doc-configuration]: configuration.md
 [ref-doc-environment]: environment.md
 [ref-doc-authentication]: authentication.md
-[ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 [ref-doc-email]: email.md
 [ref-doc-queue]: queue.md
 [ref-doc-cache]: cache.md

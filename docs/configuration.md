@@ -306,7 +306,7 @@ ses: {
 **File**: `src/configs/storage.config.ts`
 **Interface**: `IConfigStorage`
 
-`StorageDiskFactory` reads this config to build the two named disks, `public` and `private`. Startup validation (`AppEnvSchema`) rejects a driver whose own variables are incomplete; the variables of the other driver are ignored. Env var details: [Environment Documentation][ref-doc-environment]. Flow: [File Upload Documentation][ref-doc-file-upload].
+`StorageDiskFactory` reads this config to build the two named disks, `public` and `private`. Startup validation (`AppEnvSchema`) rejects a driver whose own variables are incomplete; the variables of the other driver are ignored. Env var details: [Environment Documentation][ref-doc-environment]. Flow: [Storage Documentation][ref-doc-storage].
 
 #### Configuration Keys:
 
@@ -1096,5 +1096,5 @@ cache: {
 [ref-doc-environment]: environment.md
 [ref-doc-database]: database.md
 [ref-doc-cache]: cache.md
-[ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 

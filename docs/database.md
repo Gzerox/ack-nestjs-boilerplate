@@ -13,7 +13,7 @@ Prisma + PostgreSQL, transactions, seeds, and the Database Module.
 - [Configuration Documentation][ref-doc-configuration] - Config module structure
 - [Email Documentation][ref-doc-email] - SES templates and `templateEmailNotification`
 - [Term Policy Documentation][ref-doc-term-policy] - Term policy rows and `templateTermPolicy`
-- [File Upload Documentation][ref-doc-file-upload] - Stored asset columns and how storage writes pair with database writes
+- [Storage Documentation][ref-doc-storage] - Stored asset columns and how storage writes pair with database writes
 
 ## Table of Contents
 
@@ -323,7 +323,7 @@ Two shapes that would be composite types on a document database are, on PostgreS
 - **Term policy acceptance flags** live directly on `User` as `termsOfServiceAccepted`, `privacyAccepted`, `cookiesAccepted`, and `marketingAccepted` (each `Boolean`), rather than as a nested object.
 - **`UserPhoto`** is its own table (`user_photos`), related to `User` one-to-one through `userId`. It carries `key`, `visibility` (`EnumStorageVisibility`), `contentType`, `size` (`BigInt`), and `etag` (nullable) for the user's profile photo in object storage.
 - **`TermPolicyContent`** is its own table (`term_policy_contents`), related to `TermPolicy` through `termPolicyId`. It carries `language`, `key`, `visibility`, `contentType`, `size` (`BigInt`), and `etag` (nullable) for a localized content file in object storage, unique per `(termPolicyId, language)`.
-- A stored-asset row holds the logical identity only. A bucket, an endpoint, or a URL never reaches the database; the URL is resolved per response ([File Upload][ref-doc-file-upload]).
+- A stored-asset row holds the logical identity only. A bucket, an endpoint, or a URL never reaches the database; the URL is resolved per response ([Storage][ref-doc-storage]).
 
 
 ## Audit Fields and Soft Delete
@@ -458,5 +458,5 @@ This boilerplate uses **PostgreSQL** (`provider = "postgresql"`). UUID primary k
 [ref-doc-security-and-middleware]: security-and-middleware.md
 [ref-doc-activity-log]: activity-log.md
 [ref-doc-email]: email.md
-[ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 [ref-doc-term-policy]: term-policy.md#migration--seeding

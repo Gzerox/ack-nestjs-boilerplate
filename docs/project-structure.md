@@ -71,7 +71,7 @@ The App Module is the root module. It:
 CommonModule registers shared infrastructure and the global feature modules. Its `imports` array holds three groups, in this order:
 
 - **Infrastructure:** `ConfigModule` (loading `src/configs/index.ts`), `MessageModule`, `LoggerModule`, `SentryModule` (which exports `SentryService`), `RedisCacheModule`, `QueueModule` (the BullMQ producer and processor connections), `CacheMainModule`, `DatabaseModule`, `RequestModule`, and `ResponseModule`
-- **Shared utilities:** `HelperModule`, `PaginationModule`, `FileModule`, `StorageMainModule` (the `public` and `private` storage disks and `ObjectStorageService`; see [File Upload](file-upload.md#object-storage)), and `FirebaseModule`
+- **Shared utilities:** `HelperModule`, `PaginationModule`, `FileModule`, `StorageMainModule` (the `public` and `private` storage disks and `ObjectStorageService`; see [Storage](storage.md)), and `FirebaseModule`
 - **The `@Global()` feature domains:** `ActivityLogDomainModule`, `ApiKeyDomainModule`, `AuthDomainModule`, `FeatureFlagDomainModule`, `RoleDomainModule`, `PolicyDomainModule`, `TermPolicyDomainModule`, `SessionDomainModule`, and `NotificationDomainModule`
 
 ## Configs

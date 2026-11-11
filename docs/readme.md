@@ -85,10 +85,11 @@ Install and configure the project.
 25. [Activity Log][ref-doc-activity-log]; Recording user activities staged by domains and flushed by `ActivityLogInterceptor`
 26. [Analytic][ref-doc-analytic]; Live admin dashboard metrics, anomaly and fraud reports, current-workspace user metrics
 27. [Term Policy][ref-doc-term-policy]; Legal agreements, versioning, and user consent enforcement
-28. [File Upload][ref-doc-file-upload]; Multipart uploads, CSV processing, object storage, signed uploads and downloads
-29. [Third Party Integration][ref-doc-third-party-integration]; Object storage (S3, R2, bucket setup), AWS SES, Firebase, Sentry, no-op mode
-30. [Doc][ref-doc-doc]; Swagger/OpenAPI co-located on `@Doc`, `@Response*` / `FileUpload*`, and `*Protected` kits
-31. [Vault][ref-doc-vault]; Optional secret management via HashiCorp Vault
+28. [File Upload][ref-doc-file-upload]; Multipart uploads, file pipes, CSV processing
+29. [Storage][ref-doc-storage]; Object storage disks, stored and signed uploads, signed downloads
+30. [Third Party Integration][ref-doc-third-party-integration]; Object storage (S3, R2, bucket setup), AWS SES, Firebase, Sentry, no-op mode
+31. [Doc][ref-doc-doc]; Swagger/OpenAPI co-located on `@Doc`, `@Response*` / `FileUpload*`, and `*Protected` kits
+32. [Vault][ref-doc-vault]; Optional secret management via HashiCorp Vault
 
 
 
@@ -120,6 +121,7 @@ Install and configure the project.
 [ref-doc-analytic]: analytic.md
 [ref-doc-term-policy]: term-policy.md
 [ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 [ref-doc-third-party-integration]: third-party-integration.md
 [ref-doc-doc]: doc.md
 [ref-doc-vault]: vault.md

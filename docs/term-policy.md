@@ -9,7 +9,7 @@ Term Policy stores versioned legal documents (terms of service, privacy policy, 
 - [Database Documentation][ref-doc-database] - Migration, seeding, and schema
 - [Authorization Documentation][ref-doc-authorization] - Admin RBAC on term-policy routes
 - [Authentication Documentation][ref-doc-authentication] - JWT and session context
-- [File Upload Documentation][ref-doc-file-upload] - Signed content upload, verification, and signed download
+- [Storage Documentation][ref-doc-storage] - Signed content upload, verification, and signed download
 - [Analytic Documentation][ref-doc-analytic] - Admin acceptance-rate and time-to-accept metrics under `/admin/analytic/term-policies/*`
 - [Email Documentation][ref-doc-email] - SES templates for policy publication (not the HTML bodies)
 
@@ -449,7 +449,7 @@ Special thanks to [Gzerox][ref-contributor-gzerox] for contributing to the Term 
 [ref-doc-database]: database.md
 [ref-doc-authorization]: authorization.md
 [ref-doc-authentication]: authentication.md
-[ref-doc-file-upload]: file-upload.md#term-policy-content
+[ref-doc-storage]: storage.md#term-policy-content
 [ref-doc-analytic]: analytic.md
 [ref-doc-email]: email.md
 

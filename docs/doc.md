@@ -33,6 +33,7 @@ The kit in `src/common/doc/` is in the coverage set.
 - [Authorization Documentation][ref-doc-authorization] - Guard and protection kits
 - [Pagination Documentation][ref-doc-pagination] - Offset and cursor list contracts
 - [File Upload Documentation][ref-doc-file-upload] - Multipart upload decorators
+- [Storage Documentation][ref-doc-storage] - Stored and signed uploads
 
 ## Table of Contents
 
@@ -421,7 +422,7 @@ async uploadPhotoProfile(
 }
 ```
 
-`StorageUploadSingle` publishes multipart consumes, the binary body field named by `fieldName`, and the upload error kit. Flow: [File Upload Documentation][ref-doc-file-upload]. `@Response` publishes the success envelope.
+`StorageUploadSingle` publishes multipart consumes, the binary body field named by `fieldName`, and the upload error kit. Flow: [Storage Documentation][ref-doc-storage]. `@Response` publishes the success envelope.
 
 See the [NestJS OpenAPI documentation][ref-nestjs-swagger].
 
@@ -437,3 +438,4 @@ See the [NestJS OpenAPI documentation][ref-nestjs-swagger].
 [ref-doc-authorization]: authorization.md
 [ref-doc-pagination]: pagination.md
 [ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md

@@ -2,7 +2,7 @@
 
 `FileService` and the file pipes are the shared kit in `src/common/file/`; `ObjectStorageService`
 and the stored-upload decorators are the shared kit in `src/common/storage/`. A feature never
-re-implements either. Flow narrative: `docs/file-upload.md` — explorer or planner.
+re-implements either. Flow narrative: `docs/file-upload.md` (parsing, pipes, CSV) and `docs/storage.md` (disks, signed uploads) — explorer or planner.
 
 ## Upload validation is a pipe, never inline
 

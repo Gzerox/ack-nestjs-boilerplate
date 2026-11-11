@@ -14,7 +14,7 @@ Runtime config is environment variables. `AppEnvSchema` validates them at startu
 - [Authentication Documentation][ref-doc-authentication] - JWT and OAuth
 - [Vault Documentation][ref-doc-vault] - Optional secret sync into `.env`
 - [Email Documentation][ref-doc-email] - SES templates
-- [File Upload Documentation][ref-doc-file-upload] - Object storage, signed uploads, bucket setup
+- [Storage Documentation][ref-doc-storage] - Object storage, signed uploads, bucket setup
 
 ## Table of Contents
 
@@ -497,7 +497,7 @@ AUTH_TWO_FACTOR_ENCRYPTION_KEY=<your_two_factor_encryption_key>
 
 ### Storage Settings
 
-`STORAGE_DRIVER` picks the implementation behind the two named disks, `public` and `private`. Either driver runs in any environment. Startup validation checks only the variables of the selected driver and fails when one of them is missing. Behaviour and bucket setup: [File Upload Documentation][ref-doc-file-upload].
+`STORAGE_DRIVER` picks the implementation behind the two named disks, `public` and `private`. Either driver runs in any environment. Startup validation checks only the variables of the selected driver and fails when one of them is missing. Behaviour and bucket setup: [Storage Documentation][ref-doc-storage].
 
 **`STORAGE_DRIVER`** *(optional, default `local`)*  
 `local` keeps objects on the API host's filesystem and serves them through the API. `s3` uses AWS S3 or an S3-compatible provider such as Cloudflare R2.
@@ -679,5 +679,5 @@ SENTRY_DSN=
 [ref-doc-two-factor]: two-factor.md
 [ref-doc-vault]: vault.md
 [ref-doc-email]: email.md
-[ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 [ref-elasticache]: https://aws.amazon.com/elasticache/

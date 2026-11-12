@@ -93,7 +93,11 @@ export class TermPolicyDomain {
 
         if (failures.length > 0) {
             const written = settled.map(toAsset);
-            await this.termPolicyContentDomain.deleteObjectsQuietly(written);
+            await Promise.all(
+                written.map(asset =>
+                    this.objectStorageService.deleteQuietly(asset)
+                )
+            );
 
             throw failures[0];
         }
@@ -178,8 +182,10 @@ export class TermPolicyDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.termPolicyContentDomain.deleteObjectsQuietly(
-                mappedContents
+            await Promise.all(
+                mappedContents.map(content =>
+                    this.objectStorageService.deleteQuietly(content)
+                )
             );
 
             const exception = this.wrapError(err);

@@ -26,7 +26,7 @@ describe('TermPolicyUtil', () => {
 
     beforeEach(async () => {
         const config: Record<string, string> = {
-            'termPolicy.draftPrefixPattern': 'term-policies/{type}/v{version}/',
+            'termPolicy.prefixPattern': 'term-policies/{type}/v{version}/',
             'termPolicy.contentScopePrefixPattern':
                 'term-policies/{type}/v{version}/{language}/',
         };

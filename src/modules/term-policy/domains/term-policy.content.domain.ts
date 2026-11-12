@@ -2,7 +2,6 @@ import { AppBaseException } from '@app/exceptions/app.base.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
-import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
 import type {
     IStorageSignedUpload,
     IStoredAssetReference,
@@ -25,7 +24,7 @@ import type {
 } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
     EnumActivityLogAction,
@@ -36,8 +35,6 @@ import type { TermPolicy } from '@generated/prisma-client/client';
 
 @Injectable()
 export class TermPolicyContentDomain {
-    private readonly logger = new Logger(TermPolicyContentDomain.name);
-
     private readonly contentMaxSizeInBytes: number;
 
     constructor(
@@ -81,30 +78,12 @@ export class TermPolicyContentDomain {
         return termPolicy;
     }
 
-    private async deleteQuietly({
-        key,
-        visibility,
-    }: IStoredAssetReference): Promise<void> {
-        try {
-            await this.objectStorageService.delete({ key, visibility });
-        } catch (error: unknown) {
-            this.logger.error(
-                error,
-                `Failed to delete ${visibility} term policy content object ${key}`
-            );
-        }
-    }
-
     private wrapError(err: unknown): AppBaseException {
         if (err instanceof AppBaseException) {
             return err;
         }
 
         return new AppUnknownException(err);
-    }
-
-    async deleteObjectsQuietly(assets: IStoredAssetReference[]): Promise<void> {
-        await Promise.all(assets.map(asset => this.deleteQuietly(asset)));
     }
 
     async verifyContent(
@@ -116,13 +95,13 @@ export class TermPolicyContentDomain {
             version,
             language
         );
-        const staged = await this.objectStorageService.verifyUpload(key, {
+        const verified = await this.objectStorageService.verifyUpload(key, {
             scopePrefix,
             maxSizeInBytes: this.contentMaxSizeInBytes,
             contentTypes: [TermPolicyContentType],
             detect: head => this.termPolicyUtil.detectTemplateContentType(head),
         });
-        return { ...staged, language };
+        return { ...verified, language };
     }
 
     async generateContentPresignByAdmin({
@@ -138,8 +117,6 @@ export class TermPolicyContentDomain {
             );
         if (status === EnumTermPolicyStatus.published) {
             throw new TermPolicyStatusInvalidException();
-        } else if (size < 1) {
-            throw new StorageSizeInvalidException();
         } else if (size > this.contentMaxSizeInBytes) {
             throw new TermPolicyContentSizeExceededException();
         }
@@ -188,14 +165,14 @@ export class TermPolicyContentDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.deleteQuietly(content);
+            await this.objectStorageService.deleteQuietly(content);
 
             const exception = this.wrapError(err);
             throw exception;
         }
 
         if (existingContent.key !== content.key) {
-            await this.deleteQuietly(existingContent);
+            await this.objectStorageService.deleteQuietly(existingContent);
         }
     }
 
@@ -228,7 +205,7 @@ export class TermPolicyContentDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.deleteQuietly(content);
+            await this.objectStorageService.deleteQuietly(content);
 
             const exception = this.wrapError(err);
             throw exception;
@@ -268,7 +245,7 @@ export class TermPolicyContentDomain {
             throw exception;
         }
 
-        await this.deleteQuietly(existingContent);
+        await this.objectStorageService.deleteQuietly(existingContent);
     }
 
     async getContentByAdmin(

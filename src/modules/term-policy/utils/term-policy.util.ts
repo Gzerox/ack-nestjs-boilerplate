@@ -15,7 +15,7 @@ import type {
 
 @Injectable()
 export class TermPolicyUtil {
-    private readonly draftPrefixPattern: string;
+    private readonly prefixPattern: string;
     private readonly contentScopePrefixPattern: string;
 
     constructor(
@@ -23,8 +23,8 @@ export class TermPolicyUtil {
         private readonly helperArrayService: HelperArrayService,
         private readonly helperStringService: HelperStringService
     ) {
-        this.draftPrefixPattern = this.configService.get<string>(
-            'termPolicy.draftPrefixPattern'
+        this.prefixPattern = this.configService.get<string>(
+            'termPolicy.prefixPattern'
         )!;
         this.contentScopePrefixPattern = this.configService.get<string>(
             'termPolicy.contentScopePrefixPattern'
@@ -41,7 +41,7 @@ export class TermPolicyUtil {
         type,
         version,
     }: Pick<TermPolicy, 'type' | 'version'>): string {
-        return this.helperStringService.fillPattern(this.draftPrefixPattern, {
+        return this.helperStringService.fillPattern(this.prefixPattern, {
             type,
             version: version.toString(),
         });

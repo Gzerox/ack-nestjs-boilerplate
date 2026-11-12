@@ -13,11 +13,12 @@ import {
     getDiskToken,
 } from '@nestjs/storage';
 import type { StoredUpload } from '@nestjs/storage';
-import { UnsupportedMediaTypeException } from '@nestjs/common';
+import { Logger, UnsupportedMediaTypeException } from '@nestjs/common';
 import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import type { UserPhoto } from '@generated/prisma-client/client';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
@@ -72,7 +73,7 @@ describe('ObjectStorageService', () => {
         maxSizeInBytes: 1024,
         contentTypes: ['image/png', 'image/jpeg'],
     };
-    const stagedKey = 'users/user-1/profile/upload-1.png';
+    const verifiedKey = 'users/user-1/profile/upload-1.png';
 
     beforeAll(() => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -123,6 +124,7 @@ describe('ObjectStorageService', () => {
                 { provide: ConfigService, useValue: configService },
                 { provide: DatabaseUtil, useValue: databaseUtil },
                 { provide: StorageErrorUtil, useValue: storageErrorUtil },
+                StorageContentTypeUtil,
                 { provide: HelperDateService, useValue: helperDateService },
             ],
         }).compile();
@@ -295,6 +297,22 @@ describe('ObjectStorageService', () => {
             }
         );
 
+        it.each([0, -1])(
+            'throws StorageSizeInvalidException for a declared size of %s without signing',
+            async size => {
+                const sign = vi.spyOn(publicDisk, 'signedUpload');
+
+                await expect(
+                    service.createSignedUpload('users/user-1/profile/', {
+                        contentType: 'image/png',
+                        size,
+                    })
+                ).rejects.toBeInstanceOf(StorageSizeInvalidException);
+                expect(sign).not.toHaveBeenCalled();
+                expect(databaseUtil.createId).not.toHaveBeenCalled();
+            }
+        );
+
         it('translates a package failure', async () => {
             const exception = new StorageServiceUnavailableException();
             storageErrorUtil.translate.mockReturnValue(exception);
@@ -364,15 +382,15 @@ describe('ObjectStorageService', () => {
     });
 
     describe('verifyUpload', () => {
-        it('returns the size, detected content type and etag of an allowed staged object', async () => {
-            const written = await publicDisk.put(stagedKey, pngBytes, {
+        it('returns the size, detected content type and etag of an allowed uploaded object', async () => {
+            const written = await publicDisk.put(verifiedKey, pngBytes, {
                 contentType: 'image/jpeg',
             });
 
-            const result = await service.verifyUpload(stagedKey, photoRules);
+            const result = await service.verifyUpload(verifiedKey, photoRules);
 
             expect(result).toEqual({
-                key: stagedKey,
+                key: verifiedKey,
                 visibility: EnumStorageVisibility.public,
                 contentType: 'image/png',
                 size: pngBytes.length,
@@ -404,12 +422,12 @@ describe('ObjectStorageService', () => {
             }
         );
 
-        it('throws the translated not-found exception when the staged object is missing', async () => {
+        it('throws the translated not-found exception when the uploaded object is missing', async () => {
             const exception = new StorageObjectNotFoundException();
             storageErrorUtil.translate.mockReturnValue(exception);
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toBe(exception);
             expect(storageErrorUtil.translate).toHaveBeenCalledWith(
                 expect.any(StorageFileNotFoundError)
@@ -418,32 +436,32 @@ describe('ObjectStorageService', () => {
 
         it('throws StorageSizeInvalidException and deletes an object over the maximum size', async () => {
             await publicDisk.put(
-                stagedKey,
+                verifiedKey,
                 Buffer.concat([pngBytes, Buffer.alloc(2048)])
             );
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageSizeInvalidException);
             expect(publicDisk.keys()).toEqual([]);
         });
 
         it('throws StorageSizeInvalidException and deletes an empty object', async () => {
-            await publicDisk.put(stagedKey, Buffer.alloc(0));
+            await publicDisk.put(verifiedKey, Buffer.alloc(0));
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageSizeInvalidException);
             expect(publicDisk.keys()).toEqual([]);
         });
 
         it('throws StorageContentTypeInvalidException and deletes an object whose bytes are not an allowed type', async () => {
-            await publicDisk.put(stagedKey, '<html>not an image</html>', {
+            await publicDisk.put(verifiedKey, '<html>not an image</html>', {
                 contentType: 'image/png',
             });
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toMatchObject({
                 statusCode: EnumStorageStatusCodeError.contentTypeInvalid,
                 messagePath: 'storage.error.contentTypeInvalid',
@@ -452,7 +470,7 @@ describe('ObjectStorageService', () => {
         });
 
         it('still throws the rejection when deleting the rejected object fails', async () => {
-            await publicDisk.put(stagedKey, '<html>not an image</html>');
+            await publicDisk.put(verifiedKey, '<html>not an image</html>');
             vi.spyOn(publicDisk, 'delete').mockRejectedValue(
                 new StorageServiceError({
                     operation: 'delete',
@@ -461,27 +479,27 @@ describe('ObjectStorageService', () => {
             );
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toBeInstanceOf(StorageContentTypeInvalidException);
         });
 
         it('returns a null etag when the disk reports none', async () => {
-            await publicDisk.put(stagedKey, pngBytes);
+            await publicDisk.put(verifiedKey, pngBytes);
             vi.spyOn(publicDisk, 'stat').mockResolvedValue({
-                key: stagedKey,
+                key: verifiedKey,
                 size: pngBytes.length,
                 contentType: 'image/png',
                 lastModified: now,
                 metadata: {},
             });
 
-            const result = await service.verifyUpload(stagedKey, photoRules);
+            const result = await service.verifyUpload(verifiedKey, photoRules);
 
             expect(result.etag).toBeNull();
         });
 
         it('throws the translated exception when reading the first bytes fails', async () => {
-            await publicDisk.put(stagedKey, pngBytes);
+            await publicDisk.put(verifiedKey, pngBytes);
             const exception = new StorageServiceUnavailableException();
             storageErrorUtil.translate.mockReturnValue(exception);
             const error = new StorageServiceError({
@@ -491,9 +509,61 @@ describe('ObjectStorageService', () => {
             vi.spyOn(publicDisk, 'get').mockRejectedValue(error);
 
             await expect(
-                service.verifyUpload(stagedKey, photoRules)
+                service.verifyUpload(verifiedKey, photoRules)
             ).rejects.toBe(exception);
             expect(storageErrorUtil.translate).toHaveBeenCalledWith(error);
+        });
+
+        it('accepts a jpeg object whose key carries the jpg extension', async () => {
+            const jpegBytes = Buffer.concat([
+                Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
+                Buffer.from([0x4a, 0x46, 0x49, 0x46]),
+                Buffer.alloc(48, 1),
+            ]);
+            const jpgKey = 'users/user-1/profile/upload-1.jpg';
+            await publicDisk.put(jpgKey, jpegBytes);
+
+            const result = await service.verifyUpload(jpgKey, photoRules);
+
+            expect(result.contentType).toBe('image/jpeg');
+        });
+
+        it('throws StorageContentTypeInvalidException, warns and deletes an object whose bytes differ from the type its key extension implies', async () => {
+            const warn = vi
+                .spyOn(Logger.prototype, 'warn')
+                .mockImplementation(() => undefined);
+            const mismatchKey = 'users/user-1/profile/upload-1.jpeg';
+            await publicDisk.put(mismatchKey, pngBytes);
+
+            await expect(
+                service.verifyUpload(mismatchKey, photoRules)
+            ).rejects.toMatchObject({
+                statusCode: EnumStorageStatusCodeError.contentTypeInvalid,
+                messagePath: 'storage.error.contentTypeInvalid',
+            });
+            expect(publicDisk.keys()).toEqual([]);
+            expect(warn).toHaveBeenCalledWith(
+                `Rejected upload ${mismatchKey}: invalid content type`
+            );
+        });
+
+        it('skips the extension comparison when the key extension has no mapping', async () => {
+            const unmappedKey = 'users/user-1/profile/upload-1.unmapped';
+            await publicDisk.put(unmappedKey, pngBytes);
+
+            const result = await service.verifyUpload(unmappedKey, photoRules);
+
+            expect(result.contentType).toBe('image/png');
+            expect(publicDisk.keys()).toEqual([unmappedKey]);
+        });
+
+        it('skips the extension comparison when the key has no extension', async () => {
+            const bareKey = 'users/user-1/profile/upload-1';
+            await publicDisk.put(bareKey, pngBytes);
+
+            const result = await service.verifyUpload(bareKey, photoRules);
+
+            expect(result.contentType).toBe('image/png');
         });
 
         it('accepts a signature-less format through the feature detector', async () => {
@@ -737,6 +807,42 @@ describe('ObjectStorageService', () => {
                     visibility: EnumStorageVisibility.public,
                 })
             ).rejects.toBe(exception);
+        });
+    });
+
+    describe('deleteQuietly', () => {
+        it('removes the object from the disk named by its visibility', async () => {
+            await privateDisk.put('users/user-1/doc.pdf', 'content');
+
+            await service.deleteQuietly({
+                key: 'users/user-1/doc.pdf',
+                visibility: EnumStorageVisibility.private,
+            });
+
+            expect(privateDisk.keys()).toEqual([]);
+        });
+
+        it('logs the key and visibility and resolves when the disk fails', async () => {
+            const error = new StorageServiceError({
+                operation: 'delete',
+                code: 'Timeout',
+            });
+            vi.spyOn(publicDisk, 'delete').mockRejectedValue(error);
+            const logError = vi
+                .spyOn(Logger.prototype, 'error')
+                .mockImplementation(() => undefined);
+
+            await expect(
+                service.deleteQuietly({
+                    key: 'users/user-1/profile/photo.png',
+                    visibility: EnumStorageVisibility.public,
+                })
+            ).resolves.toBeUndefined();
+            expect(logError).toHaveBeenCalledWith(
+                error,
+                'Failed to delete public storage object users/user-1/profile/photo.png'
+            );
+            expect(storageErrorUtil.translate).not.toHaveBeenCalled();
         });
     });
 

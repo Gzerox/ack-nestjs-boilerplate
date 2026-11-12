@@ -4,6 +4,7 @@ import { StorageModule } from '@nestjs/storage';
 import { StorageDiskFactory } from '@common/storage/factories/storage.disk.factory';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
 import { StorageLocalDriverGuard } from '@common/storage/guards/storage.local-driver.guard';
 import { StorageLocalController } from '@common/storage/controllers/storage.local.controller';
 
@@ -27,9 +28,14 @@ export class StorageMainModule {
             providers: [
                 ObjectStorageService,
                 StorageErrorUtil,
+                StorageContentTypeUtil,
                 StorageLocalDriverGuard,
             ],
-            exports: [ObjectStorageService, StorageErrorUtil],
+            exports: [
+                ObjectStorageService,
+                StorageErrorUtil,
+                StorageContentTypeUtil,
+            ],
         };
     }
 }

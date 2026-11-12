@@ -16,6 +16,7 @@ import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
 import {
     StorageContentTypeSampleBytes,
     StorageDeleteBatchSize,
@@ -40,6 +41,7 @@ import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.k
 import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import { StorageServiceUnavailableException } from '@common/storage/exceptions/storage.service-unavailable.exception';
+import { AppBaseException } from '@app/exceptions/app.base.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 
 /**
@@ -62,6 +64,7 @@ export class ObjectStorageService {
         private readonly configService: ConfigService,
         private readonly databaseUtil: DatabaseUtil,
         private readonly storageErrorUtil: StorageErrorUtil,
+        private readonly storageContentTypeUtil: StorageContentTypeUtil,
         private readonly helperDateService: HelperDateService
     ) {
         this.signedUploadExpiresInMs = this.configService.get<number>(
@@ -116,20 +119,19 @@ export class ObjectStorageService {
         return contentType.split(';')[0].trim().toLowerCase();
     }
 
-    private async deleteQuietly(
-        visibility: EnumStorageVisibility,
-        key: string
-    ): Promise<void> {
-        const disk = this.diskOf(visibility);
+    /** Logs the rejection, removes the rejected object and returns the exception for the caller to throw. */
+    private async reject(
+        key: string,
+        reason: string,
+        exception: AppBaseException
+    ): Promise<AppBaseException> {
+        this.logger.warn(`Rejected upload ${key}: ${reason}`);
+        await this.deleteQuietly({
+            key,
+            visibility: EnumStorageVisibility.public,
+        });
 
-        try {
-            await disk.delete(key);
-        } catch (error: unknown) {
-            this.logger.error(
-                error,
-                `Failed to delete ${visibility} storage object ${key}`
-            );
-        }
+        return exception;
     }
 
     private async readHead(key: string, size: number): Promise<Buffer> {
@@ -184,6 +186,10 @@ export class ObjectStorageService {
         scopePrefix: string,
         { contentType, size }: IStorageSignedUploadOptions
     ): Promise<IStorageSignedUpload> {
+        if (size < 1) {
+            throw new StorageSizeInvalidException();
+        }
+
         const validScope = this.isValidScope(scopePrefix);
         if (!validScope) {
             throw new StorageKeyInvalidException();
@@ -254,10 +260,12 @@ export class ObjectStorageService {
         }
 
         if (stat.size === 0 || stat.size > maxSizeInBytes) {
-            this.logger.warn(`Rejected upload ${key}: invalid size`);
-            await this.deleteQuietly(EnumStorageVisibility.public, key);
-
-            throw new StorageSizeInvalidException();
+            const exception = await this.reject(
+                key,
+                'invalid size',
+                new StorageSizeInvalidException()
+            );
+            throw exception;
         }
 
         let head: Buffer;
@@ -278,13 +286,20 @@ export class ObjectStorageService {
         if (contentType) {
             const essence = this.contentTypeEssence(contentType);
             accepted = allowed.includes(essence);
+
+            const implied = this.storageContentTypeUtil.fromKey(key);
+            if (accepted && implied) {
+                accepted = this.contentTypeEssence(implied) === essence;
+            }
         }
 
         if (!contentType || !accepted) {
-            this.logger.warn(`Rejected upload ${key}: invalid content type`);
-            await this.deleteQuietly(EnumStorageVisibility.public, key);
-
-            throw new StorageContentTypeInvalidException();
+            const exception = await this.reject(
+                key,
+                'invalid content type',
+                new StorageContentTypeInvalidException()
+            );
+            throw exception;
         }
 
         return {
@@ -322,7 +337,7 @@ export class ObjectStorageService {
                 etag: written.etag ?? null,
             };
         } catch (error: unknown) {
-            await this.deleteQuietly(target.visibility, key);
+            await this.deleteQuietly({ key, visibility: target.visibility });
 
             const exception = this.storageErrorUtil.translate(error);
             throw exception;
@@ -359,6 +374,22 @@ export class ObjectStorageService {
         } catch (error: unknown) {
             const exception = this.storageErrorUtil.translate(error);
             throw exception;
+        }
+    }
+
+    async deleteQuietly({
+        key,
+        visibility,
+    }: IStoredAssetReference): Promise<void> {
+        const disk = this.diskOf(visibility);
+
+        try {
+            await disk.delete(key);
+        } catch (error: unknown) {
+            this.logger.error(
+                error,
+                `Failed to delete ${visibility} storage object ${key}`
+            );
         }
     }
 

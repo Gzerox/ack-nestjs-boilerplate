@@ -8,7 +8,6 @@ import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
 import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.key-invalid.exception';
 import { StorageObjectNotFoundException } from '@common/storage/exceptions/storage.object-not-found.exception';
@@ -54,7 +53,7 @@ describe('TermPolicyContentDomain', () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
     const maxSizeInBytes = 4096;
     const scopePrefix = 'term-policies/privacy/v1/en/';
-    const stagedKey = 'term-policies/privacy/v1/en/upload.hbs';
+    const verifiedKey = 'term-policies/privacy/v1/en/upload.hbs';
     const preparedEvent: IActivityLogStagedEvent = {
         action: EnumActivityLogAction.adminTermPolicyAddContent,
         metadata: {},
@@ -83,12 +82,12 @@ describe('TermPolicyContentDomain', () => {
         contents: [existingContent],
     };
     const emptyDraft: ITermPolicy = { ...draft, contents: [] };
-    const staged: IStoredAsset = {
-        key: stagedKey,
+    const verified: IStoredAsset = {
+        key: verifiedKey,
         visibility: EnumStorageVisibility.public,
         contentType: TermPolicyContentType,
         size: 200,
-        etag: '"staged"',
+        etag: '"verified"',
     };
 
     let service: TermPolicyContentDomain;
@@ -114,8 +113,8 @@ describe('TermPolicyContentDomain', () => {
             'privacy-v1-en.hbs'
         );
         termPolicyRepository.findOneById.mockResolvedValue(draft);
-        objectStorageService.verifyUpload.mockResolvedValue(staged);
-        objectStorageService.delete.mockResolvedValue();
+        objectStorageService.verifyUpload.mockResolvedValue(verified);
+        objectStorageService.deleteQuietly.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -147,7 +146,7 @@ describe('TermPolicyContentDomain', () => {
 
         it('creates a private signed upload scoped to the policy language with the template content type', async () => {
             const signedUpload: IStorageSignedUpload = {
-                key: stagedKey,
+                key: verifiedKey,
                 url: 'https://storage.example.com/upload?signature=abc',
                 method: 'PUT',
                 headers: { 'content-type': TermPolicyContentType },
@@ -202,23 +201,6 @@ describe('TermPolicyContentDomain', () => {
             ).not.toHaveBeenCalled();
         });
 
-        it('throws StorageSizeInvalidException without signing for an empty size', async () => {
-            termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
-                null
-            );
-
-            await expect(
-                service.generateContentPresignByAdmin({ ...presign, size: 0 })
-            ).rejects.toMatchObject({
-                module: 'storage',
-                statusCode: EnumStorageStatusCodeError.sizeInvalid,
-                messagePath: 'storage.error.sizeInvalid',
-            });
-            expect(
-                objectStorageService.createSignedUpload
-            ).not.toHaveBeenCalled();
-        });
-
         it('throws TermPolicyContentSizeExceededException without signing above the configured content maximum', async () => {
             termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
                 null
@@ -246,12 +228,12 @@ describe('TermPolicyContentDomain', () => {
     });
 
     describe('verifyContent', () => {
-        it('verifies the staged key against the policy language scope, the content maximum and the template detector', async () => {
+        it('verifies the uploaded key against the policy language scope, the content maximum and the template detector', async () => {
             let rules: IStorageVerifyRules | undefined;
             objectStorageService.verifyUpload.mockImplementation(
                 async (_key, verifyRules) => {
                     rules = verifyRules;
-                    return staged;
+                    return verified;
                 }
             );
             termPolicyUtil.detectTemplateContentType.mockReturnValue(
@@ -260,11 +242,11 @@ describe('TermPolicyContentDomain', () => {
 
             const result = await service.verifyContent(draft, {
                 language: EnumMessageLanguage.en,
-                key: stagedKey,
+                key: verifiedKey,
             });
 
             expect(objectStorageService.verifyUpload).toHaveBeenCalledWith(
-                stagedKey,
+                verifiedKey,
                 expect.objectContaining({
                     scopePrefix,
                     maxSizeInBytes,
@@ -277,37 +259,14 @@ describe('TermPolicyContentDomain', () => {
                 termPolicyUtil.detectTemplateContentType
             ).toHaveBeenCalledWith(head);
             expect(result).toEqual({
-                ...staged,
+                ...verified,
                 language: EnumMessageLanguage.en,
             });
         });
     });
 
-    describe('deleteObjectsQuietly', () => {
-        it('deletes every object by its key and visibility', async () => {
-            await service.deleteObjectsQuietly([staged, existingContent]);
-
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: staged.key,
-                visibility: staged.visibility,
-            });
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: existingContent.key,
-                visibility: existingContent.visibility,
-            });
-        });
-
-        it('resolves when a delete fails', async () => {
-            objectStorageService.delete.mockRejectedValue(new Error('down'));
-
-            await expect(
-                service.deleteObjectsQuietly([staged])
-            ).resolves.toBeUndefined();
-        });
-    });
-
     describe('addContentByAdmin', () => {
-        const upload = { language: EnumMessageLanguage.en, key: stagedKey };
+        const upload = { language: EnumMessageLanguage.en, key: verifiedKey };
 
         beforeEach(() => {
             termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
@@ -348,12 +307,12 @@ describe('TermPolicyContentDomain', () => {
 
         it.each([
             ['a foreign or traversal key', new StorageKeyInvalidException()],
-            ['a missing staged object', new StorageObjectNotFoundException()],
+            ['a missing uploaded object', new StorageObjectNotFoundException()],
             [
-                'a staged object that is not a template',
+                'an uploaded object that is not a template',
                 new StorageContentTypeInvalidException(),
             ],
-            ['an oversize staged object', new StorageSizeInvalidException()],
+            ['an oversize uploaded object', new StorageSizeInvalidException()],
         ])(
             'rejects %s with no promotion and no database write',
             async (_case, exception) => {
@@ -372,15 +331,17 @@ describe('TermPolicyContentDomain', () => {
                 callOrder.push('add');
                 return draft;
             });
-            objectStorageService.delete.mockImplementation(async ({ key }) => {
-                callOrder.push(`delete:${key}`);
-            });
+            objectStorageService.deleteQuietly.mockImplementation(
+                async ({ key }) => {
+                    callOrder.push(`delete:${key}`);
+                }
+            );
 
             await service.addContentByAdmin('term-id', upload);
 
             expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
                 'term-id',
-                { ...staged, language: EnumMessageLanguage.en }
+                { ...verified, language: EnumMessageLanguage.en }
             );
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.adminTermPolicyAddContent,
@@ -398,11 +359,13 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.addContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: staged.key,
-                visibility: staged.visibility,
-            });
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    key: verified.key,
+                    visibility: verified.visibility,
+                })
+            );
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
@@ -417,7 +380,7 @@ describe('TermPolicyContentDomain', () => {
     });
 
     describe('updateContentByAdmin', () => {
-        const upload = { language: EnumMessageLanguage.en, key: stagedKey };
+        const upload = { language: EnumMessageLanguage.en, key: verifiedKey };
 
         it('throws TermPolicyContentNotFoundException without verifying when the language is absent', async () => {
             termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
@@ -449,24 +412,28 @@ describe('TermPolicyContentDomain', () => {
                 callOrder.push('update');
                 return draft;
             });
-            objectStorageService.delete.mockImplementation(async ({ key }) => {
-                callOrder.push(`delete:${key}`);
-            });
+            objectStorageService.deleteQuietly.mockImplementation(
+                async ({ key }) => {
+                    callOrder.push(`delete:${key}`);
+                }
+            );
 
             await service.updateContentByAdmin('term-id', upload);
 
             expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
                 'term-id',
-                { ...staged, language: EnumMessageLanguage.en }
+                { ...verified, language: EnumMessageLanguage.en }
             );
             expect(callOrder[0]).toBe('update');
             expect(callOrder).toEqual(
                 expect.arrayContaining([`delete:${existingContent.key}`])
             );
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: existingContent.key,
-                visibility: EnumStorageVisibility.private,
-            });
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    key: existingContent.key,
+                    visibility: EnumStorageVisibility.private,
+                })
+            );
         });
 
         it('deletes only the new final object and rethrows when the database write fails', async () => {
@@ -477,19 +444,13 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.updateContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.delete).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: staged.key,
-                visibility: staged.visibility,
-            });
-        });
-
-        it('resolves when the cleanup after the commit fails', async () => {
-            objectStorageService.delete.mockRejectedValue(new Error('down'));
-
-            await expect(
-                service.updateContentByAdmin('term-id', upload)
-            ).resolves.toBeUndefined();
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    key: verified.key,
+                    visibility: verified.visibility,
+                })
+            );
         });
     });
 
@@ -509,7 +470,7 @@ describe('TermPolicyContentDomain', () => {
                 callOrder.push('remove');
                 return draft;
             });
-            objectStorageService.delete.mockImplementation(async () => {
+            objectStorageService.deleteQuietly.mockImplementation(async () => {
                 callOrder.push('delete');
             });
 
@@ -522,22 +483,16 @@ describe('TermPolicyContentDomain', () => {
                 'term-id',
                 { language: EnumMessageLanguage.en }
             );
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: existingContent.key,
-                visibility: existingContent.visibility,
-            });
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    key: existingContent.key,
+                    visibility: existingContent.visibility,
+                })
+            );
             expect(callOrder).toEqual(['remove', 'delete']);
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
-        });
-
-        it('resolves when deleting the object fails after the row is gone', async () => {
-            objectStorageService.delete.mockRejectedValue(new Error('down'));
-
-            await expect(
-                service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
-            ).resolves.toBeUndefined();
         });
 
         it('keeps the object and rethrows as AppUnknownException when the row delete fails', async () => {
@@ -548,7 +503,7 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.delete).not.toHaveBeenCalled();
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
         });
     });
 
@@ -676,25 +631,6 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service['findOneDraftById']('term-id')
             ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
-        });
-    });
-
-    describe('deleteQuietly', () => {
-        it('deletes the object by its key and visibility', async () => {
-            await service['deleteQuietly'](existingContent);
-
-            expect(objectStorageService.delete).toHaveBeenCalledWith({
-                key: existingContent.key,
-                visibility: existingContent.visibility,
-            });
-        });
-
-        it('swallows a delete failure', async () => {
-            objectStorageService.delete.mockRejectedValue(new Error('down'));
-
-            await expect(
-                service['deleteQuietly'](existingContent)
-            ).resolves.toBeUndefined();
         });
     });
 

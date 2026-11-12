@@ -26,7 +26,7 @@ export interface ITermPolicyContentUpload {
     key: string;
 }
 
-/** The persistable columns of one localized content document — the create/update input shape. */
+/** The stored columns of one localized content document — the create/update input shape. */
 export interface ITermPolicyContentCreate extends IStoredAsset {
     language: TermPolicyContent['language'];
 }

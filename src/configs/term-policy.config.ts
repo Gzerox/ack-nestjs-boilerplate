@@ -2,7 +2,7 @@ import { registerAs } from '@nestjs/config';
 import bytes from 'bytes';
 
 export interface IConfigTermPolicy {
-    draftPrefixPattern: string;
+    prefixPattern: string;
     contentScopePrefixPattern: string;
     content: {
         maxSizeInBytes: number;
@@ -10,7 +10,7 @@ export interface IConfigTermPolicy {
 }
 
 export default registerAs('termPolicy', (): IConfigTermPolicy => ({
-    draftPrefixPattern: 'term-policies/{type}/v{version}/',
+    prefixPattern: 'term-policies/{type}/v{version}/',
     contentScopePrefixPattern: 'term-policies/{type}/v{version}/{language}/',
     content: {
         maxSizeInBytes: bytes('1mb')!,

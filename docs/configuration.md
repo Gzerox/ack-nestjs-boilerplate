@@ -773,9 +773,9 @@ keyPattern: string              // Redis key pattern for user sessions ('User:{u
 
 #### Configuration Keys:
 
-**`draftPrefixPattern`** - Key prefix of every object of one term policy version
+**`prefixPattern`** - Key prefix of every object of one term policy version
 ```typescript
-draftPrefixPattern: string      // 'term-policies/{type}/v{version}/'; deleting a draft clears this prefix on the public disk
+prefixPattern: string           // 'term-policies/{type}/v{version}/'; deleting a draft clears this prefix on the public disk
 ```
 
 **`contentScopePrefixPattern`** - Key prefix of one language's content

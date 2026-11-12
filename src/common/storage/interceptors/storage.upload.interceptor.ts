@@ -13,11 +13,12 @@ import { Reflector } from '@nestjs/core';
 import { transformException } from '@nestjs/platform-express/multer/multer/multer.utils';
 import type { StoredUpload } from '@nestjs/storage';
 import type { Response } from 'express';
-import Mime from 'mime';
 import multer from 'multer';
+import { catchError, from, mergeMap, throwError } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import {
@@ -43,16 +44,17 @@ export class StorageUploadInterceptor implements NestInterceptor {
         private readonly configService: ConfigService,
         private readonly objectStorageService: ObjectStorageService,
         private readonly storageErrorUtil: StorageErrorUtil,
+        private readonly storageContentTypeUtil: StorageContentTypeUtil,
         private readonly requestStoreService: RequestStoreService,
         private readonly helperStringService: HelperStringService
     ) {}
 
     private toPatternValues(request: IRequestApp): Record<string, string> {
-        const entries = Object.entries(request.user ?? {}).filter(
-            (entry): entry is [string, string] => typeof entry[1] === 'string'
-        );
+        if (!request.user) {
+            return {};
+        }
 
-        return Object.fromEntries(entries);
+        return { userId: request.user.userId };
     }
 
     private mapError(error: unknown): unknown {
@@ -70,16 +72,6 @@ export class StorageUploadInterceptor implements NestInterceptor {
         }
 
         return this.storageErrorUtil.translate(error);
-    }
-
-    private toContentTypes(options: IStorageUploadSingleOptions): string[] {
-        const contentTypes = options.extensions
-            .map(extension => Mime.getType(extension))
-            .filter(
-                (contentType): contentType is string => contentType !== null
-            );
-
-        return [...new Set(contentTypes)];
     }
 
     async intercept(
@@ -106,7 +98,9 @@ export class StorageUploadInterceptor implements NestInterceptor {
             scopePrefixPattern,
             patternValues
         );
-        const contentTypes = this.toContentTypes(options);
+        const contentTypes = this.storageContentTypeUtil.fromExtensions(
+            options.extensions
+        );
         const storage = this.objectStorageService.createUploadEngine(
             { visibility: options.visibility, scopePrefix },
             contentTypes
@@ -146,6 +140,14 @@ export class StorageUploadInterceptor implements NestInterceptor {
         };
         this.requestStoreService.set(StorageStoredUploadStoreKey, asset);
 
-        return next.handle();
+        return next
+            .handle()
+            .pipe(
+                catchError((error: unknown) =>
+                    from(this.objectStorageService.deleteQuietly(asset)).pipe(
+                        mergeMap(() => throwError(() => error))
+                    )
+                )
+            );
     }
 }

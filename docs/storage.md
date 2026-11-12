@@ -69,6 +69,7 @@ Unit specs use `InMemoryDisk`. Startup validation fails when the chosen driver's
 | `store(target, { body, contentType })` | Writes a buffer to a new random key |
 | `createUploadEngine(target, contentTypes)` | Multer engine streaming one part to a disk (used by `StorageUploadSingle`) |
 | `signedDownload(asset, { filename, disposition })` | `{ url, expiresAt }` for an existing object |
+| `deleteQuietly(asset)` | `delete` that logs and never throws; the single quiet-delete used by every cleanup path |
 | `delete(asset)` / `deletePrefix(visibility, prefix)` | Removes one object, or every object under a prefix in batches of 1000 |
 | `probe(visibility)` | `list` of at most one key under a 3-second abort, for the health check |
 
@@ -137,7 +138,7 @@ async uploadPhotoProfile(
 ```
 
 - `StorageUploadSingle` composes `FileUploadErrorInterceptor` outermost, then `StorageUploadInterceptor`, and emits the multipart OpenAPI body and the upload error kit.
-- The interceptor fills the scope prefix from the authenticated user, resolves the size cap from the config key (10 MB for the photo), and runs multer with `uploadToDisk` and a one-file limit. The type is detected from the bytes before anything is written; a type outside `extensions` is `FileExtensionInvalidException` and nothing is kept. An oversize stream is `FileExceedMaxSizeUploadException` and nothing becomes visible.
+- The interceptor fills the scope prefix from the authenticated user, resolves the size cap from the config key (10 MB for the photo), and runs multer with `uploadToDisk` and a one-file limit. The type is detected from the bytes before anything is written; a type outside `extensions` is `FileExtensionInvalidException` and nothing is kept. An oversize stream is `FileExceedMaxSizeUploadException` and nothing becomes visible. A failure after the object is stored and before the handler finishes, such as a pipe rejection, deletes the stored object best-effort.
 - `@StoredUpload()` returns the `IStoredAsset` the interceptor stored in the request context.
 - `UserProfileDomain.uploadPhotoProfile` writes the photo row and stages `userUpdatePhotoProfile`. A failed write deletes the new object; after the write commits, the replaced photo object is deleted best-effort.
 
@@ -153,7 +154,7 @@ A signed upload is not an asset until completion verifies it: the object already
 { "size": 102400, "extension": "jpg" }
 ```
 
-`size` is a positive integer. The domain rejects a size below 1 with `storage` `sizeInvalid` (422) and one above `user.photo.maxSizeInBytes` with `user` `photoSizeExceeded` (`51028`, 413). `extension` is an `EnumFileExtensionImage` member, mapped to its content type. `createSignedUpload` then signs a `PUT` for a random key under `users/<userId>/profile/` on the public disk, with `contentLength` pinned to the declared size:
+`size` is a positive integer. `createSignedUpload` rejects a size below 1 with `storage` `sizeInvalid` (422) and the domain rejects one above `user.photo.maxSizeInBytes` with `user` `photoSizeExceeded` (`51028`, 413). `extension` is an `EnumFileExtensionImage` member, mapped to its content type. `createSignedUpload` then signs a `PUT` for a random key under `users/<userId>/profile/` on the public disk, with `contentLength` pinned to the declared size:
 
 ```json
 {
@@ -177,7 +178,7 @@ The client sends that method to that URL with those headers unchanged. The signa
 
 1. `verifyUpload` checks the key first: a malformed key, or one outside the caller's scope prefix, is `keyInvalid` and the object is never read.
 2. It reads the real size; zero or above the cap is `sizeInvalid`. A missing object is `objectNotFound`.
-3. It sniffs the type from the first bytes (up to 4096). A type outside the allow-list, or none, is `contentTypeInvalid`. A rejected object is deleted best-effort and the rejection is logged.
+3. It sniffs the type from the first bytes (up to 4096). A type outside the allow-list, or none, is `contentTypeInvalid`, and so is a detected type that differs from the one the key's extension implies (`StorageContentTypeUtil.fromKey`; an extension with no mime mapping skips that comparison). A rejected object is deleted best-effort and the rejection is logged.
 4. The repository writes the verified metadata under the same key. A failed write deletes the uploaded object.
 5. After the write commits, the replaced photo is deleted best-effort; a cleanup failure is logged and the request still succeeds.
 
@@ -281,7 +282,7 @@ curl -s -X PUT http://localhost:3000/api/v1/shared/user/profile/photo/update \
 
 Term policy content follows the same issue, upload, complete sequence on the admin routes of `TermPolicyAdminController`:
 
-- `POST /admin/term-policy/content/presign/generate` takes `{ type, version, language, size }`. A version already `published` is `TermPolicyStatusInvalidException`; a size below 1 is `storage` `sizeInvalid` (422), and one above `termPolicy.content.maxSizeInBytes` (1 MB) is `termPolicy` `contentSizeExceeded` (`51509`, 413). The content type is `text/x-handlebars-template`.
+- `POST /admin/term-policy/content/presign/generate` takes `{ type, version, language, size }`. A version already `published` is `TermPolicyStatusInvalidException`; a size below 1 is `storage` `sizeInvalid` (422, raised by `createSignedUpload`), and one above `termPolicy.content.maxSizeInBytes` (1 MB) is `termPolicy` `contentSizeExceeded` (`51509`, 413). The content type is `text/x-handlebars-template`.
 - `PUT /admin/term-policy/content/:termPolicyId/add` and `PUT /admin/term-policy/content/:termPolicyId/update` take `{ key, language }`. A template has no byte signature, so verification passes `TermPolicyUtil.detectTemplateContentType`, which accepts valid UTF-8 with no NUL byte. The verified object stays at its key on the public disk.
 - `DELETE /admin/term-policy/content/:termPolicyId/remove` writes the row change first, then deletes the object.
 - Publication moves no object: it flips the status inside one transaction. Draft content is already on the public disk, so a draft's content URL is readable by anyone holding the key from the moment it is verified.
@@ -318,6 +319,7 @@ Storage and PostgreSQL share no transaction. Each workflow keeps one authoritati
 - `StorageLocalDriverGuard` answers 404 (`objectNotFound`) on every route when the driver is not `local`, so a remote deployment exposes none of them.
 - The routes carry `@ApiExcludeController` and no API-key, auth, or per-user throttle guard: a browser follows the URL without API headers, and the signature is the guard.
 - The serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the Helmet default. The signed-upload routes (`storage/private` and `storage/upload`) are excluded from `RequestBodyParserMiddleware`, so the raw body reaches `receiveSignedUpload`.
+- The two signed-upload receivers carry `@RequestTimeout('1m')`, so a slow upload is not cut by the global 30-second timeout.
 
 ## Storage Errors
 

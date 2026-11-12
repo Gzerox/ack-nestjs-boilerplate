@@ -19,6 +19,7 @@ import {
     serveSignedUrl,
 } from '@nestjs/storage';
 import { EnumStorageVisibility } from '@generated/prisma-client/client';
+import { RequestTimeout } from '@common/request/decorators/request.decorator';
 import { StorageLocalDriverProtected } from '@common/storage/decorators/storage.decorator';
 import { StorageKeyPathSchema } from '@common/storage/validations/storage.key-path.validation';
 import {
@@ -65,6 +66,7 @@ export class StorageLocalController {
         return serveSignedUrl(this.privateDisk, { req, res });
     }
 
+    @RequestTimeout('1m')
     @Put('private')
     async receivePrivate(
         @Req() req: Request,
@@ -73,6 +75,7 @@ export class StorageLocalController {
         await receiveSignedUpload(this.privateDisk, { req, res });
     }
 
+    @RequestTimeout('1m')
     @Put('upload')
     async receivePublic(
         @Req() req: Request,

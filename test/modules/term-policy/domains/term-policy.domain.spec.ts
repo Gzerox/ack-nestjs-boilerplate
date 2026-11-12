@@ -135,7 +135,7 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(draft);
         termPolicyRepository.existsByVersionAndType.mockResolvedValue(false);
         termPolicyRepository.publishInTx.mockResolvedValue(published);
-        termPolicyContentDomain.deleteObjectsQuietly.mockResolvedValue();
+        objectStorageService.deleteQuietly.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -211,7 +211,7 @@ describe('TermPolicyDomain', () => {
         const uploads = [
             {
                 language: EnumMessageLanguage.en,
-                key: 'term-policies/privacy/v1/en/staged.hbs',
+                key: 'term-policies/privacy/v1/en/uploaded.hbs',
             },
         ];
         const promotedContent: ITermPolicyContentCreate = {
@@ -266,11 +266,9 @@ describe('TermPolicyDomain', () => {
                 callOrder.push('create');
                 return published;
             });
-            termPolicyContentDomain.deleteObjectsQuietly.mockImplementation(
-                async () => {
-                    callOrder.push('cleanup');
-                }
-            );
+            objectStorageService.deleteQuietly.mockImplementation(async () => {
+                callOrder.push('cleanup');
+            });
 
             const result = await service.createByAdmin({
                 contents: uploads,
@@ -291,9 +289,7 @@ describe('TermPolicyDomain', () => {
                 },
                 [promotedContent]
             );
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).not.toHaveBeenCalled();
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
             expect(callOrder).toEqual(['create']);
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.adminTermPolicyCreate,
@@ -302,7 +298,7 @@ describe('TermPolicyDomain', () => {
             expect(result).toBe(published);
         });
 
-        it('deletes the contents already promoted and writes nothing when one staged content is rejected', async () => {
+        it('deletes the contents already promoted and writes nothing when one uploaded content is rejected', async () => {
             const exception = new StorageKeyInvalidException();
             termPolicyContentDomain.verifyContent
                 .mockResolvedValueOnce(promotedContent)
@@ -321,9 +317,9 @@ describe('TermPolicyDomain', () => {
                     version: 1,
                 })
             ).rejects.toBe(exception);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([promotedContent]);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                promotedContent
+            );
             expect(termPolicyRepository.create).not.toHaveBeenCalled();
         });
 
@@ -340,12 +336,10 @@ describe('TermPolicyDomain', () => {
                 module: 'app',
                 statusCode: EnumAppStatusCodeError.unknown,
             });
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledTimes(1);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([promotedContent]);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                promotedContent
+            );
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
     });
@@ -462,11 +456,9 @@ describe('TermPolicyDomain', () => {
                 callOrder.push('publish');
                 return published;
             });
-            termPolicyContentDomain.deleteObjectsQuietly.mockImplementation(
-                async () => {
-                    callOrder.push('cleanup');
-                }
-            );
+            objectStorageService.deleteQuietly.mockImplementation(async () => {
+                callOrder.push('cleanup');
+            });
             notificationQueue.sendPublishTermPolicy.mockImplementation(
                 async () => {
                     callOrder.push('notify');
@@ -475,9 +467,7 @@ describe('TermPolicyDomain', () => {
 
             await service.publishByAdmin(draft.id, 'admin-id');
 
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).not.toHaveBeenCalled();
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
@@ -496,9 +486,7 @@ describe('TermPolicyDomain', () => {
             await expect(
                 service.publishByAdmin(draft.id, 'admin-id')
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).not.toHaveBeenCalled();
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
             expect(
                 notificationQueue.sendPublishTermPolicy
             ).not.toHaveBeenCalled();
@@ -557,9 +545,7 @@ describe('TermPolicyDomain', () => {
             );
 
             expect(result).toEqual([first, second]);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).not.toHaveBeenCalled();
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
         });
 
         it('deletes the settled objects and throws the first rejection', async () => {
@@ -576,9 +562,9 @@ describe('TermPolicyDomain', () => {
                     asset => asset
                 )
             ).rejects.toBe(failure);
-            expect(
-                termPolicyContentDomain.deleteObjectsQuietly
-            ).toHaveBeenCalledWith([first]);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                first
+            );
         });
     });
 

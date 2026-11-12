@@ -13,12 +13,13 @@ import {
     StorageServiceError,
     uploadToDisk,
 } from '@nestjs/storage';
-import { lastValueFrom, of } from 'rxjs';
+import { lastValueFrom, of, throwError } from 'rxjs';
 import { multerExceptions } from '@nestjs/platform-express/multer/multer/multer.constants';
 import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import { StorageUploadInterceptor } from '@common/storage/interceptors/storage.upload.interceptor';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageErrorUtil } from '@common/storage/utils/storage.error.util';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import {
@@ -149,6 +150,7 @@ describe('StorageUploadInterceptor', () => {
                     useValue: objectStorageService,
                 },
                 { provide: StorageErrorUtil, useValue: storageErrorUtil },
+                StorageContentTypeUtil,
                 { provide: RequestStoreService, useValue: requestStoreService },
                 { provide: HelperStringService, useValue: helperStringService },
             ],
@@ -260,6 +262,39 @@ describe('StorageUploadInterceptor', () => {
             expect(publicDisk.keys()).toEqual([]);
         });
 
+        it('deletes the stored object quietly and rethrows when the handler fails after the write', async () => {
+            const failure = new Error('handler failed');
+            next.handle.mockReturnValue(throwError(() => failure));
+            objectStorageService.deleteQuietly.mockResolvedValue();
+            const context = createContext(
+                createRequest([
+                    { field: 'photo', filename: 'photo.png', body: pngBytes },
+                ])
+            );
+
+            const observable = await interceptor.intercept(context, next);
+
+            await expect(lastValueFrom(observable)).rejects.toBe(failure);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    key: 'users/user-1/profile/upload-1.png',
+                    visibility: EnumStorageVisibility.public,
+                })
+            );
+        });
+
+        it('does not delete the stored object when the handler succeeds', async () => {
+            const context = createContext(
+                createRequest([
+                    { field: 'photo', filename: 'photo.png', body: pngBytes },
+                ])
+            );
+
+            await lastValueFrom(await interceptor.intercept(context, next));
+
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+        });
+
         it('throws FileRequiredException when the request carries no file', async () => {
             const context = createContext(
                 createRequest([
@@ -344,10 +379,11 @@ describe('StorageUploadInterceptor', () => {
     });
 
     describe('toPatternValues', () => {
-        it('keeps the string fields of the authenticated user and drops the others', () => {
+        it('passes only the userId of the authenticated user', () => {
             const request = Object.assign(createRequest([]), {
                 user: {
                     userId: 'user-1',
+                    sessionId: 'session-1',
                     loginAt: new Date('2026-01-01T00:00:00.000Z'),
                 },
             });

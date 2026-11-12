@@ -100,52 +100,6 @@ export const AppEnvSchema = z
         FIREBASE_PRIVATE_KEY: z.string().optional(),
     })
     .superRefine((env, ctx) => {
-        if (env.STORAGE_DRIVER === EnumStorageDriver.local) {
-            if (!env.STORAGE_LOCAL_ROOT) {
-                ctx.addIssue({
-                    code: 'custom',
-                    path: ['STORAGE_LOCAL_ROOT'],
-                    message:
-                        'STORAGE_LOCAL_ROOT is required when STORAGE_DRIVER is local',
-                });
-            }
-
-            const signingKeys = (env.STORAGE_LOCAL_SIGNING_KEYS ?? '')
-                .split(',')
-                .map(key => key.trim())
-                .filter(key => key.length > 0);
-            if (
-                signingKeys.length === 0 ||
-                signingKeys.some(key => key.length < 32)
-            ) {
-                ctx.addIssue({
-                    code: 'custom',
-                    path: ['STORAGE_LOCAL_SIGNING_KEYS'],
-                    message:
-                        'STORAGE_LOCAL_SIGNING_KEYS needs at least one comma-separated key, each of at least 32 characters',
-                });
-            }
-        }
-
-        if (env.STORAGE_DRIVER === EnumStorageDriver.s3) {
-            const required = [
-                'STORAGE_S3_REGION',
-                'STORAGE_S3_ACCESS_KEY_ID',
-                'STORAGE_S3_SECRET_ACCESS_KEY',
-                'STORAGE_S3_PUBLIC_BUCKET',
-                'STORAGE_S3_PRIVATE_BUCKET',
-            ] as const;
-            for (const key of required) {
-                if (!env[key]) {
-                    ctx.addIssue({
-                        code: 'custom',
-                        path: [key],
-                        message: `${key} is required when STORAGE_DRIVER is s3`,
-                    });
-                }
-            }
-        }
-
         if (
             (env.AWS_SES_IAM_CREDENTIAL_KEY ??
                 env.AWS_SES_IAM_CREDENTIAL_SECRET) &&

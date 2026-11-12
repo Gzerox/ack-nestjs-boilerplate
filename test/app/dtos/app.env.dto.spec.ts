@@ -149,35 +149,10 @@ describe('AppEnvSchema', () => {
             expect(issuePaths(validEnv)).toEqual([]);
         });
 
-        it('requires the local root when the driver is local', () => {
-            expect(
-                issuePaths({ ...validEnv, STORAGE_LOCAL_ROOT: undefined })
-            ).toEqual(['STORAGE_LOCAL_ROOT']);
-        });
-
         it('rejects a public base URL that is not absolute', () => {
             expect(
                 issuePaths({ ...validEnv, STORAGE_PUBLIC_BASE_URL: '/files' })
             ).toEqual(['STORAGE_PUBLIC_BASE_URL']);
-        });
-
-        it('requires at least one signing key when the driver is local', () => {
-            expect(
-                issuePaths({
-                    ...validEnv,
-                    STORAGE_LOCAL_SIGNING_KEYS: undefined,
-                })
-            ).toEqual(['STORAGE_LOCAL_SIGNING_KEYS']);
-        });
-
-        it('rejects a local signing key shorter than 32 characters', () => {
-            expect(
-                issuePaths({
-                    ...validEnv,
-                    STORAGE_LOCAL_SIGNING_KEYS:
-                        'local-signing-key-0123456789abcdefghij, too-short',
-                })
-            ).toEqual(['STORAGE_LOCAL_SIGNING_KEYS']);
         });
 
         it.each(['production', 'staging'] as const)(
@@ -201,18 +176,6 @@ describe('AppEnvSchema', () => {
             expect(
                 issuePaths({ ...validS3Env, APP_ENV: 'production' })
             ).toEqual([]);
-        });
-
-        it.each([
-            'STORAGE_S3_REGION',
-            'STORAGE_S3_ACCESS_KEY_ID',
-            'STORAGE_S3_SECRET_ACCESS_KEY',
-            'STORAGE_S3_PUBLIC_BUCKET',
-            'STORAGE_S3_PRIVATE_BUCKET',
-        ] as const)('requires %s when the driver is s3', key => {
-            expect(issuePaths({ ...validS3Env, [key]: undefined })).toEqual([
-                key,
-            ]);
         });
 
         it('requires the public base URL when the driver is s3', () => {

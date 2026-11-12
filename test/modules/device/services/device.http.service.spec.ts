@@ -5,8 +5,6 @@ import type { MockProxy } from 'vitest-mock-extended';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import type { StorageAssetResponseDto } from '@common/storage/dtos/response/storage.asset.response.dto';
 import {
     EnumDevicePlatform,
     EnumStorageVisibility,
@@ -23,8 +21,6 @@ describe('DeviceHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const objectStorageService: MockProxy<ObjectStorageService> =
-        mock<ObjectStorageService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const adminPhoto: UserPhoto = {
         id: 'photo-id',
@@ -34,12 +30,6 @@ describe('DeviceHttpService', () => {
         contentType: 'image/png',
         size: BigInt(1024),
         etag: null,
-    };
-    const photoResponse: StorageAssetResponseDto = {
-        key: 'users/admin-id/profile/photo.png',
-        visibility: EnumStorageVisibility.public,
-        contentType: 'image/png',
-        url: 'https://cdn.example.com/users/admin-id/profile/photo.png',
     };
     const userRef: IUserRef = {
         id: 'user-id',
@@ -97,13 +87,6 @@ describe('DeviceHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        objectStorageService.toAssetResponse.mockImplementation(asset => {
-            if (asset === adminPhoto) {
-                return photoResponse;
-            }
-
-            return null;
-        });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -117,10 +100,6 @@ describe('DeviceHttpService', () => {
                     provide: RequestStoreService,
                     useValue: requestStoreService,
                 },
-                {
-                    provide: ObjectStorageService,
-                    useValue: objectStorageService,
-                },
             ],
         }).compile();
 
@@ -128,7 +107,7 @@ describe('DeviceHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
-        it('resolves the revoker photo of every device ownership', async () => {
+        it('drops the revoker photo of every device ownership', async () => {
             paginationQueryUtil.offset.mockReturnValue({
                 params: { limit: 20, skip: 0, orderBy: [] },
                 storePatch: { page: 1, perPage: 20 },
@@ -147,13 +126,10 @@ describe('DeviceHttpService', () => {
 
             const result = await service.getListOffsetByAdmin('user-id', {});
 
-            expect(objectStorageService.toAssetResponse).toHaveBeenCalledWith(
-                adminPhoto
-            );
             expect(result.data).toEqual([
                 {
                     ...ownership,
-                    revokedBy: { ...adminRef, photo: photoResponse },
+                    revokedBy: { ...adminRef, photo: null },
                     activeSessionCount: 2,
                     isCurrentDevice: false,
                 },
@@ -194,21 +170,6 @@ describe('DeviceHttpService', () => {
                     isCurrentDevice: true,
                 }),
             ]);
-            expect(objectStorageService.toAssetResponse).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('mapRevokedBy', () => {
-        it('resolves the photo of a present revoker', () => {
-            const result = service['mapRevokedBy'](adminRef);
-
-            expect(result).toEqual({ ...adminRef, photo: photoResponse });
-        });
-
-        it('returns null for an absent revoker', () => {
-            const result = service['mapRevokedBy'](null);
-
-            expect(result).toBeNull();
         });
     });
 });

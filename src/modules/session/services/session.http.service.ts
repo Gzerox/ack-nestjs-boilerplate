@@ -14,9 +14,9 @@ import {
 import type { SessionAdminListRequestDto } from '@modules/session/dtos/request/session.admin-list.request.dto';
 import type { SessionSharedListRequestDto } from '@modules/session/dtos/request/session.shared-list.request.dto';
 import type { ISessionList } from '@modules/session/interfaces/session.interface';
-import type { IUserRef } from '@modules/user/interfaces/user.interface';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { Injectable } from '@nestjs/common';
+import type { SessionResponseDto } from '@modules/session/dtos/response/session.response.dto';
 
 @Injectable()
 export class SessionHttpService {
@@ -27,21 +27,20 @@ export class SessionHttpService {
         private readonly objectStorageService: ObjectStorageService
     ) {}
 
-    private mapSession(session: ISessionList): ISessionList {
+    private mapSession(session: ISessionList): SessionResponseDto {
         const userPhoto = this.objectStorageService.toAssetResponse(
             session.user.photo
         );
 
-        let revokedBy: IUserRef | null = null;
-        if (session.revokedBy) {
-            const revokedByPhoto = this.objectStorageService.toAssetResponse(
-                session.revokedBy.photo
-            );
-            revokedBy = { ...session.revokedBy, photo: revokedByPhoto };
-        }
+        const revokedBy = session.revokedBy
+            ? { ...session.revokedBy, photo: null }
+            : null;
 
         return {
             ...session,
+            userAgent: session.userAgent as SessionResponseDto['userAgent'],
+            geoLocation:
+                session.geoLocation as SessionResponseDto['geoLocation'],
             user: { ...session.user, photo: userPhoto },
             revokedBy,
         };
@@ -50,7 +49,7 @@ export class SessionHttpService {
     async getListOffsetByAdmin(
         userId: string,
         query: SessionAdminListRequestDto
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.SessionWhereInput>(query, {
                 availableOrderBy: SessionDefaultAvailableOrderBy,
@@ -84,7 +83,7 @@ export class SessionHttpService {
     async getListCursor(
         userId: string,
         query: SessionSharedListRequestDto
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.SessionWhereInput>(query, {
                 availableOrderBy: SessionCursorAvailableOrderBy,

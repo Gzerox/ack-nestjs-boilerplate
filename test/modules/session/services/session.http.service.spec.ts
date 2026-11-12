@@ -55,7 +55,7 @@ describe('SessionHttpService', () => {
         ...userRef,
         id: 'admin-id',
         username: 'admin',
-        photo: null,
+        photo: userPhoto,
     };
     const session: ISessionList = {
         id: 'session-id',
@@ -172,7 +172,7 @@ describe('SessionHttpService', () => {
     });
 
     describe('mapSession', () => {
-        it('resolves the owner photo and maps a present revoker', () => {
+        it('resolves the owner photo and drops the revoker photo', () => {
             const result = service['mapSession'](session);
 
             expect(result).toEqual(mappedSession);

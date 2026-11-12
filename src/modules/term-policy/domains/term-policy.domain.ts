@@ -18,10 +18,7 @@ import { TermPolicyExistException } from '@modules/term-policy/exceptions/term-p
 import { TermPolicyLanguageDuplicateException } from '@modules/term-policy/exceptions/term-policy.language-duplicate.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
-import type {
-    ITermPolicyContentCreate,
-    ITermPolicyCreate,
-} from '@modules/term-policy/interfaces/term-policy.interface';
+import type { ITermPolicyCreate } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
@@ -124,7 +121,7 @@ export class TermPolicyDomain {
             throw new TermPolicyLanguageDuplicateException();
         }
 
-        const results = await Promise.allSettled(
+        const mappedContents = await Promise.all(
             contents.map(upload =>
                 this.termPolicyContentDomain.verifyContent(
                     { type, version },
@@ -132,27 +129,6 @@ export class TermPolicyDomain {
                 )
             )
         );
-        const mappedContents = results
-            .filter(
-                (
-                    result
-                ): result is PromiseFulfilledResult<ITermPolicyContentCreate> =>
-                    result.status === 'fulfilled'
-            )
-            .map(result => result.value);
-        const rejection = results.find(
-            (result): result is PromiseRejectedResult =>
-                result.status === 'rejected'
-        );
-        if (rejection) {
-            await Promise.all(
-                mappedContents.map(content =>
-                    this.objectStorageService.deleteQuietly(content)
-                )
-            );
-
-            throw rejection.reason;
-        }
 
         let created: TermPolicy;
         try {
@@ -173,15 +149,19 @@ export class TermPolicyDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await Promise.all(
-                mappedContents.map(content =>
-                    this.objectStorageService.deleteQuietly(content)
-                )
-            );
-
             const exception = this.wrapError(err);
             throw exception;
         }
+
+        await Promise.all(
+            contents.map(({ language }) =>
+                this.termPolicyContentDomain.sweepContentScope(
+                    created.id,
+                    { type, version },
+                    language
+                )
+            )
+        );
 
         return created;
     }

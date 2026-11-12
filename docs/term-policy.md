@@ -109,10 +109,10 @@ sequenceDiagram
     Admin->>API: Add/Update language content { key, language }
     API->>Public: Verify the uploaded object in place
     API->>Database: Update policy contents
-    API->>Public: Delete any replaced content
+    API->>Public: Sweep the language scope, keeping the stored key
     Admin->>API: Remove language content
     API->>Database: Update policy contents
-    API->>Public: Delete the removed content
+    API->>Public: Sweep the language scope (nothing kept)
     
     Note over Admin,Users: Publishing Process
     
@@ -258,7 +258,7 @@ Replace existing language content in draft policy:
 PUT /admin/term-policy/content/:termPolicyId/update
 ```
 
-Same body and verification as add. A language with no content returns `404` (`contentNotFound`). The replaced object is deleted after the row update commits.
+Same body and verification as add. A language with no content returns `404` (`contentNotFound`). The replaced object is reclaimed by the sweep of that language's scope after the row update commits.
 
 ### Remove Content
 

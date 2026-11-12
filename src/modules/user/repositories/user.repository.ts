@@ -24,6 +24,7 @@ import type {
     IUserCreateWithWorkspaceInput,
     IUserExport,
     IUserList,
+    IUserPhotoRef,
     IUserProfile,
 } from '@modules/user/interfaces/user.interface';
 import type { IUserRepository } from '@modules/user/interfaces/user.repository.interface';
@@ -35,7 +36,7 @@ import {
     EnumUserStatus,
     Prisma,
 } from '@generated/prisma-client/client';
-import type { User, UserPhoto } from '@generated/prisma-client/client';
+import type { User } from '@generated/prisma-client/client';
 import type { IAuthPassword } from '@modules/auth/interfaces/auth.interface';
 import type { IWorkspaceInviteInviter } from '@modules/workspace/interfaces/workspace.interface';
 
@@ -301,7 +302,7 @@ export class UserRepository implements IUserRepository {
     async updatePhotoProfile(
         userId: string,
         { key, visibility, contentType, size, etag }: IStoredAsset
-    ): Promise<UserPhoto | null> {
+    ): Promise<void> {
         const photoData: Prisma.UserPhotoUncheckedCreateWithoutUserInput = {
             key,
             visibility,
@@ -310,20 +311,20 @@ export class UserRepository implements IUserRepository {
             etag,
         };
 
-        return this.databaseService.withTransaction(async tx => {
-            const previous = await tx.userPhoto.findUnique({
-                where: { userId },
-            });
-            await tx.user.update({
-                where: { id: userId, deletedAt: null },
-                data: {
-                    photo: {
-                        upsert: { create: photoData, update: photoData },
-                    },
+        await this.databaseService.client.user.update({
+            where: { id: userId, deletedAt: null },
+            data: {
+                photo: {
+                    upsert: { create: photoData, update: photoData },
                 },
-            });
+            },
+        });
+    }
 
-            return previous;
+    async findPhotoByUserId(userId: string): Promise<IUserPhotoRef | null> {
+        return this.databaseService.client.userPhoto.findUnique({
+            where: { userId },
+            select: UserPhotoRefSelect,
         });
     }
 

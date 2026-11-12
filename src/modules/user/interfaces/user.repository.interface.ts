@@ -15,6 +15,7 @@ import type {
     IUserCreateWithWorkspaceInput,
     IUserExport,
     IUserList,
+    IUserPhotoRef,
     IUserProfile,
 } from '@modules/user/interfaces/user.interface';
 import {
@@ -23,7 +24,7 @@ import {
     EnumUserLoginWith,
     Prisma,
 } from '@generated/prisma-client/client';
-import type { User, UserPhoto } from '@generated/prisma-client/client';
+import type { User } from '@generated/prisma-client/client';
 import type { IAuthPassword } from '@modules/auth/interfaces/auth.interface';
 import type { IWorkspaceInviteInviter } from '@modules/workspace/interfaces/workspace.interface';
 
@@ -76,7 +77,8 @@ export interface IUserRepository {
     updatePhotoProfile(
         userId: string,
         { key, visibility, contentType, size, etag }: IStoredAsset
-    ): Promise<UserPhoto | null>;
+    ): Promise<void>;
+    findPhotoByUserId(userId: string): Promise<IUserPhotoRef | null>;
     deleteSelfInTx(
         tx: IDatabaseTransactionClient,
         userId: string,

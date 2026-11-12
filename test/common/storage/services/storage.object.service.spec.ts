@@ -104,6 +104,9 @@ describe('ObjectStorageService', () => {
         helperDateService.forward.mockImplementation(
             (date, duration) => new Date(date.getTime() + duration.toMillis())
         );
+        helperDateService.backward.mockImplementation(
+            (date, duration) => new Date(date.getTime() - duration.toMillis())
+        );
         let counter = 0;
         databaseUtil.createId.mockImplementation(() => {
             counter += 1;
@@ -922,6 +925,136 @@ describe('ObjectStorageService', () => {
             expect(storageErrorUtil.translate).toHaveBeenCalledWith(
                 expect.any(StorageInvalidKeyError)
             );
+        });
+
+        describe('keep', () => {
+            it('skips every key listed in keep and removes the rest of the prefix', async () => {
+                const prefix = 'users/user-1/profile/';
+                await Promise.all([
+                    publicDisk.put(`${prefix}a.png`, 'x'),
+                    publicDisk.put(`${prefix}b.png`, 'x'),
+                    publicDisk.put(`${prefix}c.png`, 'x'),
+                ]);
+
+                await service.deletePrefix(
+                    EnumStorageVisibility.public,
+                    prefix,
+                    { keep: [`${prefix}b.png`] }
+                );
+
+                expect(publicDisk.keys()).toEqual([`${prefix}b.png`]);
+            });
+        });
+
+        describe('olderThanMs', () => {
+            it('skips an entry modified inside the window and removes an older one', async () => {
+                const prefix = 'users/user-1/profile/';
+                vi.setSystemTime(new Date(now.getTime() - 2000));
+                await publicDisk.put(`${prefix}old.png`, 'x');
+                vi.setSystemTime(new Date(now.getTime() - 500));
+                await publicDisk.put(`${prefix}young.png`, 'x');
+                vi.setSystemTime(now);
+
+                await service.deletePrefix(
+                    EnumStorageVisibility.public,
+                    prefix,
+                    { olderThanMs: 1000 }
+                );
+
+                expect(publicDisk.keys()).toEqual([`${prefix}young.png`]);
+            });
+        });
+    });
+
+    describe('sweepUnreferenced', () => {
+        const prefix = 'users/user-1/profile/';
+        const doubleTtlMs = signedUploadExpiresInMs * 2;
+
+        const putAt = async (key: string, ageInMs: number): Promise<void> => {
+            vi.setSystemTime(new Date(now.getTime() - ageInMs));
+            await publicDisk.put(key, 'x');
+            vi.setSystemTime(now);
+        };
+
+        it('removes an old unreferenced object and keeps the referenced one', async () => {
+            await putAt(`${prefix}old.png`, doubleTtlMs + 1000);
+            await putAt(`${prefix}current.png`, doubleTtlMs + 1000);
+
+            await service.sweepUnreferenced(
+                EnumStorageVisibility.public,
+                prefix,
+                [`${prefix}current.png`]
+            );
+
+            expect(publicDisk.keys()).toEqual([`${prefix}current.png`]);
+        });
+
+        it('keeps an unreferenced object younger than twice the signed upload lifetime', async () => {
+            await putAt(`${prefix}pending.png`, doubleTtlMs - 1000);
+
+            await service.sweepUnreferenced(
+                EnumStorageVisibility.public,
+                prefix,
+                []
+            );
+
+            expect(publicDisk.keys()).toEqual([`${prefix}pending.png`]);
+        });
+
+        it('leaves both objects when two completions interleave and each is still inside the window', async () => {
+            await putAt(`${prefix}first.png`, 5000);
+            await putAt(`${prefix}second.png`, 1000);
+
+            await service.sweepUnreferenced(
+                EnumStorageVisibility.public,
+                prefix,
+                [`${prefix}second.png`]
+            );
+
+            expect(publicDisk.keys()).toEqual([
+                `${prefix}first.png`,
+                `${prefix}second.png`,
+            ]);
+        });
+
+        it('removes every old object when nothing is referenced', async () => {
+            await putAt(`${prefix}old-1.png`, doubleTtlMs + 1000);
+            await putAt(`${prefix}old-2.png`, doubleTtlMs + 1000);
+
+            await service.sweepUnreferenced(
+                EnumStorageVisibility.public,
+                prefix,
+                []
+            );
+
+            expect(publicDisk.keys()).toEqual([]);
+        });
+
+        it('resolves instead of throwing when the store fails', async () => {
+            await putAt(`${prefix}old.png`, doubleTtlMs + 1000);
+            storageErrorUtil.translate.mockReturnValue(
+                new StorageServiceUnavailableException(new Error('down'))
+            );
+            vi.spyOn(publicDisk, 'delete').mockRejectedValue(
+                new StorageServiceError({
+                    operation: 'delete',
+                    code: 'Timeout',
+                })
+            );
+
+            await expect(
+                service.sweepUnreferenced(
+                    EnumStorageVisibility.public,
+                    prefix,
+                    []
+                )
+            ).resolves.toBeUndefined();
+        });
+
+        it('resolves instead of throwing for an empty prefix', async () => {
+            await expect(
+                service.sweepUnreferenced(EnumStorageVisibility.public, '', [])
+            ).resolves.toBeUndefined();
         });
     });
 

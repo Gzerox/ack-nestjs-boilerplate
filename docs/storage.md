@@ -70,7 +70,8 @@ Unit specs use `InMemoryDisk`. Startup validation fails when the chosen driver's
 | `createUploadEngine(target, contentTypes)` | Multer engine streaming one part to a disk (used by `StorageUploadSingle`) |
 | `signedDownload(asset, { filename, disposition })` | `{ url, expiresAt }` for an existing object |
 | `deleteQuietly(asset)` | `delete` that logs and never throws; the single quiet-delete used by every cleanup path |
-| `delete(asset)` / `deletePrefix(visibility, prefix)` | Removes one object, or every object under a prefix in batches of 1000 |
+| `delete(asset)` / `deletePrefix(visibility, prefix, { keep, olderThanMs })` | Removes one object, or every object under a prefix in batches of 1000, skipping `keep` keys and entries newer than `olderThanMs` |
+| `sweepUnreferenced(visibility, prefix, keep)` | `deletePrefix` with `olderThanMs` set to twice the signed upload lifetime; logs and never throws. The single reconciliation the domains call after a commit |
 | `probe(visibility)` | `list` of at most one key under a 3-second abort, for the health check |
 
 Every `@nestjs/storage` error is translated by `StorageErrorUtil` into a typed `storage` exception ([Storage Errors](#storage-errors)).
@@ -140,7 +141,7 @@ async uploadPhotoProfile(
 - `StorageUploadSingle` composes `FileUploadErrorInterceptor` outermost, then `StorageUploadInterceptor`, and emits the multipart OpenAPI body and the upload error kit.
 - The interceptor fills the scope prefix from the authenticated user, resolves the size cap from the config key (10 MB for the photo), and runs multer with `uploadToDisk` and a one-file limit. The type is detected from the bytes before anything is written; a type outside `extensions` is `FileExtensionInvalidException` and nothing is kept. An oversize stream is `FileExceedMaxSizeUploadException` and nothing becomes visible. A failure after the object is stored and before the handler finishes, such as a pipe rejection, deletes the stored object best-effort.
 - `@StoredUpload()` returns the `IStoredAsset` the interceptor stored in the request context.
-- `UserProfileDomain.uploadPhotoProfile` writes the photo row and stages `userUpdatePhotoProfile`. A failed write deletes the new object; after the write commits, the replaced photo object is deleted best-effort.
+- `UserProfileDomain.uploadPhotoProfile` writes the photo row and stages `userUpdatePhotoProfile`. A failed write deletes nothing; after the write commits, the sweep reclaims the replaced photo.
 
 ## Signed Direct Upload
 
@@ -180,9 +181,9 @@ The client sends that method to that URL with those headers unchanged. The signa
 2. It reads the real size; zero or above the cap is `sizeInvalid`. A missing object is `objectNotFound`.
 3. It sniffs the type from the first bytes (up to 4096). A type outside the allow-list, or none, is `contentTypeInvalid`, and so is a detected type that differs from the one the key's extension implies (`StorageContentTypeUtil.fromKey`; an extension with no mime mapping skips that comparison). A rejected object is deleted best-effort and the rejection is logged.
 4. The repository writes the verified metadata under the same key. A failed write deletes the uploaded object.
-5. After the write commits, the replaced photo is deleted best-effort; a cleanup failure is logged and the request still succeeds.
+5. After the write commits, the domain reads the photo key the database holds and sweeps `users/<userId>/profile/` on the public disk, keeping that key. The sweep skips anything younger than twice the signed upload lifetime, so a concurrent completion's object survives. A sweep failure is logged and the request still succeeds.
 
-Two completions of one key take no lock: both verify the object and write the same row, and the replaced-photo cleanup skips a previous row that already holds the same key. Every issue and completion route carries `@RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })`.
+Two completions of one key take no lock: both verify the object and write the row, the last writer wins, and neither deletes the other's object. Every issue and completion route carries `@RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })`.
 
 ### Flow Diagram
 
@@ -207,10 +208,10 @@ sequenceDiagram
     Storage->>Public: stat, then read the first bytes
     API->>DB: write the photo row
     alt write fails
-        API->>Public: delete the uploaded object
-        API-->>Client: error
+        API-->>Client: error, nothing deleted
     else write commits
-        API->>Public: delete the replaced photo
+        API->>DB: read the current photo key
+        API->>Public: sweep the scope, keeping that key
         API-->>Client: 200
     end
 ```
@@ -284,7 +285,7 @@ Term policy content follows the same issue, upload, complete sequence on the adm
 
 - `POST /admin/term-policy/content/presign/generate` takes `{ type, version, language, size }`. A version already `published` is `TermPolicyStatusInvalidException`; a size below 1 is `storage` `sizeInvalid` (422, raised by `createSignedUpload`), and one above `termPolicy.content.maxSizeInBytes` (1 MB) is `termPolicy` `contentSizeExceeded` (`51509`, 413). The content type is `text/x-handlebars-template`.
 - `PUT /admin/term-policy/content/:termPolicyId/add` and `PUT /admin/term-policy/content/:termPolicyId/update` take `{ key, language }`. A template has no byte signature, so verification passes `TermPolicyUtil.detectTemplateContentType`, which accepts valid UTF-8 with no NUL byte. The verified object stays at its key on the public disk.
-- `DELETE /admin/term-policy/content/:termPolicyId/remove` writes the row change first, then deletes the object.
+- `DELETE /admin/term-policy/content/:termPolicyId/remove` writes the row change first, then sweeps that language's scope with nothing kept. An object younger than twice the signed upload lifetime stays until a later sweep.
 - Publication moves no object: it flips the status inside one transaction. Draft content is already on the public disk, so a draft's content URL is readable by anyone holding the key from the moment it is verified.
 - Deleting a draft clears its whole `term-policies/{type}/v{version}/` prefix on the public disk after the row is gone.
 
@@ -301,8 +302,8 @@ No route uses it today: term policy content is stored public, so `GET /admin/ter
 Storage and PostgreSQL share no transaction. Each workflow keeps one authoritative state and an explicit compensation:
 
 - A database reference is written only after its object is verified and written.
-- An authoritative object is deleted only after the database change that replaces or removes it commits.
-- A failed database write deletes the object written for it; an uploaded object that is never completed stays on the public disk, because no prefix separates it from verified assets for a lifecycle rule.
+- An authoritative object is deleted only after the database change that replaces or removes it commits, and by a sweep that keeps what the database holds then, never by a decision taken from an earlier read.
+- A failed database write deletes nothing. A rejected, replaced, or abandoned object is reclaimed by the next sweep of its scope, once it is older than twice the signed upload lifetime. A scope nobody writes to again keeps its leftover until then, because no prefix separates it from verified assets for a lifecycle rule.
 - A cleanup failure after a commit is logged and never rolled back into the domain.
 
 ## Local-Driver Routes

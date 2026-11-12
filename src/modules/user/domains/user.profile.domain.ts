@@ -8,8 +8,10 @@ import type {
 } from '@common/storage/interfaces/storage.interface';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
-import { EnumActivityLogAction } from '@generated/prisma-client/client';
-import type { UserPhoto } from '@generated/prisma-client/client';
+import {
+    EnumActivityLogAction,
+    EnumStorageVisibility,
+} from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
 import { CountryDomain } from '@modules/country/domains/country.domain';
@@ -26,11 +28,13 @@ import type {
 } from '@modules/user/interfaces/user.interface';
 import { UserRepository } from '@modules/user/repositories/user.repository';
 import { UserUtil } from '@modules/user/utils/user.util';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UserProfileDomain {
+    private readonly logger = new Logger(UserProfileDomain.name);
+
     private readonly photoScopePrefixPattern: string;
     private readonly photoMaxSizeInBytes: number;
     private readonly photoContentTypes: string[];
@@ -63,22 +67,16 @@ export class UserProfileDomain {
         userId: string,
         asset: IStoredAsset
     ): Promise<void> {
-        let previous: UserPhoto | null;
         try {
             const events = [
                 this.activityLogDomain.prepare({
                     action: EnumActivityLogAction.userUpdatePhotoProfile,
                 }),
             ];
-            previous = await this.userRepository.updatePhotoProfile(
-                userId,
-                asset
-            );
+            await this.userRepository.updatePhotoProfile(userId, asset);
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.objectStorageService.deleteQuietly(asset);
-
             if (err instanceof AppBaseException) {
                 throw err;
             }
@@ -86,9 +84,31 @@ export class UserProfileDomain {
             throw new AppUnknownException(err);
         }
 
-        if (previous && previous.key !== asset.key) {
-            await this.objectStorageService.deleteQuietly(previous);
+        await this.sweepPhotoScope(userId);
+    }
+
+    /** Runs after the commit, from what the database holds then, and never fails the request. */
+    private async sweepPhotoScope(userId: string): Promise<void> {
+        let keep: string[] = [];
+        try {
+            const current = await this.userRepository.findPhotoByUserId(userId);
+            if (current) {
+                keep = [current.key];
+            }
+        } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to read the current photo of user ${userId}`
+            );
+
+            return;
         }
+
+        await this.objectStorageService.sweepUnreferenced(
+            EnumStorageVisibility.public,
+            this.createPhotoScopePrefix(userId),
+            keep
+        );
     }
 
     async getProfile(userId: string): Promise<IUserProfile> {

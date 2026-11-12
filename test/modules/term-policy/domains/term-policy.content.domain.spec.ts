@@ -81,6 +81,10 @@ describe('TermPolicyContentDomain', () => {
         contents: [existingContent],
     };
     const emptyDraft: ITermPolicy = { ...draft, contents: [] };
+    const storedDraft: ITermPolicy = {
+        ...draft,
+        contents: [{ ...existingContent, key: verifiedKey }],
+    };
     const verified: IStoredAsset = {
         key: verifiedKey,
         visibility: EnumStorageVisibility.public,
@@ -110,7 +114,7 @@ describe('TermPolicyContentDomain', () => {
         );
         termPolicyRepository.findOneById.mockResolvedValue(draft);
         objectStorageService.verifyUpload.mockResolvedValue(verified);
-        objectStorageService.deleteQuietly.mockResolvedValue();
+        objectStorageService.sweepUnreferenced.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -327,11 +331,6 @@ describe('TermPolicyContentDomain', () => {
                 callOrder.push('add');
                 return draft;
             });
-            objectStorageService.deleteQuietly.mockImplementation(
-                async ({ key }) => {
-                    callOrder.push(`delete:${key}`);
-                }
-            );
 
             await service.addContentByAdmin('term-id', upload);
 
@@ -349,29 +348,62 @@ describe('TermPolicyContentDomain', () => {
             expect(callOrder).toEqual(['add']);
         });
 
-        it('deletes the verified object and rethrows as AppUnknownException when the database write fails', async () => {
+        it('sweeps the language prefix on the public disk keeping the key the database holds after the commit', async () => {
+            const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(emptyDraft)
+                .mockImplementationOnce(async () => {
+                    callOrder.push('read');
+                    return storedDraft;
+                });
+            termPolicyRepository.addContent.mockImplementation(async () => {
+                callOrder.push('add');
+                return draft;
+            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
+
+            await service.addContentByAdmin('term-id', upload);
+
+            expect(callOrder).toEqual(['add', 'read', 'sweep']);
+            expect(termPolicyUtil.getContentScopePrefix).toHaveBeenCalledWith(
+                EnumTermPolicyType.privacy,
+                1,
+                EnumMessageLanguage.en
+            );
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
+            );
+        });
+
+        it('deletes nothing, sweeps nothing and rethrows as AppUnknownException when the database write fails', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
             termPolicyRepository.addContent.mockRejectedValue(new Error('db'));
 
             await expect(
                 service.addContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: verified.key,
-                    visibility: verified.visibility,
-                })
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it('rethrows a typed exception unchanged after compensating', async () => {
+        it('rethrows a typed exception unchanged and deletes nothing', async () => {
             const exception = new TermPolicyContentExistException();
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
             termPolicyRepository.addContent.mockRejectedValue(exception);
 
             await expect(
                 service.addContentByAdmin('term-id', upload)
             ).rejects.toBe(exception);
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
         });
     });
 
@@ -402,15 +434,18 @@ describe('TermPolicyContentDomain', () => {
             expect(termPolicyRepository.updateContent).not.toHaveBeenCalled();
         });
 
-        it('replaces the content row, then deletes the previous object', async () => {
+        it('replaces the content row, then removes the replaced object only through the sweep', async () => {
             const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockResolvedValueOnce(storedDraft);
             termPolicyRepository.updateContent.mockImplementation(async () => {
                 callOrder.push('update');
                 return draft;
             });
-            objectStorageService.deleteQuietly.mockImplementation(
-                async ({ key }) => {
-                    callOrder.push(`delete:${key}`);
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
                 }
             );
 
@@ -420,19 +455,74 @@ describe('TermPolicyContentDomain', () => {
                 'term-id',
                 { ...verified, language: EnumMessageLanguage.en }
             );
-            expect(callOrder[0]).toBe('update');
-            expect(callOrder).toEqual(
-                expect.arrayContaining([`delete:${existingContent.key}`])
+            expect(callOrder).toEqual(['update', 'sweep']);
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
             );
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: existingContent.key,
-                    visibility: EnumStorageVisibility.private,
-                })
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+        });
+
+        it('never deletes the resubmitted key when it is the one the database holds', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(storedDraft);
+
+            await service.updateContentByAdmin('term-id', upload);
+
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
             );
         });
 
-        it('deletes only the new final object and rethrows when the database write fails', async () => {
+        it('keeps the key of the winning write when two completions interleave', async () => {
+            const winnerKey = 'term-policies/privacy/v1/en/winner.hbs';
+            const loserKey = 'term-policies/privacy/v1/en/loser.hbs';
+            const winnerDraft: ITermPolicy = {
+                ...draft,
+                contents: [{ ...existingContent, key: winnerKey }],
+            };
+            termPolicyRepository.findOneById.mockResolvedValue(winnerDraft);
+            objectStorageService.verifyUpload
+                .mockResolvedValueOnce({ ...verified, key: winnerKey })
+                .mockResolvedValueOnce({ ...verified, key: loserKey });
+
+            await Promise.all([
+                service.updateContentByAdmin('term-id', {
+                    language: EnumMessageLanguage.en,
+                    key: winnerKey,
+                }),
+                service.updateContentByAdmin('term-id', {
+                    language: EnumMessageLanguage.en,
+                    key: loserKey,
+                }),
+            ]);
+
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenCalledTimes(2);
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenNthCalledWith(
+                1,
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [winnerKey]
+            );
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenNthCalledWith(
+                2,
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [winnerKey]
+            );
+        });
+
+        it('deletes nothing, sweeps nothing and rethrows when the database write fails', async () => {
             termPolicyRepository.updateContent.mockRejectedValue(
                 new Error('db')
             );
@@ -440,13 +530,10 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.updateContentByAdmin('term-id', upload)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: verified.key,
-                    visibility: verified.visibility,
-                })
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
         });
     });
 
@@ -460,15 +547,20 @@ describe('TermPolicyContentDomain', () => {
             expect(termPolicyRepository.removeContent).not.toHaveBeenCalled();
         });
 
-        it('deletes the row first, then the private object', async () => {
+        it('deletes the row first, then sweeps the language prefix keeping nothing', async () => {
             const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockResolvedValueOnce(emptyDraft);
             termPolicyRepository.removeContent.mockImplementation(async () => {
                 callOrder.push('remove');
                 return draft;
             });
-            objectStorageService.deleteQuietly.mockImplementation(async () => {
-                callOrder.push('delete');
-            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
 
             await service.removeContentByAdmin(
                 'term-id',
@@ -479,13 +571,13 @@ describe('TermPolicyContentDomain', () => {
                 'term-id',
                 { language: EnumMessageLanguage.en }
             );
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: existingContent.key,
-                    visibility: existingContent.visibility,
-                })
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                []
             );
-            expect(callOrder).toEqual(['remove', 'delete']);
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(callOrder).toEqual(['remove', 'sweep']);
             expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
                 preparedEvent,
             ]);
@@ -499,7 +591,22 @@ describe('TermPolicyContentDomain', () => {
             await expect(
                 service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
             ).rejects.toBeInstanceOf(AppUnknownException);
-            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
+        });
+
+        it('sweeps nothing and resolves when the post-commit read fails', async () => {
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockRejectedValueOnce(new Error('db'));
+
+            await expect(
+                service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).resolves.toBeUndefined();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
         });
     });
 

@@ -23,16 +23,19 @@ import type {
 } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
     EnumActivityLogAction,
+    EnumStorageVisibility,
     EnumTermPolicyStatus,
 } from '@generated/prisma-client/client';
 import type { TermPolicy } from '@generated/prisma-client/client';
 
 @Injectable()
 export class TermPolicyContentDomain {
+    private readonly logger = new Logger(TermPolicyContentDomain.name);
+
     private readonly contentMaxSizeInBytes: number;
 
     constructor(
@@ -82,6 +85,50 @@ export class TermPolicyContentDomain {
         }
 
         return new AppUnknownException(err);
+    }
+
+    /**
+     * Runs after a commit, from what the database holds then, and never fails the request. The
+     * objects under the language prefix other than the stored one are the replaced, the removed and
+     * the abandoned; the object store drops them once they are older than any live upload.
+     */
+    async sweepContentScope(
+        termPolicyId: string,
+        { type, version }: Pick<TermPolicy, 'type' | 'version'>,
+        language: EnumMessageLanguage
+    ): Promise<void> {
+        let keep: string[] = [];
+        try {
+            const termPolicy =
+                await this.termPolicyRepository.findOneById(termPolicyId);
+            const stored = termPolicy
+                ? this.termPolicyUtil.getContentByLanguage(
+                      termPolicy.contents,
+                      language
+                  )
+                : null;
+            if (stored) {
+                keep = [stored.key];
+            }
+        } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to read term policy ${termPolicyId} before sweeping its ${language} content`
+            );
+
+            return;
+        }
+
+        const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
+            type,
+            version,
+            language
+        );
+        await this.objectStorageService.sweepUnreferenced(
+            EnumStorageVisibility.public,
+            scopePrefix,
+            keep
+        );
     }
 
     async verifyContent(
@@ -163,15 +210,11 @@ export class TermPolicyContentDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.objectStorageService.deleteQuietly(content);
-
             const exception = this.wrapError(err);
             throw exception;
         }
 
-        if (existingContent.key !== content.key) {
-            await this.objectStorageService.deleteQuietly(existingContent);
-        }
+        await this.sweepContentScope(termPolicyId, termPolicy, upload.language);
     }
 
     async addContentByAdmin(
@@ -203,11 +246,11 @@ export class TermPolicyContentDomain {
 
             this.activityLogDomain.stagePrepared(events);
         } catch (err: unknown) {
-            await this.objectStorageService.deleteQuietly(content);
-
             const exception = this.wrapError(err);
             throw exception;
         }
+
+        await this.sweepContentScope(termPolicyId, termPolicy, upload.language);
     }
 
     async removeContentByAdmin(
@@ -243,7 +286,7 @@ export class TermPolicyContentDomain {
             throw exception;
         }
 
-        await this.objectStorageService.deleteQuietly(existingContent);
+        await this.sweepContentScope(termPolicyId, termPolicy, language);
     }
 
     async getContentByAdmin(

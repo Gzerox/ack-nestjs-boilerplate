@@ -23,7 +23,6 @@ import {
     EnumStorageVisibility,
     EnumUserGender,
 } from '@generated/prisma-client/client';
-import type { UserPhoto } from '@generated/prisma-client/client';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
 import { CountryDomain } from '@modules/country/domains/country.domain';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
@@ -62,15 +61,6 @@ describe('UserProfileDomain', () => {
         size: 100,
         etag: '"new-etag"',
     };
-    const previousPhoto: UserPhoto = {
-        id: 'photo-id',
-        userId,
-        key: 'users/user-id/profile/old-photo.png',
-        visibility: EnumStorageVisibility.public,
-        contentType: 'image/png',
-        size: BigInt(50),
-        etag: null,
-    };
     const verifiedKey = 'users/user-id/profile/verified-photo.png';
     const verified: IStoredAsset = {
         key: verifiedKey,
@@ -104,10 +94,15 @@ describe('UserProfileDomain', () => {
         userUtil.checkBadWord.mockResolvedValue(false);
         userRepository.existsByUsername.mockResolvedValue(false);
         activityLogDomain.prepare.mockReturnValue(preparedEvent);
-        userRepository.updatePhotoProfile.mockResolvedValue(previousPhoto);
+        userRepository.updatePhotoProfile.mockResolvedValue();
+        userRepository.findPhotoByUserId.mockResolvedValue({
+            key: verifiedKey,
+            visibility: EnumStorageVisibility.public,
+            contentType: 'image/png',
+        });
         objectStorageService.createSignedUpload.mockResolvedValue(signedUpload);
         objectStorageService.verifyUpload.mockResolvedValue(verified);
-        objectStorageService.deleteQuietly.mockResolvedValue();
+        objectStorageService.sweepUnreferenced.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -261,32 +256,59 @@ describe('UserProfileDomain', () => {
             ]);
         });
 
-        it('deletes the previous photo after the update commits', async () => {
-            await service.updatePhotoProfile(userId, { key: verifiedKey });
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: previousPhoto.key,
-                    visibility: previousPhoto.visibility,
-                })
-            );
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-        });
-
-        it('keeps the object when the previous photo has the same key', async () => {
-            userRepository.updatePhotoProfile.mockResolvedValue({
-                ...previousPhoto,
-                key: verified.key,
+        it('sweeps the photo scope on the public disk keeping the key the database holds after the commit', async () => {
+            const callOrder: string[] = [];
+            userRepository.updatePhotoProfile.mockImplementation(async () => {
+                callOrder.push('update');
             });
+            userRepository.findPhotoByUserId.mockImplementation(async () => {
+                callOrder.push('read');
+                return {
+                    key: 'users/user-id/profile/winner.png',
+                    visibility: EnumStorageVisibility.public,
+                    contentType: 'image/png',
+                };
+            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
 
             await service.updatePhotoProfile(userId, { key: verifiedKey });
 
-            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(callOrder).toEqual(['update', 'read', 'sweep']);
+            expect(userRepository.findPhotoByUserId).toHaveBeenCalledWith(
+                userId
+            );
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                ['users/user-id/profile/winner.png']
+            );
         });
 
-        it('keeps the uploaded object on a first photo', async () => {
-            userRepository.updatePhotoProfile.mockResolvedValue(null);
+        it('never deletes the resubmitted key when it is the one the database holds', async () => {
             await service.updatePhotoProfile(userId, { key: verifiedKey });
+
             expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
+            );
+        });
+
+        it('keeps nothing when the row holds no photo', async () => {
+            userRepository.findPhotoByUserId.mockResolvedValue(null);
+
+            await service.updatePhotoProfile(userId, { key: verifiedKey });
+
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                []
+            );
         });
 
         it('rejects a foreign or traversal key with no database write', async () => {
@@ -356,7 +378,7 @@ describe('UserProfileDomain', () => {
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
         });
 
-        it('deletes the verified object and rethrows as AppUnknownException when the database update fails', async () => {
+        it('deletes nothing, sweeps nothing and rethrows as AppUnknownException when the database update fails', async () => {
             userRepository.updatePhotoProfile.mockRejectedValue(
                 new Error('db down')
             );
@@ -367,13 +389,10 @@ describe('UserProfileDomain', () => {
                 module: 'app',
                 statusCode: EnumAppStatusCodeError.unknown,
             });
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: verified.key,
-                    visibility: verified.visibility,
-                })
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
     });
@@ -394,36 +413,24 @@ describe('UserProfileDomain', () => {
             ]);
         });
 
-        it('deletes the previous photo after the database update commits', async () => {
-            const callOrder: string[] = [];
-            userRepository.updatePhotoProfile.mockImplementation(async () => {
-                callOrder.push('update');
-                return previousPhoto;
-            });
-            objectStorageService.deleteQuietly.mockImplementation(async () => {
-                callOrder.push('delete');
+        it('sweeps the photo scope keeping the key the database holds after the commit', async () => {
+            userRepository.findPhotoByUserId.mockResolvedValue({
+                key: stored.key,
+                visibility: stored.visibility,
+                contentType: stored.contentType,
             });
 
             await service.uploadPhotoProfile(userId, stored);
 
-            expect(callOrder).toEqual(['update', 'delete']);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: previousPhoto.key,
-                    visibility: previousPhoto.visibility,
-                })
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [stored.key]
             );
-        });
-
-        it('deletes nothing on a first upload with no previous photo', async () => {
-            userRepository.updatePhotoProfile.mockResolvedValue(null);
-
-            await service.uploadPhotoProfile(userId, stored);
-
             expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
         });
 
-        it('deletes the new object and rethrows as AppUnknownException when the database update fails', async () => {
+        it('deletes nothing, sweeps nothing and rethrows as AppUnknownException when the database update fails', async () => {
             const failure = new Error('db down');
             userRepository.updatePhotoProfile.mockRejectedValue(failure);
 
@@ -437,16 +444,14 @@ describe('UserProfileDomain', () => {
                 messagePath: 'http.serverError.internalServerError',
                 rawError: failure,
             });
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: stored.key,
-                    visibility: stored.visibility,
-                })
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
 
-        it('deletes the new object and rethrows the typed exception unchanged when the activity contract fails', async () => {
+        it('rethrows the typed exception unchanged and deletes nothing when the activity contract fails', async () => {
             const exception = new StorageKeyInvalidException();
             activityLogDomain.prepare.mockImplementation(() => {
                 throw exception;
@@ -456,12 +461,10 @@ describe('UserProfileDomain', () => {
                 service.uploadPhotoProfile(userId, stored)
             ).rejects.toBe(exception);
             expect(userRepository.updatePhotoProfile).not.toHaveBeenCalled();
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    key: stored.key,
-                    visibility: stored.visibility,
-                })
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
         });
     });
 

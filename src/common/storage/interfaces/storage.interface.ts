@@ -53,6 +53,13 @@ export interface IStorageTarget {
     scopePrefix: string;
 }
 
+export interface IStorageDeletePrefixOptions {
+    /** Keys that stay even though they sit under the prefix. */
+    keep?: readonly string[];
+    /** Entries modified within this many milliseconds of now stay. */
+    olderThanMs?: number;
+}
+
 export interface IStorageUploadSingleOptions {
     fieldName: string;
     visibility: EnumStorageVisibility;

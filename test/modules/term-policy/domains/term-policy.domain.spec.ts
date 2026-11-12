@@ -127,7 +127,7 @@ describe('TermPolicyDomain', () => {
         termPolicyRepository.findOneById.mockResolvedValue(draft);
         termPolicyRepository.existsByVersionAndType.mockResolvedValue(false);
         termPolicyRepository.publishInTx.mockResolvedValue(published);
-        objectStorageService.deleteQuietly.mockResolvedValue();
+        termPolicyContentDomain.sweepContentScope.mockResolvedValue();
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
@@ -258,9 +258,11 @@ describe('TermPolicyDomain', () => {
                 callOrder.push('create');
                 return published;
             });
-            objectStorageService.deleteQuietly.mockImplementation(async () => {
-                callOrder.push('cleanup');
-            });
+            termPolicyContentDomain.sweepContentScope.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
 
             const result = await service.createByAdmin({
                 contents: uploads,
@@ -282,7 +284,14 @@ describe('TermPolicyDomain', () => {
                 [promotedContent]
             );
             expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
-            expect(callOrder).toEqual(['create']);
+            expect(
+                termPolicyContentDomain.sweepContentScope
+            ).toHaveBeenCalledWith(
+                published.id,
+                { type: EnumTermPolicyType.privacy, version: 1 },
+                EnumMessageLanguage.en
+            );
+            expect(callOrder).toEqual(['create', 'sweep']);
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.adminTermPolicyCreate,
                 metadata: {},
@@ -290,7 +299,7 @@ describe('TermPolicyDomain', () => {
             expect(result).toBe(published);
         });
 
-        it('deletes the contents already promoted and writes nothing when one uploaded content is rejected', async () => {
+        it('writes nothing and deletes nothing when one uploaded content is rejected', async () => {
             const exception = new StorageKeyInvalidException();
             termPolicyContentDomain.verifyContent
                 .mockResolvedValueOnce(promotedContent)
@@ -309,13 +318,14 @@ describe('TermPolicyDomain', () => {
                     version: 1,
                 })
             ).rejects.toBe(exception);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                promotedContent
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                termPolicyContentDomain.sweepContentScope
+            ).not.toHaveBeenCalled();
             expect(termPolicyRepository.create).not.toHaveBeenCalled();
         });
 
-        it('rethrows the first rejection in upload order and deletes only the verified siblings', async () => {
+        it('rethrows a verification failure unchanged and deletes no verified sibling', async () => {
             const sibling: ITermPolicyContentCreate = {
                 ...promotedContent,
                 key: 'term-policies/privacy/v1/en/sibling.hbs',
@@ -323,31 +333,23 @@ describe('TermPolicyDomain', () => {
             const first = new StorageKeyInvalidException();
             termPolicyContentDomain.verifyContent
                 .mockRejectedValueOnce(first)
-                .mockResolvedValueOnce(sibling)
-                .mockRejectedValueOnce(new Error('later'));
+                .mockResolvedValueOnce(sibling);
 
             await expect(
                 service.createByAdmin({
                     contents: [
                         ...uploads,
                         { language: EnumMessageLanguage.en, key: sibling.key },
-                        {
-                            language: EnumMessageLanguage.en,
-                            key: 'term-policies/other/v1/en/foreign.hbs',
-                        },
                     ],
                     type: EnumTermPolicyType.privacy,
                     version: 1,
                 })
             ).rejects.toBe(first);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                sibling
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
             expect(termPolicyRepository.create).not.toHaveBeenCalled();
         });
 
-        it('deletes the promoted contents and rethrows as AppUnknownException when the database write fails', async () => {
+        it('deletes nothing, sweeps nothing and rethrows as AppUnknownException when the database write fails', async () => {
             termPolicyRepository.create.mockRejectedValue(new Error('db'));
 
             await expect(
@@ -360,10 +362,10 @@ describe('TermPolicyDomain', () => {
                 module: 'app',
                 statusCode: EnumAppStatusCodeError.unknown,
             });
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                promotedContent
-            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                termPolicyContentDomain.sweepContentScope
+            ).not.toHaveBeenCalled();
             expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
         });
     });
@@ -479,9 +481,6 @@ describe('TermPolicyDomain', () => {
             termPolicyRepository.publishInTx.mockImplementation(async () => {
                 callOrder.push('publish');
                 return published;
-            });
-            objectStorageService.deleteQuietly.mockImplementation(async () => {
-                callOrder.push('cleanup');
             });
             notificationQueue.sendPublishTermPolicy.mockImplementation(
                 async () => {

@@ -25,6 +25,7 @@ import {
     StorageObjectKeyStructureInvalidRegex,
 } from '@common/storage/constants/storage.constant';
 import type {
+    IStorageDeletePrefixOptions,
     IStorageSignedDownload,
     IStorageSignedDownloadOptions,
     IStorageSignedUpload,
@@ -400,17 +401,33 @@ export class ObjectStorageService {
 
     async deletePrefix(
         visibility: EnumStorageVisibility,
-        prefix: string
+        prefix: string,
+        { keep = [], olderThanMs }: IStorageDeletePrefixOptions = {}
     ): Promise<void> {
         if (prefix.length === 0) {
             throw new StorageKeyInvalidException();
         }
 
         const disk = this.diskOf(visibility);
+        const kept = new Set(keep);
+        let cutoff: Date | null = null;
+        if (olderThanMs !== undefined) {
+            const now = this.helperDateService.create();
+            const window = this.helperDateService.createDuration({
+                milliseconds: olderThanMs,
+            });
+            cutoff = this.helperDateService.backward(now, window);
+        }
 
         try {
             let batch: string[] = [];
             for await (const entry of disk.listAll({ prefix })) {
+                if (kept.has(entry.key)) {
+                    continue;
+                } else if (cutoff && entry.lastModified > cutoff) {
+                    continue;
+                }
+
                 batch.push(entry.key);
                 if (batch.length === StorageDeleteBatchSize) {
                     await disk.delete(batch);
@@ -424,6 +441,29 @@ export class ObjectStorageService {
         } catch (error: unknown) {
             const exception = this.storageErrorUtil.translate(error);
             throw exception;
+        }
+    }
+
+    /**
+     * Removes what a prefix holds that the database no longer references. An entry younger than twice
+     * the signed upload lifetime stays, because its upload may still be completing. Never throws:
+     * it runs after the database commit, so a store failure is logged and the request still succeeds.
+     */
+    async sweepUnreferenced(
+        visibility: EnumStorageVisibility,
+        prefix: string,
+        keep: readonly string[]
+    ): Promise<void> {
+        try {
+            await this.deletePrefix(visibility, prefix, {
+                keep,
+                olderThanMs: this.signedUploadExpiresInMs * 2,
+            });
+        } catch (error: unknown) {
+            this.logger.error(
+                error,
+                `Failed to sweep ${visibility} storage objects under ${prefix}`
+            );
         }
     }
 

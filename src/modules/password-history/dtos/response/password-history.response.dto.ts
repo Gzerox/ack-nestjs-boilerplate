@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
-import { StorageAssetExample } from '@common/storage/constants/storage.constant';
 import { DatabaseResponseSchema } from '@common/database/dtos/response/database.response.dto';
 import { EnumPasswordHistoryType } from '@generated/prisma-client/client';
 import { UserRefResponseSchema } from '@modules/user/dtos/response/user.ref.response.dto';
@@ -19,7 +18,7 @@ export const PasswordHistoryResponseSchema = DatabaseResponseSchema.omit({
         description: 'Identifier of the user whose password history this is',
         example: faker.string.uuid(),
     }),
-    user: UserRefResponseSchema.meta({
+    user: UserRefResponseSchema.omit({ photo: true }).meta({
         description: 'Embedded user whose password history this is',
         example: {
             id: faker.string.uuid(),
@@ -31,7 +30,6 @@ export const PasswordHistoryResponseSchema = DatabaseResponseSchema.omit({
             deletedBy: faker.string.uuid(),
             name: faker.person.fullName(),
             username: faker.internet.username().toLowerCase(),
-            photo: StorageAssetExample,
         },
     }),
     type: z.enum(EnumPasswordHistoryType).meta({

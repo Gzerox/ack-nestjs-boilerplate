@@ -6,8 +6,6 @@ import { PaginationStoreKey } from '@common/pagination/constants/pagination.cons
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import type { StorageAssetResponseDto } from '@common/storage/dtos/response/storage.asset.response.dto';
 import {
     EnumPasswordHistoryType,
     EnumStorageVisibility,
@@ -24,8 +22,6 @@ describe('PasswordHistoryHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const objectStorageService: MockProxy<ObjectStorageService> =
-        mock<ObjectStorageService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const userPhoto: UserPhoto = {
         id: 'photo-id',
@@ -35,12 +31,6 @@ describe('PasswordHistoryHttpService', () => {
         contentType: 'image/png',
         size: BigInt(1024),
         etag: null,
-    };
-    const photoResponse: StorageAssetResponseDto = {
-        key: 'users/user-id/profile/photo.png',
-        visibility: EnumStorageVisibility.public,
-        contentType: 'image/png',
-        url: 'https://cdn.example.com/users/user-id/profile/photo.png',
     };
     const passwordHistory: IPasswordHistoryList = {
         id: 'password-history-id',
@@ -62,22 +52,11 @@ describe('PasswordHistoryHttpService', () => {
             deletedBy: null,
         },
     };
-    const mappedPasswordHistory = {
-        ...passwordHistory,
-        user: { ...passwordHistory.user, photo: photoResponse },
-    };
 
     let service: PasswordHistoryHttpService;
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        objectStorageService.toAssetResponse.mockImplementation(asset => {
-            if (asset === userPhoto) {
-                return photoResponse;
-            }
-
-            return null;
-        });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -94,10 +73,6 @@ describe('PasswordHistoryHttpService', () => {
                     provide: RequestStoreService,
                     useValue: requestStoreService,
                 },
-                {
-                    provide: ObjectStorageService,
-                    useValue: objectStorageService,
-                },
             ],
         }).compile();
 
@@ -105,7 +80,7 @@ describe('PasswordHistoryHttpService', () => {
     });
 
     describe('getListOffsetByAdmin', () => {
-        it('resolves the user photo of every password history entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             paginationQueryUtil.offset.mockReturnValue({
                 params: { limit: 20, skip: 0, orderBy: [] },
                 storePatch: { page: 1, perPage: 20 },
@@ -127,12 +102,12 @@ describe('PasswordHistoryHttpService', () => {
                 PaginationStoreKey,
                 { page: 1, perPage: 20 }
             );
-            expect(result.data).toEqual([mappedPasswordHistory]);
+            expect(result.data).toEqual([passwordHistory]);
         });
     });
 
     describe('getListCursor', () => {
-        it('resolves the user photo of every password history entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             paginationQueryUtil.cursor.mockReturnValue({
                 params: { limit: 20, orderBy: [] },
                 storePatch: { perPage: 20 },
@@ -150,15 +125,7 @@ describe('PasswordHistoryHttpService', () => {
                 'user-id',
                 { limit: 20, orderBy: [] }
             );
-            expect(result.data).toEqual([mappedPasswordHistory]);
-        });
-    });
-
-    describe('mapPasswordHistory', () => {
-        it('resolves the entry user photo', () => {
-            const result = service['mapPasswordHistory'](passwordHistory);
-
-            expect(result).toEqual(mappedPasswordHistory);
+            expect(result.data).toEqual([passwordHistory]);
         });
     });
 });

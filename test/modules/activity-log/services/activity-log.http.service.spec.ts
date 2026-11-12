@@ -6,8 +6,6 @@ import { PaginationStoreKey } from '@common/pagination/constants/pagination.cons
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import type { StorageAssetResponseDto } from '@common/storage/dtos/response/storage.asset.response.dto';
 import {
     EnumActivityLogAction,
     EnumStorageVisibility,
@@ -24,8 +22,6 @@ describe('ActivityLogHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
-    const objectStorageService: MockProxy<ObjectStorageService> =
-        mock<ObjectStorageService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const userPhoto: UserPhoto = {
         id: 'photo-id',
@@ -35,12 +31,6 @@ describe('ActivityLogHttpService', () => {
         contentType: 'image/png',
         size: BigInt(1024),
         etag: null,
-    };
-    const photoResponse: StorageAssetResponseDto = {
-        key: 'users/user-id/profile/photo.png',
-        visibility: EnumStorageVisibility.public,
-        contentType: 'image/png',
-        url: 'https://cdn.example.com/users/user-id/profile/photo.png',
     };
     const activityLog: IActivityLog = {
         id: 'activity-log-id',
@@ -66,10 +56,6 @@ describe('ActivityLogHttpService', () => {
             deletedAt: null,
             deletedBy: null,
         },
-    };
-    const mappedActivityLog = {
-        ...activityLog,
-        user: { ...activityLog.user, photo: photoResponse },
     };
     const offsetPage = {
         type: EnumPaginationType.offset as const,
@@ -100,13 +86,6 @@ describe('ActivityLogHttpService', () => {
 
     beforeEach(async () => {
         vi.resetAllMocks();
-        objectStorageService.toAssetResponse.mockImplementation(asset => {
-            if (asset === userPhoto) {
-                return photoResponse;
-            }
-
-            return null;
-        });
         paginationQueryUtil.offset.mockReturnValue(offsetPagination as never);
         paginationQueryUtil.cursor.mockReturnValue(cursorPagination as never);
 
@@ -122,10 +101,6 @@ describe('ActivityLogHttpService', () => {
                     provide: RequestStoreService,
                     useValue: requestStoreService,
                 },
-                {
-                    provide: ObjectStorageService,
-                    useValue: objectStorageService,
-                },
             ],
         }).compile();
 
@@ -133,7 +108,7 @@ describe('ActivityLogHttpService', () => {
     });
 
     describe('getListOffsetByUser', () => {
-        it('resolves the user photo of every entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             activityLogDomain.getListOffsetByUser.mockResolvedValue(offsetPage);
 
             const result = await service.getListOffsetByUser('user-id', {});
@@ -142,22 +117,22 @@ describe('ActivityLogHttpService', () => {
                 PaginationStoreKey,
                 offsetPagination.storePatch
             );
-            expect(result.data).toEqual([mappedActivityLog]);
+            expect(result.data).toEqual([activityLog]);
         });
     });
 
     describe('getListCursorByUser', () => {
-        it('resolves the user photo of every entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             activityLogDomain.getListCursorByUser.mockResolvedValue(cursorPage);
 
             const result = await service.getListCursorByUser('user-id', {});
 
-            expect(result.data).toEqual([mappedActivityLog]);
+            expect(result.data).toEqual([activityLog]);
         });
     });
 
     describe('getListOffsetByWorkspace', () => {
-        it('resolves the user photo of every entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             activityLogDomain.getListOffsetByWorkspace.mockResolvedValue(
                 offsetPage
             );
@@ -175,12 +150,12 @@ describe('ActivityLogHttpService', () => {
                 null,
                 offsetPagination.params
             );
-            expect(result.data).toEqual([mappedActivityLog]);
+            expect(result.data).toEqual([activityLog]);
         });
     });
 
     describe('getListCursorByWorkspace', () => {
-        it('resolves the user photo of every entry', async () => {
+        it('returns the domain entries unchanged', async () => {
             activityLogDomain.getListCursorByWorkspace.mockResolvedValue(
                 cursorPage
             );
@@ -198,15 +173,7 @@ describe('ActivityLogHttpService', () => {
                 'user-id',
                 cursorPagination.params
             );
-            expect(result.data).toEqual([mappedActivityLog]);
-        });
-    });
-
-    describe('mapActivityLog', () => {
-        it('resolves the entry user photo', () => {
-            const result = service['mapActivityLog'](activityLog);
-
-            expect(result).toEqual(mappedActivityLog);
+            expect(result.data).toEqual([activityLog]);
         });
     });
 });

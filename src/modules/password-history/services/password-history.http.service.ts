@@ -2,7 +2,6 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import {
     PasswordHistoryCursorAvailableOrderBy,
@@ -10,36 +9,22 @@ import {
 } from '@modules/password-history/constants/password-history.list.constant';
 import type { PasswordHistoryAdminListRequestDto } from '@modules/password-history/dtos/request/password-history.admin-list.request.dto';
 import type { PasswordHistorySharedListRequestDto } from '@modules/password-history/dtos/request/password-history.shared-list.request.dto';
-import type { IPasswordHistoryList } from '@modules/password-history/interfaces/password-history.interface';
 import { PasswordHistoryDomain } from '@modules/password-history/domains/password-history.domain';
 import { Injectable } from '@nestjs/common';
+import type { PasswordHistoryResponseDto } from '@modules/password-history/dtos/response/password-history.response.dto';
 
 @Injectable()
 export class PasswordHistoryHttpService {
     constructor(
         private readonly passwordHistoryDomain: PasswordHistoryDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService,
-        private readonly objectStorageService: ObjectStorageService
+        private readonly requestStoreService: RequestStoreService
     ) {}
-
-    private mapPasswordHistory(
-        passwordHistory: IPasswordHistoryList
-    ): IPasswordHistoryList {
-        const photo = this.objectStorageService.toAssetResponse(
-            passwordHistory.user.photo
-        );
-
-        return {
-            ...passwordHistory,
-            user: { ...passwordHistory.user, photo },
-        };
-    }
 
     async getListOffsetByAdmin(
         userId: string,
         query: PasswordHistoryAdminListRequestDto
-    ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+    ): Promise<IResponsePaginationReturn<PasswordHistoryResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.PasswordHistoryWhereInput>(
                 query,
@@ -55,12 +40,8 @@ export class PasswordHistoryHttpService {
                 params
             );
 
-        const passwordHistories = data.map(passwordHistory =>
-            this.mapPasswordHistory(passwordHistory)
-        );
-
         return {
-            data: passwordHistories,
+            data,
             ...others,
         };
     }
@@ -68,7 +49,7 @@ export class PasswordHistoryHttpService {
     async getListCursor(
         userId: string,
         query: PasswordHistorySharedListRequestDto
-    ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+    ): Promise<IResponsePaginationReturn<PasswordHistoryResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.PasswordHistoryWhereInput>(
                 query,
@@ -81,12 +62,8 @@ export class PasswordHistoryHttpService {
         const { data, ...others } =
             await this.passwordHistoryDomain.getListCursor(userId, params);
 
-        const passwordHistories = data.map(passwordHistory =>
-            this.mapPasswordHistory(passwordHistory)
-        );
-
         return {
-            data: passwordHistories,
+            data,
             ...others,
         };
     }

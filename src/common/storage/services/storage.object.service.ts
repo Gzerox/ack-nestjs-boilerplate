@@ -246,6 +246,11 @@ export class ObjectStorageService {
             detect,
         }: IStorageVerifyRules
     ): Promise<IStoredAsset> {
+        const validScope = this.isValidScope(scopePrefix);
+        if (!validScope) {
+            throw new StorageKeyInvalidException();
+        }
+
         const valid = this.isValidKey(key);
         if (!valid || !key.startsWith(scopePrefix)) {
             throw new StorageKeyInvalidException();

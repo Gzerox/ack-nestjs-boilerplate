@@ -9,7 +9,6 @@ import type {
     IPaginationQueryOffsetParams,
 } from '@common/pagination/interfaces/pagination.interface';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
-import type { IStoredAssetReference } from '@common/storage/interfaces/storage.interface';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import type { IActivityLogStagedEvent } from '@modules/activity-log/interfaces/activity-log.interface';
@@ -19,7 +18,10 @@ import { TermPolicyExistException } from '@modules/term-policy/exceptions/term-p
 import { TermPolicyLanguageDuplicateException } from '@modules/term-policy/exceptions/term-policy.language-duplicate.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
-import type { ITermPolicyCreate } from '@modules/term-policy/interfaces/term-policy.interface';
+import type {
+    ITermPolicyContentCreate,
+    ITermPolicyCreate,
+} from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyContentDomain } from '@modules/term-policy/domains/term-policy.content.domain';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
@@ -74,37 +76,6 @@ export class TermPolicyDomain {
         return new AppUnknownException(err);
     }
 
-    /** Awaits every storage task; when one rejects, deletes the objects the others wrote and throws the first rejection. */
-    private async settleAllOrDelete<T>(
-        tasks: Promise<T>[],
-        toAsset: (item: T) => IStoredAssetReference
-    ): Promise<T[]> {
-        const results = await Promise.allSettled(tasks);
-
-        const settled: T[] = [];
-        const failures: unknown[] = [];
-        for (const result of results) {
-            if (result.status === 'fulfilled') {
-                settled.push(result.value);
-            } else {
-                failures.push(result.reason);
-            }
-        }
-
-        if (failures.length > 0) {
-            const written = settled.map(toAsset);
-            await Promise.all(
-                written.map(asset =>
-                    this.objectStorageService.deleteQuietly(asset)
-                )
-            );
-
-            throw failures[0];
-        }
-
-        return settled;
-    }
-
     private async deletePrefixQuietly(prefix: string): Promise<void> {
         try {
             await this.objectStorageService.deletePrefix(
@@ -153,15 +124,35 @@ export class TermPolicyDomain {
             throw new TermPolicyLanguageDuplicateException();
         }
 
-        const mappedContents = await this.settleAllOrDelete(
+        const results = await Promise.allSettled(
             contents.map(upload =>
                 this.termPolicyContentDomain.verifyContent(
                     { type, version },
                     upload
                 )
-            ),
-            content => content
+            )
         );
+        const mappedContents = results
+            .filter(
+                (
+                    result
+                ): result is PromiseFulfilledResult<ITermPolicyContentCreate> =>
+                    result.status === 'fulfilled'
+            )
+            .map(result => result.value);
+        const rejection = results.find(
+            (result): result is PromiseRejectedResult =>
+                result.status === 'rejected'
+        );
+        if (rejection) {
+            await Promise.all(
+                mappedContents.map(content =>
+                    this.objectStorageService.deleteQuietly(content)
+                )
+            );
+
+            throw rejection.reason;
+        }
 
         let created: TermPolicy;
         try {

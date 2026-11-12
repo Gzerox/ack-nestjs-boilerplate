@@ -12,7 +12,6 @@ import { HelperDateService } from '@common/helper/services/helper.date.service';
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.key-invalid.exception';
-import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import {
     EnumActivityLogAction,
     EnumStorageVisibility,
@@ -105,13 +104,6 @@ describe('TermPolicyDomain', () => {
         updatedAt: now,
         updatedBy: null,
     };
-    const publicCopy = (key: string): IStoredAsset => ({
-        key,
-        visibility: EnumStorageVisibility.public,
-        contentType: TermPolicyContentType,
-        size: 100,
-        etag: null,
-    });
     const tx = mock<IDatabaseTransactionClient>();
 
     let service: TermPolicyDomain;
@@ -319,6 +311,38 @@ describe('TermPolicyDomain', () => {
             ).rejects.toBe(exception);
             expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
                 promotedContent
+            );
+            expect(termPolicyRepository.create).not.toHaveBeenCalled();
+        });
+
+        it('rethrows the first rejection in upload order and deletes only the verified siblings', async () => {
+            const sibling: ITermPolicyContentCreate = {
+                ...promotedContent,
+                key: 'term-policies/privacy/v1/en/sibling.hbs',
+            };
+            const first = new StorageKeyInvalidException();
+            termPolicyContentDomain.verifyContent
+                .mockRejectedValueOnce(first)
+                .mockResolvedValueOnce(sibling)
+                .mockRejectedValueOnce(new Error('later'));
+
+            await expect(
+                service.createByAdmin({
+                    contents: [
+                        ...uploads,
+                        { language: EnumMessageLanguage.en, key: sibling.key },
+                        {
+                            language: EnumMessageLanguage.en,
+                            key: 'term-policies/other/v1/en/foreign.hbs',
+                        },
+                    ],
+                    type: EnumTermPolicyType.privacy,
+                    version: 1,
+                })
+            ).rejects.toBe(first);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledTimes(1);
+            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
+                sibling
             );
             expect(termPolicyRepository.create).not.toHaveBeenCalled();
         });
@@ -531,40 +555,6 @@ describe('TermPolicyDomain', () => {
             const result = service['wrapError'](new Error('db'));
 
             expect(result).toBeInstanceOf(AppUnknownException);
-        });
-    });
-
-    describe('settleAllOrDelete', () => {
-        it('returns every settled value in task order', async () => {
-            const first = publicCopy('first');
-            const second = publicCopy('second');
-
-            const result = await service['settleAllOrDelete'](
-                [Promise.resolve(first), Promise.resolve(second)],
-                asset => asset
-            );
-
-            expect(result).toEqual([first, second]);
-            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
-        });
-
-        it('deletes the settled objects and throws the first rejection', async () => {
-            const first = publicCopy('first');
-            const failure = new StorageKeyInvalidException();
-
-            await expect(
-                service['settleAllOrDelete'](
-                    [
-                        Promise.resolve(first),
-                        Promise.reject(failure),
-                        Promise.reject(new Error('later')),
-                    ],
-                    asset => asset
-                )
-            ).rejects.toBe(failure);
-            expect(objectStorageService.deleteQuietly).toHaveBeenCalledWith(
-                first
-            );
         });
     });
 

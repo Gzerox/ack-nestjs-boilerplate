@@ -520,7 +520,7 @@ STORAGE_LOCAL_ROOT=./storage-data
 ```
 
 **`STORAGE_LOCAL_SIGNING_KEYS`** *(required when `STORAGE_DRIVER=local`)*  
-Comma-separated HMAC keys for the signed private URLs, each at least 32 characters. The first key signs and every key verifies. `pnpm generate:secret:storage --direct-insert` writes one fresh key and replaces the whole list, which stops every URL signed with the old key from verifying. A rotation that keeps issued URLs valid puts the new key (from `keys/storage-secret.env`) first by hand and drops the old one once the URLs it signed have expired (10 minutes at most).
+Comma-separated HMAC keys for the signed private URLs, each at least 32 characters. The first key signs and every key verifies. `pnpm generate:secret:storage --direct-insert` writes one fresh key and replaces the whole list, which stops every URL signed with the old key from verifying. A rotation that keeps issued URLs valid puts the new key (from `keys/storage-secret.env`) first by hand and drops the old one once the URLs it signed have expired (5 minutes at most).
 ```bash
 STORAGE_LOCAL_SIGNING_KEYS=<new_key>,<previous_key>
 ```

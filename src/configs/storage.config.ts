@@ -59,7 +59,7 @@ export default registerAs('storage', (): IConfigStorage => ({
         maxAttempts: 3,
     },
     signedUpload: {
-        expiresInMs: ms('10m'),
+        expiresInMs: ms('2m'),
     },
     signedDownload: {
         expiresInMs: ms('5m'),

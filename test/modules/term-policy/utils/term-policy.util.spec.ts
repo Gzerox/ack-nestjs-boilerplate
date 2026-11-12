@@ -79,16 +79,6 @@ describe('TermPolicyUtil', () => {
         ).toBe('term-policies/privacy/v2/en/');
     });
 
-    it('builds the download filename of one language content', () => {
-        expect(
-            util.createContentFilename(
-                EnumTermPolicyType.privacy,
-                2,
-                EnumMessageLanguage.en
-            )
-        ).toBe('privacy-v2-en.hbs');
-    });
-
     describe('detectTemplateContentType', () => {
         it('detects UTF-8 text as a Handlebars template', () => {
             const head = new TextEncoder().encode('<h1>{{title}}</h1> é');

@@ -422,6 +422,29 @@ describe('ObjectStorageService', () => {
             }
         );
 
+        it.each([
+            ['an empty scope prefix', ''],
+            ['a scope prefix without a trailing slash', 'users/user-1/profile'],
+        ])(
+            'throws StorageKeyInvalidException for %s without reading the object',
+            async (_label, scopePrefix) => {
+                const stat = vi.spyOn(publicDisk, 'stat');
+                const get = vi.spyOn(publicDisk, 'get');
+
+                await expect(
+                    service.verifyUpload(verifiedKey, {
+                        ...photoRules,
+                        scopePrefix,
+                    })
+                ).rejects.toMatchObject({
+                    statusCode: EnumStorageStatusCodeError.keyInvalid,
+                    messagePath: 'storage.error.keyInvalid',
+                });
+                expect(stat).not.toHaveBeenCalled();
+                expect(get).not.toHaveBeenCalled();
+            }
+        );
+
         it('throws the translated not-found exception when the uploaded object is missing', async () => {
             const exception = new StorageObjectNotFoundException();
             storageErrorUtil.translate.mockReturnValue(exception);

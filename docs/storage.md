@@ -47,7 +47,7 @@ Features reach storage through `ObjectStorageService` only. The disks are backed
 | Disk | Holds | URL |
 |---|---|---|
 | `public` | Every upload, verified or not yet verified: profile photos, term policy content | `publicUrl`, the public base URL plus the key |
-| `private` | Protected documents. No feature stores to it today; the health probe and the signed-download path use it | `signedDownload`, issued after authorization |
+| `private` | Protected documents. No feature stores to it today; the health probe uses it, and `signedDownload` serves it once a feature does | `signedDownload`, issued after authorization |
 
 | `STORAGE_DRIVER` | Disks |
 |---|---|
@@ -162,11 +162,11 @@ A signed upload is not an asset until completion verifies it: the object already
   "url": "<signed URL>",
   "method": "PUT",
   "headers": { "content-type": "image/jpeg", "content-length": "102400" },
-  "expiresAt": "2026-01-01T00:10:00.000Z"
+  "expiresAt": "2026-01-01T00:02:00.000Z"
 }
 ```
 
-The client sends that method to that URL with those headers unchanged. The signature fixes the content type and the length, and it lives 10 minutes (`storage.signedUpload.expiresInMs`).
+The client sends that method to that URL with those headers unchanged. The signature fixes the content type and the length, and it lives 2 minutes (`storage.signedUpload.expiresInMs`). Nothing stops a client from sending the same signed `PUT` again inside that window, so a verified object can be overwritten by bytes of the same length and declared type; the short lifetime and the owner-only issue route bound that risk.
 
 ### Complete
 
@@ -294,7 +294,7 @@ Flow and routes: [Term Policy][ref-doc-term-policy].
 
 `signedDownload(asset, { filename, disposition })` checks the object exists, then returns `{ url, expiresAt }` valid for 5 minutes (`storage.signedDownload.expiresInMs`). The URL is a bearer credential that cannot be revoked, so the authorization check runs before it is issued, and it never reaches a log line or activity metadata.
 
-`GET /admin/term-policy/content/:termPolicyId/:language/get` calls it for a private content row. Term policy content is stored public, so the route answers its public URL with `expiresAt: null`; the signed attachment branch stays for a row whose `visibility` is `private`.
+No route uses it today: term policy content is stored public, so `GET /admin/term-policy/content/:termPolicyId/:language/get` answers `{ url }` from `publicUrl`. `signedDownload` is the delivery path for the first feature that stores a private asset.
 
 ## Storage and the Database
 
@@ -313,13 +313,12 @@ Storage and PostgreSQL share no transaction. Each workflow keeps one authoritati
 |---|---|
 | `GET /api/storage/public/*key` | A public object, inline, with `Cache-Control: public, max-age=31536000, immutable` |
 | `GET /api/storage/private?...` | A private object, after verifying the signature |
-| `PUT /api/storage/private?...` | A signed upload into the private disk |
 | `PUT /api/storage/upload?...` | A signed upload into the public disk, the route behind `createSignedUpload` |
 
 - `StorageLocalDriverGuard` answers 404 (`objectNotFound`) on every route when the driver is not `local`, so a remote deployment exposes none of them.
 - The routes carry `@ApiExcludeController` and no API-key, auth, or per-user throttle guard: a browser follows the URL without API headers, and the signature is the guard.
-- The serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the Helmet default. The signed-upload routes (`storage/private` and `storage/upload`) are excluded from `RequestBodyParserMiddleware`, so the raw body reaches `receiveSignedUpload`.
-- The two signed-upload receivers carry `@RequestTimeout('1m')`, so a slow upload is not cut by the global 30-second timeout.
+- The serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the Helmet default. The signed-upload route (`storage/upload`) is excluded from `RequestBodyParserMiddleware`, so the raw body reaches `receiveSignedUpload`.
+- The signed-upload receiver carries `@RequestTimeout('1m')`, so a slow upload is not cut by the global 30-second timeout.
 
 ## Storage Errors
 

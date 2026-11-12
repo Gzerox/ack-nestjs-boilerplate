@@ -222,7 +222,7 @@ POST /admin/term-policy/content/presign/generate
 
 The API derives the key itself, `term-policies/{type}/v{version}/{language}/<uuidv7>.hbs` on the public disk; the client does not supply it.
 
-Response: the signed upload `{ key, url, method, headers, expiresAt }`. The client sends `method` to `url` with `headers` unchanged, within 10 minutes.
+Response: the signed upload `{ key, url, method, headers, expiresAt }`. The client sends `method` to `url` with `headers` unchanged, within 2 minutes.
 
 - a type and version already published returns `400` (`statusInvalid`)
 - a `size` below 1 returns `422` (`storage` `sizeInvalid`)
@@ -276,7 +276,7 @@ Get a URL to download policy content:
 GET /admin/term-policy/content/:termPolicyId/:language/get
 ```
 
-Works on draft and published policies alike, and answers `{ url, expiresAt }`. Content is stored public, so the answer is the public URL with `expiresAt: null` for a draft and a published policy alike. A content row whose `visibility` is `private` would answer a signed attachment download valid for 5 minutes.
+Works on draft and published policies alike, and answers `{ url }`. Content is stored public, so the answer is the public URL for a draft and a published policy alike.
 
 ### Publish Policy
 

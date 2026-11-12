@@ -67,15 +67,6 @@ export class StorageLocalController {
     }
 
     @RequestTimeout('1m')
-    @Put('private')
-    async receivePrivate(
-        @Req() req: Request,
-        @Res({ passthrough: true }) res: Response
-    ): Promise<void> {
-        await receiveSignedUpload(this.privateDisk, { req, res });
-    }
-
-    @RequestTimeout('1m')
     @Put('upload')
     async receivePublic(
         @Req() req: Request,

@@ -54,7 +54,7 @@ Storage is `src/common/storage/` on `@nestjs/storage`, with two named disks: `pu
 - **A stored asset persists `key`, `visibility`, `contentType`, `size` (`BigInt`), and `etag` (nullable)** — logical identity only. A bucket, a public or signed URL, an endpoint, a CDN host, or a local path never reaches the database, so a row survives a change of driver, host, or credentials.
 - **URLs are resolved at runtime, in the HTTP service, through one helper** — `ObjectStorageService.toAssetResponse` — before the response is validated. The response schema stays pure and only declares `url` (`rules/dto.md`). A public asset carries its `publicUrl`; a private asset carries `url: null`. `publicUrl` on a private asset throws. Wherever a `size` reaches the wire it converts to a number only through a safe-integer check that throws `sizeInvalid` above `Number.MAX_SAFE_INTEGER`.
 - **An embedded stored asset is `{ key, visibility, contentType, url }`** — a user `photo` inside a user, session, device, member, password-history, or activity-log response. Its `size` and `etag` stay in the database. The photo type changes at its single source (the user reference select and the photo DTO type); every projection that embeds it keeps its own interface name and shape (`IActivityLog`, `IDeviceOwnershipDetail`, `ProjectMember`, …), with no `I*Response` twin per projection.
-- **A private object is delivered by `signedDownload`, after authorization**, as `{ url, expiresAt }`. The URL is a bearer credential that cannot be revoked, so the authorization check comes first and the lifetime stays short.
+- **A private object is delivered by `signedDownload`, after authorization**, as `{ url, expiresAt }`; no route uses it while every feature stores public. The URL is a bearer credential that cannot be revoked, so the authorization check comes first and the lifetime stays short.
 - **Every key is server-generated, random, and never reused.** The package has no conditional put, so a write never follows an existence check (`rules/concurrency.md`); the random key is what keeps two writers apart.
 
 ## Stored multipart upload — streamed, never buffered
@@ -86,12 +86,12 @@ Each workflow has one authoritative state and an explicit compensation.
 ## Signatures, limits, and logs
 
 - **A signed upload or download URL is a credential** (`rules/security.md`): it never lands in a log line, in activity metadata, or on `request.<field>`. Return it in the response and nowhere else. A storage log names the logical disk, the key, the operation, and the provider error code — never a signed URL, a credential, a provider response body, or a local absolute path.
-- **TTLs are `storage` config, bounded and short** — signed download 5 minutes, signed upload 10 minutes by default. Do not widen one to "make testing easier".
+- **TTLs are `storage` config, bounded and short** — signed download 5 minutes, signed upload 2 minutes by default. Do not widen one to "make testing easier".
 - **A size cap and a scope prefix pattern are literals in the owning feature's config file** (`rules/config.md`) — `user.photo.maxSizeInBytes` is 10 MB, term-policy template content is 1 MB. A decorator receives the config KEY; a domain reads the value through `ConfigService`.
 
 ## Local-driver routes
 
-`StorageLocalController` exists so the absolute URLs the API returns resolve under `STORAGE_DRIVER=local`: it serves the public disk, verifies signed private downloads, and receives signed uploads. It is not an API endpoint.
+`StorageLocalController` exists so the absolute URLs the API returns resolve under `STORAGE_DRIVER=local`: it serves the public disk, verifies signed private downloads, and receives signed uploads into the public disk. It is not an API endpoint.
 
 - **It is the one controller registered outside `src/router/`.** `StorageMainModule` registers it unconditionally, so it mounts under the global prefix and outside the five router scopes. A driver guard answers 404 on every route unless the driver is `local`, so a remote deployment exposes none of them.
 - It carries `@ApiExcludeController` and no API-key, auth, or user-throttle guard — a browser follows the URL without the API headers. The signature is the guard.

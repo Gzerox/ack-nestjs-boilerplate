@@ -4,10 +4,7 @@ import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { ObjectStorageService } from '@common/storage/services/storage.object.service';
-import type {
-    IStorageSignedDownload,
-    IStorageSignedUpload,
-} from '@common/storage/interfaces/storage.interface';
+import type { IStorageSignedUpload } from '@common/storage/interfaces/storage.interface';
 import {
     EnumStorageVisibility,
     EnumTermPolicyType,
@@ -115,37 +112,12 @@ describe('TermPolicyContentHttpService', () => {
     });
 
     describe('getContentByAdmin', () => {
-        it('returns the signed download of a draft content', async () => {
-            const signedDownload: IStorageSignedDownload = {
-                url: 'https://storage.example.com/download?signature=abc',
-                expiresAt: now,
-            };
-            termPolicyContentDomain.getContentByAdmin.mockResolvedValue({
-                asset: {
-                    key: 'term-policies/privacy/v1/en/draft.hbs',
-                    visibility: EnumStorageVisibility.private,
-                },
-                signedDownload,
-            });
-
-            const result = await service.getContentByAdmin(
-                'term-id',
-                EnumMessageLanguage.en
-            );
-
-            expect(result).toEqual({ data: signedDownload });
-            expect(objectStorageService.publicUrl).not.toHaveBeenCalled();
-        });
-
-        it('resolves the stable public URL with no expiry for a published content', async () => {
+        it('resolves the stable public URL of the content with no expiry', async () => {
             const asset = {
                 key: 'term-policies/privacy/v1/en/published.hbs',
                 visibility: EnumStorageVisibility.public,
             };
-            termPolicyContentDomain.getContentByAdmin.mockResolvedValue({
-                asset,
-                signedDownload: null,
-            });
+            termPolicyContentDomain.getContentByAdmin.mockResolvedValue(asset);
             objectStorageService.publicUrl.mockReturnValue(
                 'https://cdn.example.com/term-policies/privacy/v1/en/published.hbs'
             );
@@ -159,7 +131,6 @@ describe('TermPolicyContentHttpService', () => {
             expect(result).toEqual({
                 data: {
                     url: 'https://cdn.example.com/term-policies/privacy/v1/en/published.hbs',
-                    expiresAt: null,
                 },
             });
         });

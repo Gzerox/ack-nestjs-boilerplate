@@ -351,7 +351,7 @@ s3: {
 **`signedUpload`** / **`signedDownload`** - Signed URL lifetimes
 ```typescript
 signedUpload: {
-  expiresInMs: number;          // ms('10m')
+  expiresInMs: number;          // ms('2m')
 };
 signedDownload: {
   expiresInMs: number;          // ms('5m')

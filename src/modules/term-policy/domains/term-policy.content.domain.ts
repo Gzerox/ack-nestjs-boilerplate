@@ -17,7 +17,6 @@ import { TermPolicyContentSizeExceededException } from '@modules/term-policy/exc
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
 import type {
     ITermPolicy,
-    ITermPolicyContentAccess,
     ITermPolicyContentCreate,
     ITermPolicyContentPresign,
     ITermPolicyContentUpload,
@@ -28,7 +27,6 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
     EnumActivityLogAction,
-    EnumStorageVisibility,
     EnumTermPolicyStatus,
 } from '@generated/prisma-client/client';
 import type { TermPolicy } from '@generated/prisma-client/client';
@@ -251,7 +249,7 @@ export class TermPolicyContentDomain {
     async getContentByAdmin(
         termPolicyId: string,
         language: EnumMessageLanguage
-    ): Promise<ITermPolicyContentAccess> {
+    ): Promise<IStoredAssetReference> {
         const termPolicy =
             await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
@@ -266,25 +264,9 @@ export class TermPolicyContentDomain {
             throw new TermPolicyContentNotFoundException();
         }
 
-        const asset: IStoredAssetReference = {
+        return {
             key: existingContent.key,
             visibility: existingContent.visibility,
         };
-        if (asset.visibility === EnumStorageVisibility.public) {
-            return { asset, signedDownload: null };
-        }
-
-        const filename = this.termPolicyUtil.createContentFilename(
-            termPolicy.type,
-            termPolicy.version,
-            language
-        );
-
-        const signedDownload = await this.objectStorageService.signedDownload(
-            asset,
-            { disposition: 'attachment', filename }
-        );
-
-        return { asset, signedDownload };
     }
 }

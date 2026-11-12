@@ -186,7 +186,7 @@ The API sends no server-side encryption header, so each object takes its bucket'
 
 - **S3 access keys.** AWS allows two active keys per IAM user: create the second key, deploy it to `STORAGE_S3_ACCESS_KEY_ID` / `STORAGE_S3_SECRET_ACCESS_KEY`, then deactivate and delete the first. The values are read at startup, so the new pair takes effect on restart.
 - **R2 tokens.** Create a new token with the same scope, deploy it, then revoke the old one.
-- **Local signing keys.** `STORAGE_LOCAL_SIGNING_KEYS` is a comma-separated list: the first key signs and every key verifies. `pnpm generate:secret:storage` draws a new key into `keys/storage-secret.env`. With `--direct-insert` it replaces the whole list in `.env`, so local URLs signed with the old key stop verifying. To keep issued URLs valid, put the new key first by hand, restart, and drop the old key once the URLs it signed have expired (10 minutes for an upload, 5 for a download).
+- **Local signing keys.** `STORAGE_LOCAL_SIGNING_KEYS` is a comma-separated list: the first key signs and every key verifies. `pnpm generate:secret:storage` draws a new key into `keys/storage-secret.env`. With `--direct-insert` it replaces the whole list in `.env`, so local URLs signed with the old key stop verifying. To keep issued URLs valid, put the new key first by hand, restart, and drop the old key once the URLs it signed have expired (2 minutes for an upload, 5 for a download).
 
 A signed URL is a bearer credential that cannot be revoked before it expires, which is why both lifetimes stay short.
 

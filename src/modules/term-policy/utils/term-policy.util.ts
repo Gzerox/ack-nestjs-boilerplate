@@ -1,4 +1,3 @@
-import { EnumFileExtensionTemplate } from '@common/file/enums/file.enum';
 import { HelperArrayService } from '@common/helper/services/helper.array.service';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
@@ -56,14 +55,6 @@ export class TermPolicyUtil {
             this.contentScopePrefixPattern,
             { type, version: version.toString(), language }
         );
-    }
-
-    createContentFilename(
-        type: EnumTermPolicyType,
-        version: number,
-        language: TermPolicyContent['language']
-    ): string {
-        return `${type}-v${version}-${language}.${EnumFileExtensionTemplate.hbs}`;
     }
 
     /** Recognizes a UTF-8 template from its leading bytes: no NUL byte and a valid encoding; a sequence cut by the sample end passes. */

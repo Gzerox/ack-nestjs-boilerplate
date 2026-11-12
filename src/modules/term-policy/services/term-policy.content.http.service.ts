@@ -67,17 +67,12 @@ export class TermPolicyContentHttpService {
         termPolicyId: string,
         language: EnumMessageLanguage
     ): Promise<IResponseReturn<ITermPolicyContentDownload>> {
-        const { asset, signedDownload } =
-            await this.termPolicyContentDomain.getContentByAdmin(
-                termPolicyId,
-                language
-            );
-        if (signedDownload) {
-            return { data: signedDownload };
-        }
-
+        const asset = await this.termPolicyContentDomain.getContentByAdmin(
+            termPolicyId,
+            language
+        );
         const url = this.objectStorageService.publicUrl(asset);
 
-        return { data: { url, expiresAt: null } };
+        return { data: { url } };
     }
 }

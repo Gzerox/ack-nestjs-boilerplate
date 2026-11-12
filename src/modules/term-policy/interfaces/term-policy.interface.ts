@@ -1,8 +1,4 @@
-import type {
-    IStorageSignedDownload,
-    IStoredAsset,
-    IStoredAssetReference,
-} from '@common/storage/interfaces/storage.interface';
+import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { EnumTermPolicyType } from '@generated/prisma-client/client';
 import type {
@@ -31,16 +27,8 @@ export interface ITermPolicyContentCreate extends IStoredAsset {
     language: TermPolicyContent['language'];
 }
 
-export interface ITermPolicyContentAccess {
-    asset: IStoredAssetReference;
-    signedDownload: IStorageSignedDownload | null;
-}
-
-export interface ITermPolicyContentDownload extends Omit<
-    IStorageSignedDownload,
-    'expiresAt'
-> {
-    expiresAt: Date | null;
+export interface ITermPolicyContentDownload {
+    url: string;
 }
 
 export interface ITermPolicyCreate {

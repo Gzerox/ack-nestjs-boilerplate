@@ -13,7 +13,6 @@ import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.k
 import { StorageObjectNotFoundException } from '@common/storage/exceptions/storage.object-not-found.exception';
 import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
 import type {
-    IStorageSignedDownload,
     IStorageSignedUpload,
     IStorageVerifyRules,
     IStoredAsset,
@@ -108,9 +107,6 @@ describe('TermPolicyContentDomain', () => {
         termPolicyUtil.getContentByLanguage.mockImplementation(
             (contents, language) =>
                 contents.find(content => content.language === language) ?? null
-        );
-        termPolicyUtil.createContentFilename.mockReturnValue(
-            'privacy-v1-en.hbs'
         );
         termPolicyRepository.findOneById.mockResolvedValue(draft);
         objectStorageService.verifyUpload.mockResolvedValue(verified);
@@ -525,62 +521,32 @@ describe('TermPolicyContentDomain', () => {
             expect(objectStorageService.signedDownload).not.toHaveBeenCalled();
         });
 
-        it('returns a signed attachment download for a private draft content', async () => {
-            const signedDownload: IStorageSignedDownload = {
-                url: 'https://storage.example.com/download?signature=abc',
-                expiresAt: now,
-            };
-            objectStorageService.signedDownload.mockResolvedValue(
-                signedDownload
-            );
+        it.each([
+            ['a draft', EnumStorageVisibility.private],
+            ['a published', EnumStorageVisibility.public],
+        ])(
+            'returns the stored asset reference of %s content without signing a download',
+            async (_label, visibility) => {
+                termPolicyRepository.findOneById.mockResolvedValue({
+                    ...draft,
+                    contents: [{ ...existingContent, visibility }],
+                });
 
-            const result = await service.getContentByAdmin(
-                'term-id',
-                EnumMessageLanguage.en
-            );
+                const result = await service.getContentByAdmin(
+                    'term-id',
+                    EnumMessageLanguage.en
+                );
 
-            expect(objectStorageService.signedDownload).toHaveBeenCalledWith(
-                {
+                expect(result).toEqual({
                     key: existingContent.key,
-                    visibility: EnumStorageVisibility.private,
-                },
-                { disposition: 'attachment', filename: 'privacy-v1-en.hbs' }
-            );
-            expect(result).toEqual({
-                asset: {
-                    key: existingContent.key,
-                    visibility: EnumStorageVisibility.private,
-                },
-                signedDownload,
-            });
-        });
-
-        it('returns the public asset reference with no signed download for a published content', async () => {
-            termPolicyRepository.findOneById.mockResolvedValue({
-                ...draft,
-                status: EnumTermPolicyStatus.published,
-                contents: [
-                    {
-                        ...existingContent,
-                        visibility: EnumStorageVisibility.public,
-                    },
-                ],
-            });
-            const result = await service.getContentByAdmin(
-                'term-id',
-                EnumMessageLanguage.en
-            );
-
-            expect(result).toEqual({
-                asset: {
-                    key: existingContent.key,
-                    visibility: EnumStorageVisibility.public,
-                },
-                signedDownload: null,
-            });
-            expect(objectStorageService.publicUrl).not.toHaveBeenCalled();
-            expect(objectStorageService.signedDownload).not.toHaveBeenCalled();
-        });
+                    visibility,
+                });
+                expect(
+                    objectStorageService.signedDownload
+                ).not.toHaveBeenCalled();
+                expect(objectStorageService.publicUrl).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('prepareActivityLog', () => {

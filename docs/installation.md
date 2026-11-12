@@ -112,7 +112,7 @@ AUTH_JWT_REFRESH_TOKEN_JWKS_URI=http://localhost:3011/.well-known/refresh-jwks.j
 
 **Object storage (local driver)**
 
-`.env.example` selects the local driver with `./storage-data` as its root, which `docker-compose.yml` mounts into the API container. Startup validation requires at least one signing key of 32 characters or more; `pnpm generate:secret --direct-insert` writes it (see [Generate Keys](#generate-keys)):
+`.env.example` selects the local driver with `./storage-data` as its root, which `docker-compose.yml` mounts into the API container. The local driver needs at least one signing key of 32 characters or more; `pnpm generate:secret --direct-insert` writes it (see [Generate Keys](#generate-keys)):
 
 ```bash
 STORAGE_DRIVER=local

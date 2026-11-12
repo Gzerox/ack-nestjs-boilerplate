@@ -54,7 +54,7 @@ Features reach storage through `ObjectStorageService` only. The disks are backed
 | `local` | `LocalDisk` over `<STORAGE_LOCAL_ROOT>/public` and `<STORAGE_LOCAL_ROOT>/private`, served by the [local-driver routes](#local-driver-routes) |
 | `s3` | `S3Disk` over `STORAGE_S3_PUBLIC_BUCKET` and `STORAGE_S3_PRIVATE_BUCKET`, on AWS S3 or an S3-compatible endpoint such as Cloudflare R2 |
 
-Unit specs use `InMemoryDisk`. Startup validation fails when the chosen driver's variables are incomplete, so storage is always available once the app is up.
+Unit specs use `InMemoryDisk`. Startup validation checks the shape of each variable, not that the chosen driver's variables are all set; configuring the selected driver completely is the deployer's job.
 
 `EnumStorageVisibility` (`public` / `private`, a Prisma enum) names both the access policy and the disk. The feature chooses it; a request body never carries a visibility, a disk, a bucket, or a final key.
 
@@ -80,7 +80,7 @@ Every `@nestjs/storage` error is translated by `StorageErrorUtil` into a typed `
 
 A stored asset persists `key`, `visibility`, `contentType`, `size` (`BigInt`), and `etag` (nullable) on its row (`UserPhoto`, `TermPolicyContent`). No bucket, URL, endpoint, or local path reaches the database, so a row survives a change of driver, host, or credentials.
 
-The HTTP service resolves the URL at response time through `ObjectStorageService.toAssetResponse`. An embedded stored asset, such as the user `photo` inside a user, session, device, member, password-history, or activity-log response, has this shape:
+The HTTP service resolves the URL at response time through `ObjectStorageService.toAssetResponse`. An embedded stored asset, such as the user `photo` inside a user, session owner, or member response, has this shape (the user who revoked a session or device has `photo: null`, and the user inside a password-history or activity-log entry has no photo):
 
 ```json
 {

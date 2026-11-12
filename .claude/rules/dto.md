@@ -90,16 +90,24 @@ returned object, and a bare payload has none. A handler with nothing to return i
   value is always present-or-null.
 - Do not combine the two on new code (`rules/null-safety.md`).
 
-## Change a response only when the behaviour requires it
+## A route returns its response DTO
 
-A returned shape or type changes only when the behaviour it carries changes. A refactor that
-moves where a value comes from keeps the response it produced, and keeps the interface names
-and shapes that describe it. A shape shared by many projections changes at its single source
-and nowhere else — the embedded user `photo` is the stored-asset shape
-`{ key, visibility, contentType, url }`, typed once at the user reference select and the photo
-DTO, resolved through `ObjectStorageService.toAssetResponse` (`rules/file.md`). Every
-projection that embeds it keeps its own interface (`IActivityLog`, `IDeviceOwnershipDetail`,
-`ProjectMember`, …); no `I*Response` twin is declared per projection.
+An HTTP service method returns the response DTO the route's `@Response` / `@ResponsePagination`
+schema declares: `IResponseReturn<XResponseDto>` or `IResponsePaginationReturn<XResponseDto>`.
+The controller carries the same type. The domain keeps returning `I*` interfaces and Prisma
+models; the HTTP service maps them to the DTO (`rules/architecture.md`), so the signature says what
+reaches the wire instead of naming a database shape the schema strips.
+
+- **Resolve runtime values in that mapping.** A stored asset's `url` is added through
+  `ObjectStorageService.toAssetResponse` (`rules/file.md`); the DTO type then holds without a cast.
+- **A shared shape changes at its single source.** The embedded user `photo` is the stored-asset
+  shape `{ key, visibility, contentType, url }`, declared once by `StorageAssetResponseSchema` and
+  reached through `UserRefResponseSchema`. A projection does not restate it.
+- **A route that returns the domain result untouched may keep its `I*` type.** Nothing is mapped,
+  so nothing is hidden. The moment the HTTP service reshapes or resolves anything, the route returns
+  the DTO.
+- A renamed or removed response field is a change to the response itself, so it follows the
+  behaviour that asked for it, not a refactor that merely moves where a value comes from.
 
 ## Field names
 

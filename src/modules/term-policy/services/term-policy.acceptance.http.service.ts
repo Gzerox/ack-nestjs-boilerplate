@@ -14,6 +14,7 @@ import type { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/
 import { TermPolicyAcceptanceDomain } from '@modules/term-policy/domains/term-policy.acceptance.domain';
 import type { IUser } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
+import type { TermPolicyUserAcceptanceResponseDto } from '@modules/term-policy/dtos/response/term-policy.user-acceptance.response.dto';
 
 @Injectable()
 export class TermPolicyAcceptanceHttpService {
@@ -26,7 +27,7 @@ export class TermPolicyAcceptanceHttpService {
 
     private mapAcceptance(
         acceptance: ITermPolicyUserAcceptance
-    ): ITermPolicyUserAcceptance {
+    ): TermPolicyUserAcceptanceResponseDto {
         const photo = this.objectStorageService.toAssetResponse(
             acceptance.user.photo
         );
@@ -37,7 +38,7 @@ export class TermPolicyAcceptanceHttpService {
     async getListUserAccepted(
         userId: string,
         query: TermPolicyAcceptedListRequestDto
-    ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>> {
+    ): Promise<IResponsePaginationReturn<TermPolicyUserAcceptanceResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.TermPolicyUserAcceptanceWhereInput>(
                 query,

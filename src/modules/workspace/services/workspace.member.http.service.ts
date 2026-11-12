@@ -16,6 +16,7 @@ import type { WorkspaceTransferOwnershipRequestDto } from '@modules/workspace/dt
 import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
+import type { WorkspaceMemberResponseDto } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 
 @Injectable()
 export class WorkspaceMemberHttpService {
@@ -26,7 +27,7 @@ export class WorkspaceMemberHttpService {
         private readonly objectStorageService: ObjectStorageService
     ) {}
 
-    private mapMember(member: IWorkspaceMember): IWorkspaceMember {
+    private mapMember(member: IWorkspaceMember): WorkspaceMemberResponseDto {
         const photo = this.objectStorageService.toAssetResponse(
             member.user.photo
         );
@@ -56,7 +57,7 @@ export class WorkspaceMemberHttpService {
     async getMembersList(
         workspaceId: string,
         query: WorkspaceMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.WorkspaceMemberWhereInput>(
                 query,
@@ -121,7 +122,7 @@ export class WorkspaceMemberHttpService {
     async getMembersListForAdmin(
         workspaceId: string,
         query: WorkspaceAdminMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.WorkspaceMemberWhereInput>(
                 query,

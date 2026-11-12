@@ -31,12 +31,12 @@ import { UserProtected } from '@modules/user/decorators/user.decorator';
 
 import { WorkspaceMemberResponseSchema } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 import { WorkspaceResponseSchema } from '@modules/workspace/dtos/response/workspace.response.dto';
-import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceHttpService } from '@modules/workspace/services/workspace.http.service';
 import { WorkspaceMemberHttpService } from '@modules/workspace/services/workspace.member.http.service';
 import { Controller, Get, Param, Query } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { WorkspaceMemberResponseDto } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 
 @ApiTags('modules.admin.workspace')
 @Controller({
@@ -116,7 +116,7 @@ export class WorkspaceAdminController {
         query: WorkspaceAdminMemberListRequestDto,
         @Param('workspaceId', { schema: RequestUuidSchema })
         workspaceId: string
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         return this.workspaceMemberHttpService.getMembersListForAdmin(
             workspaceId,
             query

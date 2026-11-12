@@ -39,8 +39,8 @@ import { TermPolicyUserAcceptanceResponseSchema } from '@modules/term-policy/dto
 import { TermPolicyAcceptRequestSchema } from '@modules/term-policy/dtos/request/term-policy.accept.request.dto';
 import type { TermPolicyAcceptRequestDto } from '@modules/term-policy/dtos/request/term-policy.accept.request.dto';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
-import type { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/term-policy.interface';
 import type { IUser } from '@modules/user/interfaces/user.interface';
+import type { TermPolicyUserAcceptanceResponseDto } from '@modules/term-policy/dtos/response/term-policy.user-acceptance.response.dto';
 
 @ApiTags('modules.shared.user.termPolicy')
 @Controller({
@@ -66,7 +66,7 @@ export class TermPolicySharedController {
         @Query({ schema: TermPolicyAcceptedListRequestSchema })
         query: TermPolicyAcceptedListRequestDto,
         @AuthJwtPayload('userId') userId: string
-    ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>> {
+    ): Promise<IResponsePaginationReturn<TermPolicyUserAcceptanceResponseDto>> {
         return this.termPolicyAcceptanceHttpService.getListUserAccepted(
             userId,
             query

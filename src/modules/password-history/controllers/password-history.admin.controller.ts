@@ -9,7 +9,6 @@ import { ApiKeyProtected } from '@modules/api-key/decorators/api-key.decorator';
 import { AuthJwtAccessProtected } from '@modules/auth/decorators/auth.jwt.decorator';
 
 import { PasswordHistoryResponseSchema } from '@modules/password-history/dtos/response/password-history.response.dto';
-import type { IPasswordHistoryList } from '@modules/password-history/interfaces/password-history.interface';
 import { PasswordHistoryHttpService } from '@modules/password-history/services/password-history.http.service';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { RoleProtected } from '@modules/role/decorators/role.decorator';
@@ -23,6 +22,7 @@ import {
     EnumPolicySubject,
     EnumRoleType,
 } from '@generated/prisma-client/client';
+import type { PasswordHistoryResponseDto } from '@modules/password-history/dtos/response/password-history.response.dto';
 
 @ApiTags('modules.admin.user.passwordHistory')
 @Controller({
@@ -60,7 +60,7 @@ export class PasswordHistoryAdminController {
         query: PasswordHistoryAdminListRequestDto,
         @Param('userId', { schema: RequestUuidSchema })
         userId: string
-    ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+    ): Promise<IResponsePaginationReturn<PasswordHistoryResponseDto>> {
         return this.passwordHistoryHttpService.getListOffsetByAdmin(
             userId,
             query

@@ -16,6 +16,7 @@ import type { IProjectMember } from '@modules/project/interfaces/project.interfa
 import { ProjectMemberDomain } from '@modules/project/domains/project.member.domain';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
+import type { ProjectMemberResponseDto } from '@modules/project/dtos/response/project.member.response.dto';
 
 @Injectable()
 export class ProjectMemberHttpService {
@@ -27,7 +28,7 @@ export class ProjectMemberHttpService {
         private readonly objectStorageService: ObjectStorageService
     ) {}
 
-    private mapMember(member: IProjectMember): IProjectMember {
+    private mapMember(member: IProjectMember): ProjectMemberResponseDto {
         const photo = this.objectStorageService.toAssetResponse(
             member.user.photo
         );
@@ -38,7 +39,7 @@ export class ProjectMemberHttpService {
     async getMembersList(
         project: Project,
         query: ProjectMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IProjectMember>> {
+    ): Promise<IResponsePaginationReturn<ProjectMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.ProjectMemberWhereInput>(
                 query,
@@ -63,7 +64,7 @@ export class ProjectMemberHttpService {
         project: Project,
         actorId: string,
         { userId, role }: ProjectMemberAssignRequestDto
-    ): Promise<IResponseReturn<IProjectMember>> {
+    ): Promise<IResponseReturn<ProjectMemberResponseDto>> {
         const targetMember =
             await this.workspaceMemberDomain.getOneByWorkspaceAndUser(
                 project.workspaceId,

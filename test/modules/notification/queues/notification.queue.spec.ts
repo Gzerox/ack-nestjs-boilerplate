@@ -346,7 +346,10 @@ describe('NotificationQueue', () => {
 
             expect(notificationQueue.add).toHaveBeenCalledWith(
                 EnumNotificationProcess.resetTwoFactorByAdmin,
-                { userId: 'user-id', proceedBy: 'admin-id' },
+                {
+                    userId: 'user-id',
+                    proceedBy: 'admin-id',
+                },
                 {
                     priority: EnumQueuePriority.high,
                     deduplication: {
@@ -378,12 +381,15 @@ describe('NotificationQueue', () => {
                 loginAt: '2024-01-01T00:00:00.000Z',
                 requestLog,
             };
-
             await queue.sendNewDeviceLogin('user-id', newDevice);
 
             expect(notificationQueue.add).toHaveBeenCalledWith(
                 EnumNotificationProcess.newDeviceLogin,
-                { userId: 'user-id', data: newDevice, proceedBy: 'user-id' },
+                {
+                    userId: 'user-id',
+                    data: newDevice,
+                    proceedBy: 'user-id',
+                },
                 {
                     priority: EnumQueuePriority.high,
                     deduplication: {

@@ -363,3 +363,7 @@ Special thanks to [ak2g][ref-contributor-ak2g] for contributing to the Notificat
 [ref-doc-environment]: environment.md
 
 [ref-contributor-ak2g]: https://github.com/ak2g
+
+## SMS security alerts
+
+`NotificationSecurityDomain` fans out SMS security-alert jobs alongside the email and push notifications for `resetTwoFactorByAdmin` and `newDeviceLogin`. It loads the active user through `UserProfileDomain.getProfile`; a missing profile is an error and stops the workflow. The SMS queue sends through AWS SNS, with one recipient per job. Each verified mobile number receives its own deduplicated job; users without a verified mobile number do not create an SMS job. The SNS provider uses the configured credentials, region, and optional sender ID. An unconfigured provider or a missing recipient results in no send. Provider errors propagate to BullMQ for retries. If SNS accepts a message and the job fails before completing, a retry can send it again.

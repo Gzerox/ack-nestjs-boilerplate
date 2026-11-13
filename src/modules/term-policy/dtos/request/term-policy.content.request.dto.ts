@@ -1,24 +1,18 @@
-import { z } from 'zod';
-import { AwsS3PresignRequestSchema } from '@common/aws/dtos/request/aws.s3-presign.request.dto';
+import type { z } from 'zod';
+import { StorageSignedUploadCompleteRequestSchema } from '@common/storage/dtos/request/storage.signed-upload-complete.request.dto';
 import { TermPolicyContentPresignRequestSchema } from '@modules/term-policy/dtos/request/term-policy.content-presign.request.dto';
 
 /**
- * Validates the body for adding or updating one term policy content.
+ * Validates the completion of one term policy content upload: its language and the upload key, nothing else.
  * @public
  */
 export const TermPolicyContentRequestSchema =
-    TermPolicyContentPresignRequestSchema.pick({
-        language: true,
-        size: true,
-    }).extend({
-        key: AwsS3PresignRequestSchema.shape.key.meta({
-            description: 'Key of the term document in storage',
-            example: 'term-policies/privacy/v1/en.hbs',
-        }),
+    StorageSignedUploadCompleteRequestSchema.extend({
+        language: TermPolicyContentPresignRequestSchema.shape.language,
     });
 
 /**
- * Body for adding or updating one term policy content.
+ * Completion of one term policy content upload.
  * @public
  */
 export type TermPolicyContentRequestDto = z.infer<

@@ -1,4 +1,4 @@
-import type { IAwsS3 } from '@common/aws/interfaces/aws.interface';
+import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import type {
     IPaginationEqual,
@@ -15,6 +15,7 @@ import type {
     IUserCreateWithWorkspaceInput,
     IUserExport,
     IUserList,
+    IUserPhotoRef,
     IUserProfile,
 } from '@modules/user/interfaces/user.interface';
 import {
@@ -73,7 +74,11 @@ export interface IUserRepository {
         userId: string,
         { countryId, ...data }: UserUpdateProfileRequestDto
     ): Promise<User>;
-    updatePhotoProfile(userId: string, photo: IAwsS3): Promise<User>;
+    updatePhotoProfile(
+        userId: string,
+        { key, visibility, contentType, size, etag }: IStoredAsset
+    ): Promise<void>;
+    findPhotoByUserId(userId: string): Promise<IUserPhotoRef | null>;
     deleteSelfInTx(
         tx: IDatabaseTransactionClient,
         userId: string,

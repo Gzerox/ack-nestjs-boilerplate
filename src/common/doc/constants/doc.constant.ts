@@ -1,5 +1,4 @@
 import { EnumAppStatusCodeError } from '@app/enums/app.status-code.enum';
-import { EnumAwsStatusCodeError } from '@common/aws/enums/aws.status-code.enum';
 import { EnumDatabaseStatusCodeError } from '@common/database/enums/database.status-code.enum';
 import { DocResponseError } from '@common/doc/decorators/doc.decorator';
 import { EnumFileStatusCodeError } from '@common/file/enums/file.status-code.enum';
@@ -7,6 +6,7 @@ import { EnumHelperStatusCodeError } from '@common/helper/enums/helper.status-co
 import { EnumPaginationStatusCodeError } from '@common/pagination/enums/pagination.status-code.enum';
 import { EnumRequestStatusCodeError } from '@common/request/enums/request.status-code.enum';
 import { EnumResponseStatusCodeError } from '@common/response/enums/response.status-code.enum';
+import { EnumStorageStatusCodeError } from '@common/storage/enums/storage.status-code.enum';
 import { HttpStatus } from '@nestjs/common';
 
 /**
@@ -71,8 +71,8 @@ export const DocGlobalErrorResponses = {
         }
     ),
     serviceUnavailable: DocResponseError(HttpStatus.SERVICE_UNAVAILABLE, {
-        statusCode: EnumAwsStatusCodeError.serviceUnavailable,
-        messagePath: 'aws.error.serviceUnavailable',
+        statusCode: EnumStorageStatusCodeError.serviceUnavailable,
+        messagePath: 'storage.error.serviceUnavailable',
     }),
 } as const;
 

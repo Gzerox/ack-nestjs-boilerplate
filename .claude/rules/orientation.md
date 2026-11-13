@@ -96,7 +96,8 @@ thought to list.
 | an enum, or a `switch` over one | `enum.md` |
 | BullMQ processor or enqueue | `queue.md` `concurrency.md` |
 | notification, email, push, template | `notification.md` `queue.md` |
-| file upload, CSV import, S3 presign | `file.md` |
+| file upload, CSV import, export, object storage (disks, signed upload/download, stored asset metadata) | `file.md` |
+| `src/common/storage/` | `file.md` `common.md` |
 | feature flag | `feature-flag.md` |
 | i18n message, language JSON | `i18n.md` |
 | config key, env var | `config.md` |

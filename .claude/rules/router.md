@@ -42,6 +42,11 @@ export class RouterHttpUserModule {}
 - **The feature modules keep `controllers: []`** (`rules/nest-wiring.md`). A controller
   registered in its own module mounts OUTSIDE the prefix, so the endpoint exists at the wrong
   path with nothing failing.
+- **The one exception is `StorageLocalController`** (`storage.local.controller.ts`), registered by
+  `StorageMainModule` in `src/common/storage/`. Its routes are the local-driver delivery URLs a
+  browser follows without API headers, so they mount outside the five scopes on purpose, carry
+  no scope suffix, and answer 404 unless `STORAGE_DRIVER` is `local` (`rules/file.md`). No
+  feature controller follows it.
 
 ## Registering a processor
 

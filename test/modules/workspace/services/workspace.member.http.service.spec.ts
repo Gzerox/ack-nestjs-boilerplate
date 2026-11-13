@@ -7,8 +7,16 @@ import { PaginationStoreKey } from '@common/pagination/constants/pagination.cons
 import { EnumPaginationType } from '@common/pagination/enums/pagination.enum';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
-import { EnumWorkspaceMemberRole } from '@generated/prisma-client/client';
-import type { WorkspaceMember } from '@generated/prisma-client/client';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
+import type { StorageAssetResponseDto } from '@common/storage/dtos/response/storage.asset.response.dto';
+import {
+    EnumStorageVisibility,
+    EnumWorkspaceMemberRole,
+} from '@generated/prisma-client/client';
+import type {
+    UserPhoto,
+    WorkspaceMember,
+} from '@generated/prisma-client/client';
 import type { WorkspaceAdminMemberListRequestDto } from '@modules/workspace/dtos/request/workspace.admin-member-list.request.dto';
 import type { WorkspaceMemberListRequestDto } from '@modules/workspace/dtos/request/workspace.member-list.request.dto';
 import type { WorkspaceMemberUpdateRoleRequestDto } from '@modules/workspace/dtos/request/workspace.member-update-role.request.dto';
@@ -24,6 +32,8 @@ describe('WorkspaceMemberHttpService', () => {
         mock<PaginationQueryUtil>();
     const requestStoreService: MockProxy<RequestStoreService> =
         mock<RequestStoreService>();
+    const objectStorageService: MockProxy<ObjectStorageService> =
+        mock<ObjectStorageService>();
     const now = new Date('2026-01-01T00:00:00.000Z');
     const actorMember = {
         id: 'member-id',
@@ -105,14 +115,49 @@ describe('WorkspaceMemberHttpService', () => {
         availableOrderBy: ['joinedAt'],
     };
 
+    const userPhoto: UserPhoto = {
+        id: 'photo-id',
+        userId: 'user-id',
+        key: 'users/user-id/profile/photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        size: BigInt(1024),
+        etag: null,
+    };
+    const photoResponse: StorageAssetResponseDto = {
+        key: 'users/user-id/profile/photo.png',
+        visibility: EnumStorageVisibility.public,
+        contentType: 'image/png',
+        url: 'https://cdn.example.com/users/user-id/profile/photo.png',
+    };
+    const memberWithPhoto = {
+        ...memberListItem,
+        user: { ...memberListItem.user, photo: userPhoto },
+    } satisfies IWorkspaceMember;
+    const mappedMemberWithPhoto = {
+        ...memberListItem,
+        user: { ...memberListItem.user, photo: photoResponse },
+    };
+
     let service: WorkspaceMemberHttpService;
 
     beforeEach(async () => {
         vi.resetAllMocks();
+        objectStorageService.toAssetResponse.mockImplementation(asset => {
+            if (asset === userPhoto) {
+                return photoResponse;
+            }
+
+            return null;
+        });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 WorkspaceMemberHttpService,
+                {
+                    provide: ObjectStorageService,
+                    useValue: objectStorageService,
+                },
                 {
                     provide: WorkspaceMemberDomain,
                     useValue: workspaceMemberDomain,
@@ -216,6 +261,24 @@ describe('WorkspaceMemberHttpService', () => {
                 undefined
             );
         });
+        it('resolves the photo of every member user', async () => {
+            paginationQueryUtil.cursor.mockReturnValue({
+                params: cursorParams,
+                storePatch: cursorStorePatch,
+            } as never);
+            paginationQueryUtil.inEnum.mockReturnValue(undefined);
+            workspaceMemberDomain.getMembersList.mockResolvedValue({
+                ...cursorPage,
+                data: [memberWithPhoto],
+            });
+
+            const result = await service.getMembersList('workspace-id', {});
+
+            expect(objectStorageService.toAssetResponse).toHaveBeenCalledWith(
+                userPhoto
+            );
+            expect(result.data).toEqual([mappedMemberWithPhoto]);
+        });
     });
 
     describe('updateMemberRole', () => {
@@ -283,6 +346,32 @@ describe('WorkspaceMemberHttpService', () => {
                 workspaceMemberDomain.getMembersListForAdmin
             ).toHaveBeenCalledWith('workspace-id', offsetParams);
             expect(result).toEqual(offsetPage);
+        });
+
+        it('resolves the photo of every member user', async () => {
+            paginationQueryUtil.offset.mockReturnValue({
+                params: offsetParams,
+                storePatch: offsetStorePatch,
+            } as never);
+            workspaceMemberDomain.getMembersListForAdmin.mockResolvedValue({
+                ...offsetPage,
+                data: [memberWithPhoto],
+            });
+
+            const result = await service.getMembersListForAdmin(
+                'workspace-id',
+                { page: 1, perPage: 20 }
+            );
+
+            expect(result.data).toEqual([mappedMemberWithPhoto]);
+        });
+    });
+
+    describe('mapMember', () => {
+        it('resolves the member user photo', () => {
+            const result = service['mapMember'](memberWithPhoto);
+
+            expect(result).toEqual(mappedMemberWithPhoto);
         });
     });
 });

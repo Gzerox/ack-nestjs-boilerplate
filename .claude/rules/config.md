@@ -29,6 +29,23 @@ controller, guard, or module wiring is config in the wrong place.
 **A bare `const` is not an escape hatch** — promote it unless it is a genuinely fixed,
 single-source-of-truth invariant with no env knob today.
 
+## A config file owns its values (HARD)
+
+A `src/configs/*.config.ts` file never imports from `src/modules/**` for a default or a
+configured value. A feature value — the user photo scope prefix pattern and maximum size, the
+term-policy content scope prefix and maximum size — is a literal in the owning config file
+(`bytes()` / `ms()` / a pattern string), and the feature reads it back through `ConfigService`.
+The dependency runs from the feature to config, never the other way.
+
+A value something STATIC needs is still read from config, at a layer that has DI:
+
+- **A static zod request schema keeps only the structural bound** — a positive integer, a
+  non-empty string. The domain reads the configured maximum and enforces it, throwing the
+  feature's typed exception.
+- **A decorator takes a config KEY, never the value** — `maxDataImportConfigKey` on the CSV
+  pipe, `maxSizeInBytesConfigKey` on `StorageUploadSingle`. The interceptor or pipe it composes
+  resolves the key through `ConfigService` at request time.
+
 ## Nested keys name the concept
 
 Object keys under a config namespace are readable camelCase for the thing they configure
@@ -53,7 +70,7 @@ that unit.
 
 **The conversion lives in the CONFIG, not the consumer.** cache-manager / Keyv TTL and BullMQ
 `backoff.delay` take milliseconds; jsonwebtoken `expiresIn`, BullMQ `KeepJobs.age` and the otplib
-TOTP period take seconds; an S3 lifecycle `DaysAfterInitiation` takes days. Each key names what
+TOTP period take seconds; a `@nestjs/storage` signed-URL `expiresIn` takes the unit the package declares. Each key names what
 its own consumer takes, and the call site passes the value straight through. **A
 `Math.floor(x / 1000)` or an `x / ms('1d')` in a service, util, guard, interceptor or module
 wiring is the defect** — move the division into the config file and name the key for the unit it
@@ -81,13 +98,13 @@ const link = this.inviteLinkPattern
 ```
 
 **How much of the URL the key holds depends on where the URL goes.** A URL the application
-EMITS to a client — an email link, an S3 object URL, anything a recipient opens — holds the
+EMITS to a client — an email link, a public storage asset URL, anything a recipient opens — holds the
 FULL URL including the host, because the recipient has no other way to resolve it. A path that
 never leaves the application — a route the framework mounts, a prefix it serves under — is a
 relative fragment, because the host is the one the request already arrived on
 (`doc.jsonUrlPattern`).
 
-- **The host keeps its own config key** — `home.url`, an S3 `baseUrl` — and is substituted INTO
+- **The host keeps its own config key** — `home.url`, `storage.publicBaseUrl` — and is substituted INTO
   the placeholder rather than folded into the pattern, so one host value serves every pattern
   that needs it and a host change is one edit.
 - **String concatenation of a URL is the defect**, in a service, a util, a guard, an

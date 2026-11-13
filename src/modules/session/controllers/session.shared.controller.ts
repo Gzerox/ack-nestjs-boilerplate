@@ -17,13 +17,13 @@ import {
 } from '@modules/auth/decorators/auth.jwt.decorator';
 
 import { SessionResponseSchema } from '@modules/session/dtos/response/session.response.dto';
-import type { ISessionList } from '@modules/session/interfaces/session.interface';
 import { SessionHttpService } from '@modules/session/services/session.http.service';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { SessionResponseDto } from '@modules/session/dtos/response/session.response.dto';
 
 @ApiTags('modules.shared.user.session')
 @Controller({
@@ -45,7 +45,7 @@ export class SessionSharedController {
         @Query({ schema: SessionSharedListRequestSchema })
         query: SessionSharedListRequestDto,
         @AuthJwtPayload('userId') userId: string
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         return this.sessionHttpService.getListCursor(userId, query);
     }
 

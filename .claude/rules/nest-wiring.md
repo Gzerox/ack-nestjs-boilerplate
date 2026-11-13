@@ -38,8 +38,10 @@ module owned a second instance. The same holds for a `@Global()` feature module:
 (`rules/architecture.md`), reachable without an import. A named queue is registered with
 `BullModule.registerQueueAsync` on the owning domain module, not by importing `QueueModule`.
 
-`AwsModule` lives under `src/common/aws/` and is not in that composed set. A feature that
-injects `AwsS3Service` or `AwsSESService` imports `AwsModule`. `src/common/doc/` has no
+`StorageMainModule.forRoot()` is in that composed set and is global, so injecting
+`ObjectStorageService` needs no `imports:` entry. `AwsModule` lives under `src/common/aws/`, is
+not in that composed set, and exports `AwsSESService` only. A feature that injects
+`AwsSESService` imports `AwsModule`. `src/common/doc/` has no
 module.
 
 `forRoot()` is called ONCE, at the composition root. A `forRoot()` inside a feature module is a
@@ -134,7 +136,8 @@ export class WorkspaceProcessorModule {}           // processor classes + their 
 | another feature's util, feature not `@Global()` | `<Feature>DomainModule`, which exports it |
 | another feature's queue class, to enqueue onto its queue | `<Feature>DomainModule`, which exports it |
 | anything from a `@Global()` feature, or from a `src/common/` module composed in `CommonModule` | nothing — it is already reachable |
-| `AwsS3Service` / `AwsSESService` | `AwsModule` |
+| `ObjectStorageService` | nothing — `StorageMainModule` is composed in `CommonModule` and global |
+| `AwsSESService` | `AwsModule` |
 
 `<Feature>RepositoryModule`, `<Feature>HttpModule` and `<Feature>ProcessorModule` are never a
 legitimate import target outside their own feature — the first stops at its own

@@ -3,12 +3,13 @@ import fs from 'fs';
 import path from 'path';
 
 const EncryptionSecretLengthInBytes = 48;
+const StorageSigningKeyLengthInBytes = 48;
 
 const Usage = `
-Usage: node scripts/generate-secret.ts <all|jwt|encryption> [--direct-insert]
+Usage: node scripts/generate-secret.ts <all|jwt|encryption|storage> [--direct-insert]
 
 Commands:
-  all           Run jwt, then encryption, with the same --direct-insert choice for both.
+  all           Run jwt, encryption, then storage, with the same --direct-insert choice for each.
   jwt           Generate the JWT keys (ES256 for access tokens, ES512 for refresh tokens) and JWKS:
                 1. Save the key pairs to ./keys as PEM files (always)
                 2. Create separate access/refresh JWKS files in ./keys (always)
@@ -19,6 +20,12 @@ Commands:
                 1. Write both to ./keys/encryption-secret.env (always)
                 2. Update .env with both secrets (only with --direct-insert)
                 Never touches the JWT key files, the JWKS files or the JWT variables.
+  storage       Generate STORAGE_LOCAL_SIGNING_KEYS, the key that signs local-driver private URLs
+                (48 random bytes, base64url):
+                1. Write it to ./keys/storage-secret.env (always)
+                2. Update .env with it (only with --direct-insert)
+                --direct-insert replaces the whole key list, so URLs signed with the old key stop
+                verifying; to rotate without that, prepend the new key to the existing list by hand.
 
   Key material and secret values are never printed; only file paths and KIDs are shown.
 
@@ -35,14 +42,17 @@ Examples:
   pnpm generate:secret:jwt --direct-insert
   pnpm generate:secret:encryption
   pnpm generate:secret:encryption --direct-insert
+  pnpm generate:secret:storage
+  pnpm generate:secret:storage --direct-insert
   node scripts/generate-secret.ts all --direct-insert
   node scripts/generate-secret.ts jwt --direct-insert
   node scripts/generate-secret.ts encryption --direct-insert
+  node scripts/generate-secret.ts storage --direct-insert
 `;
 
 /**
- * Generates the secret targets — the JWT key pairs with their JWKS files, and
- * the two encryption root secrets — one at a time, and optionally upserts only
+ * Generates the secret targets — the JWT key pairs with their JWKS files, the
+ * two encryption root secrets, and the local storage signing key — one at a time, and optionally upserts only
  * that target's variables into the environment file.
  */
 class SecretGenerator {
@@ -54,6 +64,7 @@ class SecretGenerator {
     private readonly refreshTokenPrivateKeyPath: string;
     private readonly refreshTokenPublicKeyPath: string;
     private readonly encryptionSecretPath: string;
+    private readonly storageSecretPath: string;
 
     constructor(keyDir: string) {
         this.keyDir = keyDir;
@@ -82,6 +93,7 @@ class SecretGenerator {
             this.keyDir,
             'encryption-secret.env'
         );
+        this.storageSecretPath = path.join(this.keyDir, 'storage-secret.env');
     }
 
     ensureDir(dir: string): void {
@@ -438,6 +450,69 @@ class SecretGenerator {
     }
 
     /**
+     * Generates the local storage signing key into its secrets file, prints the
+     * path, and when `updateEnv` is true upserts `STORAGE_LOCAL_SIGNING_KEYS`
+     * into `.env` (`--direct-insert`). The value is never printed.
+     */
+    generateStorageSigningKey(updateEnv: boolean): void {
+        try {
+            this.ensureDir(this.keyDir);
+
+            console.log('Generating storage signing key...');
+            const signingKey = crypto
+                .randomBytes(StorageSigningKeyLengthInBytes)
+                .toString('base64url');
+
+            fs.writeFileSync(
+                this.storageSecretPath,
+                [`STORAGE_LOCAL_SIGNING_KEYS=${signingKey}`, ''].join('\n'),
+                { mode: 0o600 }
+            );
+
+            try {
+                fs.chmodSync(this.storageSecretPath, 0o600);
+            } catch {
+                console.warn(
+                    `Could not set permissions for ${this.storageSecretPath}`
+                );
+            }
+
+            if (updateEnv) {
+                this.upsertEnv([
+                    { key: 'STORAGE_LOCAL_SIGNING_KEYS', value: signingKey },
+                ]);
+            }
+
+            console.log('✅ Storage signing key generated successfully!');
+            console.log('');
+            console.log(
+                '📁 File written (open it — the key is NOT printed, for security):'
+            );
+            console.log(
+                `   • Storage signing key: ${this.storageSecretPath} (STORAGE_LOCAL_SIGNING_KEYS)`
+            );
+            console.log('');
+            if (updateEnv) {
+                console.log(
+                    '✅ .env updated with the storage signing key (--direct-insert). Ready for application use.'
+                );
+                console.warn(
+                    '⚠️  --direct-insert replaced the signing key list: signed local URLs already issued stop verifying.'
+                );
+            } else {
+                console.log(
+                    `⏭️  .env not updated (default). Copy the line from ${this.storageSecretPath} into .env, or run with --direct-insert to write it into .env automatically.`
+                );
+            }
+        } catch (err) {
+            console.error(
+                `Failed to generate the storage signing key: ${err instanceof Error ? err.message : String(err)}`
+            );
+            process.exit(1);
+        }
+    }
+
+    /**
      * Upserts the given variables into `.env`, creating it from `.env.example`
      * when absent, and locks the file to owner read/write only. Variables not
      * named are left as they are.
@@ -494,10 +569,13 @@ function main(): void {
     if (command === 'all') {
         generator.generateJwtKeys(useDirectInsert);
         generator.generateEncryptionSecrets(useDirectInsert);
+        generator.generateStorageSigningKey(useDirectInsert);
     } else if (command === 'jwt') {
         generator.generateJwtKeys(useDirectInsert);
     } else if (command === 'encryption') {
         generator.generateEncryptionSecrets(useDirectInsert);
+    } else if (command === 'storage') {
+        generator.generateStorageSigningKey(useDirectInsert);
     } else {
         console.error(Usage);
         process.exit(1);

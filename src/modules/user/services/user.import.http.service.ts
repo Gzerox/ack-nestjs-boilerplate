@@ -7,6 +7,7 @@ import type {
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponseFileReturn } from '@common/response/interfaces/response.interface';
 import { EnumActivityLogAction, Prisma } from '@generated/prisma-client/client';
 import { UserDefaultStatus } from '@modules/user/constants/user.list.constant';
@@ -27,7 +28,8 @@ export class UserImportHttpService {
         private readonly workspaceDomain: WorkspaceDomain,
         private readonly fileService: FileService,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
 
     async importByAdmin(
@@ -89,29 +91,33 @@ export class UserImportHttpService {
             countryId?.where as Record<string, IPaginationEqual> | undefined
         );
 
-        const users: UserExportResponseDto[] = data.map(user => ({
-            id: user.id,
-            createdAt: user.createdAt,
-            createdBy: user.createdBy,
-            updatedAt: user.updatedAt,
-            updatedBy: user.updatedBy,
-            deletedAt: user.deletedAt,
-            deletedBy: user.deletedBy,
-            name: user.name,
-            username: user.username as Lowercase<string>,
-            isVerified: user.isVerified,
-            verifiedAt: user.verifiedAt,
-            email: user.email as Lowercase<string>,
-            roleId: user.roleId,
-            status: user.status,
-            countryId: user.countryId,
-            photo: user.photo?.completedUrl ?? null,
-            termPolicyTermsOfService: user.termsOfServiceAccepted,
-            termPolicyPrivacy: user.privacyAccepted,
-            termPolicyCookies: user.cookiesAccepted,
-            termPolicyMarketing: user.marketingAccepted,
-            role: user.role.name,
-        }));
+        const users: UserExportResponseDto[] = data.map(user => {
+            const photo = this.objectStorageService.toAssetResponse(user.photo);
+
+            return {
+                id: user.id,
+                createdAt: user.createdAt,
+                createdBy: user.createdBy,
+                updatedAt: user.updatedAt,
+                updatedBy: user.updatedBy,
+                deletedAt: user.deletedAt,
+                deletedBy: user.deletedBy,
+                name: user.name,
+                username: user.username as Lowercase<string>,
+                isVerified: user.isVerified,
+                verifiedAt: user.verifiedAt,
+                email: user.email as Lowercase<string>,
+                roleId: user.roleId,
+                status: user.status,
+                countryId: user.countryId,
+                photo: photo?.url ?? null,
+                termPolicyTermsOfService: user.termsOfServiceAccepted,
+                termPolicyPrivacy: user.privacyAccepted,
+                termPolicyCookies: user.cookiesAccepted,
+                termPolicyMarketing: user.marketingAccepted,
+                role: user.role.name,
+            };
+        });
 
         const csv = this.fileService.writeCsv<UserExportResponseDto>(users);
 

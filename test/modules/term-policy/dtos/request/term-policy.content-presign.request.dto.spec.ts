@@ -12,11 +12,20 @@ describe('TermPolicyContentPresignRequestSchema', () => {
         expect(TermPolicyContentPresignRequestSchema.parse(valid)).toEqual(
             valid
         ));
+    it('leaves the configured maximum to the domain and accepts a large size', () =>
+        expect(
+            TermPolicyContentPresignRequestSchema.safeParse({
+                ...valid,
+                size: 104857600,
+            }).success
+        ).toBe(true));
     it.each([
         { ...valid, version: 1.5 },
         { ...valid, language: 'xx' },
+        { ...valid, size: 0 },
+        { ...valid, size: 1.5 },
         { ...valid, unknown: true },
-    ])('rejects malformed or unknown input', input =>
+    ])('rejects malformed, non-positive or unknown input', input =>
         expect(
             TermPolicyContentPresignRequestSchema.safeParse(input).success
         ).toBe(false)

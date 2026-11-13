@@ -61,6 +61,7 @@
         "forgotPasswordRequestLimitExceeded": "You have exceeded the limit for password reset requests. Try again after {minutes} minutes.",
         "importEmailExist": "There are existing users with the provided email addresses. Email: {emails}",
         "importUsernameExist": "There are existing users with the provided usernames. Username: {usernames}",
-        "notAuthenticated": "This request does not carry an authenticated user."
+        "notAuthenticated": "This request does not carry an authenticated user.",
+        "photoSizeExceeded": "The profile photo is larger than the allowed size."
     }
 }

@@ -6,7 +6,8 @@ call site. Four domain groups: identity and auth (JWT with
 JWKS, social sign-in, API keys, sessions, devices, two-factor), access control (roles, CASL
 policy abilities, term-policy gating, feature flags), workspace and project (mandatory
 multi-workspace, invites, join requests, workspace-scoped projects), and platform
-(notifications, file upload and S3 presign, activity log, i18n, health, country data).
+(notifications, file upload and provider-neutral object storage, activity log, i18n, health,
+country data).
 
 ## Stack
 
@@ -44,7 +45,8 @@ src/
 ├── swagger.ts          # Swagger/OpenAPI document builder
 ├── app/                # framework layer — app.module + the APP_FILTER chain
 ├── common/             # the shared module — database, cache, redis, pagination, request,
-│                       #   response, logger, message, helper, file, doc, aws, firebase, sentry
+│                       #   response, logger, message, helper, file, storage, doc, aws (SES),
+│                       #   firebase, sentry
 ├── configs/            # registerAs config files + index.ts barrel
 ├── generated/          # prisma-client/ (prisma generate) and package/ (generate:package), gitignored
 ├── languages/          # nestjs-i18n JSON, one file per module prefix

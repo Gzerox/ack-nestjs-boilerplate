@@ -13,9 +13,9 @@ import {
 import type { DeviceAdminListRequestDto } from '@modules/device/dtos/request/device.admin-list.request.dto';
 import type { DeviceSharedListRequestDto } from '@modules/device/dtos/request/device.shared-list.request.dto';
 import type { DeviceRefreshRequestDto } from '@modules/device/dtos/request/device.refresh.request.dto';
-import type { IDeviceOwnershipDetail } from '@modules/device/interfaces/device.interface';
 import { DeviceDomain } from '@modules/device/domains/device.domain';
 import { Injectable } from '@nestjs/common';
+import type { DeviceOwnershipResponseDto } from '@modules/device/dtos/response/device.ownership.response.dto';
 
 @Injectable()
 export class DeviceHttpService {
@@ -28,7 +28,7 @@ export class DeviceHttpService {
     async getListOffsetByAdmin(
         userId: string,
         query: DeviceAdminListRequestDto
-    ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
+    ): Promise<IResponsePaginationReturn<DeviceOwnershipResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.DeviceOwnershipWhereInput>(
                 query,
@@ -54,12 +54,19 @@ export class DeviceHttpService {
                 params,
                 isRevoked?.where
             );
-        const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
-            deviceOwnership => ({
-                ...deviceOwnership,
-                activeSessionCount: deviceOwnership._count.sessions,
-                isCurrentDevice: false,
-            })
+        const deviceOwnerships: DeviceOwnershipResponseDto[] = data.map(
+            deviceOwnership => {
+                const revokedBy = deviceOwnership.revokedBy
+                    ? { ...deviceOwnership.revokedBy, photo: null }
+                    : null;
+
+                return {
+                    ...deviceOwnership,
+                    revokedBy,
+                    activeSessionCount: deviceOwnership._count.sessions,
+                    isCurrentDevice: false,
+                };
+            }
         );
 
         return {
@@ -72,7 +79,7 @@ export class DeviceHttpService {
         userId: string,
         sessionId: string,
         query: DeviceSharedListRequestDto
-    ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
+    ): Promise<IResponsePaginationReturn<DeviceOwnershipResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.DeviceOwnershipWhereInput>(
                 query,
@@ -87,12 +94,19 @@ export class DeviceHttpService {
             sessionId,
             params
         );
-        const deviceOwnerships: IDeviceOwnershipDetail[] = data.map(
-            deviceOwnership => ({
-                ...deviceOwnership,
-                activeSessionCount: deviceOwnership._count.sessions,
-                isCurrentDevice: deviceOwnership.sessions.length > 0,
-            })
+        const deviceOwnerships: DeviceOwnershipResponseDto[] = data.map(
+            deviceOwnership => {
+                const revokedBy = deviceOwnership.revokedBy
+                    ? { ...deviceOwnership.revokedBy, photo: null }
+                    : null;
+
+                return {
+                    ...deviceOwnership,
+                    revokedBy,
+                    activeSessionCount: deviceOwnership._count.sessions,
+                    isCurrentDevice: deviceOwnership.sessions.length > 0,
+                };
+            }
         );
 
         return {

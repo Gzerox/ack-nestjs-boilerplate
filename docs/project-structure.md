@@ -71,7 +71,7 @@ The App Module is the root module. It:
 CommonModule registers shared infrastructure and the global feature modules. Its `imports` array holds three groups, in this order:
 
 - **Infrastructure:** `ConfigModule` (loading `src/configs/index.ts`), `MessageModule`, `LoggerModule`, `SentryModule` (which exports `SentryService`), `RedisCacheModule`, `QueueModule` (the BullMQ producer and processor connections), `CacheMainModule`, `DatabaseModule`, `RequestModule`, and `ResponseModule`
-- **Shared utilities:** `HelperModule`, `PaginationModule`, `FileModule`, and `FirebaseModule`
+- **Shared utilities:** `HelperModule`, `PaginationModule`, `FileModule`, `StorageMainModule` (the `public` and `private` storage disks and `ObjectStorageService`; see [Storage](storage.md)), and `FirebaseModule`
 - **The `@Global()` feature domains:** `ActivityLogDomainModule`, `ApiKeyDomainModule`, `AuthDomainModule`, `FeatureFlagDomainModule`, `RoleDomainModule`, `PolicyDomainModule`, `TermPolicyDomainModule`, `SessionDomainModule`, and `NotificationDomainModule`
 
 ## Configs
@@ -96,7 +96,7 @@ The migration folder seeds initial data. Schema changes are tracked as Prisma mi
 - `migration.module.ts`: Registers every seed command as a provider
 - Subfolders for migration bases, data, enums, interfaces, and seeds
 - Populates the reference and bootstrap rows an empty database needs: api keys, countries, feature flags, roles, policies, term policies, users, and workspaces (the eight commands bundled into `pnpm migration:seed`)
-- Ships three on-demand commands that are not part of `pnpm migration:seed`: `awsS3Config` (S3 bucket setup; see [Third Party Integration](third-party-integration.md#bucket-setup)), `templateEmailNotification` (see [Email](email.md)), and `templateTermPolicy` (see [Term Policy](term-policy.md#migration--seeding))
+- Ships two on-demand commands that are not part of `pnpm migration:seed`: `templateEmailNotification` (see [Email](email.md)) and `templateTermPolicy` (see [Term Policy](term-policy.md#migration--seeding)). Storage buckets are configured at the provider (see [Third Party Integration](third-party-integration.md#bucket-setup))
 
 ## Queues
 

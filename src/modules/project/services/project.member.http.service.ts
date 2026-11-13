@@ -1,6 +1,7 @@
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -15,6 +16,7 @@ import type { IProjectMember } from '@modules/project/interfaces/project.interfa
 import { ProjectMemberDomain } from '@modules/project/domains/project.member.domain';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
+import type { ProjectMemberResponseDto } from '@modules/project/dtos/response/project.member.response.dto';
 
 @Injectable()
 export class ProjectMemberHttpService {
@@ -22,13 +24,22 @@ export class ProjectMemberHttpService {
         private readonly projectMemberDomain: ProjectMemberDomain,
         private readonly workspaceMemberDomain: WorkspaceMemberDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapMember(member: IProjectMember): ProjectMemberResponseDto {
+        const photo = this.objectStorageService.toAssetResponse(
+            member.user.photo
+        );
+
+        return { ...member, user: { ...member.user, photo } };
+    }
 
     async getMembersList(
         project: Project,
         query: ProjectMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IProjectMember>> {
+    ): Promise<IResponsePaginationReturn<ProjectMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.ProjectMemberWhereInput>(
                 query,
@@ -41,8 +52,10 @@ export class ProjectMemberHttpService {
         const { data, ...others } =
             await this.projectMemberDomain.getMembersList(project, params);
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }
@@ -51,7 +64,7 @@ export class ProjectMemberHttpService {
         project: Project,
         actorId: string,
         { userId, role }: ProjectMemberAssignRequestDto
-    ): Promise<IResponseReturn<IProjectMember>> {
+    ): Promise<IResponseReturn<ProjectMemberResponseDto>> {
         const targetMember =
             await this.workspaceMemberDomain.getOneByWorkspaceAndUser(
                 project.workspaceId,
@@ -64,7 +77,9 @@ export class ProjectMemberHttpService {
             role
         );
 
-        return { data: member };
+        const mapped = this.mapMember(member);
+
+        return { data: mapped };
     }
 
     async updateMemberRole(

@@ -17,7 +17,7 @@ This project aligns with the [Twelve-Factor App][ref-12factor] methodology.
 | Codebase | Single repo, one codebase tracked in Git, multiple deploys via env |
 | Dependencies | All dependencies declared in `package.json`, enforced with PNPM lockfile |
 | Config | All configuration via environment variables, validated at startup via `AppEnvSchema` |
-| Backing Services | PostgreSQL, Redis, AWS S3/SES, Firebase; treated as attached resources via env config |
+| Backing Services | PostgreSQL, Redis, object storage (local, S3, or R2), AWS SES, Firebase; treated as attached resources via env config |
 | Build, Release, Run | Build (`pnpm build`) is strictly separated from runtime |
 | Processes | Stateless app processes; session and cache state stored in Redis, not in-memory |
 | Port Binding | App self-contained via NestJS HTTP server, port exposed via `HTTP_PORT` env |
@@ -85,10 +85,11 @@ Install and configure the project.
 25. [Activity Log][ref-doc-activity-log]; Recording user activities staged by domains and flushed by `ActivityLogInterceptor`
 26. [Analytic][ref-doc-analytic]; Live admin dashboard metrics, anomaly and fraud reports, current-workspace user metrics
 27. [Term Policy][ref-doc-term-policy]; Legal agreements, versioning, and user consent enforcement
-28. [File Upload][ref-doc-file-upload]; Multipart uploads, CSV processing, and S3 presign (GET, upload, part)
-29. [Third Party Integration][ref-doc-third-party-integration]; AWS S3/SES, Firebase, Sentry, no-op mode, S3 bucket setup
-30. [Doc][ref-doc-doc]; Swagger/OpenAPI co-located on `@Doc`, `@Response*` / `FileUpload*`, and `*Protected` kits
-31. [Vault][ref-doc-vault]; Optional secret management via HashiCorp Vault
+28. [File Upload][ref-doc-file-upload]; Multipart uploads, file pipes, CSV processing
+29. [Storage][ref-doc-storage]; Object storage disks, stored and signed uploads, signed downloads
+30. [Third Party Integration][ref-doc-third-party-integration]; Object storage (S3, R2, bucket setup), AWS SES, Firebase, Sentry, no-op mode
+31. [Doc][ref-doc-doc]; Swagger/OpenAPI co-located on `@Doc`, `@Response*` / `FileUpload*`, and `*Protected` kits
+32. [Vault][ref-doc-vault]; Optional secret management via HashiCorp Vault
 
 
 
@@ -120,6 +121,7 @@ Install and configure the project.
 [ref-doc-analytic]: analytic.md
 [ref-doc-term-policy]: term-policy.md
 [ref-doc-file-upload]: file-upload.md
+[ref-doc-storage]: storage.md
 [ref-doc-third-party-integration]: third-party-integration.md
 [ref-doc-doc]: doc.md
 [ref-doc-vault]: vault.md

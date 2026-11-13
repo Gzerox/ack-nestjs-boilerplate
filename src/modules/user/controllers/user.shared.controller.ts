@@ -1,11 +1,15 @@
 import { Doc } from '@common/doc/decorators/doc.decorator';
-import { AwsS3PresignResponseSchema } from '@common/aws/dtos/response/aws.s3-presign.response.dto';
-import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
-import { FileUploadSingle } from '@common/file/decorators/file.decorator';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
-import type { IFile } from '@common/file/interfaces/file.interface';
-import { FileExtensionPipe } from '@common/file/pipes/file.extension.pipe';
-import { FileRequiredPipe } from '@common/file/pipes/file.required.pipe';
+import {
+    StorageUploadSingle,
+    StoredUpload,
+} from '@common/storage/decorators/storage.decorator';
+import { StorageSignedUploadResponseSchema } from '@common/storage/dtos/response/storage.signed-upload.response.dto';
+import type {
+    IStorageSignedUpload,
+    IStoredAsset,
+} from '@common/storage/interfaces/storage.interface';
+import { EnumStorageVisibility } from '@generated/prisma-client/client';
 import {
     RequestThrottle,
     RequestTimeout,
@@ -83,7 +87,6 @@ import {
     Patch,
     Post,
     Put,
-    UploadedFile,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -151,7 +154,7 @@ export class UserSharedController {
 
     @Doc({ summary: 'generate upload photo profile presign' })
     @Response('user.generatePhotoProfilePresign', {
-        schema: AwsS3PresignResponseSchema,
+        schema: StorageSignedUploadResponseSchema,
     })
     @TermPolicyAcceptanceProtected()
     @UserProtected()
@@ -165,7 +168,7 @@ export class UserSharedController {
         userId: string,
         @Body({ schema: UserGeneratePhotoProfileRequestSchema })
         body: UserGeneratePhotoProfileRequestDto
-    ): Promise<IResponseReturn<IAwsS3Presign>> {
+    ): Promise<IResponseReturn<IStorageSignedUpload>> {
         return this.userProfileHttpService.generatePhotoProfilePresign(
             userId,
             body
@@ -178,7 +181,7 @@ export class UserSharedController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @RequestThrottle({ user: true })
+    @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @Put('/profile/photo/update')
     async updatePhotoProfile(
         @AuthJwtPayload('userId')
@@ -195,7 +198,13 @@ export class UserSharedController {
     @UserProtected()
     @AuthJwtAccessProtected()
     @ApiKeyProtected()
-    @FileUploadSingle()
+    @StorageUploadSingle({
+        fieldName: 'file',
+        visibility: EnumStorageVisibility.public,
+        scopePrefixPatternConfigKey: 'user.photo.scopePrefixPattern',
+        maxSizeInBytesConfigKey: 'user.photo.maxSizeInBytes',
+        extensions: Object.values(EnumFileExtensionImage),
+    })
     @RequestTimeout('1m')
     @RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })
     @HttpCode(HttpStatus.OK)
@@ -203,17 +212,10 @@ export class UserSharedController {
     async uploadPhotoProfile(
         @AuthJwtPayload('userId')
         userId: string,
-        @UploadedFile(
-            FileRequiredPipe(),
-            FileExtensionPipe([
-                EnumFileExtensionImage.jpeg,
-                EnumFileExtensionImage.png,
-                EnumFileExtensionImage.jpg,
-            ])
-        )
-        file: IFile
+        @StoredUpload()
+        stored: IStoredAsset
     ): Promise<void> {
-        await this.userProfileHttpService.uploadPhotoProfile(userId, file);
+        await this.userProfileHttpService.uploadPhotoProfile(userId, stored);
     }
 
     @Doc({ summary: 'change password' })

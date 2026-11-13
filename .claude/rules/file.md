@@ -1,12 +1,12 @@
-# File — upload, CSV import, export, S3 presign
+# File — upload, CSV import, export, object storage
 
-`FileService`, the file pipes, and `AwsS3Service` are the shared kit in `src/common/file/`
-and `src/common/aws/`; a feature never re-implements them. Flow narrative:
-`docs/file-upload.md` — explorer or planner.
+`FileService` and the file pipes are the shared kit in `src/common/file/`; `ObjectStorageService`
+and the stored-upload decorators are the shared kit in `src/common/storage/`. A feature never
+re-implements either. Flow narrative: `docs/file-upload.md` (parsing, pipes, CSV) and `docs/storage.md` (disks, signed uploads) — explorer or planner.
 
 ## Upload validation is a pipe, never inline
 
-An uploaded file is validated by a `src/common/file/pipes/` pipe, composed on the route — not by an `if` inside the controller or service.
+A memory-backed upload (`FileUploadSingle`, `FileUploadMultiple`, `FileUploadMultipleFields`) is validated by a `src/common/file/pipes/` pipe, composed on the route — not by an `if` inside the controller or service. It is for a file the request parses and discards, such as a CSV import. A file that is KEPT is a stored upload (below).
 
 - **Extension is an allow-list, checked against `EnumFileExtension`** (`file.enum.ts`, grouped `Image` / `Document` / `Audio` / `Video` / `Template`). Never match a raw string; add the extension to the right group enum first.
 - **The declared extension and the bytes must both agree with the allow-list.** `FileExtensionPipe` reads the extension from `originalname`, then sniffs the buffer through `FileService.sniffExtensionFromBuffer`. A sniffed type is accepted when `FileExtensionContract` (`contracts/file.extension.contract.ts`) maps it onto a member of the allow-list. `csv` is the signature-less member: a sniff that returns nothing is accepted for it, and rejected for every other member. `hbs` is not in that table — it is not an upload. Adding an uploadable extension to a group enum means adding its row to that table.
@@ -18,7 +18,7 @@ An uploaded file is validated by a `src/common/file/pipes/` pipe, composed on th
 
 `FileUploadSingle`, `FileUploadMultiple` and `FileUploadMultipleFields` compose `FileUploadErrorInterceptor` outermost, ahead of the multer interceptor it wraps. It maps every multer and busboy limit failure onto a typed file exception — `FileExceedMaxSizeUploadException` (`413`), `FileExceedMaxFilesException`, `FileFieldUnexpectedException`, `FileMultipartInvalidException` — so a client reads the same envelope, status code and i18n message as it does for any other file error.
 
-**OpenAPI for multipart lives on these decorators.** Each emits `ApiConsumes('multipart/form-data')`, a binary `ApiBody` built from the declared field name(s), and the upload error kit. There is no separate request-doc decorator for uploads (`rules/http.md`).
+**OpenAPI for multipart lives on the upload decorators** — these three and `StorageUploadSingle`. Each emits `ApiConsumes('multipart/form-data')`, a binary `ApiBody` built from the declared field name(s), and the upload error kit. There is no separate request-doc decorator for uploads (`rules/http.md`).
 
 - The mapping matches the message strings Nest already put on the `HttpException` (`multerExceptions` / `busboyExceptions` from `@nestjs/platform-express`). It does not invent a second message catalog. The client message is the typed exception's own path (`file.error.exceedMaxSizeUpload`, …). `transformException` appends ` - <field>` to several of those framework messages, so the match is the segment before the first ` - `.
 - `FileSizeInBytes` is the default per-file cap; `FileMaxMultiple` is the default file count for `FileUploadMultiple`. `FileUploadMultipleFields` takes its counts from the fields it declares.
@@ -45,12 +45,59 @@ A controller returning `IResponseFileReturn` hands `ResponseFileInterceptor` a f
 - **`Content-Disposition` is built, never interpolated.** The filename passes through `FileService.sanitizeFilename` for the quoted `filename=` and through `encodeURIComponent` for `filename*=UTF-8''`. A filename that reaches the header raw is a header-injection defect, not a formatting detail.
 - The headers are handed to `StreamableFile` as `{ type, disposition, length }`; `ResponseMetadataService.setHeaders` adds the `x-*` metadata alongside them.
 
-## S3 presign — the client uploads, the API only signs
+## Object storage — `ObjectStorageService` is the only surface
 
-A presigned upload means the browser PUTs straight to S3; the API issues a short-lived signature and never proxies the bytes.
+Storage is `src/common/storage/` on `@nestjs/storage`, with two named disks: `public` (every upload, delivered without authentication) and `private` (protected documents). `STORAGE_DRIVER` selects the implementation — `local` is `LocalDisk` under a gitignored root, `s3` is `S3Disk` for AWS S3 and S3-compatible providers (R2: an endpoint and region `auto`). Unit specs use `InMemoryDisk`. Which driver runs in which environment is the deployer's choice. Config validation checks each variable's shape and does not cross-check the chosen driver's variables: configuring the selected driver is the deployer's job. Storage is always available — there is no initialized/disabled mode to check.
 
-- The presign request DTO (`AwsS3PresignRequestDto` / `AwsS3PresignPartRequestDto`) validates **`key`** and **`size`** (and `partNumber` / `uploadId` for multipart) — a presign is a signed grant, so its inputs are validated like any other wire input, never trusted raw.
-- **`EnumAwsS3Accessibility` (`public` / `private`) is a required argument wherever an `AwsS3Service` method reaches a bucket.** A `public` object is world-readable by URL forever, so each call states the accessibility it means and the compiler refuses one that leaves it out; `copyItem` and `copyItems` name `accessFrom` and `accessTo` because they touch two. Where the right value is not obvious from the call, it is `private`.
-- **A presign signature is a credential** (`rules/security.md`): it must not land in a log line, in activity metadata, or on `request.<field>`. Return it in the response and nowhere else.
-- Expiry is bounded and short. Do not widen a presign TTL to "make testing easier".
-- S3 access goes through `AwsS3Service` (the one client, health-checked and config-driven), never a hand-built `S3Client` in a feature module — same single-connection discipline as the database and Redis.
+- **A feature reaches storage through `ObjectStorageService` and nothing else** — `publicUrl`, `toAssetResponse`, `createSignedUpload`, `signedDownload`, `verifyUpload`, `store`, `createUploadEngine`, `deleteQuietly`, `delete`, `deletePrefix`, `sweepUnreferenced`, `probe`. A feature never injects a package disk, never imports `LocalDisk`, `S3Disk` or an AWS SDK command, and never catches a package `Storage*Error`: the service translates every one into a typed `storage` exception (`rules/exceptions.md`).
+- **Visibility is server-controlled.** `EnumStorageVisibility` (`public` / `private`, from `@generated/prisma-client/client`) names both the access policy and the disk. The feature's semantics choose it; a request body never carries it, and never carries a disk, a bucket, or a final key. Where the right value is not obvious, it is `private` — a `public` object is readable by anyone holding its URL.
+- **A stored asset persists `key`, `visibility`, `contentType`, `size` (`BigInt`), and `etag` (nullable)** — logical identity only. A bucket, a public or signed URL, an endpoint, a CDN host, or a local path never reaches the database, so a row survives a change of driver, host, or credentials.
+- **URLs are resolved at runtime, in the HTTP service, through one helper** — `ObjectStorageService.toAssetResponse` — before the response is validated. The response schema stays pure and only declares `url` (`rules/dto.md`). A public asset carries its `publicUrl`; a private asset carries `url: null`. `publicUrl` on a private asset throws. Wherever a `size` reaches the wire it converts to a number only through a safe-integer check that throws `sizeInvalid` above `Number.MAX_SAFE_INTEGER`.
+- **An embedded stored asset is `{ key, visibility, contentType, url }`** — a user `photo` inside a user, session owner, or member response. Its `size` and `etag` stay in the database. The shape is `StorageAssetResponseDto`, and the HTTP service returns the route's response DTO with `photo` resolved through `toAssetResponse` (`rules/dto.md`). A revoker (`revokedBy`) carries `photo: null`, and a password-history or activity-log entry's user carries no photo. The database projections (`IUserRef`, `IActivityLog`, …) keep typing `photo` without `url`: it is added at the HTTP boundary, never stored.
+- **A private object is delivered by `signedDownload`, after authorization**, as `{ url, expiresAt }`; no route uses it while every feature stores public. The URL is a bearer credential that cannot be revoked, so the authorization check comes first and the lifetime stays short.
+- **Every key is server-generated, random, and never reused.** The package has no conditional put, so a write never follows an existence check (`rules/concurrency.md`); the random key is what keeps two writers apart.
+
+## Stored multipart upload — streamed, never buffered
+
+A file the API keeps is uploaded through `@StorageUploadSingle({ fieldName, visibility, scopePrefixPatternConfigKey, maxSizeInBytesConfigKey, extensions })`, and the controller receives `@StoredUpload()` — an `IStoredAsset`, never a buffer.
+
+- The interceptor streams the part to the disk for `visibility` through `uploadToDisk`, which enforces the size the config key resolves to and detects the type from the bytes before committing. A type outside `extensions` (`EnumFileExtension` members) is rejected and nothing is kept; an oversize stream is rejected and its partial object removed.
+- **The key is `<scopePrefix><uuid>.<ext>`, and `ext` comes from the DETECTED content type**, never from the client filename.
+- The domain persists the returned metadata. A failed database write deletes nothing; the replaced object is reclaimed by the post-commit sweep (below).
+
+## Direct upload — signed, verified in place
+
+A direct upload means the client PUTs straight to the disk with a signature the API issues; the API never proxies those bytes. A signed upload is not an asset until completion verifies it: the object already sits at its final key on the public disk, with no staging area and no copy.
+
+- **Issue.** The request declares only a content type (or extension) and a size; the request schema bounds the size structurally (a positive integer) and `createSignedUpload` rejects a size below 1 and the domain rejects one above the configured maximum. `createSignedUpload(scope, { contentType, size })` builds a random key under `<scope>/` on the public disk and always pins `contentLength`, so the signature fixes the size. The response is `{ key, url, method: 'PUT', headers, expiresAt }`, and the client sends that method and those headers exactly.
+- **Complete.** The completion body is `{ key }` and nothing else — never a size, a type, or a visibility. `verifyUpload(key, { scopePrefix, maxSizeInBytes, contentTypes, detect? })` checks the key FIRST: a `..` segment, an absolute-looking key, or a prefix other than the caller's own scope is `keyInvalid`, and the object is never read. Then `stat()` gives the real size and a byte sniff gives the real type; a text format with no signature (a template) passes a feature-supplied `detect`. A missing object is `objectNotFound`.
+- **A rejected object is deleted best-effort** through the one `ObjectStorageService.deleteQuietly`, never a per-feature copy; a detected type that differs from the one the key's extension implies is rejected too. An upload that is never completed stays: no prefix separates it from a verified asset, so no lifecycle rule can expire it.
+- **Verify, then write, then sweep.** The repository writes the verified metadata under the key the signature named. A failed write deletes nothing and rethrows: a delete decided from a read that a concurrent request can invalidate removes a live object or orphans another. After the commit the domain reads the key the database holds NOW and calls `sweepUnreferenced(visibility, scopePrefix, keep)`, which removes every object under that scope that is not in `keep` and is older than twice the signed-upload lifetime, so an upload still in flight is never swept. A sweep failure is logged and the request still succeeds. Only `verifyUpload` deletes immediately, and only an object it rejected.
+- Two completions are not locked. Neither deletes the other's object, because a young object is never swept and the sweep keeps the key the database holds.
+- Every upload-issuing and upload-completing endpoint, and every stored multipart upload, carries `@RequestThrottle({ user: true, route: EnumRequestThrottleRoute.moderate })` (`rules/http.md`).
+
+## Storage and PostgreSQL share no transaction
+
+Each workflow has one authoritative state and an explicit compensation.
+
+- **No database reference is written before its object is verified and written.** No authoritative object is deleted before the database reference that replaces it commits.
+- **Removal writes the database first, then deletes the object** (`delete`, `deletePrefix` for a whole aggregate, or `sweepUnreferenced` with an empty `keep` for a scope). A storage failure after the commit is logged, never rolled back into the domain.
+
+## Signatures, limits, and logs
+
+- **A signed upload or download URL is a credential** (`rules/security.md`): it never lands in a log line, in activity metadata, or on `request.<field>`. Return it in the response and nowhere else. A storage log names the logical disk, the key, the operation, and the provider error code — never a signed URL, a credential, a provider response body, or a local absolute path.
+- **TTLs are `storage` config, bounded and short** — signed download 5 minutes, signed upload 2 minutes by default. Do not widen one to "make testing easier".
+- **A size cap and a scope prefix pattern are literals in the owning feature's config file** (`rules/config.md`) — `user.photo.maxSizeInBytes` is 10 MB, term-policy template content is 1 MB. A decorator receives the config KEY; a domain reads the value through `ConfigService`.
+
+## Local-driver routes
+
+`StorageLocalController` exists so the absolute URLs the API returns resolve under `STORAGE_DRIVER=local`: it serves the public disk, verifies signed private downloads, and receives signed uploads into the public disk. It is not an API endpoint.
+
+- **It is the one controller registered outside `src/router/`.** `StorageMainModule` registers it unconditionally, so it mounts under the global prefix and outside the five router scopes. A driver guard answers 404 on every route unless the driver is `local`, so a remote deployment exposes none of them.
+- It carries `@ApiExcludeController` and no API-key, auth, or user-throttle guard — a browser follows the URL without the API headers. The signature is the guard.
+- The key travels as an Express 5 wildcard parameter (`*key`) because keys contain `/`. The signed-upload route is excluded from `RequestBodyParserMiddleware` so `receiveSignedUpload` gets the raw body.
+- The file-serving routes set `Cross-Origin-Resource-Policy: cross-origin` over the global Helmet default, and the public route sets `Cache-Control: public, max-age=31536000, immutable` — keys are never reused.
+
+## Health
+
+`ObjectStorageService.probe` runs `disk.list({ limit: 1 })` under an abort signal of about 3 seconds — one cheap request, valid on an empty bucket, writing nothing. The storage health check reports `storagePublic` and `storagePrivate`, never a bucket name, on `/system/health/storage`; `/system/health/aws` covers SES only.

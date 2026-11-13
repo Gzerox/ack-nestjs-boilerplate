@@ -19,7 +19,6 @@ import {
 import { DeviceRefreshRequestSchema } from '@modules/device/dtos/request/device.refresh.request.dto';
 import type { DeviceRefreshRequestDto } from '@modules/device/dtos/request/device.refresh.request.dto';
 import { DeviceOwnershipResponseSchema } from '@modules/device/dtos/response/device.ownership.response.dto';
-import type { IDeviceOwnershipDetail } from '@modules/device/interfaces/device.interface';
 import { DeviceHttpService } from '@modules/device/services/device.http.service';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
@@ -36,6 +35,7 @@ import {
 } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { DeviceOwnershipResponseDto } from '@modules/device/dtos/response/device.ownership.response.dto';
 
 @ApiTags('modules.shared.user.device')
 @Controller({
@@ -60,7 +60,7 @@ export class DeviceSharedController {
         query: DeviceSharedListRequestDto,
         @AuthJwtPayload('userId') userId: string,
         @AuthJwtPayload('sessionId') sessionId: string
-    ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
+    ): Promise<IResponsePaginationReturn<DeviceOwnershipResponseDto>> {
         return this.deviceHttpService.getListCursor(userId, sessionId, query);
     }
 

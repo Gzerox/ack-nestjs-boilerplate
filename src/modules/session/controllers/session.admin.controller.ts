@@ -23,7 +23,6 @@ import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { RoleProtected } from '@modules/role/decorators/role.decorator';
 
 import { SessionResponseSchema } from '@modules/session/dtos/response/session.response.dto';
-import type { ISessionList } from '@modules/session/interfaces/session.interface';
 import { SessionHttpService } from '@modules/session/services/session.http.service';
 import { TermPolicyAcceptanceProtected } from '@modules/term-policy/decorators/term-policy.decorator';
 import { UserProtected } from '@modules/user/decorators/user.decorator';
@@ -35,6 +34,7 @@ import {
     EnumPolicySubject,
     EnumRoleType,
 } from '@generated/prisma-client/client';
+import type { SessionResponseDto } from '@modules/session/dtos/response/session.response.dto';
 
 @ApiTags('modules.admin.user.session')
 @Controller({
@@ -68,7 +68,7 @@ export class SessionAdminController {
         query: SessionAdminListRequestDto,
         @Param('userId', { schema: RequestUuidSchema })
         userId: string
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         return this.sessionHttpService.getListOffsetByAdmin(userId, query);
     }
 

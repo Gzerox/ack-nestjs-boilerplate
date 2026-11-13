@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
-import { AwsS3ResponseSchema } from '@common/aws/dtos/response/aws.s3.response.dto';
 import { DatabaseResponseSchema } from '@common/database/dtos/response/database.response.dto';
+import { StorageAssetResponseSchema } from '@common/storage/dtos/response/storage.asset.response.dto';
 import {
     EnumUserGender,
     EnumUserLoginFrom,
@@ -99,8 +99,8 @@ export const UserSchema = DatabaseResponseSchema.extend({
         example: EnumUserLoginWith.credential,
     }),
     ...UserTermPolicySchema.shape,
-    photo: AwsS3ResponseSchema.omit({ size: true }).nullable().meta({
-        description: 'Profile photo stored in S3',
+    photo: StorageAssetResponseSchema.nullable().meta({
+        description: 'Profile photo of the user',
     }),
     twoFactor: UserTwoFactorSchema.nullable().meta({
         description: 'Two-factor authentication state of the user',

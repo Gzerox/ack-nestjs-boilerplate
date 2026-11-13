@@ -52,7 +52,7 @@ re-inventing app bootstrap or header plumbing per spec.
 `rules/testing-e2e.md` → "Shared support layer" lists what this layer holds once complete:
 fixture factories, an authenticated-token helper, database and fixture cleanup, response
 envelope / pagination / validation / exception assertions, multipart and CSV request builders,
-and recording adapters for SES, S3, Firebase, queue dispatch, and Sentry. **When the dispatch's
+and recording adapters for SES, Firebase, queue dispatch, and Sentry. **When the dispatch's
 routes need a helper that section describes and `test/e2e/support/` does not yet have it, build
 that helper there as part of this dispatch** — do not hand-roll the same fixture, login, or
 assertion logic inline inside each spec file. A helper you add stays generic to its stated
@@ -106,8 +106,9 @@ the exception class and enum member, never a message string (`rules/exceptions.m
   file.** Always close what you opened in `afterAll`, even on the failure path.
 - **Hand-rolling a login request per spec duplicates the same boilerplate 138 times.** Build or
   reuse the shared auth-token helper instead (`rules/testing-e2e.md` → "Auth pattern").
-- **Asserting a live SES/S3/Firebase/Sentry call** never happens in this profile — those
-  boundaries are disabled. A route reaching one is asserted through a recording adapter or
+- **Asserting a live SES/Firebase/Sentry call** never happens in this profile — those
+  boundaries are disabled. Storage runs on the profile's `local` driver and is asserted on that
+  disk. A route reaching one is asserted through a recording adapter or
   handed back as out of scope until that adapter exists.
 
 ## Boundaries

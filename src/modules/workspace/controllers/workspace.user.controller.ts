@@ -66,10 +66,7 @@ import { WorkspaceInviteResponseSchema } from '@modules/workspace/dtos/response/
 import { WorkspaceJoinRequestResponseSchema } from '@modules/workspace/dtos/response/workspace.join-request.response.dto';
 import { WorkspaceMemberResponseSchema } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 import { WorkspaceResponseSchema } from '@modules/workspace/dtos/response/workspace.response.dto';
-import type {
-    IWorkspaceInviteList,
-    IWorkspaceMember,
-} from '@modules/workspace/interfaces/workspace.interface';
+import type { IWorkspaceInviteList } from '@modules/workspace/interfaces/workspace.interface';
 
 import {
     WorkspaceCurrent,
@@ -97,6 +94,7 @@ import {
 } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { WorkspaceMemberResponseDto } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 
 @ApiTags('modules.user.workspace')
 @Controller({
@@ -353,7 +351,7 @@ export class WorkspaceUserController {
         @Query({ schema: WorkspaceMemberListRequestSchema })
         query: WorkspaceMemberListRequestDto,
         @WorkspaceCurrent() workspace: Workspace
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         return this.workspaceMemberHttpService.getMembersList(
             workspace.id,
             query

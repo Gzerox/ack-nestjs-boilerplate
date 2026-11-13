@@ -139,7 +139,7 @@ The second grammar closes on the action because the action is the only segment t
 
 - **The action is ONE word, and it is a VERB.** `accept` · `add` · `assign` · `change` · `check` · `claim` · `create` · `delete` · `disable` · `enable` · `export` · `forgot` · `generate` · `get` · `import` · `leave` · `list` · `login` · `logout` · `preview` · `publish` · `refresh` · `regenerate` · `reject` · `remove` · `resend` · `reset` · `revoke` · `revoke-all` · `send` · `setup` · `sign-up` · `switch` · `transfer` · `update` · `upload` · `verify`. Extend this list when a genuinely new verb is needed — a path whose last segment is a NOUN is usually the defect, not a missing entry. The two exceptions are named below: health probes, and an action qualified by HOW it is performed.
 - **`<verb>-all` is one action: `<verb>` applied to every row the path addresses.** It is allowed only when `<verb>` is on the list above and the path carries no row id — `@Delete('/revoke-all')` beside `@Delete('/revoke/:sessionId')`. It is a scope on the verb, not a target folded into it, so `read-all` stays wrong: `read` is the target of `update`, and the path is `/update/:notificationId/read`.
-- **Health probes are exempt.** `/health/aws`, `/health/database`, `/health/instance` are noun-only by convention and carry no action. Do not "fix" them.
+- **Health probes are exempt.** `/health/aws` (SES), `/health/storage`, `/health/database`, `/health/instance` are noun-only by convention and carry no action. Do not "fix" them.
 - **Never fold the target into the action with a dash.** `update-role`, `update-slug`, `soft-delete`, `update-status`, `read-all`, `change-password`, `generate-presign`, `regenerate-backup-codes` are wrong. The target is its own segment, because that is the only position that scales: a second attribute adds a sibling segment instead of inventing a second compound verb. A dash inside a single lexical word is NOT that: `sign-up` is one verb, and it is the kebab spelling of the `signUp` used everywhere in code — the same mapping as `mobile-number` ↔ `mobileNumber`. Never collapse it to `signup`; that breaks the mapping the whole repo relies on.
 - **An action MAY end on a noun when that noun names HOW the action is performed, not WHAT it acts on.** `/login/credential`, `/login/social/google` — the trailing segment is the credential type, and the flow's own sub-steps nest under the same namespace (`/login/2fa/verify`). This is the only place a path may close on a noun. It does NOT license `/list/user-setting`, where the trailing noun is a different resource being listed.
 - **ONE verb per path.** `/update/:termPolicyId/content/update` and `/update/:apiKeyId/reset` carry two. The first verb is always the wrong one — it is a namespace pretending to be an action. Drop it and let the real noun open the path: `/content/:termPolicyId/update`, `/reset/:apiKeyId`.
@@ -252,7 +252,7 @@ primitives at one status compose instead of replacing each other. Dedupe key:
 | The exception lives in | Its entry belongs to |
 |---|---|
 | `src/common/` or `src/app/`, and any request can reach it | `@Doc()` — every endpoint |
-| `src/common/`, behind one runtime primitive | that primitive: pagination kits on `@ResponsePagination`, upload kits on `FileUpload*`, download kits on `@ResponseFile` |
+| `src/common/`, behind one runtime primitive | that primitive: pagination kits on `@ResponsePagination`, upload kits on `FileUpload*` and `StorageUploadSingle`, download kits on `@ResponseFile` |
 | a module, raised by a guard or an auth strategy | the matching `*Protected` / auth decorator |
 | a module, raised by a specific endpoint's flow and required in OpenAPI | `@DocErrors` on that handler |
 
@@ -289,7 +289,7 @@ OpenAPI scheme names are **module constants**, never magic strings at `ApiBearer
 **Kit `DocResponseError` calls live in constants — not inline in `*.decorator.ts`.**
 Common kits (`DocGlobalErrorResponses`, `DocPaginationErrorResponses`, `DocFileErrorResponses`,
 …) live in `src/common/doc/constants/doc.constant.ts` and are consumed by `@Doc`,
-`@Response*`, and `FileUpload*`. Module `*Protected` / auth kits live as `Doc<Module>ErrorResponses`
+`@Response*`, `FileUpload*`, and `StorageUploadSingle`. Module `*Protected` / auth kits live as `Doc<Module>ErrorResponses`
 in that module's `constants/<module>.constant.ts` and are spread into the decorator's
 `applyDecorators(...)`. Each entry is a `DocResponseError(...)` MethodDecorator — never a
 pre-composed `applyDecorators` blob.
@@ -300,7 +300,7 @@ pre-composed `applyDecorators` blob.
 |---|---|
 | `@Param('…', { schema })` / `@Query({ schema })` / `@Query('…', { schema })` / `@Body({ schema })` | zod via `standardSchemaConverter` in `src/swagger.ts` (`.meta` for description, example, required) |
 | Path placeholder a **guard** reads; the handler has no `@Param` | the owning Protected decorator — e.g. `ProjectProtected` emits `ApiParam('projectId')`. No unused `@Param` on the handler. |
-| Multipart upload | `FileUploadSingle` / `FileUploadMultiple` / `FileUploadMultipleFields` — `ApiConsumes('multipart/form-data')` + binary `ApiBody` from field name(s) + upload error kit (`rules/file.md`) |
+| Multipart upload | `FileUploadSingle` / `FileUploadMultiple` / `FileUploadMultipleFields` (memory-backed) and `StorageUploadSingle` (streamed to a disk, handler reads `@StoredUpload()`) — `ApiConsumes('multipart/form-data')` + binary `ApiBody` from field name(s) + upload error kit (`rules/file.md`) |
 | List query (page/cursor/`perPage`/`search`/`orderBy` + filters) | the list zod schema on `@Query({ schema })` from kit factories + `.extend` (`rules/pagination.md`) |
 
 A hand-written schema object beside a zod schema is a mirror. Every field carries

@@ -17,6 +17,7 @@
         "contentNotFound": "Term policy content not found.",
         "contentExist": "This content already exists in the term policy.",
         "contentEmpty": "Term policy content cannot be empty.",
+        "contentSizeExceeded": "The term policy content is larger than the allowed size.",
         "contentsLanguageMustBeUnique": "Each language can only be used once in term policy contents.",
         "requiredInvalid": "Required field value is invalid.",
         "statusInvalid": "Term policy status is invalid."

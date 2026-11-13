@@ -1,17 +1,19 @@
 import { AppBaseException } from '@app/exceptions/app.base.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
-import { AwsServiceUnavailableException } from '@common/aws/exceptions/aws.service-unavailable.exception';
-import type { IAwsS3Presign } from '@common/aws/interfaces/aws.interface';
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
-import { EnumFileExtensionTemplate } from '@common/file/enums/file.enum';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
+import type {
+    IStorageSignedUpload,
+    IStoredAssetReference,
+} from '@common/storage/interfaces/storage.interface';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import type { IActivityLogStagedEvent } from '@modules/activity-log/interfaces/activity-log.interface';
+import { TermPolicyContentType } from '@modules/term-policy/constants/term-policy.constant';
 import { TermPolicyContentExistException } from '@modules/term-policy/exceptions/term-policy.content-exist.exception';
 import { TermPolicyContentNotFoundException } from '@modules/term-policy/exceptions/term-policy.content-not-found.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
+import { TermPolicyContentSizeExceededException } from '@modules/term-policy/exceptions/term-policy.content-size-exceeded.exception';
 import { TermPolicyStatusInvalidException } from '@modules/term-policy/exceptions/term-policy.status-invalid.exception';
 import type {
     ITermPolicy,
@@ -21,22 +23,33 @@ import type {
 } from '@modules/term-policy/interfaces/term-policy.interface';
 import { TermPolicyRepository } from '@modules/term-policy/repositories/term-policy.repository';
 import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
     EnumActivityLogAction,
+    EnumStorageVisibility,
     EnumTermPolicyStatus,
 } from '@generated/prisma-client/client';
 import type { TermPolicy } from '@generated/prisma-client/client';
 
 @Injectable()
 export class TermPolicyContentDomain {
+    private readonly logger = new Logger(TermPolicyContentDomain.name);
+
+    private readonly contentMaxSizeInBytes: number;
+
     constructor(
         private readonly termPolicyRepository: TermPolicyRepository,
-        private readonly awsS3Service: AwsS3Service,
+        private readonly objectStorageService: ObjectStorageService,
         private readonly termPolicyUtil: TermPolicyUtil,
         private readonly activityLogDomain: ActivityLogDomain,
-        private readonly helperDateService: HelperDateService
-    ) {}
+        private readonly helperDateService: HelperDateService,
+        private readonly configService: ConfigService
+    ) {
+        this.contentMaxSizeInBytes = this.configService.get<number>(
+            'termPolicy.content.maxSizeInBytes'
+        )!;
+    }
 
     private prepareActivityLog(
         action: EnumActivityLogAction,
@@ -66,12 +79,82 @@ export class TermPolicyContentDomain {
         return termPolicy;
     }
 
+    private wrapError(err: unknown): AppBaseException {
+        if (err instanceof AppBaseException) {
+            return err;
+        }
+
+        return new AppUnknownException(err);
+    }
+
+    /**
+     * Runs after a commit, from what the database holds then, and never fails the request. The
+     * objects under the language prefix other than the stored one are the replaced, the removed and
+     * the abandoned; the object store drops them once they are older than any live upload.
+     */
+    async sweepContentScope(
+        termPolicyId: string,
+        { type, version }: Pick<TermPolicy, 'type' | 'version'>,
+        language: EnumMessageLanguage
+    ): Promise<void> {
+        let keep: string[] = [];
+        try {
+            const termPolicy =
+                await this.termPolicyRepository.findOneById(termPolicyId);
+            const stored = termPolicy
+                ? this.termPolicyUtil.getContentByLanguage(
+                      termPolicy.contents,
+                      language
+                  )
+                : null;
+            if (stored) {
+                keep = [stored.key];
+            }
+        } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to read term policy ${termPolicyId} before sweeping its ${language} content`
+            );
+
+            return;
+        }
+
+        const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
+            type,
+            version,
+            language
+        );
+        await this.objectStorageService.sweepUnreferenced(
+            EnumStorageVisibility.public,
+            scopePrefix,
+            keep
+        );
+    }
+
+    async verifyContent(
+        { type, version }: Pick<TermPolicy, 'type' | 'version'>,
+        { language, key }: ITermPolicyContentUpload
+    ): Promise<ITermPolicyContentCreate> {
+        const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
+            type,
+            version,
+            language
+        );
+        const verified = await this.objectStorageService.verifyUpload(key, {
+            scopePrefix,
+            maxSizeInBytes: this.contentMaxSizeInBytes,
+            contentTypes: [TermPolicyContentType],
+            detect: head => this.termPolicyUtil.detectTemplateContentType(head),
+        });
+        return { ...verified, language };
+    }
+
     async generateContentPresignByAdmin({
         language,
         size,
         type,
         version,
-    }: ITermPolicyContentPresign): Promise<IAwsS3Presign> {
+    }: ITermPolicyContentPresign): Promise<IStorageSignedUpload> {
         const status =
             await this.termPolicyRepository.findStatusByVersionAndType(
                 version,
@@ -79,52 +162,39 @@ export class TermPolicyContentDomain {
             );
         if (status === EnumTermPolicyStatus.published) {
             throw new TermPolicyStatusInvalidException();
+        } else if (size > this.contentMaxSizeInBytes) {
+            throw new TermPolicyContentSizeExceededException();
         }
 
-        const key: string =
-            this.termPolicyUtil.createRandomFilenameContentWithPath(
-                type,
-                version,
-                language,
-                {
-                    extension: EnumFileExtensionTemplate.hbs,
-                }
-            );
+        const scopePrefix = this.termPolicyUtil.getContentScopePrefix(
+            type,
+            version,
+            language
+        );
 
-        const aws: IAwsS3Presign | null =
-            await this.awsS3Service.presignPutItem(
-                {
-                    key,
-                    size,
-                },
-                {
-                    forceUpdate: true,
-                    access: EnumAwsS3Accessibility.private,
-                }
-            );
-
-        if (!aws) {
-            throw new AwsServiceUnavailableException();
-        }
-
-        return aws;
+        return this.objectStorageService.createSignedUpload(scopePrefix, {
+            contentType: TermPolicyContentType,
+            size,
+        });
     }
 
     async updateContentByAdmin(
         termPolicyId: string,
-        { key, size, language }: ITermPolicyContentUpload
+        upload: ITermPolicyContentUpload
     ): Promise<void> {
         const termPolicy = await this.findOneDraftById(termPolicyId);
 
+        const existingContent = this.termPolicyUtil.getContentByLanguage(
+            termPolicy.contents,
+            upload.language
+        );
+        if (!existingContent) {
+            throw new TermPolicyContentNotFoundException();
+        }
+
+        const content = await this.verifyContent(termPolicy, upload);
+
         try {
-            const presign = this.awsS3Service.mapPresign(
-                { key, size },
-                { access: EnumAwsS3Accessibility.private }
-            );
-            const mappedContent: ITermPolicyContentCreate = {
-                language,
-                ...presign,
-            };
             const timestamp = this.helperDateService.create();
             const events = [
                 this.prepareActivityLog(
@@ -135,44 +205,35 @@ export class TermPolicyContentDomain {
             ];
             await this.termPolicyRepository.updateContent(
                 termPolicyId,
-                mappedContent
+                content
             );
 
             this.activityLogDomain.stagePrepared(events);
-
-            return;
         } catch (err: unknown) {
-            if (err instanceof AppBaseException) {
-                throw err;
-            }
-
-            throw new AppUnknownException(err);
+            const exception = this.wrapError(err);
+            throw exception;
         }
+
+        await this.sweepContentScope(termPolicyId, termPolicy, upload.language);
     }
 
     async addContentByAdmin(
         termPolicyId: string,
-        { key, size, language }: ITermPolicyContentUpload
+        upload: ITermPolicyContentUpload
     ): Promise<void> {
         const termPolicy = await this.findOneDraftById(termPolicyId);
 
         const existingContent = this.termPolicyUtil.getContentByLanguage(
             termPolicy.contents,
-            language
+            upload.language
         );
         if (existingContent) {
             throw new TermPolicyContentExistException();
         }
 
+        const content = await this.verifyContent(termPolicy, upload);
+
         try {
-            const presign = this.awsS3Service.mapPresign(
-                { key, size },
-                { access: EnumAwsS3Accessibility.private }
-            );
-            const mappedContent: ITermPolicyContentCreate = {
-                language,
-                ...presign,
-            };
             const timestamp = this.helperDateService.create();
             const events = [
                 this.prepareActivityLog(
@@ -181,21 +242,15 @@ export class TermPolicyContentDomain {
                     timestamp
                 ),
             ];
-            await this.termPolicyRepository.addContent(
-                termPolicyId,
-                mappedContent
-            );
+            await this.termPolicyRepository.addContent(termPolicyId, content);
 
             this.activityLogDomain.stagePrepared(events);
-
-            return;
         } catch (err: unknown) {
-            if (err instanceof AppBaseException) {
-                throw err;
-            }
-
-            throw new AppUnknownException(err);
+            const exception = this.wrapError(err);
+            throw exception;
         }
+
+        await this.sweepContentScope(termPolicyId, termPolicy, upload.language);
     }
 
     async removeContentByAdmin(
@@ -226,44 +281,35 @@ export class TermPolicyContentDomain {
             });
 
             this.activityLogDomain.stagePrepared(events);
-
-            return;
         } catch (err: unknown) {
-            if (err instanceof AppBaseException) {
-                throw err;
-            }
-
-            throw new AppUnknownException(err);
+            const exception = this.wrapError(err);
+            throw exception;
         }
+
+        await this.sweepContentScope(termPolicyId, termPolicy, language);
     }
 
     async getContentByAdmin(
         termPolicyId: string,
         language: EnumMessageLanguage
-    ): Promise<IAwsS3Presign> {
+    ): Promise<IStoredAssetReference> {
         const termPolicy =
             await this.termPolicyRepository.findOneById(termPolicyId);
         if (!termPolicy) {
             throw new TermPolicyNotFoundException();
         }
 
-        const existContent = this.termPolicyUtil.getContentByLanguage(
+        const existingContent = this.termPolicyUtil.getContentByLanguage(
             termPolicy.contents,
             language
         );
-        if (!existContent) {
+        if (!existingContent) {
             throw new TermPolicyContentNotFoundException();
         }
 
-        const awsPresign: IAwsS3Presign | null =
-            await this.awsS3Service.presignGetItem(existContent.key, {
-                access: existContent.access as EnumAwsS3Accessibility,
-            });
-
-        if (!awsPresign) {
-            throw new AwsServiceUnavailableException();
-        }
-
-        return awsPresign;
+        return {
+            key: existingContent.key,
+            visibility: existingContent.visibility,
+        };
     }
 }

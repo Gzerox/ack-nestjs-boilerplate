@@ -22,6 +22,7 @@ NestJS `ConfigModule` loads one `registerAs` file per concern from `src/configs`
 - [Auth Configuration](#auth-configuration)
 - [Database Configuration](#database-configuration)
 - [AWS Configuration](#aws-configuration)
+- [Storage Configuration](#storage-configuration)
 - [Logger Configuration](#logger-configuration)
 - [Request Configuration](#request-configuration)
 - [Redis Configuration](#redis-configuration)
@@ -70,7 +71,7 @@ export class CommonModule {}
 
 ### Patterns and their placeholders
 
-A config value whose name ends in `Pattern` or `Path` is a template carrying `{token}` placeholders: cache and Redis keys, S3 object paths and URLs, email links, and the export filename. The consumer fills it at the point of use, and the number of placeholders decides how:
+A config value whose name ends in `Pattern` or `Path` is a template carrying `{token}` placeholders: cache and Redis keys, storage key prefixes and URLs, email links, and the export filename. The consumer fills it at the point of use, and the number of placeholders decides how:
 
 - **One placeholder.** Filled by `String.prototype.replace('{name}', () => value)`. The function form of the replacement stops a value containing `$&` or `$1` from being read as a replacement pattern.
 - **Two or more.** Go through `HelperStringService.fillPattern(pattern, values)`, which scans the pattern once so a substituted value is never re-read as a token. A `{token}` the caller supplied no value for raises `HelperPatternTokenMissingException` (`52202`, 500) naming that token, rather than leaving the literal `{token}` in the key or the link.
@@ -278,52 +279,9 @@ seedTransactionTimeoutInMs: number  // Timeout every seed passes to withTransact
 **File**: `src/configs/aws.config.ts`
 **Interface**: `IConfigAws`
 
-
+The `aws` config carries SES only. Object storage is the `storage` config below.
 
 #### Configuration Keys:
-
-**`s3`** - S3 service configuration
-```typescript
-s3: {
-  multipartExpiredInDays: number;     // Multipart upload expiration in days, handed straight to the lifecycle rule (`ms('3d') / ms('1d')`)
-  presignExpiredInSeconds: number;    // Presigned URL lifetime in seconds, handed straight to the signer (`ms('30m') / 1000`)
-  corsMaxAgeLongInSeconds: number;    // CORS preflight max-age in seconds, long (`ms('1d') / 1000`)
-  corsMaxAgeShortInSeconds: number;   // CORS preflight max-age in seconds, short (`ms('1h') / 1000`)
-  maxAttempts: number;            // Maximum retry attempts for S3 operations (default: 3)
-  timeoutInMs: number;            // Request timeout in milliseconds (default: 30000ms)
-  region: string | null;          // AWS region for S3
-  objectUrlPattern: string;       // Object URL template ('{baseUrl}/{key}')
-  cdnUrlPattern: string;          // CDN URL template ('{cdnUrl}/{key}')
-  iam: {
-    key: string | null;           // AWS IAM access key ID
-    secret: string | null;        // AWS IAM secret access key
-    arn: string | null;           // AWS IAM Role ARN for role-based access
-  };
-  config: {
-    public: {
-      bucket: string | null;      // Public S3 bucket name
-      arn: string | null;         // Public S3 bucket ARN
-      baseUrl: string | null;     // S3 base URL (auto-generated)
-      cdnUrl: string | null;      // CDN URL if available
-    };
-    private: {
-      bucket: string | null;      // Private S3 bucket name
-      arn: string | null;         // Private S3 bucket ARN
-      baseUrl: string | null;     // S3 base URL (auto-generated)
-      cdnUrl: string | null;      // CDN URL if available
-    };
-  };
-}
-```
-
-> [!NOTE]
-> **IAM Configuration Notes**:
-> - The `iam.key` and `iam.secret` are used for standard IAM user credentials
-> - The `iam.arn` is used for IAM role assumption (recommended for production)
-> - When using IAM roles, temporary credentials are automatically rotated
-> - Bucket ARNs are auto-generated as `arn:aws:s3:::{bucket-name}`
-> - Base URLs are built from the `https://{bucket}.s3.{region}.amazonaws.com` template, and a CDN URL from `https://{cdn}`
-> - `AwsS3Service.buildUrls` fills `objectUrlPattern` with the bucket `baseUrl` and the object key, and `cdnUrlPattern` with the bucket `cdnUrl` and the same key; a bucket without a `cdnUrl` reports `cdnUrl: null`
 
 **`ses`** - Simple Email Service configuration
 ```typescript
@@ -339,9 +297,71 @@ ses: {
 
 > [!NOTE]
 > **SES IAM Configuration**:
-> - Similar to S3, SES supports both standard credentials and IAM role-based access
+> - SES supports both standard credentials and IAM role-based access
 > - Using IAM roles (`iam.arn`) is recommended for better security
 > - Credentials are used for sending emails and managing SES operations
+
+### Storage Configuration
+
+**File**: `src/configs/storage.config.ts`
+**Interface**: `IConfigStorage`
+
+`StorageDiskFactory` reads this config to build the two named disks, `public` and `private`. Startup validation (`AppEnvSchema`) checks the shape of each variable but does not require the selected driver's variables to be set; the variables of the other driver are ignored. Env var details: [Environment Documentation][ref-doc-environment]. Flow: [Storage Documentation][ref-doc-storage].
+
+#### Configuration Keys:
+
+**`driver`** - Storage implementation
+```typescript
+driver: EnumStorageDriver       // 'local' or 's3', from STORAGE_DRIVER (default: 'local')
+```
+
+**`publicBaseUrl`** - Base of every public URL
+```typescript
+publicBaseUrl: string           // STORAGE_PUBLIC_BASE_URL
+```
+
+Under `local` it is the API origin the local-driver routes are served from. Under `s3` it is the public base URL of the public bucket (a CDN, a custom domain, or the bucket endpoint), and `publicUrl` appends the object key to it.
+
+**`local`** - Local driver
+```typescript
+local: {
+  rootPath: string | null;      // STORAGE_LOCAL_ROOT; the public disk is <root>/public, the private disk <root>/private
+  signingKeys: string[];        // STORAGE_LOCAL_SIGNING_KEYS split on ',' and trimmed; the first signs, every key verifies
+  publicUrlPattern: string;     // '{baseUrl}{globalPrefix}/storage/public'
+  signedUrlPattern: string;     // '{baseUrl}{globalPrefix}/storage/private'
+  signedUploadUrlPattern: string; // '{baseUrl}{globalPrefix}/storage/upload'
+}
+```
+
+**`s3`** - S3 and S3-compatible driver
+```typescript
+s3: {
+  endpoint: string | null;          // STORAGE_S3_ENDPOINT; null uses the AWS regional endpoint
+  region: string | null;            // STORAGE_S3_REGION; 'auto' for Cloudflare R2
+  accessKeyId: string | null;       // STORAGE_S3_ACCESS_KEY_ID
+  secretAccessKey: string | null;   // STORAGE_S3_SECRET_ACCESS_KEY
+  forcePathStyle: boolean;          // STORAGE_S3_FORCE_PATH_STYLE === 'true'
+  publicBucket: string | null;      // STORAGE_S3_PUBLIC_BUCKET
+  privateBucket: string | null;     // STORAGE_S3_PRIVATE_BUCKET
+  requestTimeoutInMs: number;       // Per-attempt timeout (ms('30s'))
+  maxAttempts: number;              // Attempts for a transient failure (3)
+}
+```
+
+**`signedUpload`** / **`signedDownload`** - Signed URL lifetimes
+```typescript
+signedUpload: {
+  expiresInMs: number;          // ms('2m')
+};
+signedDownload: {
+  expiresInMs: number;          // ms('5m')
+};
+```
+
+**`probeTimeoutInMs`** - Health probe limit
+```typescript
+probeTimeoutInMs: number        // Abort window of ObjectStorageService.probe (ms('3s'))
+```
 
 ### Logger Configuration
 
@@ -522,9 +542,12 @@ queue: {
 usernamePattern: RegExp         // Regex pattern for valid usernames
 ```
 
-**`uploadPhotoProfilePath`** - User profile photo upload path template
+**`photo`** - Profile photo storage scope and size cap
 ```typescript
-uploadPhotoProfilePath: string  // Path template for user profile photo uploads
+photo: {
+  scopePrefixPattern: string;   // 'users/{userId}/profile/'; key prefix of a stored profile photo
+  maxSizeInBytes: number;       // bytes('10mb'); cap of both the multipart upload and the signed direct upload
+}
 ```
 
 **`maxDataImport`** - User CSV import row cap
@@ -750,14 +773,21 @@ keyPattern: string              // Redis key pattern for user sessions ('User:{u
 
 #### Configuration Keys:
 
-**`uploadContentPath`** - Upload path pattern for policy content
+**`prefixPattern`** - Key prefix of every object of one term policy version
 ```typescript
-uploadContentPath: string       // Path pattern for uploading policy content files
+prefixPattern: string           // 'term-policies/{type}/v{version}/'; deleting a draft clears this prefix on the public disk
 ```
 
-**`contentPublicPath`** - Public path for policy content
+**`contentScopePrefixPattern`** - Key prefix of one language's content
 ```typescript
-contentPublicPath: string       // Public path for accessing policy content
+contentScopePrefixPattern: string  // 'term-policies/{type}/v{version}/{language}/'
+```
+
+**`content`** - Content size cap
+```typescript
+content: {
+  maxSizeInBytes: number;       // bytes('1mb'); cap of a term policy content upload
+}
 ```
 
 ### Feature Flag Configuration
@@ -1066,3 +1096,5 @@ cache: {
 [ref-doc-environment]: environment.md
 [ref-doc-database]: database.md
 [ref-doc-cache]: cache.md
+[ref-doc-storage]: storage.md
+

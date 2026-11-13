@@ -9,9 +9,9 @@ import {
 } from '@modules/password-history/constants/password-history.list.constant';
 import type { PasswordHistoryAdminListRequestDto } from '@modules/password-history/dtos/request/password-history.admin-list.request.dto';
 import type { PasswordHistorySharedListRequestDto } from '@modules/password-history/dtos/request/password-history.shared-list.request.dto';
-import type { IPasswordHistoryList } from '@modules/password-history/interfaces/password-history.interface';
 import { PasswordHistoryDomain } from '@modules/password-history/domains/password-history.domain';
 import { Injectable } from '@nestjs/common';
+import type { PasswordHistoryResponseDto } from '@modules/password-history/dtos/response/password-history.response.dto';
 
 @Injectable()
 export class PasswordHistoryHttpService {
@@ -24,7 +24,7 @@ export class PasswordHistoryHttpService {
     async getListOffsetByAdmin(
         userId: string,
         query: PasswordHistoryAdminListRequestDto
-    ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+    ): Promise<IResponsePaginationReturn<PasswordHistoryResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.PasswordHistoryWhereInput>(
                 query,
@@ -49,7 +49,7 @@ export class PasswordHistoryHttpService {
     async getListCursor(
         userId: string,
         query: PasswordHistorySharedListRequestDto
-    ): Promise<IResponsePaginationReturn<IPasswordHistoryList>> {
+    ): Promise<IResponsePaginationReturn<PasswordHistoryResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.PasswordHistoryWhereInput>(
                 query,

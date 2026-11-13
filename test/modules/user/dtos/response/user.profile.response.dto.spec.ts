@@ -1,6 +1,6 @@
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
 import {
     EnumRoleType,
+    EnumStorageVisibility,
     EnumUserGender,
     EnumUserLoginFrom,
     EnumUserLoginWith,
@@ -11,7 +11,7 @@ import {
 import { UserProfileResponseSchema } from '@modules/user/dtos/response/user.profile.response.dto';
 
 describe('UserProfileResponseSchema', () => {
-    it('selects a profile, nested country, and mobile numbers without secrets', () => {
+    const buildProfile = (photo: unknown) => {
         const now = new Date();
         const audit = {
             id: 'id',
@@ -29,7 +29,7 @@ describe('UserProfileResponseSchema', () => {
             continent: 'Europe',
             timezone: 'Europe/Rome',
         };
-        const result = UserProfileResponseSchema.parse({
+        return {
             ...audit,
             deletedAt: null,
             deletedBy: null,
@@ -63,17 +63,7 @@ describe('UserProfileResponseSchema', () => {
             privacyAccepted: true,
             cookiesAccepted: true,
             marketingAccepted: false,
-            photo: {
-                bucket: 'bucket',
-                key: 'profile.jpg',
-                cdnUrl: null,
-                completedUrl: 'https://example.com/profile.jpg',
-                mime: 'image/jpeg',
-                extension: 'jpg',
-                access: EnumAwsS3Accessibility.public,
-                size: 1024,
-                internal: true,
-            },
+            photo,
             twoFactor: null,
             country,
             mobileNumbers: [
@@ -86,12 +76,67 @@ describe('UserProfileResponseSchema', () => {
                 },
             ],
             password: 'hidden',
-        });
+        };
+    };
+
+    it('selects a profile, nested country, and mobile numbers without secrets, and strips the photo size and etag', () => {
+        const result = UserProfileResponseSchema.parse(
+            buildProfile({
+                key: 'users/user-id/profile/photo.jpg',
+                visibility: EnumStorageVisibility.public,
+                contentType: 'image/jpeg',
+                size: 1024,
+                etag: '"etag"',
+                url: 'https://cdn.example.com/users/user-id/profile/photo.jpg',
+                internal: true,
+            })
+        );
 
         expect(result.name).toBeNull();
-        expect(result.photo?.cdnUrl).toBeNull();
-        expect(result.photo).not.toHaveProperty('size');
+        expect(result.photo).toEqual({
+            key: 'users/user-id/profile/photo.jpg',
+            visibility: EnumStorageVisibility.public,
+            contentType: 'image/jpeg',
+            url: 'https://cdn.example.com/users/user-id/profile/photo.jpg',
+        });
         expect(result.mobileNumbers[0]).not.toHaveProperty('secret');
         expect(result).not.toHaveProperty('password');
+    });
+
+    it('accepts a private photo with a null url', () => {
+        const result = UserProfileResponseSchema.parse(
+            buildProfile({
+                key: 'users/user-id/profile/photo.jpg',
+                visibility: EnumStorageVisibility.private,
+                contentType: 'image/jpeg',
+                size: 1024,
+                etag: null,
+                url: null,
+            })
+        );
+
+        expect(result.photo?.url).toBeNull();
+    });
+
+    it('accepts an absent photo as null', () => {
+        const result = UserProfileResponseSchema.parse(buildProfile(null));
+
+        expect(result.photo).toBeNull();
+    });
+
+    it('rejects the legacy S3 photo shape carrying bucket and completedUrl', () => {
+        const result = UserProfileResponseSchema.safeParse(
+            buildProfile({
+                bucket: 'bucket',
+                key: 'profile.jpg',
+                cdnUrl: null,
+                completedUrl: 'https://example.com/profile.jpg',
+                mime: 'image/jpeg',
+                extension: 'jpg',
+                access: EnumStorageVisibility.public,
+            })
+        );
+
+        expect(result.success).toBe(false);
     });
 });

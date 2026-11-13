@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
+import { StorageAssetExample } from '@common/storage/constants/storage.constant';
 import { DatabaseResponseSchema } from '@common/database/dtos/response/database.response.dto';
 import { EnumWorkspaceMemberRole } from '@generated/prisma-client/client';
 import { UserRefResponseSchema } from '@modules/user/dtos/response/user.ref.response.dto';
@@ -33,16 +33,7 @@ export const WorkspaceMemberResponseSchema = DatabaseResponseSchema.omit({
             deletedBy: faker.string.uuid(),
             name: faker.person.fullName(),
             username: faker.internet.username().toLowerCase(),
-            photo: {
-                bucket: faker.string.alpha({ length: 10, casing: 'upper' }),
-                key: faker.system.filePath(),
-                cdnUrl: `${faker.internet.url()}/${faker.system.filePath()}`,
-                completedUrl: `${faker.internet.url()}/${faker.system.filePath()}`,
-                mime: 'image/jpeg',
-                extension: 'jpg',
-                access: EnumAwsS3Accessibility.public,
-                size: 1024,
-            },
+            photo: StorageAssetExample,
         },
     }),
     role: z.enum(EnumWorkspaceMemberRole).meta({

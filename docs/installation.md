@@ -110,17 +110,30 @@ AUTH_JWT_ACCESS_TOKEN_JWKS_URI=http://localhost:3011/.well-known/access-jwks.jso
 AUTH_JWT_REFRESH_TOKEN_JWKS_URI=http://localhost:3011/.well-known/refresh-jwks.json
 ```
 
+**Object storage (local driver)**
+
+`.env.example` selects the local driver with `./storage-data` as its root, which `docker-compose.yml` mounts into the API container. The local driver needs at least one signing key of 32 characters or more; `pnpm generate:secret --direct-insert` writes it (see [Generate Keys](#generate-keys)):
+
+```bash
+STORAGE_DRIVER=local
+STORAGE_PUBLIC_BASE_URL=http://localhost:3000
+STORAGE_LOCAL_ROOT=./storage-data
+STORAGE_LOCAL_SIGNING_KEYS=<written by pnpm generate:secret:storage --direct-insert>
+```
+
+S3 and Cloudflare R2: [Third Party Integration][ref-doc-third-party-storage].
+
 Full variable list: [Environment Documentation][ref-doc-environment].
 
 ### Generate Keys
 
-The app uses **ES256** access tokens, **ES512** refresh tokens, and two encryption roots: `APP_ENCRYPTION_SECRET_KEY` (notification job payloads) and `AUTH_TWO_FACTOR_ENCRYPTION_KEY` (stored TOTP secrets).
+The app uses **ES256** access tokens, **ES512** refresh tokens, two encryption roots: `APP_ENCRYPTION_SECRET_KEY` (notification job payloads) and `AUTH_TWO_FACTOR_ENCRYPTION_KEY` (stored TOTP secrets), and `STORAGE_LOCAL_SIGNING_KEYS` (local-driver signed URLs).
 
 > [!WARNING]
-> Back up `keys/` and `.env` before regenerating. New JWT keys invalidate every issued token. New encryption secrets leave existing ciphertext (TOTP secrets, queued notification jobs) undecryptable.
+> Back up `keys/` and `.env` before regenerating. New JWT keys invalidate every issued token. New encryption secrets leave existing ciphertext (TOTP secrets, queued notification jobs) undecryptable. A new storage signing key stops every local signed URL already issued from verifying.
 
 ```bash
-# JWT keys, JWKS files, and both encryption secrets, written into .env
+# JWT keys, JWKS files, both encryption secrets, and the storage signing key, written into .env
 pnpm generate:secret --direct-insert
 ```
 
@@ -130,6 +143,7 @@ Useful variants:
 pnpm generate:secret
 pnpm generate:secret:jwt [--direct-insert]
 pnpm generate:secret:encryption [--direct-insert]
+pnpm generate:secret:storage [--direct-insert]
 ```
 
 **What `jwt` does:**
@@ -143,7 +157,12 @@ pnpm generate:secret:encryption [--direct-insert]
 - Writes them to `keys/encryption-secret.env` (`0600`) and prints only that path
 - With `--direct-insert`: upserts those two variables into `.env`
 
-`pnpm generate:secret` runs `jwt` then `encryption`. `--direct-insert` creates `.env` from `.env.example` when missing and sets `.env` to `0600`. The `keys/` directory is gitignored.
+**What `storage` does:**
+- Draws the local-driver signing key (48 random bytes, base64url)
+- Writes it to `keys/storage-secret.env` (`0600`) and prints only that path
+- With `--direct-insert`: upserts `STORAGE_LOCAL_SIGNING_KEYS` into `.env`, replacing the whole key list, so local URLs signed with the previous key stop verifying
+
+`pnpm generate:secret` runs `jwt`, then `encryption`, then `storage`. `--direct-insert` creates `.env` from `.env.example` when missing and sets `.env` to `0600`. The `keys/` directory is gitignored.
 
 > [!NOTE]
 > The app reads `AUTH_JWT_*_PRIVATE_KEY` / `AUTH_JWT_*_PUBLIC_KEY` as base64 (DER), not raw PEM. `--direct-insert` writes the correctly encoded values. Without it, copy the two lines from `keys/encryption-secret.env` into `.env` by hand.
@@ -220,6 +239,8 @@ DATABASE_URL=<your PostgreSQL connection string>
 CACHE_REDIS_URL=redis://<your-redis-host>:6379/0
 QUEUE_REDIS_URL=redis://<your-redis-host>:6379/1
 ```
+
+`pnpm generate:secret --direct-insert` (below) also writes `STORAGE_LOCAL_SIGNING_KEYS`, which keeps the local storage driver. For S3 or R2, set the `STORAGE_S3_*` variables instead: [Third Party Integration][ref-doc-third-party-storage].
 
 Other variables: [Environment Documentation][ref-doc-environment].
 
@@ -310,21 +331,15 @@ SES template sync (not a database seed). Commands and template list: [Email Docu
 pnpm migration templateEmailNotification --type seed
 ```
 
-**Seed term policies (HTML on S3):**
+**Seed term policy templates (into object storage):**
 
-See [Term Policy Documentation][ref-doc-term-policy].
+Uploads the Handlebars templates to the configured storage and links them as version 1 content. See [Term Policy Documentation][ref-doc-term-policy].
 
 ```bash
 pnpm migration templateTermPolicy --type seed
 ```
 
-**S3 bucket policy / CORS:**
-
-See [Third Party Integration; Bucket setup][ref-doc-third-party-s3].
-
-```bash
-pnpm migration awsS3Config --type seed
-```
+Storage buckets, CORS, and lifecycle rules are configured at the provider: [Third Party Integration][ref-doc-third-party-storage].
 
 Database row seeds and schema sync: [Database Documentation][ref-doc-database].
 
@@ -405,4 +420,4 @@ Quick checks:
 [ref-doc-vault]: vault.md
 [ref-doc-email]: email.md
 [ref-doc-term-policy]: term-policy.md#migration--seeding
-[ref-doc-third-party-s3]: third-party-integration.md#bucket-setup
+[ref-doc-third-party-storage]: third-party-integration.md#object-storage

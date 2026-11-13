@@ -3,16 +3,16 @@ import { TermPolicyContentRequestSchema } from '@modules/term-policy/dtos/reques
 describe('TermPolicyContentRequestSchema', () => {
     const valid = {
         language: EnumMessageLanguage.en,
-        size: 1,
-        key: 'term-policies/privacy/v1/en.hbs',
+        key: 'term-policies/privacy/v1/en/content.hbs',
     };
-    it('accepts valid localized content', () =>
+    it('accepts a language and the staging key', () =>
         expect(TermPolicyContentRequestSchema.parse(valid)).toEqual(valid));
     it.each([
         { ...valid, key: 'secret?.hbs' },
-        { ...valid, size: 1.5 },
+        { ...valid, key: 'term-policies/../en.hbs' },
+        { ...valid, size: 1 },
         { ...valid, unknown: true },
-    ])('rejects malformed or unknown input', input =>
+    ])('rejects a malformed key, a client size or unknown input', input =>
         expect(TermPolicyContentRequestSchema.safeParse(input).success).toBe(
             false
         )

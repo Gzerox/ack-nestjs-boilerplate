@@ -1,6 +1,7 @@
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type { IResponsePaginationReturn } from '@common/response/interfaces/response.interface';
 import { Prisma } from '@generated/prisma-client/client';
 import type { WorkspaceMember } from '@generated/prisma-client/client';
@@ -15,14 +16,24 @@ import type { WorkspaceTransferOwnershipRequestDto } from '@modules/workspace/dt
 import type { IWorkspaceMember } from '@modules/workspace/interfaces/workspace.interface';
 import { WorkspaceMemberDomain } from '@modules/workspace/domains/workspace.member.domain';
 import { Injectable } from '@nestjs/common';
+import type { WorkspaceMemberResponseDto } from '@modules/workspace/dtos/response/workspace.member.response.dto';
 
 @Injectable()
 export class WorkspaceMemberHttpService {
     constructor(
         private readonly workspaceMemberDomain: WorkspaceMemberDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapMember(member: IWorkspaceMember): WorkspaceMemberResponseDto {
+        const photo = this.objectStorageService.toAssetResponse(
+            member.user.photo
+        );
+
+        return { ...member, user: { ...member.user, photo } };
+    }
 
     async transferOwnership(
         workspaceId: string,
@@ -46,7 +57,7 @@ export class WorkspaceMemberHttpService {
     async getMembersList(
         workspaceId: string,
         query: WorkspaceMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.WorkspaceMemberWhereInput>(
                 query,
@@ -74,8 +85,10 @@ export class WorkspaceMemberHttpService {
                 role?.where
             );
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }
@@ -109,7 +122,7 @@ export class WorkspaceMemberHttpService {
     async getMembersListForAdmin(
         workspaceId: string,
         query: WorkspaceAdminMemberListRequestDto
-    ): Promise<IResponsePaginationReturn<IWorkspaceMember>> {
+    ): Promise<IResponsePaginationReturn<WorkspaceMemberResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.WorkspaceMemberWhereInput>(
                 query,
@@ -125,8 +138,10 @@ export class WorkspaceMemberHttpService {
                 params
             );
 
+        const members = data.map(member => this.mapMember(member));
+
         return {
-            data,
+            data: members,
             ...others,
         };
     }

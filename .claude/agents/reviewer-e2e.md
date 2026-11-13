@@ -119,7 +119,7 @@ flight.**
 | a processor that enqueues again | the next processor, and what IT enqueues in turn |
 | a notification send | the `Notification<Concern>Domain` fan-out, the email or push queue, the `NotificationEmail<Concern>Domain` / `NotificationPush<Concern>Domain`, where a sealed field is decrypted, and the SES template / Firebase call |
 | a soft-delete cascade | every child `updateMany` inside the same transaction, and whether it filtered to live rows |
-| an S3 presign issued | what the client is now permitted to do with it, and for how long |
+| a signed upload or download issued | what the client is now permitted to do with it, under which key and size, and for how long |
 
 **Terminal points**, where a trace legitimately stops: a row committed with nothing enqueued
 after it, a response returned with no enqueue, a message handed to an external service, or a job

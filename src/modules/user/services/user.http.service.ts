@@ -2,6 +2,7 @@ import type { DatabaseIdResponseDto } from '@common/database/dtos/response/datab
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import {
     UserDefaultAvailableOrderBy,
     UserDefaultAvailableSearch,
@@ -36,7 +37,8 @@ export class UserHttpService {
         private readonly userOnboardingDomain: UserOnboardingDomain,
         private readonly workspaceDomain: WorkspaceDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
 
     async getListOffsetByAdmin(
@@ -70,18 +72,29 @@ export class UserHttpService {
             },
         });
 
-        return this.userDomain.getListOffsetByAdmin(
+        const { data, ...others } = await this.userDomain.getListOffsetByAdmin(
             params,
             status?.where,
             roleId?.where,
             countryId?.where
         );
+        const users: IUserList[] = data.map(user => {
+            const photo = this.objectStorageService.toAssetResponse(user.photo);
+
+            return { ...user, photo };
+        });
+
+        return {
+            data: users,
+            ...others,
+        };
     }
 
     async getOne(id: string): Promise<IResponseReturn<IUserProfile>> {
         const user = await this.userDomain.getOne(id);
+        const photo = this.objectStorageService.toAssetResponse(user.photo);
 
-        return { data: user };
+        return { data: { ...user, photo } };
     }
 
     async createByAdmin(

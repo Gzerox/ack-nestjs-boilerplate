@@ -43,7 +43,6 @@ import { ProjectUpdateRequestSchema } from '@modules/project/dtos/request/projec
 import type { ProjectUpdateRequestDto } from '@modules/project/dtos/request/project.update.request.dto';
 import { ProjectMemberResponseSchema } from '@modules/project/dtos/response/project.member.response.dto';
 import { ProjectResponseSchema } from '@modules/project/dtos/response/project.response.dto';
-import type { IProjectMember } from '@modules/project/interfaces/project.interface';
 import {
     ProjectCurrent,
     ProjectMemberCurrent,
@@ -77,6 +76,7 @@ import {
 } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { ProjectMemberResponseDto } from '@modules/project/dtos/response/project.member.response.dto';
 
 @ApiTags('modules.user.project')
 @Controller({
@@ -274,7 +274,7 @@ export class ProjectUserController {
         @Query({ schema: ProjectMemberListRequestSchema })
         query: ProjectMemberListRequestDto,
         @ProjectCurrent() project: Project
-    ): Promise<IResponsePaginationReturn<IProjectMember>> {
+    ): Promise<IResponsePaginationReturn<ProjectMemberResponseDto>> {
         return this.projectMemberHttpService.getMembersList(project, query);
     }
 
@@ -299,7 +299,7 @@ export class ProjectUserController {
         @WorkspaceMemberCurrent() workspaceMember: WorkspaceMember,
         @Body({ schema: ProjectMemberAssignRequestSchema })
         body: ProjectMemberAssignRequestDto
-    ): Promise<IResponseReturn<IProjectMember>> {
+    ): Promise<IResponseReturn<ProjectMemberResponseDto>> {
         return this.projectMemberHttpService.assignMember(
             project,
             workspaceMember.userId,

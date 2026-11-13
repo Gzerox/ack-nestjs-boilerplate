@@ -1,30 +1,29 @@
 import { AppBaseException } from '@app/exceptions/app.base.exception';
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
-import { AwsServiceUnavailableException } from '@common/aws/exceptions/aws.service-unavailable.exception';
-import type {
-    IAwsS3,
-    IAwsS3Presign,
-} from '@common/aws/interfaces/aws.interface';
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { EnumFileExtensionImage } from '@common/file/enums/file.enum';
+import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
 import type {
-    IFile,
-    IFileRandomFilenameOptions,
-} from '@common/file/interfaces/file.interface';
-import { FileService } from '@common/file/services/file.service';
-import { EnumActivityLogAction } from '@generated/prisma-client/client';
+    IStorageSignedUpload,
+    IStoredAsset,
+} from '@common/storage/interfaces/storage.interface';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
+import { StorageContentTypeUtil } from '@common/storage/utils/storage.content-type.util';
+import {
+    EnumActivityLogAction,
+    EnumStorageVisibility,
+} from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { CountryNotFoundException } from '@modules/country/exceptions/country.not-found.exception';
 import { CountryDomain } from '@modules/country/domains/country.domain';
+import type { UserUpdateProfilePhotoRequestDto } from '@modules/user/dtos/request/user.update-profile-photo.request.dto';
 import { UserNotFoundException } from '@modules/user/exceptions/user.not-found.exception';
+import { UserPhotoSizeExceededException } from '@modules/user/exceptions/user.photo-size-exceeded.exception';
 import { UserUsernameContainBadWordException } from '@modules/user/exceptions/user.username-contain-bad-word.exception';
 import { UserUsernameExistException } from '@modules/user/exceptions/user.username-exist.exception';
 import { UserUsernameNotAllowedException } from '@modules/user/exceptions/user.username-not-allowed.exception';
 import type {
     IUserGeneratePhotoProfile,
     IUserProfile,
-    IUserUpdatePhotoProfile,
     IUserUpdateProfile,
 } from '@modules/user/interfaces/user.interface';
 import { UserRepository } from '@modules/user/repositories/user.repository';
@@ -36,35 +35,80 @@ import { ConfigService } from '@nestjs/config';
 export class UserProfileDomain {
     private readonly logger = new Logger(UserProfileDomain.name);
 
-    private readonly uploadPhotoProfilePath: string;
+    private readonly photoScopePrefixPattern: string;
+    private readonly photoMaxSizeInBytes: number;
+    private readonly photoContentTypes: string[];
 
     constructor(
         private readonly userRepository: UserRepository,
         private readonly activityLogDomain: ActivityLogDomain,
         private readonly countryDomain: CountryDomain,
         private readonly userUtil: UserUtil,
-        private readonly awsS3Service: AwsS3Service,
-        private readonly fileService: FileService,
+        private readonly objectStorageService: ObjectStorageService,
+        private readonly storageContentTypeUtil: StorageContentTypeUtil,
         private readonly configService: ConfigService
     ) {
-        this.uploadPhotoProfilePath = this.configService.get<string>(
-            'user.uploadPhotoProfilePath'
+        this.photoScopePrefixPattern = this.configService.get<string>(
+            'user.photo.scopePrefixPattern'
         )!;
+        this.photoMaxSizeInBytes = this.configService.get<number>(
+            'user.photo.maxSizeInBytes'
+        )!;
+        this.photoContentTypes = this.storageContentTypeUtil.fromExtensions(
+            Object.values(EnumFileExtensionImage)
+        );
     }
 
-    createRandomFilenamePhotoProfileWithPath(
-        user: string,
-        { extension }: IFileRandomFilenameOptions
-    ): string {
-        const path: string = this.uploadPhotoProfilePath.replace(
-            '{userId}',
-            () => user
+    private createPhotoScopePrefix(userId: string): string {
+        return this.photoScopePrefixPattern.replace('{userId}', () => userId);
+    }
+
+    private async savePhoto(
+        userId: string,
+        asset: IStoredAsset
+    ): Promise<void> {
+        try {
+            const events = [
+                this.activityLogDomain.prepare({
+                    action: EnumActivityLogAction.userUpdatePhotoProfile,
+                }),
+            ];
+            await this.userRepository.updatePhotoProfile(userId, asset);
+
+            this.activityLogDomain.stagePrepared(events);
+        } catch (err: unknown) {
+            if (err instanceof AppBaseException) {
+                throw err;
+            }
+
+            throw new AppUnknownException(err);
+        }
+
+        await this.sweepPhotoScope(userId);
+    }
+
+    /** Runs after the commit, from what the database holds then, and never fails the request. */
+    private async sweepPhotoScope(userId: string): Promise<void> {
+        let keep: string[] = [];
+        try {
+            const current = await this.userRepository.findPhotoByUserId(userId);
+            if (current) {
+                keep = [current.key];
+            }
+        } catch (err: unknown) {
+            this.logger.error(
+                err,
+                `Failed to read the current photo of user ${userId}`
+            );
+
+            return;
+        }
+
+        await this.objectStorageService.sweepUnreferenced(
+            EnumStorageVisibility.public,
+            this.createPhotoScopePrefix(userId),
+            keep
         );
-        return this.fileService.createRandomFilename({
-            path,
-            extension,
-            randomLength: 20,
-        });
     }
 
     async getProfile(userId: string): Promise<IUserProfile> {
@@ -111,117 +155,44 @@ export class UserProfileDomain {
     async generatePhotoProfilePresign(
         userId: string,
         { extension, size }: IUserGeneratePhotoProfile
-    ): Promise<IAwsS3Presign> {
-        const key: string = this.createRandomFilenamePhotoProfileWithPath(
-            userId,
-            {
-                extension,
-            }
-        );
-
-        const aws: IAwsS3Presign | null =
-            await this.awsS3Service.presignPutItem(
-                {
-                    key,
-                    size,
-                },
-                {
-                    forceUpdate: true,
-                    access: EnumAwsS3Accessibility.public,
-                }
-            );
-
-        if (!aws) {
-            throw new AwsServiceUnavailableException();
+    ): Promise<IStorageSignedUpload> {
+        if (size > this.photoMaxSizeInBytes) {
+            throw new UserPhotoSizeExceededException();
         }
 
-        return aws;
+        const contentType =
+            this.storageContentTypeUtil.fromExtension(extension);
+        if (!contentType) {
+            throw new StorageContentTypeInvalidException();
+        }
+
+        const scopePrefix = this.createPhotoScopePrefix(userId);
+
+        return this.objectStorageService.createSignedUpload(scopePrefix, {
+            contentType,
+            size,
+        });
     }
 
     async updatePhotoProfile(
         userId: string,
-        { key, size }: IUserUpdatePhotoProfile
+        { key }: UserUpdateProfilePhotoRequestDto
     ): Promise<void> {
-        try {
-            const aws: IAwsS3 = this.awsS3Service.mapPresign(
-                {
-                    key,
-                    size,
-                },
-                { access: EnumAwsS3Accessibility.public }
-            );
+        const scopePrefix = this.createPhotoScopePrefix(userId);
+        const verified = await this.objectStorageService.verifyUpload(key, {
+            scopePrefix,
+            maxSizeInBytes: this.photoMaxSizeInBytes,
+            contentTypes: this.photoContentTypes,
+        });
 
-            const events = [
-                this.activityLogDomain.prepare({
-                    action: EnumActivityLogAction.userUpdatePhotoProfile,
-                }),
-            ];
-            await this.userRepository.updatePhotoProfile(userId, aws);
-
-            this.activityLogDomain.stagePrepared(events);
-
-            return;
-        } catch (err: unknown) {
-            if (err instanceof AppBaseException) {
-                throw err;
-            }
-
-            throw new AppUnknownException(err);
-        }
+        await this.savePhoto(userId, verified);
     }
 
-    async uploadPhotoProfile(userId: string, file: IFile): Promise<void> {
-        try {
-            const extension: EnumFileExtensionImage =
-                this.fileService.extractExtensionFromFilename(
-                    file.originalname
-                ) as EnumFileExtensionImage;
-
-            const key: string = this.createRandomFilenamePhotoProfileWithPath(
-                userId,
-                {
-                    extension,
-                }
-            );
-
-            const aws: IAwsS3 | null = await this.awsS3Service.putItem(
-                {
-                    key,
-                    size: file.size,
-                    file: file.buffer,
-                },
-                { access: EnumAwsS3Accessibility.public }
-            );
-
-            if (aws) {
-                this.logger.debug(
-                    {
-                        userId,
-                        fileSize: file.size,
-                        awsKey: aws.key,
-                        awsBucket: aws.bucket,
-                    },
-                    `Photo profile uploaded to S3 with key: ${key}`
-                );
-
-                const events = [
-                    this.activityLogDomain.prepare({
-                        action: EnumActivityLogAction.userUpdatePhotoProfile,
-                    }),
-                ];
-                await this.userRepository.updatePhotoProfile(userId, aws);
-
-                this.activityLogDomain.stagePrepared(events);
-            }
-
-            return;
-        } catch (err: unknown) {
-            if (err instanceof AppBaseException) {
-                throw err;
-            }
-
-            throw new AppUnknownException(err);
-        }
+    async uploadPhotoProfile(
+        userId: string,
+        stored: IStoredAsset
+    ): Promise<void> {
+        await this.savePhoto(userId, stored);
     }
 
     async claimUsername(

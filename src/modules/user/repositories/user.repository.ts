@@ -1,4 +1,4 @@
-import type { IAwsS3 } from '@common/aws/interfaces/aws.interface';
+import type { IStoredAsset } from '@common/storage/interfaces/storage.interface';
 import type { IDatabaseTransactionClient } from '@common/database/interfaces/database.client.interface';
 import { DatabaseService } from '@common/database/services/database.service';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
@@ -14,6 +14,7 @@ import type { UserUpdateProfileRequestDto } from '@modules/user/dtos/request/use
 import type { UserUpdateStatusRequestDto } from '@modules/user/dtos/request/user.update-status.request.dto';
 import {
     UserAdminListSelect,
+    UserPhotoRefSelect,
     UserWithRoleInclude,
 } from '@modules/user/constants/user.constant';
 import { UserTermPolicyContract } from '@modules/user/contracts/user.term-policy.contract';
@@ -23,6 +24,7 @@ import type {
     IUserCreateWithWorkspaceInput,
     IUserExport,
     IUserList,
+    IUserPhotoRef,
     IUserProfile,
 } from '@modules/user/interfaces/user.interface';
 import type { IUserRepository } from '@modules/user/interfaces/user.repository.interface';
@@ -161,7 +163,7 @@ export class UserRepository implements IUserRepository {
             include: {
                 ...UserWithRoleInclude,
                 country: true,
-                photo: true,
+                photo: { select: UserPhotoRefSelect },
                 mobileNumbers: {
                     include: {
                         country: true,
@@ -177,7 +179,7 @@ export class UserRepository implements IUserRepository {
             include: {
                 ...UserWithRoleInclude,
                 country: true,
-                photo: true,
+                photo: { select: UserPhotoRefSelect },
                 mobileNumbers: {
                     include: {
                         country: true,
@@ -227,7 +229,7 @@ export class UserRepository implements IUserRepository {
             },
             include: {
                 role: { select: { name: true } },
-                photo: true,
+                photo: { select: UserPhotoRefSelect },
             },
             take,
         });
@@ -297,24 +299,32 @@ export class UserRepository implements IUserRepository {
         });
     }
 
-    async updatePhotoProfile(userId: string, photo: IAwsS3): Promise<User> {
+    async updatePhotoProfile(
+        userId: string,
+        { key, visibility, contentType, size, etag }: IStoredAsset
+    ): Promise<void> {
         const photoData: Prisma.UserPhotoUncheckedCreateWithoutUserInput = {
-            bucket: photo.bucket,
-            key: photo.key,
-            cdnUrl: photo.cdnUrl,
-            completedUrl: photo.completedUrl,
-            mime: photo.mime,
-            extension: photo.extension,
-            access: photo.access,
+            key,
+            visibility,
+            contentType,
+            size: BigInt(size),
+            etag,
         };
 
-        return this.databaseService.client.user.update({
+        await this.databaseService.client.user.update({
             where: { id: userId, deletedAt: null },
             data: {
                 photo: {
                     upsert: { create: photoData, update: photoData },
                 },
             },
+        });
+    }
+
+    async findPhotoByUserId(userId: string): Promise<IUserPhotoRef | null> {
+        return this.databaseService.client.userPhoto.findUnique({
+            where: { userId },
+            select: UserPhotoRefSelect,
         });
     }
 

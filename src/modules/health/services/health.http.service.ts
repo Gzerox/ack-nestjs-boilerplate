@@ -3,6 +3,7 @@ import type { HealthAwsResponseDto } from '@modules/health/dtos/response/health.
 import type { HealthDatabaseResponseDto } from '@modules/health/dtos/response/health.database.response.dto';
 import type { HealthInstanceResponseDto } from '@modules/health/dtos/response/health.instance.response.dto';
 import type { HealthResponseDto } from '@modules/health/dtos/response/health.response.dto';
+import type { HealthStorageResponseDto } from '@modules/health/dtos/response/health.storage.response.dto';
 import type { HealthThirdPartyResponseDto } from '@modules/health/dtos/response/health.third-party.response.dto';
 import { HealthDomain } from '@modules/health/domains/health.domain';
 import { HealthUtil } from '@modules/health/utils/health.util';
@@ -55,6 +56,13 @@ export class HealthHttpService {
 
     async checkAws(): Promise<IResponseReturn<HealthAwsResponseDto>> {
         const check = this.healthDomain.checkAws();
+        const data = await this.resolveResponse(check);
+
+        return { data };
+    }
+
+    async checkStorage(): Promise<IResponseReturn<HealthStorageResponseDto>> {
+        const check = this.healthDomain.checkStorage();
         const data = await this.resolveResponse(check);
 
         return { data };

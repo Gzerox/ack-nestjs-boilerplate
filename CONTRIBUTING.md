@@ -72,7 +72,7 @@ pnpm install
 # Copy environment file
 cp .env.example .env
 
-# Generate JWT keys and encryption secrets into .env
+# Generate JWT keys, encryption secrets, and the local storage signing key into .env
 pnpm generate:secret --direct-insert
 
 # Generate the Prisma client and src/generated/package/package.ts

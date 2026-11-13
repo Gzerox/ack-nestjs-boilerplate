@@ -1,20 +1,33 @@
-import { Test, type TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
+import type { TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { HttpStatus } from '@nestjs/common';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
-
 import { AppUnknownException } from '@app/exceptions/app.unknown.exception';
-import { EnumAwsS3Accessibility } from '@common/aws/enums/aws.enum';
-import { AwsServiceUnavailableException } from '@common/aws/exceptions/aws.service-unavailable.exception';
-import { AwsS3Service } from '@common/aws/services/aws.s3.service';
 import { EnumMessageLanguage } from '@common/message/enums/message.enum';
 import { HelperDateService } from '@common/helper/services/helper.date.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
+import { StorageContentTypeInvalidException } from '@common/storage/exceptions/storage.content-type-invalid.exception';
+import { StorageKeyInvalidException } from '@common/storage/exceptions/storage.key-invalid.exception';
+import { StorageObjectNotFoundException } from '@common/storage/exceptions/storage.object-not-found.exception';
+import { StorageSizeInvalidException } from '@common/storage/exceptions/storage.size-invalid.exception';
+import type {
+    IStorageSignedUpload,
+    IStorageVerifyRules,
+    IStoredAsset,
+} from '@common/storage/interfaces/storage.interface';
 import {
+    EnumActivityLogAction,
+    EnumStorageVisibility,
     EnumTermPolicyStatus,
     EnumTermPolicyType,
-    EnumActivityLogAction,
-    type TermPolicyContent,
-} from '@generated/prisma-client';
+} from '@generated/prisma-client/client';
+import type { TermPolicyContent } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
+import type { IActivityLogStagedEvent } from '@modules/activity-log/interfaces/activity-log.interface';
+import { TermPolicyContentType } from '@modules/term-policy/constants/term-policy.constant';
+import { EnumTermPolicyStatusCodeError } from '@modules/term-policy/enums/term-policy.status-code.enum';
 import { TermPolicyContentExistException } from '@modules/term-policy/exceptions/term-policy.content-exist.exception';
 import { TermPolicyContentNotFoundException } from '@modules/term-policy/exceptions/term-policy.content-not-found.exception';
 import { TermPolicyNotFoundException } from '@modules/term-policy/exceptions/term-policy.not-found.exception';
@@ -27,27 +40,35 @@ import { TermPolicyUtil } from '@modules/term-policy/utils/term-policy.util';
 describe('TermPolicyContentDomain', () => {
     const termPolicyRepository: MockProxy<TermPolicyRepository> =
         mock<TermPolicyRepository>();
-    const awsS3Service: MockProxy<AwsS3Service> = mock<AwsS3Service>();
+    const objectStorageService: MockProxy<ObjectStorageService> =
+        mock<ObjectStorageService>();
     const termPolicyUtil: MockProxy<TermPolicyUtil> = mock<TermPolicyUtil>();
     const activityLogDomain: MockProxy<ActivityLogDomain> =
         mock<ActivityLogDomain>();
     const helperDateService: MockProxy<HelperDateService> =
         mock<HelperDateService>();
+    const configService: MockProxy<ConfigService> = mock<ConfigService>();
+
     const now = new Date('2026-01-01T00:00:00.000Z');
-    const content = {
+    const maxSizeInBytes = 4096;
+    const scopePrefix = 'term-policies/privacy/v1/en/';
+    const verifiedKey = 'term-policies/privacy/v1/en/upload.hbs';
+    const preparedEvent: IActivityLogStagedEvent = {
+        action: EnumActivityLogAction.adminTermPolicyAddContent,
+        metadata: {},
+        onError: false,
+    };
+    const existingContent: TermPolicyContent = {
         id: 'content-id',
         termPolicyId: 'term-id',
         language: EnumMessageLanguage.en,
-        bucket: 'private-bucket',
-        key: 'private/privacy/1/en.hbs',
-        cdnUrl: null,
-        completedUrl: 'https://private/en.hbs',
-        mime: 'text/x-handlebars-template',
-        extension: 'hbs',
-        access: EnumAwsS3Accessibility.private,
-        size: 100,
-    } satisfies TermPolicyContent;
-    const draft = {
+        key: 'term-policies/privacy/v1/en/old.hbs',
+        visibility: EnumStorageVisibility.private,
+        contentType: TermPolicyContentType,
+        size: BigInt(100),
+        etag: null,
+    };
+    const draft: ITermPolicy = {
         id: 'term-id',
         type: EnumTermPolicyType.privacy,
         version: 1,
@@ -57,13 +78,44 @@ describe('TermPolicyContentDomain', () => {
         createdBy: null,
         updatedAt: now,
         updatedBy: null,
-        contents: [content],
-    } satisfies ITermPolicy;
+        contents: [existingContent],
+    };
+    const emptyDraft: ITermPolicy = { ...draft, contents: [] };
+    const storedDraft: ITermPolicy = {
+        ...draft,
+        contents: [{ ...existingContent, key: verifiedKey }],
+    };
+    const verified: IStoredAsset = {
+        key: verifiedKey,
+        visibility: EnumStorageVisibility.public,
+        contentType: TermPolicyContentType,
+        size: 200,
+        etag: '"verified"',
+    };
 
     let service: TermPolicyContentDomain;
 
     beforeEach(async () => {
+        vi.resetAllMocks();
+        vi.mocked(configService.get).mockImplementation((key: string) => {
+            const values = {
+                'termPolicy.content.maxSizeInBytes': maxSizeInBytes,
+            };
+
+            return values[key as keyof typeof values];
+        });
         helperDateService.create.mockReturnValue(now);
+        activityLogDomain.prepare.mockReturnValue(preparedEvent);
+        termPolicyUtil.mapActivityLogMetadata.mockReturnValue({});
+        termPolicyUtil.getContentScopePrefix.mockReturnValue(scopePrefix);
+        termPolicyUtil.getContentByLanguage.mockImplementation(
+            (contents, language) =>
+                contents.find(content => content.language === language) ?? null
+        );
+        termPolicyRepository.findOneById.mockResolvedValue(draft);
+        objectStorageService.verifyUpload.mockResolvedValue(verified);
+        objectStorageService.sweepUnreferenced.mockResolvedValue();
+
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 TermPolicyContentDomain,
@@ -71,303 +123,604 @@ describe('TermPolicyContentDomain', () => {
                     provide: TermPolicyRepository,
                     useValue: termPolicyRepository,
                 },
-                { provide: AwsS3Service, useValue: awsS3Service },
+                {
+                    provide: ObjectStorageService,
+                    useValue: objectStorageService,
+                },
                 { provide: TermPolicyUtil, useValue: termPolicyUtil },
                 { provide: ActivityLogDomain, useValue: activityLogDomain },
                 { provide: HelperDateService, useValue: helperDateService },
+                { provide: ConfigService, useValue: configService },
             ],
         }).compile();
         service = moduleRef.get(TermPolicyContentDomain);
     });
 
-    it('rejects content mutation for an unknown policy', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(null);
-
-        await expect(
-            service.addContentByAdmin('missing', {
-                language: EnumMessageLanguage.en,
-                key: 'key',
-                size: 100,
-            })
-        ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
-    });
-
-    it('rejects content mutation after publication', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue({
-            ...draft,
-            status: EnumTermPolicyStatus.published,
-        });
-
-        await expect(
-            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
-        ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
-    });
-
-    it('rejects adding a language already present in the draft', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(content);
-
-        await expect(
-            service.addContentByAdmin(draft.id, {
-                language: EnumMessageLanguage.en,
-                key: 'key',
-                size: 100,
-            })
-        ).rejects.toBeInstanceOf(TermPolicyContentExistException);
-    });
-
-    it('maps and adds a new localized draft content item', async () => {
-        const mapped = {
-            bucket: 'private-bucket',
-            key: 'private/privacy/1/en.hbs',
-            cdnUrl: null,
-            completedUrl: 'https://private/id.hbs',
-            mime: content.mime,
-            extension: content.extension,
-            access: EnumAwsS3Accessibility.private,
-            size: 120,
-        };
-        termPolicyRepository.findOneById.mockResolvedValue({
-            ...draft,
-            contents: [],
-        });
-        termPolicyUtil.getContentByLanguage.mockReturnValue(null);
-        awsS3Service.mapPresign.mockReturnValue(mapped);
-        termPolicyRepository.addContent.mockResolvedValue(draft);
-
-        await expect(
-            service.addContentByAdmin(draft.id, {
-                language: EnumMessageLanguage.en,
-                key: mapped.key,
-                size: mapped.size,
-            })
-        ).resolves.toBeUndefined();
-        expect(termPolicyRepository.addContent).toHaveBeenCalledWith(draft.id, {
+    describe('generateContentPresignByAdmin', () => {
+        const presign = {
             language: EnumMessageLanguage.en,
-            ...mapped,
-        });
-    });
-
-    it('rejects removing a language absent from the draft', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(null);
-
-        await expect(
-            service.removeContentByAdmin(draft.id, EnumMessageLanguage.en)
-        ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
-    });
-
-    it('rejects creating a presigned content URL for a published policy version', async () => {
-        termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
-            EnumTermPolicyStatus.published
-        );
-
-        await expect(
-            service.generateContentPresignByAdmin({
-                language: EnumMessageLanguage.en,
-                size: 100,
-                type: EnumTermPolicyType.privacy,
-                version: 1,
-            })
-        ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
-    });
-
-    it('rejects when S3 cannot generate an upload presign', async () => {
-        termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(null);
-        termPolicyUtil.createRandomFilenameContentWithPath.mockReturnValue(
-            'private/privacy/1/en.hbs'
-        );
-        awsS3Service.presignPutItem.mockResolvedValue(null);
-
-        await expect(
-            service.generateContentPresignByAdmin({
-                language: EnumMessageLanguage.en,
-                size: 100,
-                type: EnumTermPolicyType.privacy,
-                version: 1,
-            })
-        ).rejects.toBeInstanceOf(AwsServiceUnavailableException);
-    });
-
-    it('generates an upload presign for draft content', async () => {
-        const presign =
-            mock<
-                NonNullable<Awaited<ReturnType<AwsS3Service['presignPutItem']>>>
-            >();
-        termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
-            EnumTermPolicyStatus.draft
-        );
-        termPolicyUtil.createRandomFilenameContentWithPath.mockReturnValue(
-            content.key
-        );
-        awsS3Service.presignPutItem.mockResolvedValue(presign);
-
-        await expect(
-            service.generateContentPresignByAdmin({
-                language: EnumMessageLanguage.en,
-                size: content.size,
-                type: EnumTermPolicyType.privacy,
-                version: 1,
-            })
-        ).resolves.toBe(presign);
-        expect(awsS3Service.presignPutItem).toHaveBeenCalledWith(
-            { key: content.key, size: content.size },
-            { forceUpdate: true, access: EnumAwsS3Accessibility.private }
-        );
-    });
-
-    it('updates draft content and stages its activity', async () => {
-        const mapped = {
-            bucket: content.bucket,
-            key: content.key,
-            cdnUrl: content.cdnUrl,
-            completedUrl: content.completedUrl,
-            mime: content.mime,
-            extension: content.extension,
-            access: content.access,
-            size: content.size,
+            size: 200,
+            type: EnumTermPolicyType.privacy,
+            version: 1,
         };
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        awsS3Service.mapPresign.mockReturnValue(mapped);
 
-        await expect(
-            service.updateContentByAdmin(draft.id, {
-                language: content.language,
-                key: content.key,
-                size: content.size,
-            })
-        ).resolves.toBeUndefined();
-        expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
-            draft.id,
-            { language: content.language, ...mapped }
+        it('creates a private signed upload scoped to the policy language with the template content type', async () => {
+            const signedUpload: IStorageSignedUpload = {
+                key: verifiedKey,
+                url: 'https://storage.example.com/upload?signature=abc',
+                method: 'PUT',
+                headers: { 'content-type': TermPolicyContentType },
+                expiresAt: now,
+            };
+            termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
+                EnumTermPolicyStatus.draft
+            );
+            objectStorageService.createSignedUpload.mockResolvedValue(
+                signedUpload
+            );
+
+            const result = await service.generateContentPresignByAdmin(presign);
+
+            expect(termPolicyUtil.getContentScopePrefix).toHaveBeenCalledWith(
+                EnumTermPolicyType.privacy,
+                1,
+                EnumMessageLanguage.en
+            );
+            expect(
+                objectStorageService.createSignedUpload
+            ).toHaveBeenCalledWith(scopePrefix, {
+                contentType: TermPolicyContentType,
+                size: 200,
+            });
+            expect(result).toEqual(signedUpload);
+        });
+
+        it('signs an upload for a version that does not exist yet', async () => {
+            termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
+                null
+            );
+
+            await service.generateContentPresignByAdmin(presign);
+
+            expect(objectStorageService.createSignedUpload).toHaveBeenCalled();
+        });
+
+        it('throws TermPolicyStatusInvalidException without signing for a published version', async () => {
+            termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
+                EnumTermPolicyStatus.published
+            );
+
+            await expect(
+                service.generateContentPresignByAdmin(presign)
+            ).rejects.toMatchObject({
+                module: 'termPolicy',
+                statusCode: EnumTermPolicyStatusCodeError.statusInvalid,
+            });
+            expect(
+                objectStorageService.createSignedUpload
+            ).not.toHaveBeenCalled();
+        });
+
+        it('throws TermPolicyContentSizeExceededException without signing above the configured content maximum', async () => {
+            termPolicyRepository.findStatusByVersionAndType.mockResolvedValue(
+                null
+            );
+
+            await expect(
+                service.generateContentPresignByAdmin({
+                    ...presign,
+                    size: maxSizeInBytes + 1,
+                })
+            ).rejects.toMatchObject({
+                module: 'termPolicy',
+                statusCode: EnumTermPolicyStatusCodeError.contentSizeExceeded,
+                statusCodeKey:
+                    EnumTermPolicyStatusCodeError[
+                        EnumTermPolicyStatusCodeError.contentSizeExceeded
+                    ],
+                messagePath: 'termPolicy.error.contentSizeExceeded',
+                httpStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+            });
+            expect(
+                objectStorageService.createSignedUpload
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('verifyContent', () => {
+        it('verifies the uploaded key against the policy language scope, the content maximum and the template detector', async () => {
+            let rules: IStorageVerifyRules | undefined;
+            objectStorageService.verifyUpload.mockImplementation(
+                async (_key, verifyRules) => {
+                    rules = verifyRules;
+                    return verified;
+                }
+            );
+            termPolicyUtil.detectTemplateContentType.mockReturnValue(
+                TermPolicyContentType
+            );
+
+            const result = await service.verifyContent(draft, {
+                language: EnumMessageLanguage.en,
+                key: verifiedKey,
+            });
+
+            expect(objectStorageService.verifyUpload).toHaveBeenCalledWith(
+                verifiedKey,
+                expect.objectContaining({
+                    scopePrefix,
+                    maxSizeInBytes,
+                    contentTypes: [TermPolicyContentType],
+                })
+            );
+            const head = new Uint8Array([0x7b]);
+            expect(rules?.detect?.(head)).toBe(TermPolicyContentType);
+            expect(
+                termPolicyUtil.detectTemplateContentType
+            ).toHaveBeenCalledWith(head);
+            expect(result).toEqual({
+                ...verified,
+                language: EnumMessageLanguage.en,
+            });
+        });
+    });
+
+    describe('addContentByAdmin', () => {
+        const upload = { language: EnumMessageLanguage.en, key: verifiedKey };
+
+        beforeEach(() => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+        });
+
+        it('throws TermPolicyNotFoundException without verifying for an unknown policy', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
+
+            await expect(
+                service.addContentByAdmin('term-id', upload)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
+        });
+
+        it('throws TermPolicyStatusInvalidException without verifying after publication', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue({
+                ...emptyDraft,
+                status: EnumTermPolicyStatus.published,
+            });
+
+            await expect(
+                service.addContentByAdmin('term-id', upload)
+            ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
+        });
+
+        it('throws TermPolicyContentExistException without verifying when the language exists', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(draft);
+
+            await expect(
+                service.addContentByAdmin('term-id', upload)
+            ).rejects.toMatchObject({
+                module: 'termPolicy',
+                statusCode: EnumTermPolicyStatusCodeError.contentExist,
+            });
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['a foreign or traversal key', new StorageKeyInvalidException()],
+            ['a missing uploaded object', new StorageObjectNotFoundException()],
+            [
+                'an uploaded object that is not a template',
+                new StorageContentTypeInvalidException(),
+            ],
+            ['an oversize uploaded object', new StorageSizeInvalidException()],
+        ])(
+            'rejects %s with no promotion and no database write',
+            async (_case, exception) => {
+                objectStorageService.verifyUpload.mockRejectedValue(exception);
+
+                await expect(
+                    service.addContentByAdmin('term-id', upload)
+                ).rejects.toBe(exception);
+                expect(termPolicyRepository.addContent).not.toHaveBeenCalled();
+            }
         );
-        expect(activityLogDomain.prepare).toHaveBeenCalledWith({
-            action: EnumActivityLogAction.adminTermPolicyUpdateContent,
-            metadata: undefined,
+
+        it('stores the verified metadata and stages the activity', async () => {
+            const callOrder: string[] = [];
+            termPolicyRepository.addContent.mockImplementation(async () => {
+                callOrder.push('add');
+                return draft;
+            });
+
+            await service.addContentByAdmin('term-id', upload);
+
+            expect(termPolicyRepository.addContent).toHaveBeenCalledWith(
+                'term-id',
+                { ...verified, language: EnumMessageLanguage.en }
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.adminTermPolicyAddContent,
+                metadata: {},
+            });
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                preparedEvent,
+            ]);
+            expect(callOrder).toEqual(['add']);
         });
-        expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
+
+        it('sweeps the language prefix on the public disk keeping the key the database holds after the commit', async () => {
+            const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(emptyDraft)
+                .mockImplementationOnce(async () => {
+                    callOrder.push('read');
+                    return storedDraft;
+                });
+            termPolicyRepository.addContent.mockImplementation(async () => {
+                callOrder.push('add');
+                return draft;
+            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
+
+            await service.addContentByAdmin('term-id', upload);
+
+            expect(callOrder).toEqual(['add', 'read', 'sweep']);
+            expect(termPolicyUtil.getContentScopePrefix).toHaveBeenCalledWith(
+                EnumTermPolicyType.privacy,
+                1,
+                EnumMessageLanguage.en
+            );
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
+            );
+        });
+
+        it('deletes nothing, sweeps nothing and rethrows as AppUnknownException when the database write fails', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+            termPolicyRepository.addContent.mockRejectedValue(new Error('db'));
+
+            await expect(
+                service.addContentByAdmin('term-id', upload)
+            ).rejects.toBeInstanceOf(AppUnknownException);
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
+            expect(activityLogDomain.stagePrepared).not.toHaveBeenCalled();
+        });
+
+        it('rethrows a typed exception unchanged and deletes nothing', async () => {
+            const exception = new TermPolicyContentExistException();
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+            termPolicyRepository.addContent.mockRejectedValue(exception);
+
+            await expect(
+                service.addContentByAdmin('term-id', upload)
+            ).rejects.toBe(exception);
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+        });
     });
 
-    it.each([
-        [
-            'typed',
-            new TermPolicyNotFoundException(),
-            TermPolicyNotFoundException,
-        ],
-        ['unknown', new Error('failure'), AppUnknownException],
-    ])('maps %s update-content failures', async (_name, error, expected) => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        awsS3Service.mapPresign.mockImplementation(() => {
-            throw error;
+    describe('updateContentByAdmin', () => {
+        const upload = { language: EnumMessageLanguage.en, key: verifiedKey };
+
+        it('throws TermPolicyContentNotFoundException without verifying when the language is absent', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+
+            await expect(
+                service.updateContentByAdmin('term-id', upload)
+            ).rejects.toMatchObject({
+                module: 'termPolicy',
+                statusCode: EnumTermPolicyStatusCodeError.contentNotFound,
+                messagePath: 'termPolicy.error.contentNotFound',
+            });
+            expect(objectStorageService.verifyUpload).not.toHaveBeenCalled();
         });
 
-        await expect(
-            service.updateContentByAdmin(draft.id, {
-                language: content.language,
-                key: content.key,
-                size: content.size,
-            })
-        ).rejects.toBeInstanceOf(expected);
+        it('rejects a foreign key with no database write', async () => {
+            objectStorageService.verifyUpload.mockRejectedValue(
+                new StorageKeyInvalidException()
+            );
+
+            await expect(
+                service.updateContentByAdmin('term-id', upload)
+            ).rejects.toBeInstanceOf(StorageKeyInvalidException);
+            expect(termPolicyRepository.updateContent).not.toHaveBeenCalled();
+        });
+
+        it('replaces the content row, then removes the replaced object only through the sweep', async () => {
+            const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockResolvedValueOnce(storedDraft);
+            termPolicyRepository.updateContent.mockImplementation(async () => {
+                callOrder.push('update');
+                return draft;
+            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
+
+            await service.updateContentByAdmin('term-id', upload);
+
+            expect(termPolicyRepository.updateContent).toHaveBeenCalledWith(
+                'term-id',
+                { ...verified, language: EnumMessageLanguage.en }
+            );
+            expect(callOrder).toEqual(['update', 'sweep']);
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
+            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+        });
+
+        it('never deletes the resubmitted key when it is the one the database holds', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(storedDraft);
+
+            await service.updateContentByAdmin('term-id', upload);
+
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [verifiedKey]
+            );
+        });
+
+        it('keeps the key of the winning write when two completions interleave', async () => {
+            const winnerKey = 'term-policies/privacy/v1/en/winner.hbs';
+            const loserKey = 'term-policies/privacy/v1/en/loser.hbs';
+            const winnerDraft: ITermPolicy = {
+                ...draft,
+                contents: [{ ...existingContent, key: winnerKey }],
+            };
+            termPolicyRepository.findOneById.mockResolvedValue(winnerDraft);
+            objectStorageService.verifyUpload
+                .mockResolvedValueOnce({ ...verified, key: winnerKey })
+                .mockResolvedValueOnce({ ...verified, key: loserKey });
+
+            await Promise.all([
+                service.updateContentByAdmin('term-id', {
+                    language: EnumMessageLanguage.en,
+                    key: winnerKey,
+                }),
+                service.updateContentByAdmin('term-id', {
+                    language: EnumMessageLanguage.en,
+                    key: loserKey,
+                }),
+            ]);
+
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenCalledTimes(2);
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenNthCalledWith(
+                1,
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [winnerKey]
+            );
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).toHaveBeenNthCalledWith(
+                2,
+                EnumStorageVisibility.public,
+                scopePrefix,
+                [winnerKey]
+            );
+        });
+
+        it('deletes nothing, sweeps nothing and rethrows when the database write fails', async () => {
+            termPolicyRepository.updateContent.mockRejectedValue(
+                new Error('db')
+            );
+
+            await expect(
+                service.updateContentByAdmin('term-id', upload)
+            ).rejects.toBeInstanceOf(AppUnknownException);
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
+        });
     });
 
-    it.each([
-        [
-            'typed',
-            new TermPolicyNotFoundException(),
-            TermPolicyNotFoundException,
-        ],
-        ['unknown', new Error('failure'), AppUnknownException],
-    ])('maps %s add-content failures', async (_name, error, expected) => {
-        termPolicyRepository.findOneById.mockResolvedValue({
-            ...draft,
-            contents: [],
-        });
-        termPolicyUtil.getContentByLanguage.mockReturnValue(null);
-        awsS3Service.mapPresign.mockImplementation(() => {
-            throw error;
+    describe('removeContentByAdmin', () => {
+        it('throws TermPolicyContentNotFoundException when the language is absent', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+
+            await expect(
+                service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
+            expect(termPolicyRepository.removeContent).not.toHaveBeenCalled();
         });
 
-        await expect(
-            service.addContentByAdmin(draft.id, {
-                language: content.language,
-                key: content.key,
-                size: content.size,
-            })
-        ).rejects.toBeInstanceOf(expected);
+        it('deletes the row first, then sweeps the language prefix keeping nothing', async () => {
+            const callOrder: string[] = [];
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockResolvedValueOnce(emptyDraft);
+            termPolicyRepository.removeContent.mockImplementation(async () => {
+                callOrder.push('remove');
+                return draft;
+            });
+            objectStorageService.sweepUnreferenced.mockImplementation(
+                async () => {
+                    callOrder.push('sweep');
+                }
+            );
+
+            await service.removeContentByAdmin(
+                'term-id',
+                EnumMessageLanguage.en
+            );
+
+            expect(termPolicyRepository.removeContent).toHaveBeenCalledWith(
+                'term-id',
+                { language: EnumMessageLanguage.en }
+            );
+            expect(objectStorageService.sweepUnreferenced).toHaveBeenCalledWith(
+                EnumStorageVisibility.public,
+                scopePrefix,
+                []
+            );
+            expect(objectStorageService.deleteQuietly).not.toHaveBeenCalled();
+            expect(callOrder).toEqual(['remove', 'sweep']);
+            expect(activityLogDomain.stagePrepared).toHaveBeenCalledWith([
+                preparedEvent,
+            ]);
+        });
+
+        it('keeps the object and rethrows as AppUnknownException when the row delete fails', async () => {
+            termPolicyRepository.removeContent.mockRejectedValue(
+                new Error('db')
+            );
+
+            await expect(
+                service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).rejects.toBeInstanceOf(AppUnknownException);
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
+        });
+
+        it('sweeps nothing and resolves when the post-commit read fails', async () => {
+            termPolicyRepository.findOneById
+                .mockResolvedValueOnce(draft)
+                .mockRejectedValueOnce(new Error('db'));
+
+            await expect(
+                service.removeContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).resolves.toBeUndefined();
+            expect(
+                objectStorageService.sweepUnreferenced
+            ).not.toHaveBeenCalled();
+        });
     });
 
-    it('removes draft content and stages its activity', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(content);
+    describe('getContentByAdmin', () => {
+        it('throws TermPolicyNotFoundException for an unknown policy', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
 
-        await expect(
-            service.removeContentByAdmin(draft.id, content.language)
-        ).resolves.toBeUndefined();
-        expect(termPolicyRepository.removeContent).toHaveBeenCalledWith(
-            draft.id,
-            { language: content.language }
+            await expect(
+                service.getContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+        });
+
+        it('throws TermPolicyContentNotFoundException for a missing language', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(emptyDraft);
+
+            await expect(
+                service.getContentByAdmin('term-id', EnumMessageLanguage.en)
+            ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
+            expect(objectStorageService.signedDownload).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['a draft', EnumStorageVisibility.private],
+            ['a published', EnumStorageVisibility.public],
+        ])(
+            'returns the stored asset reference of %s content without signing a download',
+            async (_label, visibility) => {
+                termPolicyRepository.findOneById.mockResolvedValue({
+                    ...draft,
+                    contents: [{ ...existingContent, visibility }],
+                });
+
+                const result = await service.getContentByAdmin(
+                    'term-id',
+                    EnumMessageLanguage.en
+                );
+
+                expect(result).toEqual({
+                    key: existingContent.key,
+                    visibility,
+                });
+                expect(
+                    objectStorageService.signedDownload
+                ).not.toHaveBeenCalled();
+                expect(objectStorageService.publicUrl).not.toHaveBeenCalled();
+            }
         );
-        expect(activityLogDomain.stagePrepared).toHaveBeenCalledOnce();
     });
 
-    it.each([
-        [
-            'typed',
-            new TermPolicyNotFoundException(),
-            TermPolicyNotFoundException,
-        ],
-        ['unknown', new Error('failure'), AppUnknownException],
-    ])('maps %s remove-content failures', async (_name, error, expected) => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(content);
-        termPolicyRepository.removeContent.mockRejectedValue(error);
+    describe('prepareActivityLog', () => {
+        it('prepares the action with the policy metadata', () => {
+            termPolicyUtil.mapActivityLogMetadata.mockReturnValue({
+                termPolicyId: 'term-id',
+            });
 
-        await expect(
-            service.removeContentByAdmin(draft.id, content.language)
-        ).rejects.toBeInstanceOf(expected);
+            const result = service['prepareActivityLog'](
+                EnumActivityLogAction.adminTermPolicyRemoveContent,
+                draft,
+                now
+            );
+
+            expect(termPolicyUtil.mapActivityLogMetadata).toHaveBeenCalledWith(
+                draft,
+                now
+            );
+            expect(activityLogDomain.prepare).toHaveBeenCalledWith({
+                action: EnumActivityLogAction.adminTermPolicyRemoveContent,
+                metadata: { termPolicyId: 'term-id' },
+            });
+            expect(result).toBe(preparedEvent);
+        });
     });
 
-    it('rejects reading content for an unknown policy', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(null);
+    describe('findOneDraftById', () => {
+        it('returns a draft policy', async () => {
+            const result = await service['findOneDraftById']('term-id');
 
-        await expect(
-            service.getContentByAdmin('missing', content.language)
-        ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+            expect(result).toBe(draft);
+        });
+
+        it('throws TermPolicyNotFoundException for an unknown policy', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue(null);
+
+            await expect(
+                service['findOneDraftById']('term-id')
+            ).rejects.toBeInstanceOf(TermPolicyNotFoundException);
+        });
+
+        it('throws TermPolicyStatusInvalidException for a published policy', async () => {
+            termPolicyRepository.findOneById.mockResolvedValue({
+                ...draft,
+                status: EnumTermPolicyStatus.published,
+            });
+
+            await expect(
+                service['findOneDraftById']('term-id')
+            ).rejects.toBeInstanceOf(TermPolicyStatusInvalidException);
+        });
     });
 
-    it('rejects reading a missing localized content item', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(null);
+    describe('wrapError', () => {
+        it('returns a typed exception unchanged', () => {
+            const exception = new TermPolicyContentExistException();
 
-        await expect(
-            service.getContentByAdmin(draft.id, content.language)
-        ).rejects.toBeInstanceOf(TermPolicyContentNotFoundException);
-    });
+            expect(service['wrapError'](exception)).toBe(exception);
+        });
 
-    it('rejects when S3 cannot generate a content read presign', async () => {
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(content);
-        awsS3Service.presignGetItem.mockResolvedValue(null);
+        it('wraps any other error into AppUnknownException', () => {
+            const error = new Error('db');
 
-        await expect(
-            service.getContentByAdmin(draft.id, content.language)
-        ).rejects.toBeInstanceOf(AwsServiceUnavailableException);
-    });
+            const result = service['wrapError'](error);
 
-    it('returns a content read presign', async () => {
-        const presign =
-            mock<
-                NonNullable<Awaited<ReturnType<AwsS3Service['presignGetItem']>>>
-            >();
-        termPolicyRepository.findOneById.mockResolvedValue(draft);
-        termPolicyUtil.getContentByLanguage.mockReturnValue(content);
-        awsS3Service.presignGetItem.mockResolvedValue(presign);
-
-        await expect(
-            service.getContentByAdmin(draft.id, content.language)
-        ).resolves.toBe(presign);
-        expect(awsS3Service.presignGetItem).toHaveBeenCalledWith(content.key, {
-            access: EnumAwsS3Accessibility.private,
+            expect(result).toBeInstanceOf(AppUnknownException);
+            expect(result.rawError).toBe(error);
         });
     });
 });

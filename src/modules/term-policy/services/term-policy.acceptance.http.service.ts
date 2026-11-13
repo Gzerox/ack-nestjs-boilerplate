@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -13,19 +14,31 @@ import type { ITermPolicyUserAcceptance } from '@modules/term-policy/interfaces/
 import { TermPolicyAcceptanceDomain } from '@modules/term-policy/domains/term-policy.acceptance.domain';
 import type { IUser } from '@modules/user/interfaces/user.interface';
 import { Injectable } from '@nestjs/common';
+import type { TermPolicyUserAcceptanceResponseDto } from '@modules/term-policy/dtos/response/term-policy.user-acceptance.response.dto';
 
 @Injectable()
 export class TermPolicyAcceptanceHttpService {
     constructor(
         private readonly termPolicyAcceptanceDomain: TermPolicyAcceptanceDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapAcceptance(
+        acceptance: ITermPolicyUserAcceptance
+    ): TermPolicyUserAcceptanceResponseDto {
+        const photo = this.objectStorageService.toAssetResponse(
+            acceptance.user.photo
+        );
+
+        return { ...acceptance, user: { ...acceptance.user, photo } };
+    }
 
     async getListUserAccepted(
         userId: string,
         query: TermPolicyAcceptedListRequestDto
-    ): Promise<IResponsePaginationReturn<ITermPolicyUserAcceptance>> {
+    ): Promise<IResponsePaginationReturn<TermPolicyUserAcceptanceResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.TermPolicyUserAcceptanceWhereInput>(
                 query,
@@ -41,8 +54,12 @@ export class TermPolicyAcceptanceHttpService {
                 userId,
                 params
             );
+        const acceptances = data.map(acceptance =>
+            this.mapAcceptance(acceptance)
+        );
+
         return {
-            data,
+            data: acceptances,
             ...others,
         };
     }

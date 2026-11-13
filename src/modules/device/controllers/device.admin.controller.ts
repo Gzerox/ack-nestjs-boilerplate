@@ -26,7 +26,6 @@ import {
 } from '@modules/auth/decorators/auth.jwt.decorator';
 
 import { DeviceOwnershipResponseSchema } from '@modules/device/dtos/response/device.ownership.response.dto';
-import type { IDeviceOwnershipDetail } from '@modules/device/interfaces/device.interface';
 import { DeviceHttpService } from '@modules/device/services/device.http.service';
 import { PolicyProtected } from '@modules/policy/decorators/policy.decorator';
 import { RoleProtected } from '@modules/role/decorators/role.decorator';
@@ -35,6 +34,7 @@ import { UserProtected } from '@modules/user/decorators/user.decorator';
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
+import type { DeviceOwnershipResponseDto } from '@modules/device/dtos/response/device.ownership.response.dto';
 
 @ApiTags('modules.admin.user.device')
 @Controller({
@@ -70,7 +70,7 @@ export class DeviceAdminController {
         query: DeviceAdminListRequestDto,
         @Param('userId', { schema: RequestUuidSchema })
         userId: string
-    ): Promise<IResponsePaginationReturn<IDeviceOwnershipDetail>> {
+    ): Promise<IResponsePaginationReturn<DeviceOwnershipResponseDto>> {
         return this.deviceHttpService.getListOffsetByAdmin(userId, query);
     }
 

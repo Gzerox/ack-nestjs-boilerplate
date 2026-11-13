@@ -105,7 +105,7 @@ a `{token}` pattern, and how it is filled depends on how many tokens it has:
 
 ```ts
 const key = `${workspaceId}:${startToken}:${endToken}`;
-const url = CdnUrlPattern.replace('{key}', () => key);
+const url = PublicAssetUrlPattern.replace('{key}', () => key);
 const sessionKey = this.helperStringService.fillPattern(SessionKeyPattern, {
     userId,
     sessionId,

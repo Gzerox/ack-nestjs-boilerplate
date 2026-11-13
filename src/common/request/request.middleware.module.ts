@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod, VERSION_NEUTRAL } from '@nestjs/common';
 import type { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -68,8 +68,19 @@ export class RequestMiddlewareModule implements NestModule {
             .apply(
                 RequestRequestIdMiddleware,
                 RequestRequestLogMiddleware,
-                RequestHelmetMiddleware,
-                RequestBodyParserMiddleware,
+                RequestHelmetMiddleware
+            )
+            .forRoutes('{*wildcard}');
+        consumer
+            .apply(RequestBodyParserMiddleware)
+            .exclude({
+                path: 'storage/upload',
+                method: RequestMethod.PUT,
+                version: VERSION_NEUTRAL,
+            })
+            .forRoutes('{*wildcard}');
+        consumer
+            .apply(
                 RequestCorsMiddleware,
                 RequestUrlVersionMiddleware,
                 RequestResponseTimeMiddleware,

@@ -84,7 +84,8 @@ response shape, the meaning of a vendor error string, what a version bump change
 
 The stack you will most often be asked about: NestJS 12, TypeScript 6, Prisma 6 against PostgreSQL, BullMQ,
 `@nestjs/cache-manager` with Keyv/Redis, zod 4 with `zod-openapi` and `@standard-schema/spec`,
-`nestjs-i18n`, Pino, Sentry, Passport, CASL, Luxon, AWS SDK (S3, SES), Firebase Admin,
+`nestjs-i18n`, Pino, Sentry, Passport, CASL, Luxon,
+`@nestjs/storage` (local and S3-compatible disks), AWS SDK (SES), Firebase Admin,
 nest-commander, `node:crypto`, Vitest with `unplugin-swc` and `vitest-mock-extended`, knip,
 native ESM on Node 24.
 

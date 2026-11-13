@@ -8,6 +8,8 @@ import {
 } from '@modules/health/constants/health.constant';
 import { HealthAwsResponseSchema } from '@modules/health/dtos/response/health.aws.response.dto';
 import type { HealthAwsResponseDto } from '@modules/health/dtos/response/health.aws.response.dto';
+import { HealthStorageResponseSchema } from '@modules/health/dtos/response/health.storage.response.dto';
+import type { HealthStorageResponseDto } from '@modules/health/dtos/response/health.storage.response.dto';
 import { HealthDatabaseResponseSchema } from '@modules/health/dtos/response/health.database.response.dto';
 import type { HealthDatabaseResponseDto } from '@modules/health/dtos/response/health.database.response.dto';
 import { HealthInstanceResponseSchema } from '@modules/health/dtos/response/health.instance.response.dto';
@@ -26,13 +28,22 @@ import { ApiTags } from '@nestjs/swagger';
 export class HealthSystemController {
     constructor(private readonly healthHttpService: HealthHttpService) {}
 
-    @Doc({ summary: 'health check api for aws' })
+    @Doc({ summary: 'health check api for aws ses' })
     @Response('health.checkAws', { schema: HealthAwsResponseSchema })
     @Header(HealthCacheControlHeaderName, HealthCacheControlHeaderValue)
     @ApiKeySystemProtected()
     @Get('/aws')
     async checkAws(): Promise<IResponseReturn<HealthAwsResponseDto>> {
         return this.healthHttpService.checkAws();
+    }
+
+    @Doc({ summary: 'health check api for object storage' })
+    @Response('health.checkStorage', { schema: HealthStorageResponseSchema })
+    @Header(HealthCacheControlHeaderName, HealthCacheControlHeaderValue)
+    @ApiKeySystemProtected()
+    @Get('/storage')
+    async checkStorage(): Promise<IResponseReturn<HealthStorageResponseDto>> {
+        return this.healthHttpService.checkStorage();
     }
 
     @Doc({ summary: 'health check api for database' })

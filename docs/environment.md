@@ -14,6 +14,7 @@ Runtime config is environment variables. `AppEnvSchema` validates them at startu
 - [Authentication Documentation][ref-doc-authentication] - JWT and OAuth
 - [Vault Documentation][ref-doc-vault] - Optional secret sync into `.env`
 - [Email Documentation][ref-doc-email] - SES templates
+- [Storage Documentation][ref-doc-storage] - Object storage, signed uploads, bucket setup
 
 ## Table of Contents
 
@@ -32,6 +33,7 @@ Runtime config is environment variables. `AppEnvSchema` validates them at startu
   - [Authentication Settings](#authentication-settings)
   - [Social Authentication Settings](#social-authentication-settings)
   - [Two-Factor Authentication Settings](#two-factor-authentication-settings)
+  - [Storage Settings](#storage-settings)
   - [AWS Settings](#aws-settings)
   - [Email Settings](#email-settings)
   - [Firebase Settings](#firebase-settings)
@@ -67,7 +69,7 @@ If validation fails, the application does not start and reports which environmen
 Below is an example `.env` file based on the current `.env.example`:
 
 > [!WARNING]
-> **Security**: All secret and key values below (`*_ENCRYPTION_SECRET_KEY`, `*_ENCRYPTION_KEY`, `AUTH_JWT_*_KEY`) are placeholders for illustration only. They are empty in `.env.example`, so startup validation fails until they are set. `pnpm generate:secret` generates a unique set: the JWT keys and KIDs under `keys/`, and both encryption secrets in `keys/encryption-secret.env`. With `--direct-insert` it also writes them into `.env`. See [Installation][ref-doc-installation].
+> **Security**: All secret and key values below (`*_ENCRYPTION_SECRET_KEY`, `*_ENCRYPTION_KEY`, `AUTH_JWT_*_KEY`) are placeholders for illustration only. They are empty in `.env.example`, so startup validation fails until they are set. `pnpm generate:secret` generates a unique set: the JWT keys and KIDs under `keys/`, and both encryption secrets in `keys/encryption-secret.env`. With `--direct-insert` it also writes them into `.env`. `STORAGE_LOCAL_SIGNING_KEYS` is empty in `.env.example` too; `pnpm generate:secret` (or `pnpm generate:secret:storage`) writes it to `keys/storage-secret.env`, and into `.env` with `--direct-insert`. See [Installation][ref-doc-installation].
 
 ```bash
 # Application Settings
@@ -132,15 +134,18 @@ AUTH_SOCIAL_GOOGLE_CLIENT_SECRET=
 AUTH_SOCIAL_APPLE_CLIENT_ID=
 AUTH_SOCIAL_APPLE_SIGN_IN_CLIENT_ID=
 
-# AWS S3 Configuration (Optional)
-AWS_S3_IAM_CREDENTIAL_KEY=
-AWS_S3_IAM_CREDENTIAL_SECRET=
-AWS_S3_IAM_ARN=
-AWS_S3_REGION=
-AWS_S3_PUBLIC_BUCKET=
-AWS_S3_PUBLIC_CDN=
-AWS_S3_PRIVATE_BUCKET=
-AWS_S3_PRIVATE_CDN=
+# Object Storage (local driver by default)
+STORAGE_DRIVER=local
+STORAGE_PUBLIC_BASE_URL=http://localhost:3000
+STORAGE_LOCAL_ROOT=./storage-data
+STORAGE_LOCAL_SIGNING_KEYS=
+STORAGE_S3_ENDPOINT=
+STORAGE_S3_REGION=
+STORAGE_S3_ACCESS_KEY_ID=
+STORAGE_S3_SECRET_ACCESS_KEY=
+STORAGE_S3_FORCE_PATH_STYLE=false
+STORAGE_S3_PUBLIC_BUCKET=
+STORAGE_S3_PRIVATE_BUCKET=
 
 # AWS SES Configuration (Optional)
 AWS_SES_IAM_CREDENTIAL_KEY=
@@ -490,65 +495,79 @@ Root secret `HelperEncryptionService` derives the AES-256-GCM keys for stored TO
 AUTH_TWO_FACTOR_ENCRYPTION_KEY=<your_two_factor_encryption_key>
 ```
 
+### Storage Settings
+
+`STORAGE_DRIVER` picks the implementation behind the two named disks, `public` and `private`. Either driver runs in any environment. Startup validation checks only the variables of the selected driver and fails when one of them is missing. Behaviour and bucket setup: [Storage Documentation][ref-doc-storage].
+
+**`STORAGE_DRIVER`** *(optional, default `local`)*  
+`local` keeps objects on the API host's filesystem and serves them through the API. `s3` uses AWS S3 or an S3-compatible provider such as Cloudflare R2.
+```bash
+STORAGE_DRIVER=local
+```
+
+**`STORAGE_PUBLIC_BASE_URL`** *(required)*  
+An `http` or `https` URL. Under `local`, the API origin: public URLs become `<base>/api/storage/public/<key>` and signed URLs `<base>/api/storage/private?...`. Under `s3`, the public base URL of the public bucket (a CDN or custom domain in front of it, or the bucket endpoint); a public URL is this base plus the object key.
+```bash
+STORAGE_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+#### Local Driver
+
+**`STORAGE_LOCAL_ROOT`** *(required when `STORAGE_DRIVER=local`)*  
+Directory holding both disks: `<root>/public` and `<root>/private`. The directories are created at startup. `./storage-data` is gitignored, and `docker-compose.yml` mounts it into the API container.
+```bash
+STORAGE_LOCAL_ROOT=./storage-data
+```
+
+**`STORAGE_LOCAL_SIGNING_KEYS`** *(required when `STORAGE_DRIVER=local`)*  
+Comma-separated HMAC keys for the signed private URLs, each at least 32 characters. The first key signs and every key verifies. `pnpm generate:secret:storage --direct-insert` writes one fresh key and replaces the whole list, which stops every URL signed with the old key from verifying. A rotation that keeps issued URLs valid puts the new key (from `keys/storage-secret.env`) first by hand and drops the old one once the URLs it signed have expired (5 minutes at most).
+```bash
+STORAGE_LOCAL_SIGNING_KEYS=<new_key>,<previous_key>
+```
+
+#### S3 Driver
+
+**`STORAGE_S3_ENDPOINT`** *(optional)*  
+An `http` or `https` URL of an S3-compatible service. Empty uses the AWS regional endpoint. Cloudflare R2: `https://<account_id>.r2.cloudflarestorage.com`.
+```bash
+STORAGE_S3_ENDPOINT=
+```
+
+**`STORAGE_S3_REGION`** *(required when `STORAGE_DRIVER=s3`)*  
+AWS region of the buckets. Validation requires `auto` when the endpoint host ends in `.r2.cloudflarestorage.com`.
+```bash
+STORAGE_S3_REGION=
+```
+
+**`STORAGE_S3_ACCESS_KEY_ID`** / **`STORAGE_S3_SECRET_ACCESS_KEY`** *(required when `STORAGE_DRIVER=s3`)*  
+Credentials of the storage identity (an IAM user, or an R2 API token). The same pair serves both buckets.
+```bash
+STORAGE_S3_ACCESS_KEY_ID=
+STORAGE_S3_SECRET_ACCESS_KEY=
+```
+
+**`STORAGE_S3_FORCE_PATH_STYLE`** *(optional, default `false`)*  
+`true` addresses `https://endpoint/bucket/key` rather than `https://bucket.endpoint/key`. MinIO and most self-hosted stores need it.
+```bash
+STORAGE_S3_FORCE_PATH_STYLE=false
+```
+
+**`STORAGE_S3_PUBLIC_BUCKET`** *(required when `STORAGE_DRIVER=s3`)*  
+Bucket behind the `public` disk: every uploaded asset, delivered without authentication, such as profile photos and term policy content. Signed direct uploads land here at their final key.
+```bash
+STORAGE_S3_PUBLIC_BUCKET=
+```
+
+**`STORAGE_S3_PRIVATE_BUCKET`** *(required when `STORAGE_DRIVER=s3`)*  
+Bucket behind the `private` disk: protected documents delivered only through signed downloads. No feature stores to it today. It blocks all public access.
+```bash
+STORAGE_S3_PRIVATE_BUCKET=
+```
+
 ### AWS Settings
 
 > [!NOTE]
-> AWS settings are optional by default. However, if you want to test file uploads (S3) or email functionality (SES), these become required for those specific features to work.
-
-#### S3 Configuration
-
-**`AWS_S3_IAM_CREDENTIAL_KEY`** *(optional/required for file uploads)*  
-AWS IAM access key ID for S3 bucket operations.
-```bash
-AWS_S3_IAM_CREDENTIAL_KEY=
-```
-
-**`AWS_S3_IAM_CREDENTIAL_SECRET`** *(optional/required for file uploads)*  
-AWS IAM secret access key for S3 bucket operations.
-```bash
-AWS_S3_IAM_CREDENTIAL_SECRET=
-```
-
-**`AWS_S3_IAM_ARN`** *(required when S3 credentials are set)*  
-AWS IAM Role ARN for S3 operations. Used for role-based access control and temporary credentials. Validation requires it whenever `AWS_S3_IAM_CREDENTIAL_KEY` or `AWS_S3_IAM_CREDENTIAL_SECRET` is provided.
-```bash
-AWS_S3_IAM_ARN=
-```
-
-> [!TIP]
-> Prefer `AWS_S3_IAM_ARN` in production over long-lived keys. Role assumption issues temporary credentials and rotates them.
-
-**`AWS_S3_REGION`** *(optional/required for file uploads)*  
-AWS region for S3 services.
-```bash
-AWS_S3_REGION=
-```
-
-**`AWS_S3_PUBLIC_BUCKET`** *(optional/required for file uploads)*  
-Name of the public S3 bucket for file storage.
-```bash
-AWS_S3_PUBLIC_BUCKET=
-```
-
-**`AWS_S3_PUBLIC_CDN`** *(optional)*  
-CloudFront CDN hostname for the public bucket. Set the hostname only, without a scheme: `aws.config.ts` builds the config value as `https://{AWS_S3_PUBLIC_CDN}`.
-```bash
-AWS_S3_PUBLIC_CDN=
-```
-
-#### S3 Private Bucket (for private files)
-
-**`AWS_S3_PRIVATE_BUCKET`** *(optional/required for private file uploads)*  
-Name of the private S3 bucket for secure file storage.
-```bash
-AWS_S3_PRIVATE_BUCKET=
-```
-
-**`AWS_S3_PRIVATE_CDN`** *(optional)*  
-CloudFront CDN hostname for the private bucket. Set the hostname only, without a scheme: `aws.config.ts` builds the config value as `https://{AWS_S3_PRIVATE_CDN}`.
-```bash
-AWS_S3_PRIVATE_CDN=
-```
+> AWS settings cover SES only and are optional. Email delivery needs them.
 
 #### SES (Email Service)
 
@@ -660,4 +679,5 @@ SENTRY_DSN=
 [ref-doc-two-factor]: two-factor.md
 [ref-doc-vault]: vault.md
 [ref-doc-email]: email.md
+[ref-doc-storage]: storage.md
 [ref-elasticache]: https://aws.amazon.com/elasticache/

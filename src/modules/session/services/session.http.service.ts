@@ -2,6 +2,7 @@ import { Prisma } from '@generated/prisma-client/client';
 import { PaginationStoreKey } from '@common/pagination/constants/pagination.constant';
 import { PaginationQueryUtil } from '@common/pagination/utils/pagination.query.util';
 import { RequestStoreService } from '@common/request/services/request.store.service';
+import { ObjectStorageService } from '@common/storage/services/storage.object.service';
 import type {
     IResponsePaginationReturn,
     IResponseReturn,
@@ -15,19 +16,40 @@ import type { SessionSharedListRequestDto } from '@modules/session/dtos/request/
 import type { ISessionList } from '@modules/session/interfaces/session.interface';
 import { SessionDomain } from '@modules/session/domains/session.domain';
 import { Injectable } from '@nestjs/common';
+import type { SessionResponseDto } from '@modules/session/dtos/response/session.response.dto';
 
 @Injectable()
 export class SessionHttpService {
     constructor(
         private readonly sessionDomain: SessionDomain,
         private readonly paginationQueryUtil: PaginationQueryUtil,
-        private readonly requestStoreService: RequestStoreService
+        private readonly requestStoreService: RequestStoreService,
+        private readonly objectStorageService: ObjectStorageService
     ) {}
+
+    private mapSession(session: ISessionList): SessionResponseDto {
+        const userPhoto = this.objectStorageService.toAssetResponse(
+            session.user.photo
+        );
+
+        const revokedBy = session.revokedBy
+            ? { ...session.revokedBy, photo: null }
+            : null;
+
+        return {
+            ...session,
+            userAgent: session.userAgent as SessionResponseDto['userAgent'],
+            geoLocation:
+                session.geoLocation as SessionResponseDto['geoLocation'],
+            user: { ...session.user, photo: userPhoto },
+            revokedBy,
+        };
+    }
 
     async getListOffsetByAdmin(
         userId: string,
         query: SessionAdminListRequestDto
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.offset<Prisma.SessionWhereInput>(query, {
                 availableOrderBy: SessionDefaultAvailableOrderBy,
@@ -50,8 +72,10 @@ export class SessionHttpService {
                 params,
                 isRevoked?.where
             );
+        const sessions = data.map(session => this.mapSession(session));
+
         return {
-            data,
+            data: sessions,
             ...others,
         };
     }
@@ -59,7 +83,7 @@ export class SessionHttpService {
     async getListCursor(
         userId: string,
         query: SessionSharedListRequestDto
-    ): Promise<IResponsePaginationReturn<ISessionList>> {
+    ): Promise<IResponsePaginationReturn<SessionResponseDto>> {
         const { params, storePatch } =
             this.paginationQueryUtil.cursor<Prisma.SessionWhereInput>(query, {
                 availableOrderBy: SessionCursorAvailableOrderBy,
@@ -70,8 +94,10 @@ export class SessionHttpService {
             userId,
             params
         );
+        const sessions = data.map(session => this.mapSession(session));
+
         return {
-            data,
+            data: sessions,
             ...others,
         };
     }

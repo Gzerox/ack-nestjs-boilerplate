@@ -52,6 +52,10 @@ $RECYCLE.BIN/
 .pnpm-store/
 pnpm-debug.log*
 
+# Local object storage (STORAGE_DRIVER=local)
+/storage-data/
+/storage-data-e2e/
+
 # environment
 .env*
 !.env.example

@@ -152,30 +152,30 @@ model User {
   cookiesAccepted        Boolean @default(false)
   marketingAccepted      Boolean @default(false)
 
-  mobileNumbers            UserMobileNumber[]         @relation("UserMobileNumberUser")
-  verifications            Verification[]             @relation("UserVerifications")
-  passwordHistories        PasswordHistory[]          @relation("UserPasswordHistories")
-  activityLogs             ActivityLog[]              @relation("UserActivityLogs")
-  role                     Role                       @relation("UserRole", fields: [roleId], references: [id])
-  country                  Country                    @relation("UserCountry", fields: [countryId], references: [id])
-  sessions                 Session[]                  @relation("UserSessions")
-  acceptances              TermPolicyUserAcceptance[] @relation("TermPolicyUserAcceptanceUser")
-  forgotPasswords          ForgotPassword[]           @relation("UserForgotPassword")
-  twoFactor                TwoFactor?                 @relation("UserTwoFactor")
-  photo                    UserPhoto?                 @relation("UserPhoto")
-  notifications            Notification[]             @relation("UserNotifications")
-  notificationSettings     NotificationUserSetting[]  @relation("UserNotificationSettings")
-  deviceOwnerships         DeviceOwnership[]          @relation("DeviceOwnershipUser")
-  featureFlagUsers         FeatureFlagUser[]          @relation("FeatureFlagUserUser")
-  revokedSessions          Session[]                  @relation("SessionRevokedByUser")
-  revokedDeviceOwnerships  DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
-  workspaceMembers         WorkspaceMember[]          @relation("UserWorkspaceMembers")
-  workspaceJoinRequests    WorkspaceJoinRequest[]     @relation("UserWorkspaceJoinRequests")
-  reviewedWorkspaceRequests WorkspaceJoinRequest[]    @relation("WorkspaceJoinRequestReviewedBy")
-  sentWorkspaceInvites      WorkspaceInvite[]         @relation("WorkspaceInviteInvitedBy")
-  acceptedWorkspaceInvites  WorkspaceInvite[]         @relation("WorkspaceInviteAcceptedBy")
-  projectMembers           ProjectMember[]            @relation("UserProjectMembers")
-  lastWorkspace            Workspace?                 @relation("UserLastWorkspace", fields: [lastWorkspaceId], references: [id], onDelete: SetNull)
+  mobileNumbers             UserMobileNumber[]         @relation("UserMobileNumberUser")
+  verifications             Verification[]             @relation("UserVerifications")
+  passwordHistories         PasswordHistory[]          @relation("UserPasswordHistories")
+  activityLogs              ActivityLog[]              @relation("UserActivityLogs")
+  role                      Role                       @relation("UserRole", fields: [roleId], references: [id])
+  country                   Country                    @relation("UserCountry", fields: [countryId], references: [id])
+  sessions                  Session[]                  @relation("UserSessions")
+  acceptances               TermPolicyUserAcceptance[] @relation("TermPolicyUserAcceptanceUser")
+  forgotPasswords           ForgotPassword[]           @relation("UserForgotPassword")
+  twoFactor                 TwoFactor?                 @relation("UserTwoFactor")
+  photo                     UserPhoto?                 @relation("UserPhoto")
+  notifications             Notification[]             @relation("UserNotifications")
+  notificationSettings      NotificationUserSetting[]  @relation("UserNotificationSettings")
+  deviceOwnerships          DeviceOwnership[]          @relation("DeviceOwnershipUser")
+  featureFlagUsers          FeatureFlagUser[]          @relation("FeatureFlagUserUser")
+  revokedSessions           Session[]                  @relation("SessionRevokedByUser")
+  revokedDeviceOwnerships   DeviceOwnership[]          @relation("DeviceOwnershipRevokedByUser")
+  workspaceMembers          WorkspaceMember[]          @relation("UserWorkspaceMembers")
+  workspaceJoinRequests     WorkspaceJoinRequest[]     @relation("UserWorkspaceJoinRequests")
+  reviewedWorkspaceRequests WorkspaceJoinRequest[]     @relation("WorkspaceJoinRequestReviewedBy")
+  sentWorkspaceInvites      WorkspaceInvite[]          @relation("WorkspaceInviteInvitedBy")
+  acceptedWorkspaceInvites  WorkspaceInvite[]          @relation("WorkspaceInviteAcceptedBy")
+  projectMembers            ProjectMember[]            @relation("UserProjectMembers")
+  lastWorkspace             Workspace?                 @relation("UserLastWorkspace", fields: [lastWorkspaceId], references: [id], onDelete: SetNull)
 
   @@unique(fields: [username])
   @@unique(fields: [email])
@@ -190,15 +190,13 @@ model User {
 }
 
 model UserPhoto {
-  id           String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  userId       String  @unique @db.Uuid
-  bucket       String
-  key          String
-  cdnUrl       String?
-  completedUrl String
-  mime         String
-  extension    String
-  access       String
+  id          String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId      String                @unique @db.Uuid
+  key         String
+  visibility  EnumStorageVisibility
+  contentType String
+  size        BigInt
+  etag        String?
 
   user User @relation("UserPhoto", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -417,17 +415,14 @@ model TermPolicy {
 }
 
 model TermPolicyContent {
-  id           String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  termPolicyId String                 @db.Uuid
+  id           String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  termPolicyId String                @db.Uuid
   language     EnumMessageLanguage
-  bucket       String
   key          String
-  cdnUrl       String?
-  completedUrl String
-  mime         String
-  extension    String
-  access       EnumAwsS3Accessibility
-  size         Int
+  visibility   EnumStorageVisibility
+  contentType  String
+  size         BigInt
+  etag         String?
 
   termPolicy TermPolicy @relation(fields: [termPolicyId], references: [id], onDelete: Cascade)
 
@@ -808,7 +803,7 @@ enum EnumMessageLanguage {
   en
 }
 
-enum EnumAwsS3Accessibility {
+enum EnumStorageVisibility {
   public
   private
 }

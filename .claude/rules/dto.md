@@ -90,6 +90,25 @@ returned object, and a bare payload has none. A handler with nothing to return i
   value is always present-or-null.
 - Do not combine the two on new code (`rules/null-safety.md`).
 
+## A route returns its response DTO
+
+An HTTP service method returns the response DTO the route's `@Response` / `@ResponsePagination`
+schema declares: `IResponseReturn<XResponseDto>` or `IResponsePaginationReturn<XResponseDto>`.
+The controller carries the same type. The domain keeps returning `I*` interfaces and Prisma
+models; the HTTP service maps them to the DTO (`rules/architecture.md`), so the signature says what
+reaches the wire instead of naming a database shape the schema strips.
+
+- **Resolve runtime values in that mapping.** A stored asset's `url` is added through
+  `ObjectStorageService.toAssetResponse` (`rules/file.md`); the DTO type then holds without a cast.
+- **A shared shape changes at its single source.** The embedded user `photo` is the stored-asset
+  shape `{ key, visibility, contentType, url }`, declared once by `StorageAssetResponseSchema` and
+  reached through `UserRefResponseSchema`. A projection does not restate it.
+- **A route that returns the domain result untouched may keep its `I*` type.** Nothing is mapped,
+  so nothing is hidden. The moment the HTTP service reshapes or resolves anything, the route returns
+  the DTO.
+- A renamed or removed response field is a change to the response itself, so it follows the
+  behaviour that asked for it, not a refactor that merely moves where a value comes from.
+
 ## Field names
 
 Field names are the JSON keys, and they are camelCase (`rules/naming.md`). **Rename

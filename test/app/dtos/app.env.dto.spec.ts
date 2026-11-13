@@ -149,6 +149,15 @@ describe('AppEnvSchema', () => {
             expect(issuePaths(validEnv)).toEqual([]);
         });
 
+        it('requires the local root when the driver is local', () => {
+            expect(
+                issuePaths({
+                    ...validEnv,
+                    STORAGE_LOCAL_ROOT: undefined,
+                })
+            ).toEqual(['STORAGE_LOCAL_ROOT']);
+        });
+
         it('rejects a public base URL that is not absolute', () => {
             expect(
                 issuePaths({ ...validEnv, STORAGE_PUBLIC_BASE_URL: '/files' })

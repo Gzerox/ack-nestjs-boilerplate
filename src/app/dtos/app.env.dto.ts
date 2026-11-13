@@ -112,6 +112,18 @@ export const AppEnvSchema = z
                     'AWS_SES_IAM_ARN is required when an AWS SES IAM credential is set',
             });
         }
+
+        if (
+            env.STORAGE_DRIVER === EnumStorageDriver.local &&
+            !env.STORAGE_LOCAL_ROOT?.trim()
+        ) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['STORAGE_LOCAL_ROOT'],
+                message:
+                    'STORAGE_LOCAL_ROOT is required when STORAGE_DRIVER is local',
+            });
+        }
     });
 
 /**

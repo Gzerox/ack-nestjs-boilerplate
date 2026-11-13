@@ -153,7 +153,7 @@ EMAIL_NO_REPLY=noreply@mail.com
 EMAIL_SUPPORT=support@mail.com
 EMAIL_ADMIN=admin@mail.com
 
-# AWS SNS (Optional; SMS is not enabled by existing notification kinds)
+# AWS SNS (Optional; SMS is enabled for reset-2FA and new-device security alerts)
 AWS_SNS_IAM_CREDENTIAL_KEY=
 AWS_SNS_IAM_CREDENTIAL_SECRET=
 AWS_SNS_REGION=
@@ -610,7 +610,7 @@ EMAIL_ADMIN=admin@mail.com
 
 #### SNS (SMS Service)
 
-`AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` initialize the optional SNS client. `AWS_SNS_SENDER_ID` is optional. The existing notification kinds do not enqueue SMS, even when these values are configured.
+`AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` initialize the optional SNS client. `AWS_SNS_SENDER_ID` is optional. SMS is enqueued only for reset-two-factor-by-admin and new-device-login security notifications, and only for users with verified mobile numbers.
 
 ### Firebase Settings
 

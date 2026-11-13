@@ -18,7 +18,7 @@ describe('NotificationSmsQueue', () => {
     const payload: INotificationSendSmsPayload = {
         userId: 'user-id',
         notificationId: 'notification-id',
-        kind: EnumNotificationSmsProcess.changePassword,
+        kind: EnumNotificationSmsProcess.newDeviceLogin,
         phoneNumber: '+628123456789',
     };
 
@@ -54,17 +54,17 @@ describe('NotificationSmsQueue', () => {
                 payload.phoneNumber
             );
             expect(notificationSmsQueue.add).toHaveBeenCalledWith(
-                EnumNotificationSmsProcess.changePassword,
+                EnumNotificationSmsProcess.newDeviceLogin,
                 {
                     userId: 'user-id',
                     notificationId: 'notification-id',
-                    kind: EnumNotificationSmsProcess.changePassword,
+                    kind: EnumNotificationSmsProcess.newDeviceLogin,
                     phoneNumber: '+628123456789',
                 },
                 {
                     priority: EnumQueuePriority.high,
                     deduplication: {
-                        id: `${EnumNotificationSmsProcess.changePassword}-${payload.userId}-hashed-number`,
+                        id: `${EnumNotificationSmsProcess.newDeviceLogin}-${payload.userId}-hashed-number`,
                         ttl: 60_000,
                     },
                 }
@@ -110,5 +110,12 @@ describe('NotificationSmsQueue', () => {
                 })
             );
         });
+    });
+
+    it('supports only the approved security SMS kinds', () => {
+        expect(Object.values(EnumNotificationSmsProcess)).toEqual([
+            EnumNotificationSmsProcess.resetTwoFactorByAdmin,
+            EnumNotificationSmsProcess.newDeviceLogin,
+        ]);
     });
 });

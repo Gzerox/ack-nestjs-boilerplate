@@ -14,7 +14,7 @@ describe('NotificationSmsProcessor delivery errors', () => {
     let processor: NotificationSmsProcessor;
     beforeEach(async () => {
         vi.resetAllMocks();
-        job.name = EnumNotificationSmsProcess.resetPassword;
+        job.name = EnumNotificationSmsProcess.newDeviceLogin;
         job.opts = { attempts: 3 };
         job.attemptsMade = 1;
         const module = await Test.createTestingModule({

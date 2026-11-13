@@ -145,7 +145,7 @@ Every code except `51400` (503) and `51403` (409) answers HTTP 500.
 
 ### SNS SMS
 
-`AwsSNSService` and the SMS queue/processor are available for future use, but current notification kinds do not enqueue SMS. Set `AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` to initialize SNS; `AWS_SNS_SENDER_ID` is optional. Without the required values the SNS client is disabled. Enabling credentials alone does not add SMS to existing notification channels.
+`AwsSNSService` and the SMS queue/processor send security alerts for `resetTwoFactorByAdmin` and `newDeviceLogin`. Each verified mobile number gets one SMS job; users without a verified mobile number skip SMS enqueueing. Set `AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` to initialize SNS; `AWS_SNS_SENDER_ID` is optional. Without the required values the SNS client is disabled.
 
 `AwsSNSService.checkConnection()` reads SNS SMS attributes and requires `sns:GetSMSAttributes`. A successful check confirms access to that operation; SMS publishing requires its own permission.
 

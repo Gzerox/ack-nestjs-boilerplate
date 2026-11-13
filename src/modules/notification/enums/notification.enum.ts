@@ -46,10 +46,6 @@ export enum EnumNotificationPushProcess {
  * @public
  */
 export enum EnumNotificationSmsProcess {
-    temporaryPasswordByAdmin = 'temporaryPasswordByAdmin',
-    changePassword = 'changePassword',
-    forgotPassword = 'forgotPassword',
-    resetPassword = 'resetPassword',
     resetTwoFactorByAdmin = 'resetTwoFactorByAdmin',
     newDeviceLogin = 'newDeviceLogin',
 }

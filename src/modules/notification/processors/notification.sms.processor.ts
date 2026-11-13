@@ -25,10 +25,6 @@ export class NotificationSmsProcessor extends QueueProcessorBase {
         job: Job<unknown, IQueueResponse, EnumNotificationSmsProcess>
     ): Promise<IQueueResponse> {
         switch (job.name) {
-            case EnumNotificationSmsProcess.temporaryPasswordByAdmin:
-            case EnumNotificationSmsProcess.changePassword:
-            case EnumNotificationSmsProcess.forgotPassword:
-            case EnumNotificationSmsProcess.resetPassword:
             case EnumNotificationSmsProcess.resetTwoFactorByAdmin:
             case EnumNotificationSmsProcess.newDeviceLogin:
                 return await this.notificationSmsProcessorService.processSecurityAlert(

@@ -29,6 +29,11 @@ export const AppEnvSchema = z
         HTTP_PORT: z.coerce.number().int(),
         HTTP_TRUSTED_PROXY: z.string().optional(),
 
+        DOC_ENABLED: RequestBooleanStringSchema.optional(),
+        DOC_AUTH_ENABLED: RequestBooleanStringSchema.optional(),
+        DOC_AUTH_USERNAME: z.string().min(1).optional(),
+        DOC_AUTH_PASSWORD: z.string().min(1).optional(),
+
         LOGGER_ENABLE: RequestBooleanStringSchema,
         LOGGER_LEVEL: z.enum(EnumLoggerLevel),
         LOGGER_INTO_FILE: RequestBooleanStringSchema,
@@ -118,6 +123,26 @@ export const AppEnvSchema = z
                 message:
                     'AWS_SES_IAM_ARN is required when an AWS SES IAM credential is set',
             });
+        }
+
+        if (env.DOC_AUTH_ENABLED === true) {
+            if (!env.DOC_AUTH_USERNAME) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['DOC_AUTH_USERNAME'],
+                    message:
+                        'DOC_AUTH_USERNAME is required when DOC_AUTH_ENABLED is true',
+                });
+            }
+
+            if (!env.DOC_AUTH_PASSWORD) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['DOC_AUTH_PASSWORD'],
+                    message:
+                        'DOC_AUTH_PASSWORD is required when DOC_AUTH_ENABLED is true',
+                });
+            }
         }
     });
 

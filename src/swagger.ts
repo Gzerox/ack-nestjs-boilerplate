@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestApplication } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import basicAuth from 'express-basic-auth';
 import { writeFileSync } from 'fs';
 import { createSchema } from 'zod-openapi';
 import { z } from 'zod';
@@ -28,6 +29,13 @@ export default async function (app: NestApplication): Promise<void> {
     const appAuthorEmail: string =
         configService.get<string>('app.author.email')!;
 
+    const docEnabled: boolean = configService.get<boolean>('doc.enabled')!;
+    const docAuthEnabled: boolean =
+        configService.get<boolean>('doc.auth.enabled')!;
+    const docAuthUsername: string =
+        configService.get<string>('doc.auth.username')!;
+    const docAuthPassword: string =
+        configService.get<string>('doc.auth.password')!;
     const docName: string = configService.get<string>('doc.name')!;
     const docVersion: string = configService.get<string>('doc.version')!;
     const docPrefix: string = configService.get<string>('doc.prefix')!;
@@ -36,7 +44,7 @@ export default async function (app: NestApplication): Promise<void> {
 
     const logger = new Logger(`${appName}-Doc`);
 
-    if (env !== EnumAppEnvironment.production) {
+    if (docEnabled && env !== EnumAppEnvironment.production) {
         const documentBuild = new DocumentBuilder()
             .setTitle(docName)
             .setVersion(appVersion)
@@ -82,6 +90,16 @@ export default async function (app: NestApplication): Promise<void> {
             writeFileSync('generated/swagger.json', JSON.stringify(document));
         } catch (err: unknown) {
             logger.warn(err, 'Failed to write swagger.json');
+        }
+
+        if (docAuthEnabled) {
+            app.use(
+                docPrefix,
+                basicAuth({
+                    challenge: true,
+                    users: { [docAuthUsername]: docAuthPassword },
+                })
+            );
         }
 
         SwaggerModule.setup(docPrefix, app, document, {

@@ -423,4 +423,79 @@ describe('AppEnvSchema', () => {
             expect(result.success).toBe(true);
         });
     });
+
+    describe('documentation auth refinement', () => {
+        it('accepts an environment without any DOC_ variable', () => {
+            const result = AppEnvSchema.safeParse(validEnv);
+
+            expect(result.success).toBe(true);
+        });
+
+        it('requires both credentials when DOC_AUTH_ENABLED is true', () => {
+            const result = AppEnvSchema.safeParse({
+                ...validEnv,
+                DOC_AUTH_ENABLED: 'true',
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues).toContainEqual(
+                expect.objectContaining({
+                    code: 'custom',
+                    path: ['DOC_AUTH_USERNAME'],
+                })
+            );
+            expect(result.error?.issues).toContainEqual(
+                expect.objectContaining({
+                    code: 'custom',
+                    path: ['DOC_AUTH_PASSWORD'],
+                })
+            );
+        });
+
+        it('accepts credentials when DOC_AUTH_ENABLED is true', () => {
+            const result = AppEnvSchema.safeParse({
+                ...validEnv,
+                DOC_AUTH_ENABLED: 'true',
+                DOC_AUTH_USERNAME: 'docs',
+                DOC_AUTH_PASSWORD: 'secret',
+            });
+
+            expect(result.success).toBe(true);
+        });
+
+        it('rejects an empty DOC_AUTH_USERNAME', () => {
+            const result = AppEnvSchema.safeParse({
+                ...validEnv,
+                DOC_AUTH_ENABLED: 'true',
+                DOC_AUTH_USERNAME: '',
+                DOC_AUTH_PASSWORD: 'secret',
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues).toContainEqual(
+                expect.objectContaining({ path: ['DOC_AUTH_USERNAME'] })
+            );
+        });
+
+        it('ignores missing credentials when DOC_AUTH_ENABLED is false', () => {
+            const result = AppEnvSchema.safeParse({
+                ...validEnv,
+                DOC_AUTH_ENABLED: 'false',
+            });
+
+            expect(result.success).toBe(true);
+        });
+
+        it('rejects a non-boolean DOC_ENABLED', () => {
+            const result = AppEnvSchema.safeParse({
+                ...validEnv,
+                DOC_ENABLED: 'yes',
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues).toContainEqual(
+                expect.objectContaining({ path: ['DOC_ENABLED'] })
+            );
+        });
+    });
 });

@@ -565,6 +565,20 @@ onboarding: {
 
 #### Configuration Keys:
 
+**`enabled`** - Documentation switch
+```typescript
+enabled: boolean                // `DOC_ENABLED`, true unless set to 'false'; docs are served only when this is true AND `app.env` is not production
+```
+
+**`auth`** - HTTP Basic Auth in front of the Swagger UI and JSON
+```typescript
+auth: {
+  enabled: boolean;             // `DOC_AUTH_ENABLED`, default false
+  username: string | null;      // `DOC_AUTH_USERNAME`, null when unset; required by `AppEnvSchema` when auth is enabled
+  password: string | null;      // `DOC_AUTH_PASSWORD`, null when unset; required by `AppEnvSchema` when auth is enabled
+}
+```
+
 **`name`** - Documentation title
 ```typescript
 name: string                    // API documentation title

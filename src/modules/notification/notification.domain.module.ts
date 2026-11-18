@@ -22,6 +22,7 @@ import { NotificationPushWorkspaceDomain } from '@modules/notification/domains/n
 import { NotificationSecurityDomain } from '@modules/notification/domains/notification.security.domain';
 import { NotificationSmsAccountDomain } from '@modules/notification/domains/notification.sms.account.domain';
 import { NotificationSmsSecurityDomain } from '@modules/notification/domains/notification.sms.security.domain';
+import { NotificationWhatsappAccountDomain } from '@modules/notification/domains/notification.whatsapp.account.domain';
 import { NotificationDomain } from '@modules/notification/domains/notification.domain';
 import { NotificationTemplateAccountDomain } from '@modules/notification/domains/notification.template.account.domain';
 import { NotificationTemplateSecurityDomain } from '@modules/notification/domains/notification.template.security.domain';
@@ -57,6 +58,7 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationPushMaintenanceDomain,
         NotificationSmsSecurityDomain,
         NotificationSmsAccountDomain,
+        NotificationWhatsappAccountDomain,
         NotificationQueue,
         NotificationEmailQueue,
         NotificationPushQueue,
@@ -83,6 +85,7 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationPushMaintenanceDomain,
         NotificationSmsSecurityDomain,
         NotificationSmsAccountDomain,
+        NotificationWhatsappAccountDomain,
         NotificationQueue,
         NotificationEmailQueue,
         NotificationPushQueue,

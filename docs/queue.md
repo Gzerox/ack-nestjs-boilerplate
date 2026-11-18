@@ -164,6 +164,7 @@ Default job options come from `queue.config.ts` (interface `IConfigQueue`). Conn
 |-------|------------|---------------|
 | `EnumQueue.notificationEmail` | `emailBackoffDelayInMs` | `10000` |
 | `EnumQueue.notificationPush` | `pushBackoffDelayInMs` | `5000` |
+| `EnumQueue.notificationWhatsapp` | `whatsappBackoffDelayInMs` | `10000` |
 | `EnumQueue.notification` | `notificationBackoffDelayInMs` | `3000` |
 | `EnumQueue.workspace` | `workspaceBackoffDelayInMs` | `10000` |
 
@@ -505,3 +506,5 @@ redis-bullboard:
 ## SMS notifications
 
 `NotificationSecurityDomain` loads the active profile and creates `resetTwoFactorByAdmin` and `newDeviceLogin` SMS security-alert jobs alongside the email and push work. A missing profile fails the workflow. The SMS queue processes jobs through AWS SNS, with one job per verified mobile number. Users without a verified mobile number skip SMS enqueueing; the SMS processor only delivers already-enqueued jobs and defensively skips jobs with no recipient.
+
+The mobile-number verification code also rides this queue when the user picks `sms`. When the user picks `whatsapp`, the job goes to the `notificationWhatsapp` queue, consumed by `NotificationWhatsappProcessor` with backoff `queue.job.whatsappBackoffDelayInMs`.

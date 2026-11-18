@@ -25,6 +25,7 @@ Third-party clients are configured through environment variables. Each section b
     - [Bucket setup](#bucket-setup)
   - [SES Email](#ses-email)
   - [SNS SMS](#sns-sms)
+  - [AWS End User Messaging Social](#aws-end-user-messaging-social)
   - [Error Codes](#error-codes)
 - [Firebase](#firebase)
 - [Sentry](#sentry)
@@ -145,9 +146,47 @@ Every code except `51400` (503) and `51403` (409) answers HTTP 500.
 
 ### SNS SMS
 
-`AwsSNSService` and the SMS queue/processor send security alerts for `resetTwoFactorByAdmin` and `newDeviceLogin`. Each verified mobile number gets one SMS job; users without a verified mobile number skip SMS enqueueing. Set `AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` to initialize SNS; `AWS_SNS_SENDER_ID` is optional. Without the required values the SNS client is disabled.
+`AwsSNSService` and the SMS queue/processor send security alerts for `resetTwoFactorByAdmin` and `newDeviceLogin`, and the mobile-number verification code when the user picks `sms` as the channel. Each verified mobile number gets one alert SMS job; users without a verified mobile number skip alert enqueueing. Set `AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` to initialize SNS; `AWS_SNS_SENDER_ID` is optional. Without the required values the SNS client is disabled.
 
 `AwsSNSService.checkConnection()` reads SNS SMS attributes and requires `sns:GetSMSAttributes`. A successful check confirms access to that operation; SMS publishing requires its own permission.
+
+### AWS End User Messaging Social
+
+`AwsSocialMessagingService` sends the mobile-number verification code over WhatsApp through [AWS End User Messaging Social][ref-aws-social-messaging]. The user picks the channel per request: `channel` (`sms` or `whatsapp`) is a required body field, with no default, on `POST /shared/user/mobile-number/add`, `PUT /shared/user/mobile-number/:mobileNumberId/update`, and `POST /shared/user/mobile-number/:mobileNumberId/verification/resend`. One notification kind, `verificationMobileNumber`, serves both channels; the chosen channel decides which queue gets the job (`notificationSms` or `notificationWhatsapp`).
+
+**Packages:**
+- `@aws-sdk/client-socialmessaging`
+
+**Environment Variables:** all optional.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY` | none | IAM access key |
+| `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET` | none | IAM secret key |
+| `AWS_SOCIAL_MESSAGING_REGION` | none | Region of the linked WhatsApp Business Account |
+| `AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID` | none | Id of the sending number in AWS |
+| `AWS_SOCIAL_MESSAGING_META_API_VERSION` | `v20.0` | Meta Graph API version sent with each message |
+| `AWS_SOCIAL_MESSAGING_TEMPLATE_NAME` | none | Name of the approved Authentication template |
+| `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES` | `en` | Comma-separated language codes of the approved translations |
+
+The client is created only when the key, secret, region, origination phone number id, and template name are all set. Otherwise it stays disabled, the app logs a warning at startup, and a WhatsApp job completes as skipped without sending.
+
+**Meta and AWS prerequisites:**
+- A Meta Business Portfolio.
+- A WhatsApp Business Account linked in AWS End User Messaging Social.
+- A dedicated phone number that is not already registered on WhatsApp.
+- One approved Authentication template, with a translation for each language in `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES`.
+
+The message is that template with the one-time code as the body parameter and as the copy-code button parameter. The template text lives at Meta, not in `src/languages/`. The language comes from the configured list: the notification passes no user language, so the first listed language is used.
+
+**IAM:** sending needs `social-messaging:SendWhatsAppMessage`. `checkConnection()` calls `ListLinkedWhatsAppBusinessAccounts` and needs `social-messaging:ListLinkedWhatsAppBusinessAccounts`.
+
+**Failure behaviour:** a provider rejection fails the job after the queue's retries (`queue.job.attempts`, backoff `queue.job.whatsappBackoffDelayInMs`). The delivery row keeps `processedAt` set and `sentAt` null. A code that fails to decrypt is not retried.
+
+**Deploy notes:**
+- Apply the new `whatsapp` value of `EnumNotificationChannel` with `pnpm db:push`.
+- Drain the `notification` queue before deploying: its verification jobs now carry `channel`, and a job queued without it cannot be routed.
+- API clients must send `channel` on the add, update, and resend routes. The resend route now requires a body, `{ "channel": "sms" }` or `{ "channel": "whatsapp" }`.
 
 ## Firebase
 
@@ -291,6 +330,7 @@ For authentication flow details, see [Authentication][ref-doc-authentication].
 
 [ref-aws-s3]: https://docs.aws.amazon.com/s3/
 [ref-aws-ses]: https://docs.aws.amazon.com/ses/
+[ref-aws-social-messaging]: https://docs.aws.amazon.com/social-messaging/
 [ref-firebase]: https://firebase.google.com/docs/admin/setup
 [ref-sentry]: https://sentry.io
 [ref-redis]: https://redis.io

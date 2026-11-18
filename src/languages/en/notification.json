@@ -29,6 +29,10 @@
             "title": "Verify your mobile number",
             "body": "A verification code was sent to {mobileNumber}."
         },
+        "verificationMobileNumberWhatsapp": {
+            "title": "Verify your mobile number on WhatsApp",
+            "body": "A verification code was sent to {mobileNumber} on WhatsApp."
+        },
         "changePassword": {
             "title": "Password Changed",
             "body": "Hi {username}, your password has been changed successfully."

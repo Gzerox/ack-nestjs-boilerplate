@@ -52,6 +52,23 @@ export enum EnumNotificationSmsProcess {
 }
 
 /**
+ * Job names on the notification whatsapp queue.
+ * @public
+ */
+export enum EnumNotificationWhatsappProcess {
+    verificationMobileNumber = 'verificationMobileNumber',
+}
+
+/**
+ * Channel a mobile number verification code is delivered through.
+ * @public
+ */
+export enum EnumNotificationVerificationChannel {
+    sms = 'sms',
+    whatsapp = 'whatsapp',
+}
+
+/**
  * Kinds of stored notification, each with its own type and channels.
  * @public
  */
@@ -61,6 +78,7 @@ export enum EnumNotificationKind {
     welcomeByAdmin = 'welcomeByAdmin',
     verificationEmail = 'verificationEmail',
     verificationMobileNumber = 'verificationMobileNumber',
+    verificationMobileNumberWhatsapp = 'verificationMobileNumberWhatsapp',
     verifiedEmail = 'verifiedEmail',
     temporaryPasswordByAdmin = 'temporaryPasswordByAdmin',
     changePassword = 'changePassword',

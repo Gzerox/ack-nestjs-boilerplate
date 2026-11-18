@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
@@ -24,7 +25,7 @@ describe('AwsSocialMessagingService', () => {
         'aws.socialMessaging.iam.secret': 'sm-secret',
         'aws.socialMessaging.region': 'us-east-1',
         'aws.socialMessaging.originationPhoneNumberId': 'phone-number-id-1',
-        'aws.socialMessaging.metaApiVersion': 'v20.0',
+        'aws.socialMessaging.metaApiVersion': 'v-test-1',
         'aws.socialMessaging.templateName': 'otp_template',
         'aws.socialMessaging.templateLanguages': ['en', 'id'],
         'aws.socialMessaging.maxAttempts': 1,
@@ -94,8 +95,27 @@ describe('AwsSocialMessagingService', () => {
             'aws.socialMessaging.region',
             'aws.socialMessaging.originationPhoneNumberId',
             'aws.socialMessaging.templateName',
-        ])('is false when %s is missing', async key => {
+            'aws.socialMessaging.metaApiVersion',
+        ])('is false and warns when %s is missing', async key => {
+            const warn = vi.spyOn(Logger.prototype, 'warn');
             const service = await buildService({ [key]: null });
+
+            expect(service.isInitialized()).toBe(false);
+            expect(SocialMessagingClient).not.toHaveBeenCalled();
+            expect(warn).toHaveBeenCalledWith(
+                'AWS Social Messaging not configured. WhatsApp functionalities will be disabled.'
+            );
+        });
+
+        it.each([
+            'aws.socialMessaging.iam.key',
+            'aws.socialMessaging.iam.secret',
+            'aws.socialMessaging.region',
+            'aws.socialMessaging.originationPhoneNumberId',
+            'aws.socialMessaging.templateName',
+            'aws.socialMessaging.metaApiVersion',
+        ])('is false when %s is an empty string', async key => {
+            const service = await buildService({ [key]: '' });
 
             expect(service.isInitialized()).toBe(false);
             expect(SocialMessagingClient).not.toHaveBeenCalled();
@@ -147,7 +167,7 @@ describe('AwsSocialMessagingService', () => {
                 expect.objectContaining({
                     input: expect.objectContaining({
                         originationPhoneNumberId: 'phone-number-id-1',
-                        metaApiVersion: 'v20.0',
+                        metaApiVersion: 'v-test-1',
                     }),
                 })
             );

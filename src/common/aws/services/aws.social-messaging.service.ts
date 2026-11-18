@@ -20,7 +20,7 @@ export class AwsSocialMessagingService implements OnModuleInit {
     private readonly iamSecret: string | null;
     private readonly region: string | null;
     private readonly originationPhoneNumberId: string | null;
-    private readonly metaApiVersion: string;
+    private readonly metaApiVersion: string | null;
     private readonly templateName: string | null;
     private readonly templateLanguages: string[];
     private readonly maxAttempts: number;
@@ -40,7 +40,7 @@ export class AwsSocialMessagingService implements OnModuleInit {
         this.originationPhoneNumberId = this.configService.get<string | null>(
             'aws.socialMessaging.originationPhoneNumberId'
         )!;
-        this.metaApiVersion = this.configService.get<string>(
+        this.metaApiVersion = this.configService.get<string | null>(
             'aws.socialMessaging.metaApiVersion'
         )!;
         this.templateName = this.configService.get<string | null>(
@@ -60,7 +60,8 @@ export class AwsSocialMessagingService implements OnModuleInit {
             !this.iamSecret ||
             !this.region ||
             !this.originationPhoneNumberId ||
-            !this.templateName
+            !this.templateName ||
+            !this.metaApiVersion
         ) {
             this.logger.warn(
                 'AWS Social Messaging not configured. WhatsApp functionalities will be disabled.'
@@ -150,7 +151,7 @@ export class AwsSocialMessagingService implements OnModuleInit {
 
         const command = new SendWhatsAppMessageCommand({
             originationPhoneNumberId: this.originationPhoneNumberId!,
-            metaApiVersion: this.metaApiVersion,
+            metaApiVersion: this.metaApiVersion!,
             message: new TextEncoder().encode(JSON.stringify(payload)),
         });
 

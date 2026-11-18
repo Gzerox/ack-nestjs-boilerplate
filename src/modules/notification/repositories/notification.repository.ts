@@ -95,19 +95,9 @@ export class NotificationRepository implements INotificationRepository {
         kind: EnumNotificationKind,
         payload: INotificationCreate
     ): Promise<Notification> {
-        const today = this.helperDateService.create();
-
         const { pendingChannels } = NotificationKindContract[kind];
-        const createData = this.buildCreateData(
-            kind,
-            payload,
-            pendingChannels,
-            today
-        );
 
-        return this.databaseService.client.notification.create({
-            data: createData,
-        });
+        return this.createForChannels(kind, payload, pendingChannels);
     }
 
     async createForChannels(

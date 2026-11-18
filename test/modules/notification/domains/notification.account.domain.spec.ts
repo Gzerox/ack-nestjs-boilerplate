@@ -464,6 +464,33 @@ describe('NotificationAccountDomain', () => {
             }
         );
 
+        it('throws on an unknown channel before creating a notification or enqueuing', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            databaseUtil.createId.mockReturnValue('notification-id');
+            helperStringService.censor.mockReturnValue('+1555****567');
+            const unknownChannelData = {
+                ...data,
+                channel: 'telegram',
+            } as unknown as typeof smsData;
+
+            await expect(
+                domain.processVerificationMobileNumber(
+                    'user-id',
+                    unknownChannelData
+                )
+            ).rejects.toThrow('Unhandled channel telegram');
+
+            expect(
+                notificationRepository.createForChannels
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationSmsQueue.sendVerificationMobileNumber
+            ).not.toHaveBeenCalled();
+            expect(
+                notificationWhatsappQueue.sendVerificationMobileNumber
+            ).not.toHaveBeenCalled();
+        });
+
         it('sms creates the notification before enqueuing the sms and never the whatsapp queue', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             databaseUtil.createId.mockReturnValue('notification-id');

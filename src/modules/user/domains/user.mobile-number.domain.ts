@@ -187,7 +187,7 @@ export class UserMobileNumberDomain {
 
             this.activityLogDomain.stagePrepared(events);
 
-            // Sequential by design: the SMS must not go out if the transaction throws.
+            // Sequential by design: the verification code must not go out if the transaction throws.
             const expiredAt = this.helperDateService.formatToIso(
                 verification.expiredAt
             );
@@ -324,7 +324,7 @@ export class UserMobileNumberDomain {
 
             this.activityLogDomain.stagePrepared(events);
 
-            // Sequential by design: the SMS must not go out if the transaction throws.
+            // Sequential by design: the verification code must not go out if the transaction throws.
             const expiredAt = this.helperDateService.formatToIso(
                 verification.expiredAt
             );
@@ -447,7 +447,7 @@ export class UserMobileNumberDomain {
 
             this.activityLogDomain.stagePrepared(events);
 
-            // Sequential by design: the SMS must not go out if the transaction throws.
+            // Sequential by design: the verification code must not go out if the transaction throws.
             const expiredAt = this.helperDateService.formatToIso(
                 verification.expiredAt
             );

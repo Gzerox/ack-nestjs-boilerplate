@@ -293,7 +293,7 @@ export class NotificationAccountDomain {
                         createPayload,
                         [EnumNotificationChannel.whatsapp]
                     );
-                // A stored or threaded language is a later change once a second language ships
+                // languageCode null: the WhatsApp domain resolves it to the first configured template language
                 await this.notificationWhatsappQueue.sendVerificationMobileNumber(
                     {
                         userId: user.id,

@@ -56,7 +56,7 @@ export interface IConfigAws {
         };
         region: string | null;
         originationPhoneNumberId: string | null;
-        metaApiVersion: string;
+        metaApiVersion: string | null;
         templateName: string | null;
         templateLanguages: string[];
         maxAttempts: number;
@@ -145,7 +145,7 @@ export default registerAs('aws', (): IConfigAws => ({
             process.env.AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID ??
             null,
         metaApiVersion:
-            process.env.AWS_SOCIAL_MESSAGING_META_API_VERSION ?? 'v20.0',
+            process.env.AWS_SOCIAL_MESSAGING_META_API_VERSION || null,
         templateName: process.env.AWS_SOCIAL_MESSAGING_TEMPLATE_NAME ?? null,
         templateLanguages:
             socialMessagingTemplateLanguages.length > 0

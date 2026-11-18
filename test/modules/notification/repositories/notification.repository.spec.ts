@@ -41,7 +41,7 @@ describe('NotificationRepository', () => {
     });
 
     describe('create', () => {
-        it('keeps the contract pendingChannels when the payload sets none', async () => {
+        it('creates the delivery rows from the contract pendingChannels', async () => {
             await repository.create(
                 EnumNotificationKind.verificationMobileNumber,
                 base

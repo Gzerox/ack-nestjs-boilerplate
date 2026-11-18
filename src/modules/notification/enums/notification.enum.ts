@@ -78,7 +78,6 @@ export enum EnumNotificationKind {
     welcomeByAdmin = 'welcomeByAdmin',
     verificationEmail = 'verificationEmail',
     verificationMobileNumber = 'verificationMobileNumber',
-    verificationMobileNumberWhatsapp = 'verificationMobileNumberWhatsapp',
     verifiedEmail = 'verifiedEmail',
     temporaryPasswordByAdmin = 'temporaryPasswordByAdmin',
     changePassword = 'changePassword',

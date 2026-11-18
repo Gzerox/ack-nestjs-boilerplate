@@ -63,14 +63,6 @@ export const NotificationKindContract: Record<
         pendingChannels: [EnumNotificationChannel.sms],
         deliveredChannels: [EnumNotificationChannel.silent],
     },
-    [EnumNotificationKind.verificationMobileNumberWhatsapp]: {
-        type: EnumNotificationType.userActivity,
-        priority: EnumNotificationPriority.high,
-        title: 'notification.notify.verificationMobileNumberWhatsapp.title',
-        body: 'notification.notify.verificationMobileNumberWhatsapp.body',
-        pendingChannels: [EnumNotificationChannel.whatsapp],
-        deliveredChannels: [EnumNotificationChannel.silent],
-    },
     [EnumNotificationKind.verifiedEmail]: {
         type: EnumNotificationType.userActivity,
         priority: EnumNotificationPriority.normal,

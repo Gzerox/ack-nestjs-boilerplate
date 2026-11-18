@@ -1,7 +1,11 @@
 import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
-import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
+import {
+    EnumNotificationKind,
+    EnumNotificationVerificationChannel,
+} from '@modules/notification/enums/notification.enum';
 import type {
+    INotificationCreate,
     INotificationEmailSendPayload,
     INotificationVerificationEmailEncryptedPayload,
     INotificationVerificationMobileNumberEncryptedPayload,
@@ -11,7 +15,9 @@ import type {
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { NotificationEmailQueue } from '@modules/notification/queues/notification.email.queue';
 import { NotificationSmsQueue } from '@modules/notification/queues/notification.sms.queue';
+import { NotificationWhatsappQueue } from '@modules/notification/queues/notification.whatsapp.queue';
 import { UserDomain } from '@modules/user/domains/user.domain';
+import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { Injectable } from '@nestjs/common';
 import type { IQueueResponse } from '@queues/interfaces/queue.interface';
 
@@ -24,7 +30,8 @@ export class NotificationAccountDomain {
         private readonly helperStringService: HelperStringService,
         private readonly databaseUtil: DatabaseUtil,
         private readonly notificationEmailQueue: NotificationEmailQueue,
-        private readonly notificationSmsQueue: NotificationSmsQueue
+        private readonly notificationSmsQueue: NotificationSmsQueue,
+        private readonly notificationWhatsappQueue: NotificationWhatsappQueue
     ) {}
 
     async processWelcomeByAdmin(
@@ -251,28 +258,59 @@ export class NotificationAccountDomain {
         const censoredMobileNumber = this.helperStringService.censor(
             data.phoneNumber
         );
-
-        const notification = await this.notificationRepository.create(
-            EnumNotificationKind.verificationMobileNumber,
-            {
-                id: notificationId,
-                userId: user.id,
-                metadata: {
-                    username: user.username,
-                    mobileNumber: censoredMobileNumber,
-                },
-                createdBy: user.id,
-            }
-        );
-
-        // Sequential by design: the SMS processor requires the sms delivery row
-        await this.notificationSmsQueue.sendVerificationMobileNumber({
+        const createPayload: INotificationCreate = {
+            id: notificationId,
             userId: user.id,
-            notificationId: notification.id,
-            phoneNumber: data.phoneNumber,
-            encryptedOtp: data.encryptedOtp,
-            expiredInMinutes: data.expiredInMinutes,
-        });
+            metadata: {
+                username: user.username,
+                mobileNumber: censoredMobileNumber,
+            },
+            createdBy: user.id,
+        };
+
+        // Sequential by design: the channel processor requires the delivery row
+        switch (data.channel) {
+            case EnumNotificationVerificationChannel.sms: {
+                const notification =
+                    await this.notificationRepository.createForChannels(
+                        EnumNotificationKind.verificationMobileNumber,
+                        createPayload,
+                        [EnumNotificationChannel.sms]
+                    );
+                await this.notificationSmsQueue.sendVerificationMobileNumber({
+                    userId: user.id,
+                    notificationId: notification.id,
+                    phoneNumber: data.phoneNumber,
+                    encryptedOtp: data.encryptedOtp,
+                    expiredInMinutes: data.expiredInMinutes,
+                });
+                break;
+            }
+            case EnumNotificationVerificationChannel.whatsapp: {
+                const notification =
+                    await this.notificationRepository.createForChannels(
+                        EnumNotificationKind.verificationMobileNumber,
+                        createPayload,
+                        [EnumNotificationChannel.whatsapp]
+                    );
+                // A stored or threaded language is a later change once a second language ships
+                await this.notificationWhatsappQueue.sendVerificationMobileNumber(
+                    {
+                        userId: user.id,
+                        notificationId: notification.id,
+                        phoneNumber: data.phoneNumber,
+                        encryptedOtp: data.encryptedOtp,
+                        expiredInMinutes: data.expiredInMinutes,
+                        languageCode: null,
+                    }
+                );
+                break;
+            }
+            default: {
+                const unhandled: never = data.channel;
+                throw new Error(`Unhandled channel ${unhandled}`);
+            }
+        }
 
         return {
             message: 'Verification mobile number notification processed',

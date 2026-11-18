@@ -8,6 +8,7 @@ import { HelperStringService } from '@common/helper/services/helper.string.servi
 import { EnumActivityLogAction } from '@generated/prisma-client/client';
 import { ActivityLogDomain } from '@modules/activity-log/domains/activity-log.domain';
 import { CountryDomain } from '@modules/country/domains/country.domain';
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { NotificationQueue } from '@modules/notification/queues/notification.queue';
 import { UserMobileNumberAlreadyVerifiedException } from '@modules/user/exceptions/user.mobile-number-already-verified.exception';
 import { UserMobileNumberExistException } from '@modules/user/exceptions/user.mobile-number-exist.exception';
@@ -136,6 +137,7 @@ export class UserMobileNumberDomain {
             expiredAt,
             expiredInMinutes: verification.expiredInMinutes,
             reference: verification.reference,
+            channel: EnumNotificationVerificationChannel.sms,
         });
     }
 

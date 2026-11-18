@@ -25,6 +25,7 @@ import { UserMobileNumberExistException } from '@modules/user/exceptions/user.mo
 import { UserMobileNumberInvalidException } from '@modules/user/exceptions/user.mobile-number-invalid.exception';
 import { UserMobileNumberNotFoundException } from '@modules/user/exceptions/user.mobile-number-not-found.exception';
 import { UserMobileNumberOtpInvalidException } from '@modules/user/exceptions/user.mobile-number-otp-invalid.exception';
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { UserVerificationMobileNumberResendLimitExceededException } from '@modules/user/exceptions/user.verification-mobile-number-resend-limit-exceeded.exception';
 import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import type {
@@ -339,6 +340,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.sms,
             });
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.userAddMobileNumber,
@@ -704,6 +706,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.sms,
             });
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.userSendVerificationMobileNumber,
@@ -1199,6 +1202,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.sms,
             });
             expect(callOrder).toEqual([
                 'expireActiveMobileNumberInTx',
@@ -1690,6 +1694,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredAt: expiredAtIso,
                 expiredInMinutes: 5,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.sms,
             });
         });
     });

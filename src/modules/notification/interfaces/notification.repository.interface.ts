@@ -27,6 +27,11 @@ export interface INotificationRepository {
         kind: EnumNotificationKind,
         payload: INotificationCreate
     ): Promise<Notification>;
+    createForChannels(
+        kind: EnumNotificationKind,
+        payload: INotificationCreate,
+        pendingChannels: EnumNotificationChannel[]
+    ): Promise<Notification>;
     createMany(entries: INotificationCreateEntry[]): Promise<Notification[]>;
     markAsRead(userId: string, notificationId: string): Promise<Notification>;
     markAllAsRead(userId: string): Promise<Prisma.BatchPayload>;

@@ -4,6 +4,7 @@ import { DatabaseUtil } from '@common/database/utils/database.util';
 import { HelperStringService } from '@common/helper/services/helper.string.service';
 import type { Notification, User } from '@generated/prisma-client/client';
 import {
+    EnumNotificationChannel,
     EnumNotificationPriority,
     EnumNotificationType,
     EnumUserGender,
@@ -14,9 +15,13 @@ import {
     EnumUserStatus,
 } from '@generated/prisma-client/client';
 import { NotificationAccountDomain } from '@modules/notification/domains/notification.account.domain';
-import { EnumNotificationKind } from '@modules/notification/enums/notification.enum';
+import {
+    EnumNotificationKind,
+    EnumNotificationVerificationChannel,
+} from '@modules/notification/enums/notification.enum';
 import { NotificationEmailQueue } from '@modules/notification/queues/notification.email.queue';
 import { NotificationSmsQueue } from '@modules/notification/queues/notification.sms.queue';
+import { NotificationWhatsappQueue } from '@modules/notification/queues/notification.whatsapp.queue';
 import { NotificationRepository } from '@modules/notification/repositories/notification.repository';
 import { UserDomain } from '@modules/user/domains/user.domain';
 
@@ -27,6 +32,7 @@ describe('NotificationAccountDomain', () => {
     const databaseUtil = mock<DatabaseUtil>();
     const notificationEmailQueue = mock<NotificationEmailQueue>();
     const notificationSmsQueue = mock<NotificationSmsQueue>();
+    const notificationWhatsappQueue = mock<NotificationWhatsappQueue>();
     let domain: NotificationAccountDomain;
 
     const user: User = {
@@ -106,6 +112,10 @@ describe('NotificationAccountDomain', () => {
                 {
                     provide: NotificationSmsQueue,
                     useValue: notificationSmsQueue,
+                },
+                {
+                    provide: NotificationWhatsappQueue,
+                    useValue: notificationWhatsappQueue,
                 },
             ],
         }).compile();
@@ -419,43 +429,63 @@ describe('NotificationAccountDomain', () => {
             expiredInMinutes: 5,
             reference: 'ref-1',
         };
+        const smsData = {
+            ...data,
+            channel: EnumNotificationVerificationChannel.sms,
+        };
+        const whatsappData = {
+            ...data,
+            channel: EnumNotificationVerificationChannel.whatsapp,
+        };
 
-        it('skips when the user is not active', async () => {
-            userDomain.getOneActive.mockResolvedValue(null);
+        it.each([smsData, whatsappData])(
+            'skips when the user is not active ($channel)',
+            async channelData => {
+                userDomain.getOneActive.mockResolvedValue(null);
 
-            const result = await domain.processVerificationMobileNumber(
-                'user-id',
-                data
-            );
+                const result = await domain.processVerificationMobileNumber(
+                    'user-id',
+                    channelData
+                );
 
-            expect(result).toEqual({
-                message:
-                    'User not found, skipping verification mobile number notification',
-            });
-            expect(notificationRepository.create).not.toHaveBeenCalled();
-            expect(
-                notificationSmsQueue.sendVerificationMobileNumber
-            ).not.toHaveBeenCalled();
-        });
+                expect(result).toEqual({
+                    message:
+                        'User not found, skipping verification mobile number notification',
+                });
+                expect(
+                    notificationRepository.createForChannels
+                ).not.toHaveBeenCalled();
+                expect(
+                    notificationSmsQueue.sendVerificationMobileNumber
+                ).not.toHaveBeenCalled();
+                expect(
+                    notificationWhatsappQueue.sendVerificationMobileNumber
+                ).not.toHaveBeenCalled();
+            }
+        );
 
-        it('processVerificationMobileNumber creates the notification before enqueuing the sms', async () => {
+        it('sms creates the notification before enqueuing the sms and never the whatsapp queue', async () => {
             userDomain.getOneActive.mockResolvedValue(user);
             databaseUtil.createId.mockReturnValue('notification-id');
             helperStringService.censor.mockReturnValue('+1555****567');
-            notificationRepository.create.mockResolvedValue(notification);
+            notificationRepository.createForChannels.mockResolvedValue(
+                notification
+            );
             notificationSmsQueue.sendVerificationMobileNumber.mockResolvedValue(
                 undefined
             );
 
             const result = await domain.processVerificationMobileNumber(
                 'user-id',
-                data
+                smsData
             );
 
             expect(helperStringService.censor).toHaveBeenCalledWith(
                 data.phoneNumber
             );
-            expect(notificationRepository.create).toHaveBeenCalledWith(
+            expect(
+                notificationRepository.createForChannels
+            ).toHaveBeenCalledWith(
                 EnumNotificationKind.verificationMobileNumber,
                 {
                     id: 'notification-id',
@@ -465,7 +495,8 @@ describe('NotificationAccountDomain', () => {
                         mobileNumber: '+1555****567',
                     },
                     createdBy: user.id,
-                }
+                },
+                [EnumNotificationChannel.sms]
             );
             expect(
                 notificationSmsQueue.sendVerificationMobileNumber
@@ -476,9 +507,68 @@ describe('NotificationAccountDomain', () => {
                 encryptedOtp: 'cipher-otp',
                 expiredInMinutes: 5,
             });
-            expect(notificationRepository.create).toHaveBeenCalledBefore(
+            expect(
+                notificationRepository.createForChannels
+            ).toHaveBeenCalledBefore(
                 notificationSmsQueue.sendVerificationMobileNumber
             );
+            expect(
+                notificationWhatsappQueue.sendVerificationMobileNumber
+            ).not.toHaveBeenCalled();
+            expect(result).toMatchObject({
+                message: 'Verification mobile number notification processed',
+            });
+        });
+
+        it('whatsapp creates the whatsapp kind before enqueuing the whatsapp queue and never the sms queue', async () => {
+            userDomain.getOneActive.mockResolvedValue(user);
+            databaseUtil.createId.mockReturnValue('notification-id');
+            helperStringService.censor.mockReturnValue('+1555****567');
+            notificationRepository.createForChannels.mockResolvedValue(
+                notification
+            );
+            notificationWhatsappQueue.sendVerificationMobileNumber.mockResolvedValue(
+                undefined
+            );
+
+            const result = await domain.processVerificationMobileNumber(
+                'user-id',
+                whatsappData
+            );
+
+            expect(
+                notificationRepository.createForChannels
+            ).toHaveBeenCalledWith(
+                EnumNotificationKind.verificationMobileNumber,
+                {
+                    id: 'notification-id',
+                    userId: user.id,
+                    metadata: {
+                        username: user.username,
+                        mobileNumber: '+1555****567',
+                    },
+                    createdBy: user.id,
+                },
+                [EnumNotificationChannel.whatsapp]
+            );
+            expect(
+                notificationWhatsappQueue.sendVerificationMobileNumber
+            ).toHaveBeenCalledWith({
+                userId: user.id,
+                notificationId: 'notification-id',
+                phoneNumber: data.phoneNumber,
+                encryptedOtp: 'cipher-otp',
+                expiredInMinutes: 5,
+                languageCode: null,
+            });
+            expect(
+                notificationRepository.createForChannels
+            ).toHaveBeenCalledBefore(
+                notificationWhatsappQueue.sendVerificationMobileNumber
+            );
+            expect(
+                notificationSmsQueue.sendVerificationMobileNumber
+            ).not.toHaveBeenCalled();
             expect(result).toMatchObject({
                 message: 'Verification mobile number notification processed',
             });

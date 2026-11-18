@@ -38,7 +38,6 @@ describe('NotificationKindContract channel declarations', () => {
             verificationEmail: ['email'],
             verifiedEmail: ['email'],
             verificationMobileNumber: ['sms'],
-            verificationMobileNumberWhatsapp: ['whatsapp'],
             temporaryPasswordByAdmin: ['email', 'push'],
             changePassword: ['email'],
             forgotPassword: ['email', 'push'],
@@ -79,31 +78,7 @@ describe('NotificationKindContract channel declarations', () => {
         );
     });
 
-    it('declares the verificationMobileNumberWhatsapp row with resolvable en keys', () => {
-        const row =
-            NotificationKindContract[
-                EnumNotificationKind.verificationMobileNumberWhatsapp
-            ];
-        const sms =
-            NotificationKindContract[
-                EnumNotificationKind.verificationMobileNumber
-            ];
-        expect(row.pendingChannels).toEqual([EnumNotificationChannel.whatsapp]);
-        expect(row.deliveredChannels).toEqual([EnumNotificationChannel.silent]);
-        expect(row.priority).toBe(sms.priority);
-        expect(row.type).toBe(sms.type);
-        expect(row.title).toBe(
-            'notification.notify.verificationMobileNumberWhatsapp.title'
-        );
-        expect(row.body).toBe(
-            'notification.notify.verificationMobileNumberWhatsapp.body'
-        );
-        expect(
-            notification.notify.verificationMobileNumberWhatsapp.title
-        ).toBeDefined();
-        expect(
-            notification.notify.verificationMobileNumberWhatsapp.body
-        ).toBeDefined();
+    it('declares the whatsapp verification channel and process enums', () => {
         expect(Object.values(EnumNotificationWhatsappProcess)).toEqual([
             'verificationMobileNumber',
         ]);

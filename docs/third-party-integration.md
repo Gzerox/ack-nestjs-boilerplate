@@ -165,11 +165,11 @@ Every code except `51400` (503) and `51403` (409) answers HTTP 500.
 | `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET` | none | IAM secret key |
 | `AWS_SOCIAL_MESSAGING_REGION` | none | Region of the linked WhatsApp Business Account |
 | `AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID` | none | Id of the sending number in AWS |
-| `AWS_SOCIAL_MESSAGING_META_API_VERSION` | `v20.0` | Meta Graph API version sent with each message |
+| `AWS_SOCIAL_MESSAGING_META_API_VERSION` | none | Meta Graph API version sent with each message; set the version AWS End User Messaging Social currently supports |
 | `AWS_SOCIAL_MESSAGING_TEMPLATE_NAME` | none | Name of the approved Authentication template |
 | `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES` | `en` | Comma-separated language codes of the approved translations |
 
-The client is created only when the key, secret, region, origination phone number id, and template name are all set. Otherwise it stays disabled, the app logs a warning at startup, and a WhatsApp job completes as skipped without sending.
+The client is created only when six values are set: the key, secret, region, origination phone number id, template name, and Meta API version. The language list is the only one with a default. Otherwise it stays disabled, the app logs a warning at startup, and a WhatsApp job completes as skipped without sending.
 
 **Meta and AWS prerequisites:**
 - A Meta Business Portfolio.
@@ -181,7 +181,7 @@ The message is that template with the one-time code as the body parameter and as
 
 **IAM:** sending needs `social-messaging:SendWhatsAppMessage`. `checkConnection()` calls `ListLinkedWhatsAppBusinessAccounts` and needs `social-messaging:ListLinkedWhatsAppBusinessAccounts`.
 
-**Failure behaviour:** a provider rejection fails the job after the queue's retries (`queue.job.attempts`, backoff `queue.job.whatsappBackoffDelayInMs`). The delivery row keeps `processedAt` set and `sentAt` null. A code that fails to decrypt is not retried.
+**Failure behaviour:** `sentAt` means AWS accepted the request. A synchronous AWS error (validation, throttling, authorization, or missing credentials) fails the job after the queue's retries (`queue.job.attempts`, backoff `queue.job.whatsappBackoffDelayInMs`), and the delivery row keeps `processedAt` set and `sentAt` null. A code that fails to decrypt is not retried. Meta-side delivery failures, such as a number that is not on WhatsApp, arrive later through an AWS SNS event destination, and nothing in the app consumes those events yet. A user whose number is not on WhatsApp therefore gets no code and no failed state, and can resend by SMS.
 
 **Deploy notes:**
 - Apply the new `whatsapp` value of `EnumNotificationChannel` with `pnpm db:push`.

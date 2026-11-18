@@ -164,7 +164,8 @@ AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY=
 AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET=
 AWS_SOCIAL_MESSAGING_REGION=
 AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID=
-AWS_SOCIAL_MESSAGING_META_API_VERSION=v20.0
+# No default; required for the sender. Set the Meta API version AWS End User Messaging Social currently supports.
+AWS_SOCIAL_MESSAGING_META_API_VERSION=
 AWS_SOCIAL_MESSAGING_TEMPLATE_NAME=
 AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES=en
 
@@ -623,7 +624,7 @@ EMAIL_ADMIN=admin@mail.com
 
 #### Social Messaging (WhatsApp)
 
-`AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY`, `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET`, `AWS_SOCIAL_MESSAGING_REGION`, `AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID`, and `AWS_SOCIAL_MESSAGING_TEMPLATE_NAME` initialize the optional WhatsApp client; with any of them empty the client is disabled and WhatsApp sends are skipped. `AWS_SOCIAL_MESSAGING_META_API_VERSION` defaults to `v20.0`. `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES` is a comma-separated list of the language codes Meta approved for the template and defaults to `en`. The Meta prerequisites and the IAM permission are in [Third-Party Integration][ref-doc-third-party-integration].
+`AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY`, `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET`, `AWS_SOCIAL_MESSAGING_REGION`, `AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID`, `AWS_SOCIAL_MESSAGING_TEMPLATE_NAME`, and `AWS_SOCIAL_MESSAGING_META_API_VERSION` initialize the optional WhatsApp client; with any of them empty the client is disabled and WhatsApp sends are skipped. Set the Meta API version AWS End User Messaging Social currently supports; there is no default. `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES` is a comma-separated list of the language codes Meta approved for the template and defaults to `en`. The Meta prerequisites and the IAM permission are in [Third-Party Integration][ref-doc-third-party-integration].
 
 ### Firebase Settings
 

@@ -80,6 +80,8 @@ The queue system consists of:
 | `NotificationQueue` | `NotificationDomainModule` |
 | `NotificationEmailQueue` | `NotificationDomainModule` |
 | `NotificationPushQueue` | `NotificationDomainModule` |
+| `NotificationSmsQueue` | `NotificationDomainModule` |
+| `NotificationWhatsappQueue` | `NotificationDomainModule` |
 | `WorkspaceQueue` | `WorkspaceDomainModule` |
 
 A caller in another module injects the exported class rather than the `Queue` itself.
@@ -97,6 +99,8 @@ Currently available queues defined in `src/queues/enums/queue.enum.ts`:
 - `EnumQueue.notification`: General notification processing queue
 - `EnumQueue.notificationEmail`: Email notification processing queue
 - `EnumQueue.notificationPush`: Push notification processing queue
+- `EnumQueue.notificationSms`: SMS processing queue; security alerts and mobile-number verification codes sent through AWS SNS
+- `EnumQueue.notificationWhatsapp`: WhatsApp processing queue; mobile-number verification codes sent through AWS End User Messaging Social
 - `EnumQueue.workspace`: Workspace background processing queue
 
 Queue priorities defined in `EnumQueuePriority`:

@@ -4,11 +4,11 @@ Notification lives in `src/modules/notification`.
 
 ## Overview
 
-Three BullMQ queues: orchestration, email, and push.
+Five BullMQ queues: orchestration, email, push, SMS, and WhatsApp.
 
 Key features:
 - **Multi-Channel Delivery**: `email`, `push`, `sms`, `whatsapp`, `inApp`, and `silent` channels
-- **Queue-Based Processing**: Three separate BullMQ queues for orchestration, email, and push, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
+- **Queue-Based Processing**: Five separate BullMQ queues for orchestration, email, push, SMS, and WhatsApp, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
 - **User Preference Control**: Per type+channel opt-in/out settings for each user
 - **AWS SES Email Templates**: Handlebars `.hbs` templates synced to SES; see [Email Documentation][ref-doc-email]
 - **Firebase FCM Push**: Multicast delivery with batch chunking, rate limiting, and stale token cleanup
@@ -18,7 +18,7 @@ Key features:
 
 - [Authentication][ref-doc-authentication] - Session management and push token linking
 - [Email][ref-doc-email] - SES templates, sync command, and send mapping
-- [Third-Party Integration][ref-doc-third-party] - Firebase and AWS SES credentials / no-op mode
+- [Third-Party Integration][ref-doc-third-party] - Firebase, AWS SES, SNS SMS, and WhatsApp setup and no-op mode
 - [Queue][ref-doc-queue] - Background job processing
 - [Configuration][ref-doc-configuration] - App configuration
 - [Environment][ref-doc-environment] - Environment variables
@@ -89,12 +89,14 @@ A notification can target multiple channels simultaneously. Which channels an ev
 
 ## Queue Architecture
 
-The notification module uses **three dedicated BullMQ queues**, each with its own processor:
+The notification module uses **five dedicated BullMQ queues**, each with its own processor:
 
 ```
 NotificationQueue       → EnumQueue.notification       → NotificationProcessor
 NotificationEmailQueue  → EnumQueue.notificationEmail  → NotificationEmailProcessor
 NotificationPushQueue   → EnumQueue.notificationPush   → NotificationPushProcessor
+NotificationSmsQueue    → EnumQueue.notificationSms    → NotificationSmsProcessor
+NotificationWhatsappQueue → EnumQueue.notificationWhatsapp → NotificationWhatsappProcessor
 ```
 
 ### Orchestration Queue

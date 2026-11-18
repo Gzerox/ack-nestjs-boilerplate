@@ -7,6 +7,7 @@ export enum EnumQueue {
     notificationEmail = 'notificationEmail',
     notificationPush = 'notificationPush',
     notificationSms = 'notificationSms',
+    notificationWhatsapp = 'notificationWhatsapp',
     workspace = 'workspace',
 }
 

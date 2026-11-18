@@ -4,10 +4,12 @@ import { NotificationRepositoryModule } from '@modules/notification/notification
 import { NotificationEmailQueueFactory } from '@modules/notification/factories/notification.email.queue.factory';
 import { NotificationPushQueueFactory } from '@modules/notification/factories/notification.push.queue.factory';
 import { NotificationSmsQueueFactory } from '@modules/notification/factories/notification.sms.queue.factory';
+import { NotificationWhatsappQueueFactory } from '@modules/notification/factories/notification.whatsapp.queue.factory';
 import { NotificationQueueFactory } from '@modules/notification/factories/notification.queue.factory';
 import { NotificationEmailQueue } from '@modules/notification/queues/notification.email.queue';
 import { NotificationPushQueue } from '@modules/notification/queues/notification.push.queue';
 import { NotificationSmsQueue } from '@modules/notification/queues/notification.sms.queue';
+import { NotificationWhatsappQueue } from '@modules/notification/queues/notification.whatsapp.queue';
 import { NotificationQueue } from '@modules/notification/queues/notification.queue';
 import { NotificationAccountDomain } from '@modules/notification/domains/notification.account.domain';
 import { NotificationEmailAccountDomain } from '@modules/notification/domains/notification.email.account.domain';
@@ -59,6 +61,7 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationEmailQueue,
         NotificationPushQueue,
         NotificationSmsQueue,
+        NotificationWhatsappQueue,
     ],
     exports: [
         BullModule,
@@ -84,6 +87,7 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationEmailQueue,
         NotificationPushQueue,
         NotificationSmsQueue,
+        NotificationWhatsappQueue,
     ],
     imports: [
         BullModule.registerQueueAsync(
@@ -101,6 +105,11 @@ import { EnumQueue } from '@queues/enums/queue.enum';
                 name: EnumQueue.notificationSms,
                 configKey: QueueConfigKey,
                 useClass: NotificationSmsQueueFactory,
+            },
+            {
+                name: EnumQueue.notificationWhatsapp,
+                configKey: QueueConfigKey,
+                useClass: NotificationWhatsappQueueFactory,
             },
             {
                 name: EnumQueue.notification,

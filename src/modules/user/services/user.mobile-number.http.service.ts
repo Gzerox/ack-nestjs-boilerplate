@@ -1,5 +1,6 @@
 import type { IResponseReturn } from '@common/response/interfaces/response.interface';
 import type { UserAddMobileNumberRequestDto } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
+import type { UserResendMobileNumberVerificationRequestDto } from '@modules/user/dtos/request/user.resend-mobile-number-verification.request.dto';
 import type { UserVerifyMobileNumberRequestDto } from '@modules/user/dtos/request/user.verify-mobile-number.request.dto';
 import type { IUserMobileNumber } from '@modules/user/interfaces/user.interface';
 import { UserMobileNumberDomain } from '@modules/user/domains/user.mobile-number.domain';
@@ -13,7 +14,7 @@ export class UserMobileNumberHttpService {
 
     async addMobileNumber(
         userId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto
+        { number, countryId, phoneCode, channel }: UserAddMobileNumberRequestDto
     ): Promise<IResponseReturn<IUserMobileNumber>> {
         const mobileNumber = await this.userMobileNumberDomain.addMobileNumber(
             userId,
@@ -21,7 +22,8 @@ export class UserMobileNumberHttpService {
                 number,
                 countryId,
                 phoneCode,
-            }
+            },
+            channel
         );
 
         return { data: mobileNumber };
@@ -30,13 +32,14 @@ export class UserMobileNumberHttpService {
     async updateMobileNumber(
         userId: string,
         mobileNumberId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto
+        { number, countryId, phoneCode, channel }: UserAddMobileNumberRequestDto
     ): Promise<IResponseReturn<IUserMobileNumber>> {
         const mobileNumber =
             await this.userMobileNumberDomain.updateMobileNumber(
                 userId,
                 mobileNumberId,
-                { number, countryId, phoneCode }
+                { number, countryId, phoneCode },
+                channel
             );
 
         return { data: mobileNumber };
@@ -57,11 +60,13 @@ export class UserMobileNumberHttpService {
 
     async resendMobileNumberVerification(
         userId: string,
-        mobileNumberId: string
+        mobileNumberId: string,
+        { channel }: UserResendMobileNumberVerificationRequestDto
     ): Promise<void> {
         await this.userMobileNumberDomain.resendMobileNumberVerification(
             userId,
-            mobileNumberId
+            mobileNumberId,
+            channel
         );
     }
 

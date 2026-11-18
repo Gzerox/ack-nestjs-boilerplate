@@ -121,29 +121,10 @@ export class UserMobileNumberDomain {
         };
     }
 
-    private async enqueueMobileVerification(
-        userId: string,
-        mobileNumber: Pick<IUserMobileNumber, 'id' | 'number' | 'phoneCode'>,
-        verification: IUserMobileNumberVerificationCreate
-    ): Promise<void> {
-        const expiredAt = this.helperDateService.formatToIso(
-            verification.expiredAt
-        );
-
-        await this.notificationQueue.sendVerificationMobileNumber(userId, {
-            mobileNumberId: mobileNumber.id,
-            phoneNumber: `${mobileNumber.phoneCode}${mobileNumber.number}`,
-            otp: verification.otp,
-            expiredAt,
-            expiredInMinutes: verification.expiredInMinutes,
-            reference: verification.reference,
-            channel: EnumNotificationVerificationChannel.sms,
-        });
-    }
-
     async addMobileNumber(
         userId: string,
-        { number, countryId, phoneCode }: IUserMobileNumberInput
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
+        channel: EnumNotificationVerificationChannel
     ): Promise<IUserMobileNumber> {
         const countryPromise = this.countryDomain.getOne(countryId);
         const cooldownPromise = this.assertMobileVerificationCooldown(userId);
@@ -207,7 +188,18 @@ export class UserMobileNumberDomain {
             this.activityLogDomain.stagePrepared(events);
 
             // Sequential by design: the SMS must not go out if the transaction throws.
-            await this.enqueueMobileVerification(userId, row, verification);
+            const expiredAt = this.helperDateService.formatToIso(
+                verification.expiredAt
+            );
+            await this.notificationQueue.sendVerificationMobileNumber(userId, {
+                mobileNumberId: row.id,
+                phoneNumber: `${row.phoneCode}${row.number}`,
+                otp: verification.otp,
+                expiredAt,
+                expiredInMinutes: verification.expiredInMinutes,
+                reference: verification.reference,
+                channel,
+            });
 
             return row;
         } catch (err: unknown) {
@@ -222,7 +214,8 @@ export class UserMobileNumberDomain {
     async updateMobileNumber(
         userId: string,
         mobileNumberId: string,
-        { number, countryId, phoneCode }: IUserMobileNumberInput
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
+        channel: EnumNotificationVerificationChannel
     ): Promise<IUserMobileNumber> {
         const mobileNumberPromise =
             this.userMobileNumberRepository.findOneMobileNumber(
@@ -332,7 +325,18 @@ export class UserMobileNumberDomain {
             this.activityLogDomain.stagePrepared(events);
 
             // Sequential by design: the SMS must not go out if the transaction throws.
-            await this.enqueueMobileVerification(userId, row, verification);
+            const expiredAt = this.helperDateService.formatToIso(
+                verification.expiredAt
+            );
+            await this.notificationQueue.sendVerificationMobileNumber(userId, {
+                mobileNumberId: row.id,
+                phoneNumber: `${row.phoneCode}${row.number}`,
+                otp: verification.otp,
+                expiredAt,
+                expiredInMinutes: verification.expiredInMinutes,
+                reference: verification.reference,
+                channel,
+            });
 
             return row;
         } catch (err: unknown) {
@@ -394,7 +398,8 @@ export class UserMobileNumberDomain {
 
     async resendMobileNumberVerification(
         userId: string,
-        mobileNumberId: string
+        mobileNumberId: string,
+        channel: EnumNotificationVerificationChannel
     ): Promise<void> {
         const mobileNumber =
             await this.userMobileNumberRepository.findOneMobileNumber(
@@ -443,11 +448,18 @@ export class UserMobileNumberDomain {
             this.activityLogDomain.stagePrepared(events);
 
             // Sequential by design: the SMS must not go out if the transaction throws.
-            await this.enqueueMobileVerification(
-                userId,
-                mobileNumber,
-                verification
+            const expiredAt = this.helperDateService.formatToIso(
+                verification.expiredAt
             );
+            await this.notificationQueue.sendVerificationMobileNumber(userId, {
+                mobileNumberId: mobileNumber.id,
+                phoneNumber: `${mobileNumber.phoneCode}${mobileNumber.number}`,
+                otp: verification.otp,
+                expiredAt,
+                expiredInMinutes: verification.expiredInMinutes,
+                reference: verification.reference,
+                channel,
+            });
         } catch (err: unknown) {
             if (err instanceof AppBaseException) {
                 throw err;

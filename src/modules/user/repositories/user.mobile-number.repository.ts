@@ -4,8 +4,10 @@ import type {
     Country,
     UserMobileNumber,
 } from '@generated/prisma-client/client';
-import type { UserAddMobileNumberRequestDto } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
-import type { IUserMobileNumber } from '@modules/user/interfaces/user.interface';
+import type {
+    IUserMobileNumber,
+    IUserMobileNumberInput,
+} from '@modules/user/interfaces/user.interface';
 import type { IUserMobileNumberRepository } from '@modules/user/interfaces/user.mobile-number-repository.interface';
 import { Injectable } from '@nestjs/common';
 
@@ -42,7 +44,7 @@ export class UserMobileNumberRepository implements IUserMobileNumberRepository {
 
     async existsMobileNumber(
         userId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto,
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
         excludeId?: string
     ): Promise<boolean> {
         const count = await this.databaseService.client.userMobileNumber.count({
@@ -67,7 +69,7 @@ export class UserMobileNumberRepository implements IUserMobileNumberRepository {
     async addInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto
+        { number, countryId, phoneCode }: IUserMobileNumberInput
     ): Promise<UserMobileNumber & { country: Country }> {
         return tx.userMobileNumber.create({
             data: {
@@ -85,7 +87,7 @@ export class UserMobileNumberRepository implements IUserMobileNumberRepository {
     async updateInTx(
         tx: IDatabaseTransactionClient,
         mobileNumberId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto,
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
         isVerified: boolean,
         verifiedAt: Date | null
     ): Promise<UserMobileNumber & { country: Country }> {

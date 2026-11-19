@@ -1,4 +1,5 @@
 import { AwsSocialMessagingService } from '@common/aws/services/aws.social-messaging.service';
+import { HelperDecryptFailedException } from '@common/helper/exceptions/helper.decrypt-failed.exception';
 import { HelperEncryptionService } from '@common/helper/services/helper.encryption.service';
 import { EnumNotificationChannel } from '@generated/prisma-client/client';
 import { NotificationPayloadEncryptionPurpose } from '@modules/notification/constants/notification.constant';
@@ -162,6 +163,26 @@ describe('NotificationWhatsappAccountDomain', () => {
             await expect(
                 domain.processVerificationMobileNumber(payload)
             ).rejects.toBe(error);
+            expect(notificationRepository.updateSentAt).not.toHaveBeenCalled();
+        });
+
+        it('propagates a decrypt failure untouched without sending or marking sent', async () => {
+            const failure = new HelperDecryptFailedException();
+            helperEncryptionService.aes256Decrypt.mockImplementation(() => {
+                throw failure;
+            });
+
+            await expect(
+                domain.processVerificationMobileNumber(payload)
+            ).rejects.toBe(failure);
+            expect(notificationRepository.updateProcessAt).toHaveBeenCalledWith(
+                'user',
+                'id',
+                EnumNotificationChannel.whatsapp
+            );
+            expect(
+                socialMessaging.sendAuthenticationTemplate
+            ).not.toHaveBeenCalled();
             expect(notificationRepository.updateSentAt).not.toHaveBeenCalled();
         });
     });

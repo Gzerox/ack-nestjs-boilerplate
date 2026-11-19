@@ -4,11 +4,11 @@ Notification lives in `src/modules/notification`.
 
 ## Overview
 
-Three BullMQ queues: orchestration, email, and push.
+Five BullMQ queues: orchestration, email, push, SMS, and WhatsApp.
 
 Key features:
-- **Multi-Channel Delivery**: `email`, `push`, `inApp`, and `silent` channels
-- **Queue-Based Processing**: Three separate BullMQ queues for orchestration, email, and push, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
+- **Multi-Channel Delivery**: `email`, `push`, `sms`, `whatsapp`, `inApp`, and `silent` channels
+- **Queue-Based Processing**: Five separate BullMQ queues for orchestration, email, push, SMS, and WhatsApp, each fed by its own `@Injectable()` queue class in `src/modules/notification/queues/`
 - **User Preference Control**: Per type+channel opt-in/out settings for each user
 - **AWS SES Email Templates**: Handlebars `.hbs` templates synced to SES; see [Email Documentation][ref-doc-email]
 - **Firebase FCM Push**: Multicast delivery with batch chunking, rate limiting, and stale token cleanup
@@ -18,7 +18,7 @@ Key features:
 
 - [Authentication][ref-doc-authentication] - Session management and push token linking
 - [Email][ref-doc-email] - SES templates, sync command, and send mapping
-- [Third-Party Integration][ref-doc-third-party] - Firebase and AWS SES credentials / no-op mode
+- [Third-Party Integration][ref-doc-third-party] - Firebase, AWS SES, SNS SMS, and WhatsApp setup and no-op mode
 - [Queue][ref-doc-queue] - Background job processing
 - [Configuration][ref-doc-configuration] - App configuration
 - [Environment][ref-doc-environment] - Environment variables
@@ -72,6 +72,7 @@ Each notification record carries one or more `NotificationDelivery` rows, one pe
 | `email` | Via AWS SES (queued) | Never set. The email channel domains send through SES and do not touch the delivery record |
 | `push` | Via Firebase FCM (queued) | Set by the push channel domains: `processedAt` before the send, `sentAt` after it |
 | `sms` | Via AWS SNS (queued) | Set by the SMS channel domain: `processedAt` before the send, `sentAt` after the first successful recipient |
+| `whatsapp` | Via AWS End User Messaging Social (queued) | Set by the WhatsApp channel domain: `processedAt` before the send, `sentAt` after it |
 | `inApp` | In-application UI | Pre-filled at notification creation time |
 | `silent` | No external delivery; record-only | Pre-filled at notification creation time |
 
@@ -88,12 +89,14 @@ A notification can target multiple channels simultaneously. Which channels an ev
 
 ## Queue Architecture
 
-The notification module uses **three dedicated BullMQ queues**, each with its own processor:
+The notification module uses **five dedicated BullMQ queues**, each with its own processor:
 
 ```
 NotificationQueue       → EnumQueue.notification       → NotificationProcessor
 NotificationEmailQueue  → EnumQueue.notificationEmail  → NotificationEmailProcessor
 NotificationPushQueue   → EnumQueue.notificationPush   → NotificationPushProcessor
+NotificationSmsQueue    → EnumQueue.notificationSms    → NotificationSmsProcessor
+NotificationWhatsappQueue → EnumQueue.notificationWhatsapp → NotificationWhatsappProcessor
 ```
 
 ### Orchestration Queue
@@ -278,17 +281,17 @@ Each `Notification` record has related `NotificationDelivery` rows in `Notificat
 
 | Field | Description |
 |-------|-------------|
-| `processedAt` | When the processor started handling the delivery. Written for `push` and `sms`, pre-filled for `silent` / `inApp`, never written for `email` |
-| `sentAt` | When the message was handed to FCM or SNS. Written for `push` and `sms`, pre-filled for `silent` / `inApp`, never written for `email` |
+| `processedAt` | When the processor started handling the delivery. Written for `push`, `sms`, and `whatsapp`, pre-filled for `silent` / `inApp`, never written for `email` |
+| `sentAt` | When the message was handed to FCM, SNS, or WhatsApp. Written for `push`, `sms`, and `whatsapp`, pre-filled for `silent` / `inApp`, never written for `email` |
 | `failureTokens` | FCM tokens that were invalid (push channel only) |
 
 ### Immediate channels (`silent`, `inApp`)
 
 `silent` and `inApp` deliveries have `processedAt` and `sentAt` both pre-filled with the current timestamp **at notification creation time** inside `NotificationRepository`. No queue job is dispatched for them.
 
-### Async channels (`email`, `push`, `sms`)
+### Async channels (`email`, `push`, `sms`, `whatsapp`)
 
-`email`, `push`, and `sms` deliveries are created with no timestamps and go through their respective queues.
+`email`, `push`, `sms`, and `whatsapp` deliveries are created with no timestamps and go through their respective queues.
 
 **Only the push channel writes them back.** The email channel domains send through SES and never read or update the delivery record, so an `email` delivery row keeps `processedAt` and `sentAt` null for its whole life. A null `sentAt` on an `email` row says nothing about delivery.
 
@@ -316,6 +319,8 @@ Both skips return a message rather than throwing, so a push job on a deployment 
 The email lifecycle is only: job dequeued, sealed fields opened, `AwsSESService.send()` or `sendBulk()`, done. A send failure is logged and rethrown, so the job retries under the queue's own retry policy; a field that fails to open ends the job without retries (see [Payload Encryption](#payload-encryption)).
 
 The SMS lifecycle is: job dequeued, `processedAt` updated for the `sms` delivery row, SNS sends the message, then `sentAt` is updated. If the delivery row is missing, the job skips SNS. If SNS or delivery persistence fails, the error propagates so BullMQ can retry. There is one SMS delivery row per notification; when multiple verified phone numbers produce multiple jobs, the first successful recipient marks that shared SMS channel row as sent.
+
+The WhatsApp lifecycle is the same: `processedAt` before the send, `sentAt` after it. The mobile-number verification code is the only WhatsApp message. `verificationMobileNumber` serves both SMS and WhatsApp: the user picks `channel` (`sms` or `whatsapp`) on the add, update, and resend routes, and `NotificationAccountDomain` creates the notification through `NotificationRepository.createForChannels` with only that channel, then enqueues on the matching queue. `NotificationWhatsappAccountDomain` skips the job when the client is disabled or the delivery row is missing. `sentAt` means AWS accepted the request. A synchronous AWS error propagates so BullMQ retries, and after the retries the delivery keeps `processedAt` set and `sentAt` null. Meta-side delivery failures, such as a number that is not on WhatsApp, are not tracked yet: that user gets no code and no failed state, and can resend by SMS. A code that fails to decrypt is not retried. Client setup, the Meta template, and the IAM permission are in [Third-Party Integration][ref-doc-third-party].
 
 ## User Notification Settings
 

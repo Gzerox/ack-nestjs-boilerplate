@@ -12,7 +12,10 @@ import {
     EnumWorkspaceJoinRejectReason,
     EnumWorkspaceMemberRole,
 } from '@generated/prisma-client/client';
-import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
+import {
+    EnumNotificationProcess,
+    EnumNotificationVerificationChannel,
+} from '@modules/notification/enums/notification.enum';
 import type {
     INotificationAcceptTermPolicyPayload,
     INotificationForgotPasswordPayload,
@@ -290,6 +293,7 @@ describe('NotificationQueue', () => {
                 expiredAt: '2024-02-01T00:00:00.000Z',
                 expiredInMinutes: 5,
                 reference: 'ref-1',
+                channel: EnumNotificationVerificationChannel.whatsapp,
             };
 
             await queue.sendVerificationMobileNumber('user-id', payload);
@@ -312,6 +316,7 @@ describe('NotificationQueue', () => {
                         expiredAt: payload.expiredAt,
                         expiredInMinutes: 5,
                         reference: 'ref-1',
+                        channel: EnumNotificationVerificationChannel.whatsapp,
                     },
                 },
                 {

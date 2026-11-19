@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { CountryPhoneCodeRegex } from '@modules/country/constants/country.constant';
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { UserCreateRequestSchema } from '@modules/user/dtos/request/user.create.request.dto';
 
 /**
@@ -26,6 +27,10 @@ export const UserAddMobileNumberRequestSchema = UserCreateRequestSchema.pick({
         description:
             'Country calling code of the mobile number, E.164 form with a leading +',
         example: '+62',
+    }),
+    channel: z.enum(EnumNotificationVerificationChannel).meta({
+        description: 'Channel that delivers the verification code',
+        example: EnumNotificationVerificationChannel.whatsapp,
     }),
 });
 

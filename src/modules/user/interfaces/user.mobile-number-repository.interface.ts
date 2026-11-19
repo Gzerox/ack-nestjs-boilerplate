@@ -3,8 +3,10 @@ import type {
     Country,
     UserMobileNumber,
 } from '@generated/prisma-client/client';
-import type { IUserMobileNumber } from '@modules/user/interfaces/user.interface';
-import type { UserAddMobileNumberRequestDto } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
+import type {
+    IUserMobileNumber,
+    IUserMobileNumberInput,
+} from '@modules/user/interfaces/user.interface';
 
 export interface IUserMobileNumberRepository {
     findOneMobileNumber(
@@ -19,18 +21,18 @@ export interface IUserMobileNumberRepository {
     } | null>;
     existsMobileNumber(
         userId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto,
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
         excludeId?: string
     ): Promise<boolean>;
     addInTx(
         tx: IDatabaseTransactionClient,
         userId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto
+        { number, countryId, phoneCode }: IUserMobileNumberInput
     ): Promise<UserMobileNumber & { country: Country }>;
     updateInTx(
         tx: IDatabaseTransactionClient,
         mobileNumberId: string,
-        { number, countryId, phoneCode }: UserAddMobileNumberRequestDto,
+        { number, countryId, phoneCode }: IUserMobileNumberInput,
         isVerified: boolean,
         verifiedAt: Date | null
     ): Promise<UserMobileNumber & { country: Country }>;

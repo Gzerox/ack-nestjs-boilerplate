@@ -25,6 +25,7 @@ import { UserMobileNumberExistException } from '@modules/user/exceptions/user.mo
 import { UserMobileNumberInvalidException } from '@modules/user/exceptions/user.mobile-number-invalid.exception';
 import { UserMobileNumberNotFoundException } from '@modules/user/exceptions/user.mobile-number-not-found.exception';
 import { UserMobileNumberOtpInvalidException } from '@modules/user/exceptions/user.mobile-number-otp-invalid.exception';
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { UserVerificationMobileNumberResendLimitExceededException } from '@modules/user/exceptions/user.verification-mobile-number-resend-limit-exceeded.exception';
 import { EnumUserStatusCodeError } from '@modules/user/enums/user.status-code.enum';
 import type {
@@ -252,11 +253,15 @@ describe('UserMobileNumberDomain', () => {
                 latestVerification
             );
 
-            const call = domain.addMobileNumber('user-marlin', {
-                number: '8123456789',
-                countryId: country.id,
-                phoneCode: '+62',
-            });
+            const call = domain.addMobileNumber(
+                'user-marlin',
+                {
+                    number: '8123456789',
+                    countryId: country.id,
+                    phoneCode: '+62',
+                },
+                EnumNotificationVerificationChannel.sms
+            );
 
             await expect(call).rejects.toBeInstanceOf(
                 UserVerificationMobileNumberResendLimitExceededException
@@ -292,11 +297,15 @@ describe('UserMobileNumberDomain', () => {
             );
 
             await expect(
-                domain.addMobileNumber('user-marlin', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                })
+                domain.addMobileNumber(
+                    'user-marlin',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toBe(error);
             expect(
                 userMobileNumberRepository.existsMobileNumber
@@ -340,11 +349,15 @@ describe('UserMobileNumberDomain', () => {
                 }
             );
 
-            const result = await domain.addMobileNumber('user-marlin', {
-                number: '8123456789',
-                countryId: country.id,
-                phoneCode: '+62',
-            });
+            const result = await domain.addMobileNumber(
+                'user-marlin',
+                {
+                    number: '8123456789',
+                    countryId: country.id,
+                    phoneCode: '+62',
+                },
+                EnumNotificationVerificationChannel.whatsapp
+            );
 
             expect(result).toBe(mobileNumber);
             expect(userMobileNumberRepository.addInTx).toHaveBeenCalledWith(
@@ -383,6 +396,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.whatsapp,
             });
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.userAddMobileNumber,
@@ -416,11 +430,15 @@ describe('UserMobileNumberDomain', () => {
                 error
             );
 
-            const call = domain.addMobileNumber('user-marlin', {
-                number: '8123456789',
-                countryId: country.id,
-                phoneCode: '+62',
-            });
+            const call = domain.addMobileNumber(
+                'user-marlin',
+                {
+                    number: '8123456789',
+                    countryId: country.id,
+                    phoneCode: '+62',
+                },
+                EnumNotificationVerificationChannel.sms
+            );
 
             await expect(call).rejects.toBeInstanceOf(AppUnknownException);
             await expect(call).rejects.toMatchObject({
@@ -449,18 +467,26 @@ describe('UserMobileNumberDomain', () => {
             );
 
             await expect(
-                domain.addMobileNumber('user-marlin', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+9',
-                })
+                domain.addMobileNumber(
+                    'user-marlin',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+9',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toThrow(UserMobileNumberInvalidException);
             await expect(
-                domain.addMobileNumber('user-marlin', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+9',
-                })
+                domain.addMobileNumber(
+                    'user-marlin',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+9',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toMatchObject({
                 module: 'user',
                 statusCode: EnumUserStatusCodeError.mobileNumberInvalid,
@@ -480,18 +506,26 @@ describe('UserMobileNumberDomain', () => {
             );
 
             await expect(
-                domain.addMobileNumber('user-marlin', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                })
+                domain.addMobileNumber(
+                    'user-marlin',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toThrow(UserMobileNumberExistException);
             await expect(
-                domain.addMobileNumber('user-marlin', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                })
+                domain.addMobileNumber(
+                    'user-marlin',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toMatchObject({
                 module: 'user',
                 statusCode: EnumUserStatusCodeError.mobileNumberExist,
@@ -512,11 +546,15 @@ describe('UserMobileNumberDomain', () => {
             const error = new UserMobileNumberExistException();
             databaseService.withTransaction.mockRejectedValueOnce(error);
 
-            const call = domain.addMobileNumber('user-marlin', {
-                number: '8123456789',
-                countryId: country.id,
-                phoneCode: '+62',
-            });
+            const call = domain.addMobileNumber(
+                'user-marlin',
+                {
+                    number: '8123456789',
+                    countryId: country.id,
+                    phoneCode: '+62',
+                },
+                EnumNotificationVerificationChannel.sms
+            );
 
             await expect(call).rejects.toBeInstanceOf(
                 UserMobileNumberExistException
@@ -542,11 +580,15 @@ describe('UserMobileNumberDomain', () => {
             const error = new Error('boom');
             databaseService.withTransaction.mockRejectedValueOnce(error);
 
-            const call = domain.addMobileNumber('user-marlin', {
-                number: '8123456789',
-                countryId: country.id,
-                phoneCode: '+62',
-            });
+            const call = domain.addMobileNumber(
+                'user-marlin',
+                {
+                    number: '8123456789',
+                    countryId: country.id,
+                    phoneCode: '+62',
+                },
+                EnumNotificationVerificationChannel.sms
+            );
 
             await expect(call).rejects.toBeInstanceOf(AppUnknownException);
             await expect(call).rejects.toMatchObject({
@@ -590,7 +632,8 @@ describe('UserMobileNumberDomain', () => {
                     number: mobileNumber.number,
                     countryId: country.id,
                     phoneCode: mobileNumber.phoneCode,
-                }
+                },
+                EnumNotificationVerificationChannel.sms
             );
 
             expect(result).toBe(verified);
@@ -646,7 +689,8 @@ describe('UserMobileNumberDomain', () => {
                     number: '8129999999',
                     countryId: country.id,
                     phoneCode: '+62',
-                }
+                },
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(
@@ -704,7 +748,8 @@ describe('UserMobileNumberDomain', () => {
                     number: '8129999999',
                     countryId: country.id,
                     phoneCode: '+62',
-                }
+                },
+                EnumNotificationVerificationChannel.whatsapp
             );
 
             expect(result).toBe(changed);
@@ -748,6 +793,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.whatsapp,
             });
             expect(activityLogDomain.prepare).toHaveBeenCalledWith({
                 action: EnumActivityLogAction.userSendVerificationMobileNumber,
@@ -774,18 +820,28 @@ describe('UserMobileNumberDomain', () => {
             countryDomain.getOne.mockResolvedValue(country);
 
             await expect(
-                domain.updateMobileNumber('user-marlin', 'missing', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                })
+                domain.updateMobileNumber(
+                    'user-marlin',
+                    'missing',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toThrow(UserMobileNumberNotFoundException);
             await expect(
-                domain.updateMobileNumber('user-marlin', 'missing', {
-                    number: '8123456789',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                })
+                domain.updateMobileNumber(
+                    'user-marlin',
+                    'missing',
+                    {
+                        number: '8123456789',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                )
             ).rejects.toMatchObject({
                 module: 'user',
                 statusCode: EnumUserStatusCodeError.mobileNumberNotFound,
@@ -807,11 +863,16 @@ describe('UserMobileNumberDomain', () => {
             );
 
             const call = () =>
-                domain.updateMobileNumber('user-marlin', mobileNumber.id, {
-                    number: '5559999',
-                    countryId: country.id,
-                    phoneCode: '+62',
-                });
+                domain.updateMobileNumber(
+                    'user-marlin',
+                    mobileNumber.id,
+                    {
+                        number: '5559999',
+                        countryId: country.id,
+                        phoneCode: '+62',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                );
 
             await expect(call()).rejects.toThrow(
                 UserMobileNumberExistException
@@ -838,11 +899,16 @@ describe('UserMobileNumberDomain', () => {
             userUtil.checkMobileNumber.mockReturnValue(false);
 
             const call = () =>
-                domain.updateMobileNumber('user-marlin', mobileNumber.id, {
-                    number: '5559999',
-                    countryId: country.id,
-                    phoneCode: '+9',
-                });
+                domain.updateMobileNumber(
+                    'user-marlin',
+                    mobileNumber.id,
+                    {
+                        number: '5559999',
+                        countryId: country.id,
+                        phoneCode: '+9',
+                    },
+                    EnumNotificationVerificationChannel.sms
+                );
 
             await expect(call()).rejects.toThrow(
                 UserMobileNumberInvalidException
@@ -877,7 +943,8 @@ describe('UserMobileNumberDomain', () => {
                     number: mobileNumber.number,
                     countryId: country.id,
                     phoneCode: mobileNumber.phoneCode,
-                }
+                },
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(
@@ -914,7 +981,8 @@ describe('UserMobileNumberDomain', () => {
                     number: mobileNumber.number,
                     countryId: country.id,
                     phoneCode: mobileNumber.phoneCode,
-                }
+                },
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(AppUnknownException);
@@ -1072,7 +1140,8 @@ describe('UserMobileNumberDomain', () => {
 
             const call = domain.resendMobileNumberVerification(
                 'user-marlin',
-                'missing'
+                'missing',
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(
@@ -1111,7 +1180,8 @@ describe('UserMobileNumberDomain', () => {
 
             const call = domain.resendMobileNumberVerification(
                 'user-marlin',
-                mobileNumber.id
+                mobileNumber.id,
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(
@@ -1145,7 +1215,8 @@ describe('UserMobileNumberDomain', () => {
 
             const call = domain.resendMobileNumberVerification(
                 'user-marlin',
-                mobileNumber.id
+                mobileNumber.id,
+                EnumNotificationVerificationChannel.whatsapp
             );
 
             await expect(call).rejects.toBeInstanceOf(
@@ -1204,7 +1275,8 @@ describe('UserMobileNumberDomain', () => {
             await expect(
                 domain.resendMobileNumberVerification(
                     'user-marlin',
-                    mobileNumber.id
+                    mobileNumber.id,
+                    EnumNotificationVerificationChannel.whatsapp
                 )
             ).resolves.toBeUndefined();
 
@@ -1243,6 +1315,7 @@ describe('UserMobileNumberDomain', () => {
                 expiredInMinutes: 5,
                 expiredAt: expiredAtIso,
                 reference: 'VRF-ABCDEFGH',
+                channel: EnumNotificationVerificationChannel.whatsapp,
             });
             expect(callOrder).toEqual([
                 'expireActiveMobileNumberInTx',
@@ -1261,7 +1334,8 @@ describe('UserMobileNumberDomain', () => {
 
             const call = domain.resendMobileNumberVerification(
                 'user-marlin',
-                mobileNumber.id
+                mobileNumber.id,
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBe(error);
@@ -1279,7 +1353,8 @@ describe('UserMobileNumberDomain', () => {
 
             const call = domain.resendMobileNumberVerification(
                 'user-marlin',
-                mobileNumber.id
+                mobileNumber.id,
+                EnumNotificationVerificationChannel.sms
             );
 
             await expect(call).rejects.toBeInstanceOf(AppUnknownException);
@@ -1711,30 +1786,6 @@ describe('UserMobileNumberDomain', () => {
                 now,
                 Duration.fromMillis(5 * 60 * 1000)
             );
-        });
-    });
-
-    describe('enqueueMobileVerification', () => {
-        it('sends the plain otp and the full phone number to the notification queue', async () => {
-            await domain['enqueueMobileVerification'](
-                'user-marlin',
-                mobileNumber,
-                verificationCreate
-            );
-
-            expect(helperDateService.formatToIso).toHaveBeenCalledWith(
-                expiredAt
-            );
-            expect(
-                notificationQueue.sendVerificationMobileNumber
-            ).toHaveBeenCalledWith('user-marlin', {
-                mobileNumberId: mobileNumber.id,
-                phoneNumber: '+628123456789',
-                otp: '123456',
-                expiredAt: expiredAtIso,
-                expiredInMinutes: 5,
-                reference: 'VRF-ABCDEFGH',
-            });
         });
     });
 });

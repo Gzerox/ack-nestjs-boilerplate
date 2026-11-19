@@ -4,10 +4,12 @@ import { NotificationRepositoryModule } from '@modules/notification/notification
 import { NotificationEmailQueueFactory } from '@modules/notification/factories/notification.email.queue.factory';
 import { NotificationPushQueueFactory } from '@modules/notification/factories/notification.push.queue.factory';
 import { NotificationSmsQueueFactory } from '@modules/notification/factories/notification.sms.queue.factory';
+import { NotificationWhatsappQueueFactory } from '@modules/notification/factories/notification.whatsapp.queue.factory';
 import { NotificationQueueFactory } from '@modules/notification/factories/notification.queue.factory';
 import { NotificationEmailQueue } from '@modules/notification/queues/notification.email.queue';
 import { NotificationPushQueue } from '@modules/notification/queues/notification.push.queue';
 import { NotificationSmsQueue } from '@modules/notification/queues/notification.sms.queue';
+import { NotificationWhatsappQueue } from '@modules/notification/queues/notification.whatsapp.queue';
 import { NotificationQueue } from '@modules/notification/queues/notification.queue';
 import { NotificationAccountDomain } from '@modules/notification/domains/notification.account.domain';
 import { NotificationEmailAccountDomain } from '@modules/notification/domains/notification.email.account.domain';
@@ -20,6 +22,7 @@ import { NotificationPushWorkspaceDomain } from '@modules/notification/domains/n
 import { NotificationSecurityDomain } from '@modules/notification/domains/notification.security.domain';
 import { NotificationSmsAccountDomain } from '@modules/notification/domains/notification.sms.account.domain';
 import { NotificationSmsSecurityDomain } from '@modules/notification/domains/notification.sms.security.domain';
+import { NotificationWhatsappAccountDomain } from '@modules/notification/domains/notification.whatsapp.account.domain';
 import { NotificationDomain } from '@modules/notification/domains/notification.domain';
 import { NotificationTemplateAccountDomain } from '@modules/notification/domains/notification.template.account.domain';
 import { NotificationTemplateSecurityDomain } from '@modules/notification/domains/notification.template.security.domain';
@@ -55,10 +58,12 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationPushMaintenanceDomain,
         NotificationSmsSecurityDomain,
         NotificationSmsAccountDomain,
+        NotificationWhatsappAccountDomain,
         NotificationQueue,
         NotificationEmailQueue,
         NotificationPushQueue,
         NotificationSmsQueue,
+        NotificationWhatsappQueue,
     ],
     exports: [
         BullModule,
@@ -80,10 +85,12 @@ import { EnumQueue } from '@queues/enums/queue.enum';
         NotificationPushMaintenanceDomain,
         NotificationSmsSecurityDomain,
         NotificationSmsAccountDomain,
+        NotificationWhatsappAccountDomain,
         NotificationQueue,
         NotificationEmailQueue,
         NotificationPushQueue,
         NotificationSmsQueue,
+        NotificationWhatsappQueue,
     ],
     imports: [
         BullModule.registerQueueAsync(
@@ -101,6 +108,11 @@ import { EnumQueue } from '@queues/enums/queue.enum';
                 name: EnumQueue.notificationSms,
                 configKey: QueueConfigKey,
                 useClass: NotificationSmsQueueFactory,
+            },
+            {
+                name: EnumQueue.notificationWhatsapp,
+                configKey: QueueConfigKey,
+                useClass: NotificationWhatsappQueueFactory,
             },
             {
                 name: EnumQueue.notification,

@@ -1,4 +1,7 @@
-import type { EnumNotificationSmsProcess } from '@modules/notification/enums/notification.enum';
+import type {
+    EnumNotificationSmsProcess,
+    EnumNotificationVerificationChannel,
+} from '@modules/notification/enums/notification.enum';
 import type { IRequestLog } from '@common/request/interfaces/request.interface';
 import {
     EnumNotificationChannel,
@@ -103,6 +106,7 @@ export interface INotificationVerificationMobileNumberPayload {
     expiredAt: string;
     expiredInMinutes: number;
     reference: string;
+    channel: EnumNotificationVerificationChannel;
 }
 
 export interface INotificationVerificationMobileNumberEncryptedPayload extends Omit<
@@ -251,6 +255,15 @@ export interface INotificationSendSmsPayload {
     notificationId: string;
     kind: EnumNotificationSmsProcess;
     phoneNumber: string;
+}
+
+export interface INotificationSendWhatsappVerificationPayload {
+    userId: string;
+    notificationId: string;
+    phoneNumber: string;
+    encryptedOtp: string;
+    expiredInMinutes: number;
+    languageCode: string | null;
 }
 
 export interface INotificationSendSmsVerificationPayload {

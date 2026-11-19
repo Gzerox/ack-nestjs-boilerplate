@@ -49,7 +49,26 @@ export interface IConfigAws {
         senderId: string | null;
         maxAttempts: number;
     };
+    socialMessaging: {
+        iam: {
+            key: string | null;
+            secret: string | null;
+        };
+        region: string | null;
+        originationPhoneNumberId: string | null;
+        metaApiVersion: string | null;
+        templateName: string | null;
+        templateLanguages: string[];
+        maxAttempts: number;
+    };
 }
+
+const socialMessagingTemplateLanguages: string[] = (
+    process.env.AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES ?? ''
+)
+    .split(',')
+    .map(language => language.trim())
+    .filter(language => language.length > 0);
 
 export default registerAs('aws', (): IConfigAws => ({
     s3: {
@@ -113,6 +132,25 @@ export default registerAs('aws', (): IConfigAws => ({
         },
         region: process.env.AWS_SNS_REGION ?? null,
         senderId: process.env.AWS_SNS_SENDER_ID ?? null,
+        maxAttempts: 1,
+    },
+    socialMessaging: {
+        iam: {
+            key: process.env.AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY ?? null,
+            secret:
+                process.env.AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET ?? null,
+        },
+        region: process.env.AWS_SOCIAL_MESSAGING_REGION ?? null,
+        originationPhoneNumberId:
+            process.env.AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID ??
+            null,
+        metaApiVersion:
+            process.env.AWS_SOCIAL_MESSAGING_META_API_VERSION || null,
+        templateName: process.env.AWS_SOCIAL_MESSAGING_TEMPLATE_NAME ?? null,
+        templateLanguages:
+            socialMessagingTemplateLanguages.length > 0
+                ? socialMessagingTemplateLanguages
+                : ['en'],
         maxAttempts: 1,
     },
 }));

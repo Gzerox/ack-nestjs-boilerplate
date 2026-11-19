@@ -2,10 +2,12 @@ import { NotificationEmailProcessor } from '@modules/notification/processors/not
 import { NotificationProcessor } from '@modules/notification/processors/notification.processor';
 import { NotificationPushProcessor } from '@modules/notification/processors/notification.push.processor';
 import { NotificationSmsProcessor } from '@modules/notification/processors/notification.sms.processor';
+import { NotificationWhatsappProcessor } from '@modules/notification/processors/notification.whatsapp.processor';
 import { NotificationEmailProcessorService } from '@modules/notification/services/notification.email.processor.service';
 import { NotificationProcessorService } from '@modules/notification/services/notification.processor.service';
 import { NotificationPushProcessorService } from '@modules/notification/services/notification.push.processor.service';
 import { NotificationSmsProcessorService } from '@modules/notification/services/notification.sms.processor.service';
+import { NotificationWhatsappProcessorService } from '@modules/notification/services/notification.whatsapp.processor.service';
 import { Module } from '@nestjs/common';
 
 @Module({
@@ -15,10 +17,12 @@ import { Module } from '@nestjs/common';
         NotificationEmailProcessor,
         NotificationPushProcessor,
         NotificationSmsProcessor,
+        NotificationWhatsappProcessor,
         NotificationProcessorService,
         NotificationEmailProcessorService,
         NotificationPushProcessorService,
         NotificationSmsProcessorService,
+        NotificationWhatsappProcessorService,
     ],
     exports: [],
     imports: [],

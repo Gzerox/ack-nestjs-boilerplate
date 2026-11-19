@@ -13,7 +13,10 @@ import { NotificationAccountDomain } from '@modules/notification/domains/notific
 import { NotificationSecurityDomain } from '@modules/notification/domains/notification.security.domain';
 import { NotificationTermPolicyDomain } from '@modules/notification/domains/notification.term-policy.domain';
 import { NotificationWorkspaceDomain } from '@modules/notification/domains/notification.workspace.domain';
-import { EnumNotificationProcess } from '@modules/notification/enums/notification.enum';
+import {
+    EnumNotificationProcess,
+    EnumNotificationVerificationChannel,
+} from '@modules/notification/enums/notification.enum';
 import type {
     INotificationAcceptTermPolicyPayload,
     INotificationBulkQueuePayload,
@@ -189,6 +192,7 @@ describe('NotificationProcessorService', () => {
                 expiredAt: '2024-02-01T00:00:00.000Z',
                 expiredInMinutes: 5,
                 reference: 'ref-1',
+                channel: EnumNotificationVerificationChannel.sms,
             };
             notificationAccountDomain.processVerificationMobileNumber.mockResolvedValue(
                 response

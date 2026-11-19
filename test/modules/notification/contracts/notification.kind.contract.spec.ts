@@ -2,6 +2,8 @@ import { NotificationKindContract } from '@modules/notification/contracts/notifi
 import {
     EnumNotificationKind,
     EnumNotificationSmsProcess,
+    EnumNotificationVerificationChannel,
+    EnumNotificationWhatsappProcess,
 } from '@modules/notification/enums/notification.enum';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -74,5 +76,15 @@ describe('NotificationKindContract channel declarations', () => {
         expect(Object.values(EnumNotificationSmsProcess)).toContain(
             EnumNotificationSmsProcess.verificationMobileNumber
         );
+    });
+
+    it('declares the whatsapp verification channel and process enums', () => {
+        expect(Object.values(EnumNotificationWhatsappProcess)).toEqual([
+            'verificationMobileNumber',
+        ]);
+        expect(Object.values(EnumNotificationVerificationChannel)).toEqual([
+            'sms',
+            'whatsapp',
+        ]);
     });
 });

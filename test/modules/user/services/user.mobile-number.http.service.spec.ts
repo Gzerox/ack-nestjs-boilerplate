@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { mock } from 'vitest-mock-extended';
 import type { MockProxy } from 'vitest-mock-extended';
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { UserMobileNumberDomain } from '@modules/user/domains/user.mobile-number.domain';
 import { UserMobileNumberHttpService } from '@modules/user/services/user.mobile-number.http.service';
 import type { UserAddMobileNumberRequestDto } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
@@ -18,6 +19,7 @@ describe('UserMobileNumberHttpService', () => {
         countryId: 'country-swift',
         number: '81234567890',
         phoneCode: '+62',
+        channel: EnumNotificationVerificationChannel.whatsapp,
     };
     const mobileNumber: IUserMobileNumber = {
         id: 'mobile-swift',
@@ -76,7 +78,8 @@ describe('UserMobileNumberHttpService', () => {
                     number: dto.number,
                     countryId: dto.countryId,
                     phoneCode: dto.phoneCode,
-                }
+                },
+                dto.channel
             );
         });
     });
@@ -92,11 +95,16 @@ describe('UserMobileNumberHttpService', () => {
             ).resolves.toEqual({ data: mobileNumber });
             expect(
                 userMobileNumberDomain.updateMobileNumber
-            ).toHaveBeenCalledWith('user-swift', mobileNumber.id, {
-                number: dto.number,
-                countryId: dto.countryId,
-                phoneCode: dto.phoneCode,
-            });
+            ).toHaveBeenCalledWith(
+                'user-swift',
+                mobileNumber.id,
+                {
+                    number: dto.number,
+                    countryId: dto.countryId,
+                    phoneCode: dto.phoneCode,
+                },
+                dto.channel
+            );
         });
     });
 
@@ -116,18 +124,23 @@ describe('UserMobileNumberHttpService', () => {
     });
 
     describe('resendMobileNumberVerification', () => {
-        it('hands the user and mobile number ids to the domain', async () => {
+        it('hands the ids and the channel to the domain', async () => {
             userMobileNumberDomain.resendMobileNumberVerification.mockResolvedValue();
 
             await expect(
                 service.resendMobileNumberVerification(
                     'user-swift',
-                    mobileNumber.id
+                    mobileNumber.id,
+                    { channel: EnumNotificationVerificationChannel.whatsapp }
                 )
             ).resolves.toBeUndefined();
             expect(
                 userMobileNumberDomain.resendMobileNumberVerification
-            ).toHaveBeenCalledWith('user-swift', mobileNumber.id);
+            ).toHaveBeenCalledWith(
+                'user-swift',
+                mobileNumber.id,
+                EnumNotificationVerificationChannel.whatsapp
+            );
         });
     });
 

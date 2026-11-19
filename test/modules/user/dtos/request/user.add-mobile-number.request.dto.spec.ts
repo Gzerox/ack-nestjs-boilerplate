@@ -1,7 +1,9 @@
+import { EnumNotificationVerificationChannel } from '@modules/notification/enums/notification.enum';
 import { UserAddMobileNumberRequestSchema } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
 
 describe('UserAddMobileNumberRequestSchema', () => {
     const payload = {
+        channel: 'sms',
         countryId: '507f1f77bcf86cd799439012',
         number: '81234567890',
         phoneCode: '+62',
@@ -75,6 +77,29 @@ describe('UserAddMobileNumberRequestSchema', () => {
                 ...payload,
                 username: 'johnSmith123',
             })
+        ).toThrow();
+    });
+
+    it('rejects an absent channel', () => {
+        const { channel: _channel, ...rest } = payload;
+
+        expect(() => UserAddMobileNumberRequestSchema.parse(rest)).toThrow();
+    });
+
+    it('accepts whatsapp as the channel', () => {
+        const result = UserAddMobileNumberRequestSchema.parse({
+            ...payload,
+            channel: 'whatsapp',
+        });
+
+        expect(result.channel).toBe(
+            EnumNotificationVerificationChannel.whatsapp
+        );
+    });
+
+    it.each(['telegram', 1, null])('rejects channel %j', channel => {
+        expect(() =>
+            UserAddMobileNumberRequestSchema.parse({ ...payload, channel })
         ).toThrow();
     });
 });

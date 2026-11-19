@@ -28,16 +28,11 @@ export class NotificationRepository implements INotificationRepository {
     private buildCreateData(
         kind: EnumNotificationKind,
         { id, userId, metadata, createdBy }: INotificationCreate,
+        pendingChannels: EnumNotificationChannel[],
         today: Date
     ): Prisma.NotificationUncheckedCreateInput {
-        const {
-            type,
-            priority,
-            title,
-            body,
-            pendingChannels,
-            deliveredChannels,
-        } = NotificationKindContract[kind];
+        const { type, priority, title, body, deliveredChannels } =
+            NotificationKindContract[kind];
 
         return {
             id,
@@ -100,9 +95,24 @@ export class NotificationRepository implements INotificationRepository {
         kind: EnumNotificationKind,
         payload: INotificationCreate
     ): Promise<Notification> {
+        const { pendingChannels } = NotificationKindContract[kind];
+
+        return this.createForChannels(kind, payload, pendingChannels);
+    }
+
+    async createForChannels(
+        kind: EnumNotificationKind,
+        payload: INotificationCreate,
+        pendingChannels: EnumNotificationChannel[]
+    ): Promise<Notification> {
         const today = this.helperDateService.create();
 
-        const createData = this.buildCreateData(kind, payload, today);
+        const createData = this.buildCreateData(
+            kind,
+            payload,
+            pendingChannels,
+            today
+        );
 
         return this.databaseService.client.notification.create({
             data: createData,
@@ -117,7 +127,13 @@ export class NotificationRepository implements INotificationRepository {
         return this.databaseService.withTransaction(async tx => {
             const created: Notification[] = [];
             for (const { kind, payload } of entries) {
-                const createData = this.buildCreateData(kind, payload, today);
+                const { pendingChannels } = NotificationKindContract[kind];
+                const createData = this.buildCreateData(
+                    kind,
+                    payload,
+                    pendingChannels,
+                    today
+                );
                 const row = await tx.notification.create({
                     data: createData,
                 });

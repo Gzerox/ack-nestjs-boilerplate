@@ -437,6 +437,27 @@ describe('AppEnvSchema', () => {
             });
         });
 
+        it('accepts the Social Messaging keys as optional', () => {
+            const absent = AppEnvSchema.safeParse(validEnv);
+            const present = AppEnvSchema.safeParse({
+                ...validEnv,
+                AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY: 'sm-key',
+                AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET: 'sm-secret',
+                AWS_SOCIAL_MESSAGING_REGION: 'us-east-1',
+                AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID: 'phone-1',
+                AWS_SOCIAL_MESSAGING_META_API_VERSION: 'v20.0',
+                AWS_SOCIAL_MESSAGING_TEMPLATE_NAME: 'otp_template',
+                AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES: 'en,id',
+            });
+
+            expect(absent.success).toBe(true);
+            expect(present.success).toBe(true);
+            expect(present.data).toMatchObject({
+                AWS_SOCIAL_MESSAGING_TEMPLATE_NAME: 'otp_template',
+                AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES: 'en,id',
+            });
+        });
+
         it('raises no credential issue when neither AWS credential is set', () => {
             const result = AppEnvSchema.safeParse(validEnv);
 

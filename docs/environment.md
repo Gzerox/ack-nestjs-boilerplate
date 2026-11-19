@@ -153,11 +153,21 @@ EMAIL_NO_REPLY=noreply@mail.com
 EMAIL_SUPPORT=support@mail.com
 EMAIL_ADMIN=admin@mail.com
 
-# AWS SNS (Optional; SMS is enabled for reset-2FA and new-device security alerts)
+# AWS SNS (Optional; SMS carries reset-2FA and new-device security alerts and mobile-number verification codes)
 AWS_SNS_IAM_CREDENTIAL_KEY=
 AWS_SNS_IAM_CREDENTIAL_SECRET=
 AWS_SNS_REGION=
 AWS_SNS_SENDER_ID=
+
+# AWS End User Messaging Social (Optional; WhatsApp mobile-number verification codes)
+AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY=
+AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET=
+AWS_SOCIAL_MESSAGING_REGION=
+AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID=
+# No default; required for the sender. Set the Meta API version AWS End User Messaging Social currently supports.
+AWS_SOCIAL_MESSAGING_META_API_VERSION=
+AWS_SOCIAL_MESSAGING_TEMPLATE_NAME=
+AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES=en
 
 # Firebase (Optional)
 FIREBASE_PROJECT_ID=
@@ -610,7 +620,11 @@ EMAIL_ADMIN=admin@mail.com
 
 #### SNS (SMS Service)
 
-`AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` initialize the optional SNS client. `AWS_SNS_SENDER_ID` is optional. SMS is enqueued only for reset-two-factor-by-admin and new-device-login security notifications, and only for users with verified mobile numbers.
+`AWS_SNS_IAM_CREDENTIAL_KEY`, `AWS_SNS_IAM_CREDENTIAL_SECRET`, and `AWS_SNS_REGION` initialize the optional SNS client. `AWS_SNS_SENDER_ID` is optional. SMS carries the reset-two-factor-by-admin and new-device-login security alerts, enqueued only for users with verified mobile numbers, and the mobile-number verification code when the user picks `sms`.
+
+#### Social Messaging (WhatsApp)
+
+`AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY`, `AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET`, `AWS_SOCIAL_MESSAGING_REGION`, `AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID`, `AWS_SOCIAL_MESSAGING_TEMPLATE_NAME`, and `AWS_SOCIAL_MESSAGING_META_API_VERSION` initialize the optional WhatsApp client; with any of them empty the client is disabled and WhatsApp sends are skipped. Set the Meta API version AWS End User Messaging Social currently supports; there is no default. `AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES` is a comma-separated list of the language codes Meta approved for the template and defaults to `en`. The Meta prerequisites and the IAM permission are in [Third-Party Integration][ref-doc-third-party-integration].
 
 ### Firebase Settings
 
@@ -670,5 +684,6 @@ SENTRY_DSN=
 [ref-doc-two-factor]: two-factor.md
 [ref-doc-vault]: vault.md
 [ref-doc-email]: email.md
+[ref-doc-third-party-integration]: third-party-integration.md
 [ref-mongodb-atlas]: https://www.mongodb.com/products/platform/atlas-database
 [ref-elasticache]: https://aws.amazon.com/elasticache/

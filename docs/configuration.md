@@ -1067,3 +1067,5 @@ cache: {
 [ref-doc-database]: database.md
 [ref-doc-cache]: cache.md
 SNS configuration uses `aws.sns.iam.key`, `aws.sns.iam.secret`, `aws.sns.region`, `aws.sns.senderId`, and `aws.sns.maxAttempts`. The SMS queue uses `queue.job.smsBackoffDelayInMs`.
+
+WhatsApp configuration uses `aws.socialMessaging.iam.key`, `aws.socialMessaging.iam.secret`, `aws.socialMessaging.region`, `aws.socialMessaging.originationPhoneNumberId`, `aws.socialMessaging.metaApiVersion` (no default; required for the sender), `aws.socialMessaging.templateName`, `aws.socialMessaging.templateLanguages` (default `['en']`), and `aws.socialMessaging.maxAttempts`. The WhatsApp queue uses `queue.job.whatsappBackoffDelayInMs`.

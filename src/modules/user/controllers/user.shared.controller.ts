@@ -42,6 +42,8 @@ import { UserAddMobileNumberRequestSchema } from '@modules/user/dtos/request/use
 import { UserUpdateMobileNumberRequestSchema } from '@modules/user/dtos/request/user.update-mobile-number.request.dto';
 import type { UserAddMobileNumberRequestDto } from '@modules/user/dtos/request/user.add-mobile-number.request.dto';
 import type { UserUpdateMobileNumberRequestDto } from '@modules/user/dtos/request/user.update-mobile-number.request.dto';
+import { UserResendMobileNumberVerificationRequestSchema } from '@modules/user/dtos/request/user.resend-mobile-number-verification.request.dto';
+import type { UserResendMobileNumberVerificationRequestDto } from '@modules/user/dtos/request/user.resend-mobile-number-verification.request.dto';
 import { UserVerifyMobileNumberRequestSchema } from '@modules/user/dtos/request/user.verify-mobile-number.request.dto';
 import type { UserVerifyMobileNumberRequestDto } from '@modules/user/dtos/request/user.verify-mobile-number.request.dto';
 import { UserUpdateProfilePhotoRequestSchema } from '@modules/user/dtos/request/user.update-profile-photo.request.dto';
@@ -310,11 +312,14 @@ export class UserSharedController {
     async resendMobileNumberVerification(
         @AuthJwtPayload('userId') userId: string,
         @Param('mobileNumberId', { schema: RequestMongoIdSchema })
-        mobileNumberId: string
+        mobileNumberId: string,
+        @Body({ schema: UserResendMobileNumberVerificationRequestSchema })
+        body: UserResendMobileNumberVerificationRequestDto
     ): Promise<void> {
         await this.userMobileNumberHttpService.resendMobileNumberVerification(
             userId,
-            mobileNumberId
+            mobileNumberId,
+            body
         );
     }
 

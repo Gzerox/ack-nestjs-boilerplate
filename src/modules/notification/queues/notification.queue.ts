@@ -271,6 +271,7 @@ export class NotificationQueue {
             expiredAt,
             expiredInMinutes,
             reference,
+            channel,
         }: INotificationVerificationMobileNumberPayload
     ): Promise<void> {
         const encryptedOtp = this.encryptValue(otp, userId);
@@ -285,6 +286,7 @@ export class NotificationQueue {
                     expiredAt,
                     expiredInMinutes,
                     reference,
+                    channel,
                 },
             };
 

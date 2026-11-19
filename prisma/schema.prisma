@@ -945,6 +945,7 @@ enum EnumNotificationChannel {
   push
   email
   sms
+  whatsapp
   inApp
   silent
 }

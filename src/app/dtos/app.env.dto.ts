@@ -88,6 +88,13 @@ export const AppEnvSchema = z
         AWS_SNS_IAM_CREDENTIAL_SECRET: z.string().optional(),
         AWS_SNS_REGION: z.string().optional(),
         AWS_SNS_SENDER_ID: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_KEY: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_IAM_CREDENTIAL_SECRET: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_REGION: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_ORIGINATION_PHONE_NUMBER_ID: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_META_API_VERSION: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_TEMPLATE_NAME: z.string().optional(),
+        AWS_SOCIAL_MESSAGING_TEMPLATE_LANGUAGES: z.string().optional(),
 
         CACHE_REDIS_URL: z.string().min(1),
         QUEUE_REDIS_URL: z.string().min(1),

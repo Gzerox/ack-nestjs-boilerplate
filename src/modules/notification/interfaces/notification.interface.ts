@@ -269,7 +269,9 @@ export interface INotificationSendWhatsappVerificationPayload {
 export interface INotificationSendSmsVerificationPayload {
     userId: string;
     notificationId: string;
+    mobileNumberId: string;
     phoneNumber: string;
     encryptedOtp: string;
     expiredInMinutes: number;
+    reference: string;
 }

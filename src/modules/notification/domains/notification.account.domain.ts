@@ -283,6 +283,8 @@ export class NotificationAccountDomain {
                     phoneNumber: data.phoneNumber,
                     encryptedOtp: data.encryptedOtp,
                     expiredInMinutes: data.expiredInMinutes,
+                    mobileNumberId: data.mobileNumberId,
+                    reference: data.reference,
                 });
                 break;
             }
